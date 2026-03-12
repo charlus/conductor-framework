@@ -208,7 +208,7 @@ Every workflow produces documents and every downstream workflow consumes them. H
 | **React-Components** | Convert Stitch designs into modular React components |
 | **Shadcn-UI** | Expert guidance for shadcn/ui component integration |
 | **Remotion** | Generate walkthrough videos from Stitch projects |
-| **NotebookLM-Research** | Conversational research partner using NotebookLM |
+
 
 ### Engineering Skills
 | Skill | Purpose |

@@ -94,7 +94,7 @@ Before claiming ANY work is done — a workflow phase, a build task, a spec revi
 
 *Discovery:* `.agent/workflows/` — Genesis, Storyboard, Grand-PRD, UX-UI-Design-Brief, Technical-Vision, Carve, Spec-It, Build, Quick-Path, Retrospective
 *Personas:* `.agent/personas/` — CTO, Architect, Product-Manager, Tech-Lead, Conductor-Assistant, Designer, Code-Archaeologist, Security-Auditor, Database-Architect, Performance-Optimizer
-*Skills:* `.agent/skills/` — Verification-Gate, Task-Tracker, Code-Review, Context-Updater, Brain-Dump-to-Epics, System-Janitor, UX-Reviewer + Design skills (Design-Md, Enhance-Prompt, Stitch-Loop, React-Components, Shadcn-UI, Remotion, NotebookLM-Research) + Engineering skills (Systematic-Debugging, Clean-Code, Testing-Patterns, Frontend-Design, Documentation-Templates, Deployment-Procedures, I18n-Localization, Git-Worktrees, Architecture-Patterns) + Git skills (Git-Workflow, GitLab-CLI, GitHub-CLI)
+*Skills:* `.agent/skills/` — Verification-Gate, Task-Tracker, Code-Review, Context-Updater, Brain-Dump-to-Epics, System-Janitor, UX-Reviewer + Design skills (Design-Md, Enhance-Prompt, Stitch-Loop, React-Components, Shadcn-UI, Remotion) + Engineering skills (Systematic-Debugging, Clean-Code, Testing-Patterns, Frontend-Design, Documentation-Templates, Deployment-Procedures, I18n-Localization, Git-Worktrees, Architecture-Patterns) + Git skills (Git-Workflow, GitLab-CLI, GitHub-CLI)
 
 **Selective Skill Loading:** When reading a skill, read `SKILL.md` first. Only read sub-files (guides, scripts, references) if they match the current task. Don't load entire skill trees.
 

@@ -123,7 +123,7 @@ skills=(
   "Brain-Dump-to-Epics" "System-Janitor" "UX-Reviewer"
   "Verification-Gate" "Task-Tracker" "Code-Review" "Context-Updater"
   "Design-Md" "Enhance-Prompt" "Stitch-Loop" "React-Components"
-  "Shadcn-UI" "Remotion" "NotebookLM-Research"
+  "Shadcn-UI" "Remotion"
   "Systematic-Debugging" "Clean-Code" "Testing-Patterns"
   "Frontend-Design" "Documentation-Templates" "Deployment-Procedures"
   "I18n-Localization" "Git-Worktrees"

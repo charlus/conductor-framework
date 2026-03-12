@@ -9,7 +9,7 @@ Workflows, skills, and personas that turn any AI coding assistant into a Product
 ## Quick Install
 
 ```bash
-npx conductor-framework init
+npx github:charlus/conductor-framework init
 ```
 
 This scaffolds the full Conductor Framework into your project:
@@ -39,13 +39,13 @@ your-project/
 
 ```bash
 # Install into a specific directory
-npx conductor-framework init ./my-project
+npx github:charlus/conductor-framework init ./my-project
 
 # Only install .agents/ (for existing projects)
-npx conductor-framework init --agent-only
+npx github:charlus/conductor-framework init --agent-only
 
 # Overwrite an existing installation
-npx conductor-framework init --force
+npx github:charlus/conductor-framework init --force
 ```
 
 ### Upgrading
@@ -53,7 +53,7 @@ npx conductor-framework init --force
 Already have Conductor installed? Upgrade to the latest:
 
 ```bash
-npx conductor-framework upgrade
+npx github:charlus/conductor-framework upgrade
 ```
 
 This will:

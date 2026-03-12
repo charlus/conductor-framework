@@ -65,7 +65,7 @@ conductor-framework/          ← You are here (package source)
 ## Parked Ideas
 
 ### Dynamic Skill Loading (V5 candidate)
-Location: `templates/.conductor/2-Backlog/Project-Backlog/Dynamic-Skill-Loading.md`
+Location: `docs/roadmap/Dynamic-Skill-Loading.md`
 
 Vision: "npm for AI skills" — detect tech stack during Genesis, download relevant skills from a registry. Like VS Code extensions but for AI agent capabilities.
 

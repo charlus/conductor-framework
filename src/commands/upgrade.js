@@ -126,7 +126,7 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
 
     // ---- Step 4: Platform stubs ----
     stdout.write("\nStep 4: Platform stubs...\n");
-    for (const stub of ["GEMINI.md", "CLAUDE.md"]) {
+    for (const stub of ["GEMINI.md", "CLAUDE.md", "CHANGELOG.md"]) {
       const stubPath = join(targetDir, stub);
       if (!(await exists(stubPath))) {
         await cp(join(templateDir, stub), stubPath);

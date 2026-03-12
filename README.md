@@ -16,7 +16,7 @@ This scaffolds the full Conductor Framework into your project:
 
 ```
 your-project/
-├── .agent/              # AI agent core (workflows, skills, personas)
+├── .agents/              # AI agent core (workflows, skills, personas)
 │   ├── AGENTS.md        # System instructions (auto-discovered)
 │   ├── workflows/       # Genesis → Build pipeline
 │   ├── skills/          # 26 modular skills
@@ -40,7 +40,7 @@ your-project/
 # Install into a specific directory
 npx conductor-framework init ./my-project
 
-# Only install .agent/ (for existing projects)
+# Only install .agents/ (for existing projects)
 npx conductor-framework init --agent-only
 
 # Overwrite an existing installation
@@ -56,7 +56,7 @@ npx conductor-framework upgrade
 ```
 
 This will:
-- **Replace** `.agent/` with the latest framework (workflows, skills, personas)
+- **Replace** `.agents/` with the latest framework (workflows, skills, personas)
 - **Migrate** root numbered folders into `.conductor/` (if upgrading from V3)
 - **Preserve** all your project data in `.conductor/`
 - **Report** what changed (new skills, removed skills)
@@ -89,7 +89,7 @@ Genesis → Storyboard → Grand PRD → Technical Vision → Carve → Spec-It 
 - **27 Skills** — Verification Gate, Code Review, Frontend Design, Systematic Debugging, Git Workflow, and more
 - **10 Personas** — CTO, Architect, Product Manager, Designer, Security Auditor, Database Architect, and more
 
-Full documentation: [`How-It-Works.md`](templates/.agent/How-It-Works.md)
+Full documentation: [`How-It-Works.md`](templates/.agents/How-It-Works.md)
 
 ---
 
@@ -106,7 +106,7 @@ Before claiming any work is done, the agent must run a check, read the output, c
 Validate your installation:
 
 ```bash
-bash .agent/tests/check-conductor.sh
+bash .agents/tests/check-conductor.sh
 ```
 
 ---

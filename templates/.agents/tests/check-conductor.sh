@@ -6,7 +6,7 @@
 # and the framework is structurally intact.
 #
 # Usage:
-#   bash .agent/tests/check-conductor.sh
+#   bash .agents/tests/check-conductor.sh
 #
 # Adapted from Antigravity Superpowers' check-antigravity-profile.sh
 # ============================================================

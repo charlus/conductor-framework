@@ -211,7 +211,7 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
 
 3.  **Persona Review (Optional):**
     * *"Want me to put on the CTO hat and stress-test the long-term viability of these decisions?"*
-    * If yes: invoke `.agent/personas/CTO.md` for strategic review
+    * If yes: invoke `.agents/personas/CTO.md` for strategic review
 
 4.  **Save:** Create/update `Blueprint/Technical-Vision.md`
     * **Ask:** *"Ready for me to save the Technical Vision?"*

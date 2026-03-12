@@ -24,8 +24,8 @@ Before starting Build, confirm these exist:
 2.  **Feature Spec** — `Feature-Spec.md` (produced by Spec-It) — this is your acceptance criteria
 
 If either is missing:
-* **No Implementation Plan?** → Run **Spec-It** first (`.agent/workflows/Spec-It.md`)
-* **No Feature Spec but user wants to skip?** → Run **Quick-Path** first (`.agent/workflows/Quick-Path.md`)
+* **No Implementation Plan?** → Run **Spec-It** first (`.agents/workflows/Spec-It.md`)
+* **No Feature Spec but user wants to skip?** → Run **Quick-Path** first (`.agents/workflows/Quick-Path.md`)
 
 ---
 
@@ -115,7 +115,7 @@ For each task in the batch:
 > **Order matters:** Always spec first, then quality. No point reviewing quality if the spec is wrong.
 
 #### Step 5 — Git Commit
-* Commit the changes using Conventional Commits (see `.agent/skills/Git-Workflow/SKILL.md`)
+* Commit the changes using Conventional Commits (see `.agents/skills/Git-Workflow/SKILL.md`)
 * Example: `git commit -m "feat(auth): create user model"`
 * Only commit passing, verified code
 
@@ -191,9 +191,9 @@ Add entry to `.conductor/0-Compass/Ship-Log.md`:
 
 ### Step 3 — Create PR/MR
 
-Use Git-Workflow skill conventions (see `.agent/skills/Git-Workflow/SKILL.md`):
-* **GitHub:** `gh pr create` (see `.agent/skills/GitHub-CLI/SKILL.md`)
-* **GitLab:** `glab mr create` (see `.agent/skills/GitLab-CLI/SKILL.md`)
+Use Git-Workflow skill conventions (see `.agents/skills/Git-Workflow/SKILL.md`):
+* **GitHub:** `gh pr create` (see `.agents/skills/GitHub-CLI/SKILL.md`)
+* **GitLab:** `glab mr create` (see `.agents/skills/GitLab-CLI/SKILL.md`)
 * Link to any related issues in the description
 
 ### Step 4 — Document to Platform
@@ -269,7 +269,7 @@ Before claiming this implementation is done:
 
 ## Next Steps After Build
 
-* **Want to reflect?** → Retrospective workflow (`.agent/workflows/Retrospective.md`)
+* **Want to reflect?** → Retrospective workflow (`.agents/workflows/Retrospective.md`)
 * **Another implementation to build?** → Return to **Spec-It** for the next slice
 * **All done with the project?** → Celebrate. Update `.conductor/0-Compass/North-Star.md` if metrics changed
 

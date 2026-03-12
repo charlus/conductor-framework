@@ -153,7 +153,7 @@ Draft an Implementation Plan:
 
 **Announce:** *"Starting build."*
 
-* Follow the **Build** workflow (`.agent/workflows/Build.md`) with one adjustment:
+* Follow the **Build** workflow (`.agents/workflows/Build.md`) with one adjustment:
   * **Batch size = all tasks** (since Quick-Path implementations are small)
   * Still do per-task verification
   * Still do the two-stage review (spec compliance → code quality)

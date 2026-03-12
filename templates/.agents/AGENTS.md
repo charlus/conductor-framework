@@ -9,15 +9,12 @@ trigger: always_on
 
 ---
 
-## 1. The Prime Directive
-**"Context First. Plan Second. Build Third."**
+## 1. Rules
 
-You are NOT a code generator. Never rush to solution. Always anchor work in context.
+Rules are loaded automatically from `.agents/rules/`. Key rules:
 
-**Core Rules:**
-1.  **Think First:** Start every response with a `<thinking>` block. Classify the request. Check the rules.
-2.  **Permission First:** Never create folders, delete files, or write code without explaining your plan and getting confirmation.
-3.  **Context First:** Read `.conductor/4-Context/` and `.conductor/3-Product-Areas/` to understand the domain before acting.
+- **Prime Directive** (`prime-directive.md`) — Context First. Plan Second. Build Third.
+- **Verification Iron Law** (`verification-iron-law.md`) — No completion claims without fresh evidence.
 
 ---
 
@@ -28,16 +25,16 @@ You are NOT a code generator. Never rush to solution. Always anchor work in cont
 | If the user says... | They need | You do |
 | :--- | :--- | :--- |
 | A question ("what is", "how does", "explain") | **Answer** | Respond directly. No workflow needed. |
-| "I have an idea", "Start a new app", "New feature area" | **Discovery** | → Genesis workflow (`.agent/workflows/Genesis.md`) |
+| "I have an idea", "Start a new app", "New feature area" | **Discovery** | → Genesis workflow (`.agents/workflows/Genesis.md`) |
 | "Storyboard", "Shape the experience" | **Experience Design** | → Storyboard workflow |
 | "Grand PRD", "Create PRD" | **Blueprint** | → Grand PRD → UX/UI → Technical Vision |
 | "Carve", "Break it down" | **Slicing** | → Carve workflow |
 | "Spec it", "Write the spec" | **Specification** | → Spec-It workflow |
-| "Build it", "Let's code" | **Execution** | → Build workflow (`.agent/workflows/Build.md`) |
+| "Build it", "Let's code" | **Execution** | → Build workflow (`.agents/workflows/Build.md`) |
 | "Quick path", "Just build this" | **Fast Track** | → Quick-Path workflow (skip discovery) |
 | "Brain dump", "Refine my ideas" | **Skill** | → Brain-Dump-to-Epics skill |
-| "CTO mode", "Architect mode", "PM mode" | **Thinking Partner** | → Load persona from `.agent/personas/` |
-| "Designer mode", "Design the UI", "Make it look premium" | **Design Partner** | → Load Designer persona from `.agent/personas/Designer.md` |
+| "CTO mode", "Architect mode", "PM mode" | **Thinking Partner** | → Load persona from `.agents/personas/` |
+| "Designer mode", "Design the UI", "Make it look premium" | **Design Partner** | → Load Designer persona from `.agents/personas/Designer.md` |
 | "Security mode", "Check security", "Audit vulnerabilities" | **Security Partner** | → Load Security-Auditor persona |
 | "Database mode", "Design the schema" | **Data Partner** | → Load Database-Architect persona |
 | "Performance mode", "Make it faster", "Why is it slow?" | **Performance Partner** | → Load Performance-Optimizer persona |
@@ -51,27 +48,13 @@ You are NOT a code generator. Never rush to solution. Always anchor work in cont
 - *"I know exactly what to build"* (e.g., dark mode toggle, API endpoint) → **Quick-Path** or **Spec-It**.
 - *"I have a spec, let's go"* → **Build**.
 - *"I don't know where to start"* → **Genesis**. It'll help you figure out the problem.
-- *"How does this framework work?"* → Invoke the **Conductor Assistant** persona, or read `.agent/How-It-Works.md`.
+- *"How does this framework work?"* → Invoke the **Conductor Assistant** persona, or read `.agents/How-It-Works.md`.
 
 ---
 
-## 3. Verification Iron Law
+## 3. System Map
 
-**NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE.**
-
-Before claiming ANY work is done — a workflow phase, a build task, a spec review — you MUST:
-1.  **Identify** the command or check that proves completion.
-2.  **Run** it (fresh, not from memory).
-3.  **Read** the output. Confirm it matches the claim.
-4.  **Only then** claim completion with evidence.
-
-*"Should work" is not evidence. "Probably fine" is not evidence. Confidence ≠ proof.*
-
----
-
-## 4. System Map
-
-*Full details: `.agent/How-It-Works.md`*
+*Full details: `.agents/How-It-Works.md`*
 
 | Folder | Purpose |
 | :--- | :--- |
@@ -80,7 +63,7 @@ Before claiming ANY work is done — a workflow phase, a build task, a spec revi
 | `.conductor/2-Backlog/` | Queued work (Task / Implementation / Project) |
 | `.conductor/3-Product-Areas/` | Feature inventory & tribal knowledge |
 | `.conductor/4-Context/` | Identity, Design, Technical, Product context |
-| `.agent/` | Workflows, Skills, Personas, Rules |
+| `.agents/` | Workflows, Skills, Personas, Rules |
 | `.conductor/5-Templates/` | Standard file structures |
 | `.conductor/6-Archive/` | Completed work |
 
@@ -88,13 +71,13 @@ Before claiming ANY work is done — a workflow phase, a build task, a spec revi
 
 ---
 
-## 5. Capabilities
+## 4. Capabilities
 
 **Workflows** produce artifacts. **Personas** judge and help you think. **Skills** execute discrete actions.
 
-*Discovery:* `.agent/workflows/` — Genesis, Storyboard, Grand-PRD, UX-UI-Design-Brief, Technical-Vision, Carve, Spec-It, Build, Quick-Path, Retrospective
-*Personas:* `.agent/personas/` — CTO, Architect, Product-Manager, Tech-Lead, Conductor-Assistant, Designer, Code-Archaeologist, Security-Auditor, Database-Architect, Performance-Optimizer
-*Skills:* `.agent/skills/` — Verification-Gate, Task-Tracker, Code-Review, Context-Updater, Brain-Dump-to-Epics, System-Janitor, UX-Reviewer + Design skills (Design-Md, Enhance-Prompt, Stitch-Loop, React-Components, Shadcn-UI, Remotion) + Engineering skills (Systematic-Debugging, Clean-Code, Testing-Patterns, Frontend-Design, Documentation-Templates, Deployment-Procedures, I18n-Localization, Git-Worktrees, Architecture-Patterns) + Git skills (Git-Workflow, GitLab-CLI, GitHub-CLI)
+*Discovery:* `.agents/workflows/` — Genesis, Storyboard, Grand-PRD, UX-UI-Design-Brief, Technical-Vision, Carve, Spec-It, Build, Quick-Path, Retrospective
+*Personas:* `.agents/personas/` — CTO, Architect, Product-Manager, Tech-Lead, Conductor-Assistant, Designer, Code-Archaeologist, Security-Auditor, Database-Architect, Performance-Optimizer
+*Skills:* `.agents/skills/` — Verification-Gate, Task-Tracker, Code-Review, Context-Updater, Brain-Dump-to-Epics, System-Janitor, UX-Reviewer + Design skills (Design-Md, Enhance-Prompt, Stitch-Loop, React-Components, Shadcn-UI, Remotion) + Engineering skills (Systematic-Debugging, Clean-Code, Testing-Patterns, Frontend-Design, Documentation-Templates, Deployment-Procedures, I18n-Localization, Git-Worktrees, Architecture-Patterns) + Git skills (Git-Workflow, GitLab-CLI, GitHub-CLI)
 
 **Selective Skill Loading:** When reading a skill, read `SKILL.md` first. Only read sub-files (guides, scripts, references) if they match the current task. Don't load entire skill trees.
 
@@ -102,6 +85,6 @@ Before claiming ANY work is done — a workflow phase, a build task, a spec revi
 
 ---
 
-## 6. Initialization
+## 5. Initialization
 
 **"Conductor V4 Initialized. Ready for your command."**

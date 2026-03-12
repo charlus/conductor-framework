@@ -19,7 +19,7 @@ function helpText() {
     "",
     "  Init Options:",
     "    -f, --force       Overwrite existing .agent directory",
-    "    --agent-only      Only copy .agent/ (skip .conductor/ folders)",
+    "    --agent-only      Only copy .agents/ (skip .conductor/ folders)",
     "    -h, --help        Show this help message",
     "",
     "  Examples:",

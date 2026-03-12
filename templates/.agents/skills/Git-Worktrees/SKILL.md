@@ -30,7 +30,7 @@ ls -d worktrees 2>/dev/null      # Alternative
 ### 2. Check AGENTS.md
 
 ```bash
-grep -i "worktree.*director" .agent/AGENTS.md 2>/dev/null
+grep -i "worktree.*director" .agents/AGENTS.md 2>/dev/null
 ```
 
 **If preference specified:** Use it without asking.
@@ -149,7 +149,7 @@ Ready to implement <feature-name>
 | `.worktrees/` exists       | Use it (verify ignored)             |
 | `worktrees/` exists        | Use it (verify ignored)             |
 | Both exist                 | Use `.worktrees/`                   |
-| Neither exists             | Check `.agent/AGENTS.md` → Ask user |
+| Neither exists             | Check `.agents/AGENTS.md` → Ask user |
 | Directory not ignored      | Add to .gitignore + commit          |
 | Tests fail during baseline | Report failures + ask               |
 | No package.json/Cargo.toml | Skip dependency install             |
@@ -164,7 +164,7 @@ Ready to implement <feature-name>
 ### Assuming directory location
 
 - **Problem:** Creates inconsistency, violates project conventions
-- **Fix:** Follow priority: existing > `.agent/AGENTS.md` > ask
+- **Fix:** Follow priority: existing > `.agents/AGENTS.md` > ask
 
 ### Proceeding with failing tests
 
@@ -200,11 +200,11 @@ Ready to implement auth feature
 - Skip baseline test verification
 - Proceed with failing tests without asking
 - Assume directory location when ambiguous
-- Skip `.agent/AGENTS.md` check
+- Skip `.agents/AGENTS.md` check
 
 **Always:**
 
-- Follow directory priority: existing > `.agent/AGENTS.md` > ask
+- Follow directory priority: existing > `.agents/AGENTS.md` > ask
 - Verify directory is ignored for project-local
 - Auto-detect and run project setup
 - Verify clean test baseline

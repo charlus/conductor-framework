@@ -73,7 +73,7 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
   }
 
   const targetDir = resolve(cwd, parsed.target);
-  const agentDir = join(targetDir, ".agent");
+  const agentsDir = join(targetDir, ".agents");
   const templateDir = getTemplateDir();
 
   try {
@@ -86,23 +86,31 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
       );
     }
 
-    // Check if .agent/ already exists
-    const agentExists = await exists(agentDir);
-    if (agentExists && !parsed.force) {
+    // Check if .agents/ already exists
+    const agentsExists = await exists(agentsDir);
+    if (agentsExists && !parsed.force) {
       stderr.write(
-        `.agent/ already exists at ${agentDir}\n` +
+        `.agents/ already exists at ${agentsDir}\n` +
           `Re-run with --force to replace it.\n`
       );
       return 1;
     }
 
-    if (agentExists && parsed.force) {
-      await rm(agentDir, { recursive: true, force: true });
-      stdout.write("Removed existing .agent/ directory.\n");
+    if (agentsExists && parsed.force) {
+      await rm(agentsDir, { recursive: true, force: true });
+      stdout.write("Removed existing .agents/ directory.\n");
     }
 
-    // Copy .agent/
-    await cp(join(templateDir, ".agent"), agentDir, { recursive: true });
+    // Also clean up legacy .agent/ (without 's') if present
+    const legacyAgentDir = join(targetDir, ".agent");
+    if (await exists(legacyAgentDir)) {
+      await rm(legacyAgentDir, { recursive: true, force: true });
+      stdout.write("🧹 Removed legacy .agent/ (replaced by .agents/)\n");
+    }
+
+    // Copy .agents/
+    await cp(join(templateDir, ".agents"), agentsDir, { recursive: true });
+    stdout.write("✅ Installed .agents/ (workflows, skills, personas, rules)\n");
 
     // Copy .conductor/ (project state folders)
     if (!parsed.agentOnly) {
@@ -118,7 +126,6 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
         stdout.write("✅ Installed .conductor/ (project state folders)\n");
       }
     }
-    stdout.write("✅ Installed .agent/ (workflows, skills, personas)\n");
 
     // Copy platform stubs
     for (const stub of ["GEMINI.md", "CLAUDE.md", "CHANGELOG.md"]) {
@@ -129,16 +136,14 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
       }
     }
 
-    // (numbered folders are now inside .conductor/, handled above)
-
     stdout.write("\n");
     stdout.write("🎼 Conductor Framework V4 initialized!\n");
     stdout.write("\n");
     stdout.write("Next steps:\n");
-    stdout.write("  1. Run the self-test:  bash .agent/tests/check-conductor.sh\n");
+    stdout.write("  1. Run the self-test:  bash .agents/tests/check-conductor.sh\n");
     stdout.write('  2. Start building:     Tell your AI "Let\'s go"\n');
     stdout.write("\n");
-    stdout.write("Docs: .agent/How-It-Works.md\n");
+    stdout.write("Docs: .agents/How-It-Works.md\n");
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

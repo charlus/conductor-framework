@@ -8,7 +8,7 @@ An overview of how the system is structured, how things flow, and what each piec
 
 ```
 your-project/
-├── .agent/                       # Agent Core (Workflows, Skills, Personas)
+├── .agents/                       # Agent Core (Workflows, Skills, Personas)
 │   ├── AGENTS.md                 # System instructions — auto-discovered entry point
 │   ├── How-It-Works.md           # This file - system overview
 │   ├── workflows/                # Agent Workflows (Genesis → Build)
@@ -272,7 +272,7 @@ Not everyone needs the full system. Start simple.
 Run the framework validation suite to verify structural integrity:
 
 ```bash
-bash .agent/tests/check-conductor.sh
+bash .agents/tests/check-conductor.sh
 ```
 
 This validates all files exist, naming is correct, and version references are consistent.

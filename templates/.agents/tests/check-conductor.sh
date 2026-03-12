@@ -66,6 +66,7 @@ required_dirs=(
   "$AGENT_DIR/workflows"
   "$AGENT_DIR/skills"
   "$AGENT_DIR/personas"
+  "$AGENT_DIR/rules"
   "$AGENT_DIR/tests"
 )
 
@@ -129,15 +130,28 @@ skills=(
   "I18n-Localization" "Git-Worktrees"
   "Git-Workflow" "GitLab-CLI" "GitHub-CLI"
   "Architecture-Patterns"
+  "Lint-And-Validate"
 )
 
 for skill in "${skills[@]}"; do
   require_file "$AGENT_DIR/skills/$skill/SKILL.md"
 done
 
-# ---- 6. Naming Convention ----
+# ---- 6. Rules ----
 echo ""
-echo "6. Naming Convention (Title-Case-Kebab)..."
+echo "6. Rules..."
+
+rules=(
+  "conductor-system" "prime-directive" "verification-iron-law"
+)
+
+for rule in "${rules[@]}"; do
+  require_file "$AGENT_DIR/rules/$rule.md"
+done
+
+# ---- 7. Naming Convention ----
+echo ""
+echo "7. Naming Convention (Title-Case-Kebab)..."
 
 lowercase_found=0
 for dir in "$AGENT_DIR/skills"/*/; do
@@ -152,14 +166,14 @@ if [ "$lowercase_found" -eq 0 ]; then
   pass "All skill folders follow Title-Case-Kebab"
 fi
 
-# ---- 7. Version Check ----
+# ---- 8. Version Check ----
 echo ""
-echo "7. Version Check..."
+echo "8. Version Check..."
 
-if grep -q "V4" "$AGENT_DIR/AGENTS.md"; then
-  pass "AGENTS.md references V4"
+if grep -q "V4" "$AGENT_DIR/rules/conductor-system.md"; then
+  pass "conductor-system.md references V4"
 else
-  fail "AGENTS.md does not reference V4"
+  fail "conductor-system.md does not reference V4"
 fi
 
 if grep -q "V4" "$AGENT_DIR/How-It-Works.md"; then

@@ -1,4 +1,5 @@
 import { initCommand } from "./commands/init.js";
+import { upgradeCommand } from "./commands/upgrade.js";
 
 function helpText() {
   return [
@@ -10,20 +11,21 @@ function helpText() {
     "",
     "  Usage:",
     "    conductor init [target-directory] [options]",
+    "    conductor upgrade [target-directory]",
     "",
     "  Commands:",
-    "    init        Scaffold the Conductor framework in a project",
+    "    init        Scaffold the Conductor framework in a new project",
+    "    upgrade     Upgrade an existing project to the latest framework",
     "",
-    "  Options:",
+    "  Init Options:",
     "    -f, --force       Overwrite existing .agent directory",
-    "    --agent-only      Only copy .agent/ (skip numbered folders)",
+    "    --agent-only      Only copy .agent/ (skip .conductor/ folders)",
     "    -h, --help        Show this help message",
     "",
     "  Examples:",
     "    npx conductor-framework init",
     "    npx conductor-framework init ./my-project",
-    "    npx conductor-framework init --agent-only",
-    "    npx conductor-framework init --force",
+    "    npx conductor-framework upgrade",
     "",
   ].join("\n");
 }
@@ -43,6 +45,14 @@ export async function runCli(args, io = process) {
 
   if (command === "init") {
     return initCommand(rest, {
+      cwd: io.cwd?.() ?? process.cwd(),
+      stdout: io.stdout,
+      stderr: io.stderr,
+    });
+  }
+
+  if (command === "upgrade") {
+    return upgradeCommand(rest, {
       cwd: io.cwd?.() ?? process.cwd(),
       stdout: io.stdout,
       stderr: io.stderr,

@@ -16,8 +16,9 @@ This scaffolds the full Conductor Framework into your project:
 
 ```
 your-project/
-├── .agents/              # AI agent core (workflows, skills, personas)
-│   ├── AGENTS.md        # System instructions (auto-discovered)
+├── .agents/              # AI agent core (rules, workflows, skills, personas)
+│   ├── AGENTS.md        # Routing table (quick reference)
+│   ├── rules/           # System rules (auto-loaded by Antigravity)
 │   ├── workflows/       # Genesis → Build pipeline
 │   ├── skills/          # 26 modular skills
 │   ├── personas/        # 10 thinking partners
@@ -86,7 +87,7 @@ Genesis → Storyboard → Grand PRD → Technical Vision → Carve → Spec-It 
 ### What's Inside
 
 - **11 Workflows** — From Genesis (ideation) to Build (verified execution) to Retrospective (learning)
-- **27 Skills** — Verification Gate, Code Review, Frontend Design, Systematic Debugging, Git Workflow, and more
+- **26 Skills** — Verification Gate, Code Review, Frontend Design, Systematic Debugging, Git Workflow, and more
 - **10 Personas** — CTO, Architect, Product Manager, Designer, Security Auditor, Database Architect, and more
 
 Full documentation: [`How-It-Works.md`](templates/.agents/How-It-Works.md)

@@ -72,9 +72,10 @@ The project's "Tribal Knowledge." Context specific to YOUR product.
 - **Product/** — Growth Strategy, Future Plans.
 - **Meta/** — Decision Log, Glossary.
 
-### .agent
+### .agents
 The Agent's Operational Core.
-- **AGENTS.md** — System prompt — the routing contract, request classifier, and Verification Iron Law
+- **AGENTS.md** — Routing table and quick reference for all rules, workflows, skills, and personas
+- **rules/** — System rules loaded automatically (Prime Directive, Verification Iron Law, Conductor System)
 - **workflows/** — Step-by-step guides that *produce* artifacts through a defined process
 - **skills/** — Atomic capabilities that *execute* discrete actions
 - **personas/** — Judgment partners that embody ways of *thinking*

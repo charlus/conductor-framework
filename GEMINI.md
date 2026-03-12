@@ -28,7 +28,7 @@ conductor-framework/          ← You are here (package source)
 │       ├── init.js            # Scaffolds .agents/ + .conductor/ into target
 │       └── upgrade.js         # Replaces .agents/, migrates root→.conductor/
 ├── templates/                 # THESE files get installed into user projects
-│   ├── .agents/                # Agent core (AGENTS.md, workflows, skills, personas)
+│   ├── .agents/                # Agent core (AGENTS.md, rules, workflows, skills, personas)
 │   ├── .conductor/            # Project state (numbered folders)
 │   ├── GEMINI.md              # Platform stub (for installed projects, not this repo)
 │   ├── CLAUDE.md
@@ -49,7 +49,7 @@ conductor-framework/          ← You are here (package source)
 
 | Decision | Rationale |
 |----------|-----------|
-| `.agents/AGENTS.md` not `ai-init.md` | Industry-standard naming for AI auto-discovery |
+| `.agents/AGENTS.md` routing table | System instructions live in `.agents/rules/` for Antigravity auto-loading; AGENTS.md is a slim pointer |
 | `.conductor/` wrapper | Keep project root clean — framework state in one hidden folder |
 | Platform stubs (`GEMINI.md`, `CLAUDE.md`) | Each AI platform auto-discovers its own file format |
 | Title-Case-Kebab naming | All skill/persona/workflow files follow this convention |
@@ -59,7 +59,7 @@ conductor-framework/          ← You are here (package source)
 ## Current State (V4.2.0)
 
 - 11 workflows, 26 skills (was 25; Lint-And-Validate exists), 10 personas
-- Self-test: `bash templates/.agents/tests/check-conductor.sh` → 63 checks
+- Self-test: `bash templates/.agents/tests/check-conductor.sh` → 68 checks
 - Published: private GitHub repo `charlus/conductor-framework`
 
 ## Parked Ideas

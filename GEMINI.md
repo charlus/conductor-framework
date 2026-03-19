@@ -63,26 +63,24 @@ This repo is published to **two remotes**:
 | Remote | URL | Visibility |
 |--------|-----|------------|
 | `origin` | `git@github.com:charlus/conductor-framework.git` | Public |
-| `euranova` | `git@your-gitlab-instance.com:conductor/conductor-framework.git` | Private |
-
-The `conductor` group on `your-gitlab-instance.com` (ID: 2740) also hosts the skill registry (V5).
+| `euranova` | Private GitLab instance | Private |
 
 **Push workflow:**
 - `git push origin master` — public GitHub
-- `git push euranova master` — Euranova GitLab
+- `git push euranova master` — private GitLab
 - Push to both after significant changes
 
 ## Current State (V4.2.0)
 
 - 11 workflows, 26 skills (was 25; Lint-And-Validate exists), 10 personas
 - Self-test: `bash templates/.agents/tests/check-conductor.sh` → 68 checks
-- Published on GitHub (`charlus/conductor-framework`) and Euranova GitLab (`conductor/conductor-framework`)
+- Published on GitHub and private GitLab
 
 ## V5 — Dynamic Skill Loading (In Progress)
 
 Location: `docs/roadmap/Dynamic-Skill-Loading.md`
 
-Vision: "npm for AI skills" — a monorepo skill registry on Euranova GitLab with three tiers (Core, Tech Vision, Domain). CLI commands (`conductor add/remove/list/search`) use `glab api` for selective downloads. Requires GitLab CLI (`glab`) as a prerequisite.
+Vision: "npm for AI skills" — a monorepo skill registry with three tiers (Core, Tech Vision, Domain). CLI commands (`conductor add/remove/list/search`) use `glab api` for selective downloads. Requires GitLab CLI (`glab`) as a prerequisite.
 
 ## How to Work on This Repo
 

@@ -14,9 +14,7 @@ import { tmpdir } from "node:os";
 
 const exec = promisify(execFile);
 
-// Default registry project path on GitLab
-const DEFAULT_REGISTRY = "conductor/skills-registry";
-const DEFAULT_HOSTNAME = "your-gitlab-instance.com";
+// No hardcoded defaults — registry must be configured via conductor.config.json
 
 /**
  * Check if glab CLI is installed and authenticated for the target hostname.
@@ -40,27 +38,38 @@ export async function checkGlabAuth(hostname = DEFAULT_HOSTNAME) {
 }
 
 /**
- * Resolve registry settings from conductor.config.json or defaults.
+ * Resolve registry settings from conductor.config.json.
+ * Throws if no config is found — registry must be explicitly configured.
  * @param {string} projectDir - The project root directory
  * @returns {{ project: string, hostname: string }}
  */
 export async function resolveRegistry(projectDir) {
   const configPath = join(projectDir, "conductor.config.json");
+  let raw;
   try {
-    const raw = await readFile(configPath, "utf-8");
-    const config = JSON.parse(raw);
-    if (config.registry) {
-      // Parse URL: https://your-gitlab-instance.com/conductor/skills-registry
-      const url = new URL(config.registry);
-      return {
-        hostname: url.hostname,
-        project: url.pathname.replace(/^\//, "").replace(/\/$/, ""),
-      };
-    }
+    raw = await readFile(configPath, "utf-8");
   } catch {
-    // No config or invalid — use defaults
+    throw new Error(
+      "No conductor.config.json found.\n" +
+      "Create one with your registry URL:\n\n" +
+      '  { "registry": "https://your-gitlab.com/group/skills-registry" }\n'
+    );
   }
-  return { hostname: DEFAULT_HOSTNAME, project: DEFAULT_REGISTRY };
+
+  const config = JSON.parse(raw);
+  if (!config.registry) {
+    throw new Error(
+      'conductor.config.json is missing the "registry" field.\n' +
+      "Add your registry URL:\n\n" +
+      '  { "registry": "https://your-gitlab.com/group/skills-registry" }\n'
+    );
+  }
+
+  const url = new URL(config.registry);
+  return {
+    hostname: url.hostname,
+    project: url.pathname.replace(/^\//, "").replace(/\/$/, ""),
+  };
 }
 
 /**

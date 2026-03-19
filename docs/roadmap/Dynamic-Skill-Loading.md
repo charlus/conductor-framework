@@ -40,7 +40,7 @@ Every skill has a `skill.json`:
 
 ### Registry
 
-Monorepo at `your-gitlab-instance.com/conductor/skills-registry` (under group ID: 2740).
+Monorepo on a private GitLab instance, configured via `conductor.config.json`.
 
 Download strategy: `glab api` with GitLab's archive `path` parameter for selective subdirectory downloads — no full clone needed. Requires GitLab CLI (`glab`) as a prerequisite.
 

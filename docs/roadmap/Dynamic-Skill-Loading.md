@@ -77,6 +77,7 @@ conductor search <query>         # Search registry
 ## Progress
 
 - [x] Phase 1: Manifest format + `skill.json` backfill + registry repo scaffold
-- [ ] Phase 2: CLI commands (`add`, `remove`, `list`, `search`)
-- [ ] Phase 3: Tech Vision auto-detection during init
-- [ ] Phase 4: Skill curation pipeline (import from external sources)
+- [x] Phase 2: CLI commands (`add`, `remove`, `list`, `search`)
+- [x] Phase 3: Tech stack detection during init + skill recommendations
+- [ ] Phase 4: Skill curation pipeline (deferred — backlog in `skills-registry/CONTRIBUTING.md`)
+- [ ] Phase 5: Testing & verification

@@ -6,11 +6,10 @@
  */
 
 import { execFile } from "node:child_process";
-import { access, mkdir, readdir, readFile, rm } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { tmpdir } from "node:os";
 
 const exec = promisify(execFile);
 
@@ -90,7 +89,7 @@ export async function fetchRegistryIndex(hostname, project) {
 
 /**
  * Download a single skill folder from the registry.
- * Uses GitLab's archive API with path parameter for selective download.
+ * Uses GitLab's Tree API to list files, then downloads each via raw file endpoint.
  * @param {string} hostname - GitLab hostname
  * @param {string} project - Project path (e.g., "conductor/skills-registry")
  * @param {string} skillName - Skill directory name in the registry
@@ -99,41 +98,48 @@ export async function fetchRegistryIndex(hostname, project) {
  */
 export async function downloadSkill(hostname, project, skillName, targetDir) {
   const encodedProject = encodeURIComponent(project);
-  const tmpFile = join(tmpdir(), `conductor-skill-${skillName}-${Date.now()}.tar.gz`);
+  const skillPath = `skills/${skillName}`;
+  const encodedPath = encodeURIComponent(skillPath);
 
-  try {
-    // Download the skill subdirectory as a tar.gz archive
-    await exec("glab", [
-      "api", `projects/${encodedProject}/repository/archive.tar.gz`,
-      "--hostname", hostname,
-      "--input", `/dev/null`,
-      "--output", tmpFile,
-      "--", `path=skills/${skillName}`,
-    ], { timeout: 60_000, maxBuffer: 10 * 1024 * 1024 });
+  // 1. List files in the skill directory via Tree API
+  const { stdout: treeJson } = await exec("glab", [
+    "api", `projects/${encodedProject}/repository/tree?path=${encodedPath}&ref=main&recursive=true`,
+    "--hostname", hostname,
+  ], { timeout: 30_000 });
 
-    // Ensure target directory exists
-    const skillTargetDir = join(targetDir, skillName);
-    await mkdir(skillTargetDir, { recursive: true });
+  const tree = JSON.parse(treeJson);
+  const files = tree.filter((entry) => entry.type === "blob");
 
-    // Extract — strip the archive root + "skills/<name>" prefix
-    // GitLab archives have a root folder like "skills-registry-main-<hash>"
-    // We need to find the right strip level dynamically
-    await exec("tar", [
-      "-xzf", tmpFile,
-      "-C", skillTargetDir,
-      "--strip-components", "2",
-      "--wildcards", `*/skills/${skillName}/*`,
-    ], { timeout: 30_000 });
-
-    return skillTargetDir;
-  } finally {
-    // Clean up temp file
-    try {
-      await rm(tmpFile, { force: true });
-    } catch {
-      // Ignore cleanup errors
-    }
+  if (files.length === 0) {
+    throw new Error(`No files found in registry at ${skillPath}`);
   }
+
+  // 2. Create target directory
+  const skillTargetDir = join(targetDir, skillName);
+  await mkdir(skillTargetDir, { recursive: true });
+
+  // 3. Download each file via raw file endpoint
+  for (const file of files) {
+    const encodedFilePath = encodeURIComponent(file.path);
+    const { stdout: content } = await exec("glab", [
+      "api", `projects/${encodedProject}/repository/files/${encodedFilePath}/raw?ref=main`,
+      "--hostname", hostname,
+    ], { timeout: 30_000, maxBuffer: 5 * 1024 * 1024 });
+
+    // Compute relative path within the skill folder
+    const relativePath = file.path.replace(`${skillPath}/`, "");
+    const targetPath = join(skillTargetDir, relativePath);
+
+    // Create subdirectories if needed (for skills with nested files)
+    const targetSubDir = join(skillTargetDir, ...relativePath.split("/").slice(0, -1));
+    if (relativePath.includes("/")) {
+      await mkdir(targetSubDir, { recursive: true });
+    }
+
+    await writeFile(targetPath, content);
+  }
+
+  return skillTargetDir;
 }
 
 /**

@@ -2,6 +2,8 @@ import { access, cp, mkdir, rm, stat } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
+import { detectTechStack } from "../detect.js";
+import { resolveRegistry, fetchRegistryIndex, readLocalSkills } from "../registry.js";
 
 function getTemplateDir() {
   return fileURLToPath(new URL("../../templates", import.meta.url));
@@ -21,6 +23,7 @@ function parseInitArgs(args) {
     target: ".",
     force: false,
     agentOnly: false,
+    noDetect: false,
   };
   let targetSet = false;
 
@@ -31,6 +34,10 @@ function parseInitArgs(args) {
     }
     if (arg === "--agent-only") {
       parsed.agentOnly = true;
+      continue;
+    }
+    if (arg === "--no-detect") {
+      parsed.noDetect = true;
       continue;
     }
     if (arg.startsWith("-")) {
@@ -137,11 +144,27 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
     }
 
     stdout.write("\n");
-    stdout.write("🎼 Conductor Framework V4 initialized!\n");
+    stdout.write("🎼 Conductor Framework V5 initialized!\n");
+
+    // ---- Tech Stack Detection ----
+    if (!parsed.noDetect) {
+      const detected = await detectTechStack(targetDir);
+
+      if (detected.length > 0) {
+        stdout.write("\n");
+        stdout.write("🔍 Detected tech stack:\n");
+        stdout.write(`   ${detected.join(", ")}\n`);
+
+        // Try to suggest skills from registry
+        await suggestRegistrySkills(targetDir, detected, stdout);
+      }
+    }
+
     stdout.write("\n");
     stdout.write("Next steps:\n");
-    stdout.write("  1. Run the self-test:  bash .agents/tests/check-conductor.sh\n");
-    stdout.write('  2. Start building:     Tell your AI "Let\'s go"\n');
+    stdout.write("  1. Update conductor.config.json with your registry URL\n");
+    stdout.write("  2. Run the self-test:  bash .agents/tests/check-conductor.sh\n");
+    stdout.write('  3. Start building:     Tell your AI "Let\'s go"\n');
     stdout.write("\n");
     stdout.write("Docs: .agents/How-It-Works.md\n");
     return 0;
@@ -149,5 +172,40 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
     const message = error instanceof Error ? error.message : String(error);
     stderr.write(`Init failed: ${message}\n`);
     return 1;
+  }
+}
+
+/**
+ * Suggest registry skills that match the detected tech stack.
+ * Silently skips if registry is not configured or unreachable.
+ */
+async function suggestRegistrySkills(projectDir, detectedTech, stdout) {
+  try {
+    const { hostname, project } = await resolveRegistry(projectDir);
+    const registry = await fetchRegistryIndex(hostname, project);
+
+    // Find skills whose techStack overlaps with detected tech
+    const localSkills = await readLocalSkills(join(projectDir, ".agents", "skills"));
+    const localNames = new Set(localSkills.map((s) => s.name));
+
+    const suggestions = registry.skills.filter((skill) => {
+      if (localNames.has(skill.name)) return false; // Already installed
+      if (!skill.techStack || skill.techStack.length === 0) return false;
+      return skill.techStack.some((t) => detectedTech.includes(t));
+    });
+
+    if (suggestions.length > 0) {
+      stdout.write("\n");
+      stdout.write("💡 Recommended skills from registry:\n");
+      for (const skill of suggestions) {
+        const matched = skill.techStack.filter((t) => detectedTech.includes(t));
+        stdout.write(`   • ${skill.name} — ${skill.description}\n`);
+        stdout.write(`     matches: ${matched.join(", ")}\n`);
+      }
+      stdout.write(`\n   Install with: conductor add <skill-name>\n`);
+    }
+  } catch {
+    // Registry not configured or unreachable — skip silently
+    // This is expected when conductor.config.json still has placeholder URL
   }
 }

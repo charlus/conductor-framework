@@ -1,0 +1,20 @@
+{
+  "name": "skill-registry",
+  "version": "1.0.0",
+  "description": "Manages Conductor skills from the remote registry using the conductor CLI. Install, remove, search, and list skills.",
+  "tier": "core",
+  "tags": [
+    "conductor",
+    "registry",
+    "skills",
+    "cli",
+    "meta"
+  ],
+  "techStack": [],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

@@ -1,0 +1,21 @@
+{
+  "name": "stitch-loop",
+  "version": "1.0.0",
+  "description": "Iteratively builds websites using Stitch with an autonomous baton-passing loop pattern.",
+  "tier": "core",
+  "tags": [
+    "stitch",
+    "ui",
+    "iteration",
+    "design"
+  ],
+  "techStack": [
+    "stitch"
+  ],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

@@ -1,0 +1,21 @@
+{
+  "name": "gitlab-cli",
+  "version": "1.0.0",
+  "description": "GitLab workflow using glab CLI — issues, MRs, wiki updates, and CI/CD integration.",
+  "tier": "core",
+  "tags": [
+    "gitlab",
+    "cli",
+    "issues",
+    "merge-requests"
+  ],
+  "techStack": [
+    "gitlab"
+  ],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

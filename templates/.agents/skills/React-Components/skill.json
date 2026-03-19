@@ -1,0 +1,25 @@
+{
+  "name": "react-components",
+  "version": "1.0.0",
+  "description": "Converts Stitch designs into modular Vite and React components with AST-based validation.",
+  "tier": "core",
+  "tags": [
+    "react",
+    "vite",
+    "stitch",
+    "components",
+    "typescript"
+  ],
+  "techStack": [
+    "react",
+    "vite",
+    "typescript",
+    "stitch"
+  ],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

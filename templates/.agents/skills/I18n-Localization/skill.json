@@ -1,0 +1,19 @@
+{
+  "name": "i18n-localization",
+  "version": "1.0.0",
+  "description": "Internationalization patterns — detecting hardcoded strings, managing translations, locale files, RTL support.",
+  "tier": "core",
+  "tags": [
+    "i18n",
+    "localization",
+    "translation",
+    "rtl"
+  ],
+  "techStack": [],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

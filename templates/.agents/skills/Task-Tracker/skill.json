@@ -1,0 +1,19 @@
+{
+  "name": "task-tracker",
+  "version": "1.0.0",
+  "description": "Maintains a live task tracker during Build workflow execution, updated at every state change.",
+  "tier": "core",
+  "tags": [
+    "tasks",
+    "tracking",
+    "progress",
+    "workflow"
+  ],
+  "techStack": [],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

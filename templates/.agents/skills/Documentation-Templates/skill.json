@@ -1,0 +1,18 @@
+{
+  "name": "documentation-templates",
+  "version": "1.0.0",
+  "description": "Documentation templates — README, API docs, code comments, and AI-friendly documentation.",
+  "tier": "core",
+  "tags": [
+    "documentation",
+    "readme",
+    "api-docs"
+  ],
+  "techStack": [],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

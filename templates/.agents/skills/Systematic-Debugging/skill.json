@@ -1,0 +1,18 @@
+{
+  "name": "systematic-debugging",
+  "version": "1.0.0",
+  "description": "4-phase debugging methodology with root cause analysis and evidence-based verification.",
+  "tier": "core",
+  "tags": [
+    "debugging",
+    "root-cause",
+    "methodology"
+  ],
+  "techStack": [],
+  "source": "superpowers",
+  "sourceUrl": "https://github.com/obra/superpowers",
+  "author": "obra/superpowers",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

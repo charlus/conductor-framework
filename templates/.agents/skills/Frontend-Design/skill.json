@@ -1,0 +1,20 @@
+{
+  "name": "frontend-design",
+  "version": "1.0.0",
+  "description": "Design thinking for web UI — components, layouts, color schemes, typography, aesthetics.",
+  "tier": "core",
+  "tags": [
+    "frontend",
+    "design",
+    "ui",
+    "ux",
+    "css"
+  ],
+  "techStack": [],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

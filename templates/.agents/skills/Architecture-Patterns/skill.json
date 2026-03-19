@@ -1,0 +1,19 @@
+{
+  "name": "architecture-patterns",
+  "version": "1.0.0",
+  "description": "Architectural decision-making framework. Requirements analysis, trade-off evaluation, ADR documentation.",
+  "tier": "core",
+  "tags": [
+    "architecture",
+    "adr",
+    "design",
+    "trade-offs"
+  ],
+  "techStack": [],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

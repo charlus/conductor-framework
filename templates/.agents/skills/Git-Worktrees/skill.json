@@ -1,0 +1,18 @@
+{
+  "name": "git-worktrees",
+  "version": "1.0.0",
+  "description": "Creates isolated git worktrees for feature work with smart directory selection and safety verification.",
+  "tier": "core",
+  "tags": [
+    "git",
+    "worktrees",
+    "isolation"
+  ],
+  "techStack": [],
+  "source": "superpowers",
+  "sourceUrl": "https://github.com/obra/superpowers",
+  "author": "obra/superpowers",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

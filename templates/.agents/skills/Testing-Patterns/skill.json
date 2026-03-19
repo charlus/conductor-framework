@@ -1,0 +1,19 @@
+{
+  "name": "testing-patterns",
+  "version": "1.0.0",
+  "description": "Testing patterns and principles — unit, integration, mocking strategies.",
+  "tier": "core",
+  "tags": [
+    "testing",
+    "unit-tests",
+    "integration",
+    "mocking"
+  ],
+  "techStack": [],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

@@ -1,0 +1,19 @@
+{
+  "name": "ux-reviewer",
+  "version": "1.0.0",
+  "description": "Reviews designs and provides UX feedback and suggestions.",
+  "tier": "core",
+  "tags": [
+    "ux",
+    "review",
+    "design",
+    "feedback"
+  ],
+  "techStack": [],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

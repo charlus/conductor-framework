@@ -1,0 +1,21 @@
+{
+  "name": "github-cli",
+  "version": "1.0.0",
+  "description": "GitHub workflow using gh CLI — issues, PRs, wiki updates, and Actions integration.",
+  "tier": "core",
+  "tags": [
+    "github",
+    "cli",
+    "issues",
+    "pull-requests"
+  ],
+  "techStack": [
+    "github"
+  ],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

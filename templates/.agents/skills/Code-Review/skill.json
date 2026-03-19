@@ -1,0 +1,18 @@
+{
+  "name": "code-review",
+  "version": "1.0.0",
+  "description": "Two-stage code review — spec compliance first, then code quality.",
+  "tier": "core",
+  "tags": [
+    "code-review",
+    "quality",
+    "collaboration"
+  ],
+  "techStack": [],
+  "source": "superpowers",
+  "sourceUrl": "https://github.com/obra/superpowers",
+  "author": "obra/superpowers",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

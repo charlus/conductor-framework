@@ -1,0 +1,20 @@
+{
+  "name": "design-md",
+  "version": "1.0.0",
+  "description": "Analyzes Stitch projects and synthesizes semantic design systems into DESIGN.md files.",
+  "tier": "core",
+  "tags": [
+    "design-system",
+    "stitch",
+    "ui"
+  ],
+  "techStack": [
+    "stitch"
+  ],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

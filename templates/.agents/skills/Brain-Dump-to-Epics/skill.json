@@ -1,0 +1,19 @@
+{
+  "name": "brain-dump-to-epics",
+  "version": "1.0.0",
+  "description": "Transforms unstructured thoughts and ideas into structured Product Epics.",
+  "tier": "core",
+  "tags": [
+    "planning",
+    "product",
+    "epics",
+    "ideation"
+  ],
+  "techStack": [],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

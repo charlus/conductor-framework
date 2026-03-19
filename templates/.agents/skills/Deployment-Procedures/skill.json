@@ -1,0 +1,19 @@
+{
+  "name": "deployment-procedures",
+  "version": "1.0.0",
+  "description": "Production deployment principles — safe workflows, rollback strategies, and verification.",
+  "tier": "core",
+  "tags": [
+    "deployment",
+    "devops",
+    "production",
+    "rollback"
+  ],
+  "techStack": [],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

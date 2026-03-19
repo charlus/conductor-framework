@@ -1,0 +1,23 @@
+{
+  "name": "remotion",
+  "version": "1.0.0",
+  "description": "Generates walkthrough videos from Stitch projects using Remotion with transitions and overlays.",
+  "tier": "core",
+  "tags": [
+    "remotion",
+    "video",
+    "stitch",
+    "walkthrough"
+  ],
+  "techStack": [
+    "remotion",
+    "react",
+    "stitch"
+  ],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

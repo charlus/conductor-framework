@@ -1,0 +1,20 @@
+{
+  "name": "enhance-prompt",
+  "version": "1.0.0",
+  "description": "Transforms vague UI ideas into polished, Stitch-optimized prompts with design system context.",
+  "tier": "core",
+  "tags": [
+    "prompt-engineering",
+    "stitch",
+    "ui"
+  ],
+  "techStack": [
+    "stitch"
+  ],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

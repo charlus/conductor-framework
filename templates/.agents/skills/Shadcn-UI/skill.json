@@ -1,0 +1,23 @@
+{
+  "name": "shadcn-ui",
+  "version": "1.0.0",
+  "description": "Expert guidance for shadcn/ui — component discovery, installation, customization, and best practices.",
+  "tier": "core",
+  "tags": [
+    "shadcn",
+    "ui",
+    "react",
+    "components"
+  ],
+  "techStack": [
+    "react",
+    "shadcn",
+    "tailwind"
+  ],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

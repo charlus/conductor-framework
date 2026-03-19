@@ -1,0 +1,18 @@
+{
+  "name": "verification-gate",
+  "version": "1.0.0",
+  "description": "Enforces the Verification Iron Law — evidence before assertions, always.",
+  "tier": "core",
+  "tags": [
+    "verification",
+    "quality",
+    "evidence"
+  ],
+  "techStack": [],
+  "source": "superpowers",
+  "sourceUrl": "https://github.com/obra/superpowers",
+  "author": "obra/superpowers",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

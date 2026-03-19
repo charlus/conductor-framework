@@ -1,0 +1,19 @@
+{
+  "name": "git-workflow",
+  "version": "1.0.0",
+  "description": "Core git conventions — commit messages, branch naming, PR/MR descriptions.",
+  "tier": "core",
+  "tags": [
+    "git",
+    "workflow",
+    "commits",
+    "branching"
+  ],
+  "techStack": [],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

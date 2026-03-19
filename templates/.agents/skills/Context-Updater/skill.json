@@ -1,0 +1,18 @@
+{
+  "name": "context-updater",
+  "version": "1.0.0",
+  "description": "Updates Product Area and Context files after Build or Retrospective phases.",
+  "tier": "core",
+  "tags": [
+    "context",
+    "documentation",
+    "workflow"
+  ],
+  "techStack": [],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

@@ -1,0 +1,18 @@
+{
+  "name": "system-janitor",
+  "version": "1.0.0",
+  "description": "Scans the Conductor Framework for misplaced files and recommends reorganization.",
+  "tier": "core",
+  "tags": [
+    "maintenance",
+    "organization",
+    "cleanup"
+  ],
+  "techStack": [],
+  "source": "euranova",
+  "sourceUrl": null,
+  "author": "Euranova",
+  "license": "MIT",
+  "dependencies": [],
+  "minConductorVersion": "5.0.0"
+}

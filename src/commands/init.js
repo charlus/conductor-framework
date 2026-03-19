@@ -127,8 +127,8 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
       }
     }
 
-    // Copy platform stubs
-    for (const stub of ["GEMINI.md", "CLAUDE.md", "CHANGELOG.md"]) {
+    // Copy platform stubs and config
+    for (const stub of ["GEMINI.md", "CLAUDE.md", "CHANGELOG.md", "conductor.config.json"]) {
       const stubTarget = join(targetDir, stub);
       if (!(await exists(stubTarget))) {
         await cp(join(templateDir, stub), stubTarget);

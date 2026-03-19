@@ -44,6 +44,18 @@ Monorepo on a private GitLab instance, configured via `conductor.config.json`.
 
 Download strategy: `glab api` with GitLab's archive `path` parameter for selective subdirectory downloads — no full clone needed. Requires GitLab CLI (`glab`) as a prerequisite.
 
+### Configuration
+
+`conductor.config.json` is placed in the project root during `conductor init`. It must contain the registry URL pointing to your GitLab skills-registry:
+
+```json
+{
+  "registry": "https://your-gitlab-instance.com/group/skills-registry"
+}
+```
+
+All registry commands (`add`, `search`, `list --remote`) require this file.
+
 ### CLI Commands
 
 ```bash

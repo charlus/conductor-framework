@@ -90,7 +90,7 @@ Genesis → Storyboard → Grand PRD → Technical Vision → Carve → Spec-It 
 - **26 Skills** — Verification Gate, Code Review, Frontend Design, Systematic Debugging, Git Workflow, and more
 - **10 Personas** — CTO, Architect, Product Manager, Designer, Security Auditor, Database Architect, and more
 
-Full documentation: [`How-It-Works.md`](templates/.agents/How-It-Works.md)
+Full documentation: [`conductor-system.md`](templates/.agents/rules/conductor-system.md)
 
 ---
 

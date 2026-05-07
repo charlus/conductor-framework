@@ -168,63 +168,14 @@ After completing a batch:
 
 ---
 
-## Phase 4: Ship & Close
+## Phase 4: Handoff to Ship
 
-**Goal:** Record what was shipped, document it on the hosting platform, and clean up.
+**Goal:** Cleanly conclude the build phase and hand off to the Ship workflow.
 
-**Announce:** *"All verified. Preparing to ship and document."*
+**Announce:** *"All verified. The Build phase is complete. We are now ready to Ship."*
 
-### Step 1 — Update Ship-Log
-
-Add entry to `.conductor/0-Compass/Ship-Log.md`:
-```markdown
-## [Date] — [Implementation Name]
-- **What:** [One sentence]
-- **Evidence:** Tests pass, build clean
-- **Files:** [Key files created/modified]
-```
-
-### Step 2 — Update Product Area
-
-* If this implementation adds features → update `.conductor/3-Product-Areas/[Area]/[Area]-Features.md`
-* If this changes technical architecture → update `.conductor/3-Product-Areas/[Area]/[Area]-Technical.md`
-
-### Step 3 — Create PR/MR
-
-Use Git-Workflow skill conventions (see `.agents/skills/Git-Workflow/SKILL.md`):
-* **GitHub:** `gh pr create` (see `.agents/skills/GitHub-CLI/SKILL.md`)
-* **GitLab:** `glab mr create` (see `.agents/skills/GitLab-CLI/SKILL.md`)
-* Link to any related issues in the description
-
-### Step 4 — Document to Platform
-
-**Detect platform** (in this order):
-1. Check if `gh auth status` succeeds → **GitHub**
-2. Check if `glab auth status` succeeds → **GitLab** (works for self-hosted instances with custom domains)
-3. If neither → **Ask the user** which platform they use, or skip this step
-
-**a) Update/Close Related Issues:**
-* GitHub: `gh issue close <ID> -c "Shipped in PR #<PR>"`
-* GitLab: `glab issue update <ID> --label "shipped"` or close via MR
-
-**b) Release Notes** (if this completes a milestone):
-* GitHub: `gh release create v<VERSION> --title "<Name>" --notes "<Summary>"`
-* GitLab: `glab release create v<VERSION> --name "<Name>" --notes "<Summary>"`
-
-**c) Wiki / Documentation Update** (if the feature is user-facing):
-* GitHub: `gh api repos/{owner}/{repo}/pages` or update wiki repo
-* GitLab: `glab api projects/:id/wikis -X POST` or `glab wiki create`
-* At minimum, note what changed in the project README or docs
-
-> **Principle:** If it ships, it gets documented where users will find it. Code without docs is half-shipped.
-
-### Step 5 — Archive
-
-Move the completed Implementation folder to `.conductor/6-Archive/Completed-Implementations/`
-
-### Step 6 — Announce
-
-*"[Implementation Name] shipped. PR/MR created. Issues updated. Ship-Log and Product Area updated. Archived."*
+* Do NOT perform deployment, PR creation, or cleanup here.
+* The only remaining step is to transition to the **Ship** workflow.
 
 ---
 
@@ -256,12 +207,6 @@ Before claiming this implementation is done:
 - [ ] Production build succeeds
 - [ ] All Feature Spec acceptance criteria verified
 - [ ] All changes committed with Conventional Commits
-- [ ] PR/MR created (if applicable)
-- [ ] Related issues updated/closed on platform
-- [ ] Release notes created (if milestone)
-- [ ] Ship-Log updated
-- [ ] Product Area files updated
-- [ ] Implementation archived to `.conductor/6-Archive/`
 
 **The Verification Iron Law applies.** No completion claims without fresh evidence.
 
@@ -269,10 +214,10 @@ Before claiming this implementation is done:
 
 ## Next Steps After Build
 
-* **Want to reflect?** → Retrospective workflow (`.agents/workflows/Retrospective.md`)
-* **Another implementation to build?** → Return to **Spec-It** for the next slice
-* **All done with the project?** → Celebrate. Update `.conductor/0-Compass/North-Star.md` if metrics changed
+* **Ready to Ship?** → Trigger the **Ship** workflow (`.agents/workflows/Ship.md`)
+* **Found a bug?** → Fix it in the current phase
+* **Scope changed?** → Update the plan and tracker
 
 ---
 
-*Previous Workflow: Spec-It · Next Workflow: Retrospective (optional)*
+*Previous Workflow: Spec-It · Next Workflow: Ship*

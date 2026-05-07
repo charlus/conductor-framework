@@ -79,7 +79,6 @@ echo ""
 echo "2. Core Files..."
 
 required_files=(
-  "$AGENT_DIR/How-It-Works.md"
   "$AGENT_DIR/AGENTS.md"
   "$ROOT_DIR/CHANGELOG.md"
 )
@@ -95,7 +94,7 @@ echo "3. Workflows..."
 workflows=(
   "Genesis" "Storyboard" "Grand-PRD" "UX-UI-Design-Brief"
   "Technical-Vision" "Carve" "Spec-It" "Build" "Quick-Path"
-  "Retrospective" "Agentic-Flow"
+  "Retrospective" "Agentic-Flow" "Ship"
 )
 
 for workflow in "${workflows[@]}"; do
@@ -174,12 +173,6 @@ if grep -q "V4" "$AGENT_DIR/rules/conductor-system.md"; then
   pass "conductor-system.md references V4"
 else
   fail "conductor-system.md does not reference V4"
-fi
-
-if grep -q "V4" "$AGENT_DIR/How-It-Works.md"; then
-  pass "How-It-Works.md references V4"
-else
-  fail "How-It-Works.md does not reference V4"
 fi
 
 # ---- Summary ----

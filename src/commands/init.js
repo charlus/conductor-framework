@@ -166,7 +166,7 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
     stdout.write("  2. Run the self-test:  bash .agents/tests/check-conductor.sh\n");
     stdout.write('  3. Start building:     Tell your AI "Let\'s go"\n');
     stdout.write("\n");
-    stdout.write("Docs: .agents/How-It-Works.md\n");
+    stdout.write("Docs: .agents/rules/conductor-system.md\n");
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

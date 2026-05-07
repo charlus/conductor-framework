@@ -15,7 +15,6 @@ trigger: always_on
 | System instructions | `.agents/rules/conductor-system.md` |
 | Prime Directive | `.agents/rules/prime-directive.md` |
 | Verification Iron Law | `.agents/rules/verification-iron-law.md` |
-| Full documentation | `.agents/How-It-Works.md` |
 | Workflows | `.agents/workflows/` |
 | Skills | `.agents/skills/` |
 | Personas | `.agents/personas/` |

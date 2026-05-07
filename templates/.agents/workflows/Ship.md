@@ -73,19 +73,25 @@ You are the Conductor in **Shipping Mode**. You are the final quality gate befor
 
 ## Phase 4: Git Flow & Platform Integration
 
-**Goal:** Commit, push, and create the merge/pull request following standard Git Flow.
+**Goal:** Commit, push, and create the merge/pull request following standard Git Flow based on available tools.
 
 **Announce:** *"Integrating with Git and creating the release."*
 
-1.  **Commit:**
+1.  **Platform Discovery:**
+    * Before creating a Pull Request (PR) or Merge Request (MR), determine the current platform and available CLI tools.
+    * Check if `gh` (GitHub CLI) or `glab` (GitLab CLI) is installed and authenticated (`gh auth status` or `glab auth status`).
+    * If neither is available, fallback to standard Git operations and instruct the user to create the PR/MR manually via the web UI.
+2.  **Commit:**
     * Stage all changes (refactors, tests, CI updates).
     * Commit using Conventional Commits (e.g., `chore: empathy audit and regression tests for [feature]`).
-2.  **Push:**
+3.  **Push:**
     * Push the branch to the remote repository.
-3.  **Create MR/PR:**
-    * Use the appropriate CLI tool (`glab mr create` for GitLab, `gh pr create` for GitHub).
+4.  **Create MR/PR:**
+    * If `glab` is available and authenticated: Use `glab mr create`.
+    * If `gh` is available and authenticated: Use `gh pr create`.
+    * If no CLI tool is available, provide the URL to the user to open the PR/MR manually.
     * Link to related issues in the description.
-4.  **Release Notes (Optional):**
+5.  **Release Notes (Optional):**
     * If this marks a significant milestone, generate release notes or update `CHANGELOG.md`.
 
 ---
@@ -120,7 +126,7 @@ Before claiming this workflow is done:
 - [ ] Regression tests written and passing
 - [ ] CI pipeline definition verified/updated
 - [ ] Changes committed and pushed
-- [ ] MR/PR created via CLI
+- [ ] MR/PR created (via CLI or manually)
 - [ ] Ship-Log and Product Area updated
 - [ ] Implementation archived
 

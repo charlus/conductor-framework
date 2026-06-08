@@ -1,6 +1,6 @@
 {
   "name": "conductor-framework",
-  "version": "4.2.0",
+  "version": "5.0.0",
   "description": "The Conductor — an AI Software Engineering framework for the full development lifecycle. Workflows, skills, and personas for AI-assisted product engineering.",
   "type": "module",
   "bin": {
@@ -14,8 +14,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "bash templates/.agent/tests/check-conductor.sh",
-    "test:init": "node bin/conductor.js init /tmp/conductor-test-install && bash /tmp/conductor-test-install/.agent/tests/check-conductor.sh && rm -rf /tmp/conductor-test-install"
+    "test": "bash templates/.agents/tests/check-conductor.sh",
+    "test:init": "node bin/conductor.js init /tmp/conductor-test-install --all && bash /tmp/conductor-test-install/.agents/tests/check-conductor.sh && rm -rf /tmp/conductor-test-install"
   },
   "keywords": [
     "conductor",

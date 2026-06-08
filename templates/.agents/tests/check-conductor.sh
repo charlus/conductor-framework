@@ -56,13 +56,13 @@ echo ""
 echo "1. Core Structure..."
 
 required_dirs=(
-  "$ROOT_DIR/.conductor/0-Compass"
-  "$ROOT_DIR/.conductor/1-Workbench"
-  "$ROOT_DIR/.conductor/2-Backlog"
-  "$ROOT_DIR/.conductor/3-Product-Areas"
-  "$ROOT_DIR/.conductor/4-Context"
-  "$ROOT_DIR/.conductor/5-Templates"
-  "$ROOT_DIR/.conductor/6-Archive"
+  "$ROOT_DIR/conductor/0-Compass"
+  "$ROOT_DIR/conductor/1-Workbench"
+  "$ROOT_DIR/conductor/2-Backlog"
+  "$ROOT_DIR/conductor/3-Product-Areas"
+  "$ROOT_DIR/conductor/4-Context"
+  "$ROOT_DIR/conductor/5-Templates"
+  "$ROOT_DIR/conductor/6-Archive"
   "$AGENT_DIR/workflows"
   "$AGENT_DIR/skills"
   "$AGENT_DIR/personas"
@@ -94,7 +94,7 @@ echo "3. Workflows..."
 workflows=(
   "Genesis" "Storyboard" "Grand-PRD" "UX-UI-Design-Brief"
   "Technical-Vision" "Carve" "Spec-It" "Build" "Quick-Path"
-  "Retrospective" "Agentic-Flow" "Ship"
+  "Retrospective" "Agentic-Flow" "Ship" "TDD-Cycle"
 )
 
 for workflow in "${workflows[@]}"; do
@@ -122,14 +122,15 @@ echo "5. Skills..."
 skills=(
   "Brain-Dump-to-Epics" "System-Janitor" "UX-Reviewer"
   "Verification-Gate" "Task-Tracker" "Code-Review" "Context-Updater"
-  "Design-Md" "Enhance-Prompt" "Stitch-Loop" "React-Components"
-  "Shadcn-UI" "Remotion"
   "Systematic-Debugging" "Clean-Code" "Testing-Patterns"
   "Frontend-Design" "Documentation-Templates" "Deployment-Procedures"
   "I18n-Localization" "Git-Worktrees"
   "Git-Workflow" "GitLab-CLI" "GitHub-CLI"
   "Architecture-Patterns"
   "Lint-And-Validate"
+  "Analyze-Tests" "Trace-Documentation"
+  "Context-Engineering" "Discovery-Phase" "Blueprint-Phase" "Execution-Phase" "Shipping-Phase"
+  "Skill-Registry"
 )
 
 for skill in "${skills[@]}"; do
@@ -141,7 +142,7 @@ echo ""
 echo "6. Rules..."
 
 rules=(
-  "conductor-system" "prime-directive" "verification-iron-law"
+  "prime-directive" "verification-iron-law"
 )
 
 for rule in "${rules[@]}"; do
@@ -169,10 +170,10 @@ fi
 echo ""
 echo "8. Version Check..."
 
-if grep -q "V4" "$AGENT_DIR/rules/conductor-system.md"; then
-  pass "conductor-system.md references V4"
+if grep -q "Conductor Framework" "$AGENT_DIR/AGENTS.md"; then
+  pass "AGENTS.md references Conductor Framework"
 else
-  fail "conductor-system.md does not reference V4"
+  fail "AGENTS.md does not reference Conductor Framework"
 fi
 
 # ---- Summary ----

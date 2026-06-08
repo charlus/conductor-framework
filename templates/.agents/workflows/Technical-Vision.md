@@ -84,6 +84,8 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
 
 5.  **Confirm:** Lock in the stack before moving to Phase 2.
 
+6.  **Dynamic Skill Loading:** Once the stack is confirmed, you MUST autonomously run `conductor search <tech>` and `conductor add <skill-name>` for the chosen technologies. This ensures you have the exact domain skills loaded for the rest of the project.
+
 ---
 
 ## Phase 2: Data Model

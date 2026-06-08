@@ -1,0 +1,364 @@
+{
+  "skills": [
+    {
+      "name": "Analyze-Tests",
+      "dir": "Analyze-Tests",
+      "description": "Use before starting the Build workflow to generate a comprehensive test strategy and verification plan.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "architecture",
+      "dir": "Architecture-Patterns",
+      "description": "Architectural decision-making framework. Requirements analysis, trade-off evaluation, ADR documentation. Use when making architecture decisions or analyzing system design.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Blueprint-Phase",
+      "dir": "Blueprint-Phase",
+      "description": "Use to create Product Requirements Documents (PRDs), design UX/UI briefs, define Technical Vision, or break down features (Carve).",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Brain-Dump-to-Epics",
+      "dir": "Brain-Dump-to-Epics",
+      "description": "Use this skill when the user asks to transform unstructured thoughts and ideas into structured Product Epics.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "clean-code",
+      "dir": "Clean-Code",
+      "description": "Pragmatic coding standards - concise, direct, no over-engineering, no unnecessary comments",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Code-Review",
+      "dir": "Code-Review",
+      "description": "Use after implementing code to run a two-stage review — spec compliance first, then code quality. Order matters.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Context-Engineering",
+      "dir": "Context-Engineering",
+      "description": "Use when updating the task backlog, reading PRDs, or modifying project state in the conductor/ directory",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Context-Updater",
+      "dir": "Context-Updater",
+      "description": "Use after Build or Retrospective to update Product Area and Context files with what was learned and built.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "deployment-procedures",
+      "dir": "Deployment-Procedures",
+      "description": "Production deployment principles and decision-making. Safe deployment workflows, rollback strategies, and verification. Teaches thinking, not scripts.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Discovery-Phase",
+      "dir": "Discovery-Phase",
+      "description": "Use when the user has a new idea, wants to start a brand new app, or needs to explore a new feature area and shape the user experience.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "documentation-templates",
+      "dir": "Documentation-Templates",
+      "description": "Documentation templates and structure guidelines. README, API docs, code comments, and AI-friendly documentation.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Execution-Phase",
+      "dir": "Execution-Phase",
+      "description": "Use to write specifications, execute code builds, or use the quick path to bypass discovery and just build something.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "frontend-design",
+      "dir": "Frontend-Design",
+      "description": "Design thinking and decision-making for web UI. Use when designing components, layouts, color schemes, typography, or creating aesthetic interfaces. Teaches principles, not fixed values.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Git-Workflow",
+      "dir": "Git-Workflow",
+      "description": "Core git workflow conventions — commit messages, branch naming, PR/MR descriptions. Use whenever committing, branching, or creating pull/merge requests.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "using-git-worktrees",
+      "dir": "Git-Worktrees",
+      "description": "Use when starting feature work that needs isolation from current workspace or before executing implementation plans - creates isolated git worktrees with smart directory selection and safety verification",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "GitHub-CLI",
+      "dir": "GitHub-CLI",
+      "description": "GitHub workflow using gh CLI — creating issues, PRs, wiki updates, and Actions integration. Use when the project is hosted on GitHub.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "GitLab-CLI",
+      "dir": "GitLab-CLI",
+      "description": "GitLab workflow using glab CLI — creating issues, MRs, wiki updates, and CI/CD integration. Use when the project is hosted on GitLab.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "i18n-localization",
+      "dir": "I18n-Localization",
+      "description": "Internationalization and localization patterns. Detecting hardcoded strings, managing translations, locale files, RTL support.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "lint-and-validate",
+      "dir": "Lint-And-Validate",
+      "description": "Automatic quality control, linting, and static analysis procedures. Use after every code modification to ensure syntax correctness and project standards. Triggers onKeywords: lint, format, check, validate, types, static analysis.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Shipping-Phase",
+      "dir": "Shipping-Phase",
+      "description": "Use to ship polished code, audit for release, or run a retrospective after completing a project.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Skill-Registry",
+      "dir": "Skill-Registry",
+      "description": "Manages Conductor skills from the remote registry — install, remove, search, and list skills using the conductor CLI. Use during Technical Vision workflow or whenever the tech stack changes.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "System-Janitor",
+      "dir": "System-Janitor",
+      "description": "Use this skill when the user asks to scan the Conductor Framework for misplaced files and recommend reorganization.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "systematic-debugging",
+      "dir": "Systematic-Debugging",
+      "description": "4-phase systematic debugging methodology with root cause analysis and evidence-based verification. Use when debugging complex issues.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Task-Tracker",
+      "dir": "Task-Tracker",
+      "description": "Use during Build workflow execution to maintain a live task tracker. Update at every state change.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "testing-patterns",
+      "dir": "Testing-Patterns",
+      "description": "Testing patterns and principles. Unit, integration, mocking strategies.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Trace-Documentation",
+      "dir": "Trace-Documentation",
+      "description": "Use to generate or update trace.md files that link project backlog items directly to code modifications.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "UX-Reviewer",
+      "dir": "UX-Reviewer",
+      "description": "Use this skill when the user asks to review designs and provide UX feedback and suggestions.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Verification-Gate",
+      "dir": "Verification-Gate",
+      "description": "Use this skill when about to claim any work is done. Enforces the Verification Iron Law — evidence before assertions, always.",
+      "category": "core",
+      "default": true
+    }
+  ],
+  "rules": [
+    {
+      "name": "prime-directive",
+      "file": "prime-directive.md",
+      "description": "Context First. Plan Second. Build Third.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "verification-iron-law",
+      "file": "verification-iron-law.md",
+      "description": "No completion claims without fresh verification evidence.",
+      "category": "core",
+      "default": true
+    }
+  ],
+  "workflows": [
+    {
+      "name": "Agentic-Flow",
+      "file": "Agentic-Flow.md",
+      "description": "Agentic-Flow Design (Designing Human-AI Interactions)",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Build",
+      "file": "Build.md",
+      "description": "Build (Executing the Implementation Plan)",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Carve",
+      "file": "Carve.md",
+      "description": "Carve (Slicing the Blueprint)",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Genesis",
+      "file": "Genesis.md",
+      "description": "Genesis (The App Origin Story)",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Grand-PRD",
+      "file": "Grand-PRD.md",
+      "description": "Grand PRD (Organizing the Problem Space)",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Quick-Path",
+      "file": "Quick-Path.md",
+      "description": "Quick-Path (Fast-Track Implementation)",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Retrospective",
+      "file": "Retrospective.md",
+      "description": "Retrospective (Learning from What We Shipped)",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Ship",
+      "file": "Ship.md",
+      "description": "Ship (Audit, Test, and Deploy)",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Spec-It",
+      "file": "Spec-It.md",
+      "description": "Spec-It (Detailed Implementation Specs)",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Storyboard",
+      "file": "Storyboard.md",
+      "description": "Storyboard (Shaping the Experience)",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "TDD-Cycle",
+      "file": "TDD-Cycle.md",
+      "description": "Use during execution to enforce the strict RED → GREEN → REFACTOR test-driven development loop.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Technical-Vision",
+      "file": "Technical-Vision.md",
+      "description": "Technical Vision (Designing the Solution)",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "UX-UI-Design-Brief",
+      "file": "UX-UI-Design-Brief.md",
+      "description": "UX/UI Design Brief (Translating Epics into Interface)",
+      "category": "core",
+      "default": true
+    }
+  ],
+  "bundles": [
+    {
+      "name": "core",
+      "description": "Core conductor framework capabilities",
+      "skills": [
+        "Analyze-Tests",
+        "architecture",
+        "Blueprint-Phase",
+        "Brain-Dump-to-Epics",
+        "clean-code",
+        "Code-Review",
+        "Context-Engineering",
+        "Context-Updater",
+        "deployment-procedures",
+        "Discovery-Phase",
+        "documentation-templates",
+        "Execution-Phase",
+        "frontend-design",
+        "Git-Workflow",
+        "using-git-worktrees",
+        "GitHub-CLI",
+        "GitLab-CLI",
+        "i18n-localization",
+        "lint-and-validate",
+        "Shipping-Phase",
+        "Skill-Registry",
+        "System-Janitor",
+        "systematic-debugging",
+        "Task-Tracker",
+        "testing-patterns",
+        "Trace-Documentation",
+        "UX-Reviewer",
+        "Verification-Gate"
+      ],
+      "rules": [
+        "prime-directive",
+        "verification-iron-law"
+      ],
+      "workflows": [
+        "Agentic-Flow",
+        "Build",
+        "Carve",
+        "Genesis",
+        "Grand-PRD",
+        "Quick-Path",
+        "Retrospective",
+        "Ship",
+        "Spec-It",
+        "Storyboard",
+        "TDD-Cycle",
+        "Technical-Vision",
+        "UX-UI-Design-Brief"
+      ]
+    }
+  ]
+}

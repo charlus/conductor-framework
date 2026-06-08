@@ -57,10 +57,11 @@ npx github:charlus/conductor-framework upgrade
 ```
 
 This will:
+- **Safely rename** all your `.agents/` and `conductor/` files to standard `kebab-case`
 - **Replace** `.agents/` with the latest framework (workflows, skills, personas)
-- **Migrate** root numbered folders into `.conductor/` (if upgrading from V3)
-- **Preserve** all your project data in `.conductor/`
-- **Report** what changed (new skills, removed skills)
+- **Migrate** legacy `.conductor/` or root numbered folders into the visible `conductor/` dashboard
+- **Preserve** all your project data in `conductor/`
+- **Report** what changed (new skills, removed skills, custom overrides)
 
 ---
 

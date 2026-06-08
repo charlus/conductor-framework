@@ -56,13 +56,13 @@ echo ""
 echo "1. Core Structure..."
 
 required_dirs=(
-  "$ROOT_DIR/conductor/0-Compass"
-  "$ROOT_DIR/conductor/1-Workbench"
-  "$ROOT_DIR/conductor/2-Backlog"
-  "$ROOT_DIR/conductor/3-Product-Areas"
-  "$ROOT_DIR/conductor/4-Context"
-  "$ROOT_DIR/conductor/5-Templates"
-  "$ROOT_DIR/conductor/6-Archive"
+  "$ROOT_DIR/conductor/0-compass"
+  "$ROOT_DIR/conductor/1-workbench"
+  "$ROOT_DIR/conductor/2-backlog"
+  "$ROOT_DIR/conductor/3-product-areas"
+  "$ROOT_DIR/conductor/4-context"
+  "$ROOT_DIR/conductor/5-templates"
+  "$ROOT_DIR/conductor/6-archive"
   "$AGENT_DIR/workflows"
   "$AGENT_DIR/skills"
   "$AGENT_DIR/personas"
@@ -92,9 +92,9 @@ echo ""
 echo "3. Workflows..."
 
 workflows=(
-  "Genesis" "Storyboard" "Grand-PRD" "UX-UI-Design-Brief"
-  "Technical-Vision" "Carve" "Spec-It" "Build" "Quick-Path"
-  "Retrospective" "Agentic-Flow" "Ship" "TDD-Cycle"
+  "genesis" "storyboard" "grand-prd" "ux-ui-design-brief"
+  "technical-vision" "carve" "spec-it" "build" "quick-path"
+  "retrospective" "agentic-flow" "ship" "tdd-cycle"
 )
 
 for workflow in "${workflows[@]}"; do
@@ -106,9 +106,9 @@ echo ""
 echo "4. Personas..."
 
 personas=(
-  "CTO" "Architect" "Product-Manager" "Tech-Lead"
-  "Designer" "Conductor-Assistant" "Code-Archaeologist"
-  "Security-Auditor" "Database-Architect" "Performance-Optimizer"
+  "cto" "architect" "product-manager" "tech-lead"
+  "designer" "conductor-assistant" "code-archaeologist"
+  "security-auditor" "database-architect" "performance-optimizer"
 )
 
 for persona in "${personas[@]}"; do
@@ -120,17 +120,17 @@ echo ""
 echo "5. Skills..."
 
 skills=(
-  "Brain-Dump-to-Epics" "System-Janitor" "UX-Reviewer"
-  "Verification-Gate" "Task-Tracker" "Code-Review" "Context-Updater"
-  "Systematic-Debugging" "Clean-Code" "Testing-Patterns"
-  "Frontend-Design" "Documentation-Templates" "Deployment-Procedures"
-  "I18n-Localization" "Git-Worktrees"
-  "Git-Workflow" "GitLab-CLI" "GitHub-CLI"
-  "Architecture-Patterns"
-  "Lint-And-Validate"
-  "Analyze-Tests" "Trace-Documentation"
-  "Context-Engineering" "Discovery-Phase" "Blueprint-Phase" "Execution-Phase" "Shipping-Phase"
-  "Skill-Registry"
+  "brain-dump-to-epics" "system-janitor" "ux-reviewer"
+  "verification-gate" "task-tracker" "code-review" "context-updater"
+  "systematic-debugging" "clean-code" "testing-patterns"
+  "frontend-design" "documentation-templates" "deployment-procedures"
+  "i18n-localization" "git-worktrees"
+  "git-workflow" "git-lab-cli" "git-hub-cli"
+  "architecture-patterns"
+  "lint-and-validate"
+  "analyze-tests" "trace-documentation"
+  "context-engineering" "discovery-phase" "blueprint-phase" "execution-phase" "shipping-phase"
+  "skill-registry"
 )
 
 for skill in "${skills[@]}"; do
@@ -151,19 +151,19 @@ done
 
 # ---- 7. Naming Convention ----
 echo ""
-echo "7. Naming Convention (Title-Case-Kebab)..."
+echo "7. Naming Convention (kebab-case)..."
 
-lowercase_found=0
+uppercase_found=0
 for dir in "$AGENT_DIR/skills"/*/; do
   dirname=$(basename "$dir")
-  if [[ "$dirname" =~ ^[a-z] ]]; then
-    fail "Skill folder not Title-Case-Kebab: $dirname"
-    lowercase_found=1
+  if [[ "$dirname" =~ [A-Z] ]]; then
+    fail "Skill folder not kebab-case: $dirname"
+    uppercase_found=1
   fi
 done
 
-if [ "$lowercase_found" -eq 0 ]; then
-  pass "All skill folders follow Title-Case-Kebab"
+if [ "$uppercase_found" -eq 0 ]; then
+  pass "All skill folders follow kebab-case"
 fi
 
 # ---- 8. Version Check ----

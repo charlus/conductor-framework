@@ -3,6 +3,7 @@ import { constants as fsConstants } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { planUpdate, executeUpdate } from "../update.js";
+import { renameRecursive, updateChecksumsKeys } from "../kebab.js";
 
 function getTemplateDir() {
   return fileURLToPath(new URL("../../templates", import.meta.url));
@@ -18,6 +19,13 @@ async function exists(path) {
 }
 
 const NUMBERED_FOLDERS = [
+  "0-compass",
+  "1-workbench",
+  "2-backlog",
+  "3-product-areas",
+  "4-context",
+  "5-templates",
+  "6-archive",
   "0-Compass",
   "1-Workbench",
   "2-Backlog",
@@ -42,9 +50,9 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
     const hasLegacyAgent = await exists(legacyAgentDir);
     const hasConductor = await exists(conductorDir);
     const hasLegacyConductor = await exists(legacyConductorDir);
-    const hasRootFolders = await exists(join(targetDir, "0-Compass"));
+    const hasRootFolders = await exists(join(targetDir, "0-Compass")) || await exists(join(targetDir, "0-compass"));
 
-    if (!hasAgents && !hasLegacyAgent && !hasRootFolders && !hasLegacyConductor) {
+    if (!hasAgents && !hasLegacyAgent && !hasRootFolders && !hasLegacyConductor && !hasConductor) {
       stderr.write(
         "This doesn't look like a Conductor project.\n" +
           "No .agents/, .agent/, or numbered folders found.\n" +
@@ -55,20 +63,46 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
 
     stdout.write("🎼 Conductor Framework — Upgrade\n\n");
 
-    // ---- Step 1: Migrate .agent/ → .agents/ ----
+    // ---- Step 1: Structural Migrations ----
+    stdout.write("Step 1: Structural Migrations...\n");
     if (hasLegacyAgent && !hasAgents) {
-      stdout.write("Step 1: Migrating .agent/ → .agents/...\n");
       await rename(legacyAgentDir, agentsDir);
-      stdout.write("  📁 .agent/ → .agents/ (Antigravity convention)\n");
+      stdout.write("  📁 .agent/ → .agents/\n");
     } else if (hasLegacyAgent && hasAgents) {
-      stdout.write("Step 1: Directory migration...\n  ⚠️  Both .agent/ and .agents/ exist. Removing legacy .agent/\n");
       await rm(legacyAgentDir, { recursive: true, force: true });
-    } else {
-      stdout.write("Step 1: Directory migration... ✅ Already using .agents/\n");
     }
 
-    // ---- Step 2: Safe Upgrade .agents/ via checksums ----
-    stdout.write("\nStep 2: Safely upgrading .agents/ Engine...\n");
+    if (hasLegacyConductor && !hasConductor) {
+      await rename(legacyConductorDir, conductorDir);
+      stdout.write("  📁 .conductor/ → conductor/\n");
+    } else if (hasLegacyConductor && hasConductor) {
+      await rm(legacyConductorDir, { recursive: true, force: true });
+    }
+
+    if (hasRootFolders && !(await exists(conductorDir))) {
+      await mkdir(conductorDir, { recursive: true });
+      for (const folder of NUMBERED_FOLDERS) {
+        const srcPath = join(targetDir, folder);
+        const dstPath = join(conductorDir, folder);
+        if (await exists(srcPath)) {
+          await cp(srcPath, dstPath, { recursive: true });
+          await rm(srcPath, { recursive: true, force: true });
+          stdout.write(`  📁 ${folder}/ → conductor/${folder}/\n`);
+        }
+      }
+    } else if (!(await exists(conductorDir))) {
+      await cp(join(templateDir, "conductor"), conductorDir, { recursive: true });
+      stdout.write("  ✅ Created conductor/ from templates\n");
+    }
+
+    // ---- Step 2: Global Kebab-Case Rename Engine ----
+    stdout.write("\nStep 2: Formatting repository to kebab-case...\n");
+    await renameRecursive(agentsDir, stdout);
+    await renameRecursive(conductorDir, stdout);
+    await updateChecksumsKeys(checksumPath);
+
+    // ---- Step 3: Safe Upgrade .agents/ via checksums ----
+    stdout.write("\nStep 3: Safely upgrading .agents/ Engine...\n");
 
     const plan = planUpdate(sourceAgentsDir, agentsDir, checksumPath);
     if (plan.length === 0) {
@@ -87,39 +121,6 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       
       executeUpdate(plan, sourceAgentsDir, agentsDir, checksumPath);
       stdout.write(`  ✅ .agents/ upgraded safely.\n`);
-    }
-
-    // ---- Step 3: Migrate numbered folders & legacy .conductor ----
-    if (hasLegacyConductor && !hasConductor) {
-      stdout.write("\nStep 3: Migrating legacy .conductor/ to visible conductor/...\n");
-      await rename(legacyConductorDir, conductorDir);
-      stdout.write("  📁 .conductor/ → conductor/ (Dropped the dot for UX)\n");
-    } else if (hasLegacyConductor && hasConductor) {
-      stdout.write("\nStep 3: Directory migration...\n  ⚠️  Both .conductor/ and conductor/ exist. Removing legacy .conductor/\n");
-      await rm(legacyConductorDir, { recursive: true, force: true });
-    }
-
-    if (hasRootFolders && !hasConductor && !hasLegacyConductor) {
-      stdout.write("\nStep 3: Migrating root folders to conductor/ structure...\n");
-      await mkdir(conductorDir, { recursive: true });
-      for (const folder of NUMBERED_FOLDERS) {
-        const srcPath = join(targetDir, folder);
-        const dstPath = join(conductorDir, folder);
-        if (await exists(srcPath)) {
-          await cp(srcPath, dstPath, { recursive: true });
-          await rm(srcPath, { recursive: true, force: true });
-          stdout.write(`  📁 ${folder}/ → conductor/${folder}/\n`);
-        }
-      }
-      stdout.write("  ✅ Migration complete\n");
-    } else if (hasRootFolders && (hasConductor || hasLegacyConductor)) {
-      stdout.write("\nStep 3: Folder migration...\n  ⚠️  Both root folders and conductor/ exist.\n     Keeping conductor/ (already migrated). Old root folders left untouched.\n");
-    } else if (hasConductor) {
-      stdout.write("\nStep 3: Folder migration... ✅ Already using conductor/\n");
-    } else if (!hasLegacyConductor) {
-      stdout.write("\nStep 3: Creating conductor/ (project state)...\n");
-      await cp(join(templateDir, "conductor"), conductorDir, { recursive: true });
-      stdout.write("  ✅ Created conductor/ from templates\n");
     }
 
     // ---- Step 4: Platform stubs ----

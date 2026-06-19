@@ -23,14 +23,14 @@ your-project/
 │   ├── skills/          # 26 modular skills
 │   ├── personas/        # 10 thinking partners
 │   └── tests/           # Framework self-test
-├── .conductor/          # Project state (all managed artifacts)
-│   ├── 0-Compass/       # North Star & Ship Log
-│   ├── 1-Workbench/     # Active work
-│   ├── 2-Backlog/       # Queued work
-│   ├── 3-Product-Areas/ # Feature inventory
-│   ├── 4-Context/       # Tribal knowledge
-│   ├── 5-Templates/     # Document templates
-│   └── 6-Archive/       # Completed work
+├── conductor/           # Project state (all managed artifacts)
+│   ├── 0-compass/       # North Star & Ship Log
+│   ├── 1-workbench/     # Active work
+│   ├── 2-backlog/       # Queued work
+│   ├── 3-product-areas/ # Feature inventory
+│   ├── 4-context/       # Tribal knowledge
+│   ├── 5-templates/     # Document templates
+│   └── 6-archive/       # Completed work
 ├── GEMINI.md            # Gemini auto-discovery stub
 └── CLAUDE.md            # Claude auto-discovery stub
 ```
@@ -91,7 +91,9 @@ Genesis → Storyboard → Grand PRD → Technical Vision → Carve → Spec-It 
 - **26 Skills** — Verification Gate, Code Review, Frontend Design, Systematic Debugging, Git Workflow, and more
 - **10 Personas** — CTO, Architect, Product Manager, Designer, Security Auditor, Database Architect, and more
 
-Full documentation: [`conductor-system.md`](templates/.agents/rules/conductor-system.md)
+Full documentation: [`AGENTS.md`](templates/.agents/AGENTS.md)
+
+*Note: Conductor uses **Progressive Disclosure**. IDEs only load a tiny `prime-directive.md` which points them to `AGENTS.md` for routing. This keeps your context window clean and lightning fast!*
 
 ---
 

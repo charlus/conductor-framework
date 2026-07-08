@@ -8,7 +8,7 @@ description: Technical Vision (Designing the Solution)
 
 **Trigger:** "Technical Vision", "Architecture", "How do we build this"
 **Goal:** Define the architecture, data model, and tech stack — grounded in the PRD and Design.
-**Output:** `Blueprint/Technical-Vision.md`
+**Output:** `blueprint/technical-vision.md`
 **Prerequisites:** Grand PRD, UX/UI Design Brief.
 
 ---
@@ -32,11 +32,11 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
 **Announce:** *"We're entering Phase 0: Setup. Let me load the Blueprint context."*
 
 1.  **Load Context** (Read in this order):
-    * `Blueprint/Grand-PRD.md` — The epics and product vision
-    * `Blueprint/UX-UI-Design-Brief.md` — The screens, navigation, and interactions
-    * `Genesis/Problem-Solar-System.md` — The problem landscape (for constraints and non-goals)
-    * `Genesis/World-Transformation.md` — The vision (for guiding architectural decisions)
-    * Any relevant `.conductor/4-Context/Technical/` files (existing tech stack, conventions)
+    * `blueprint/grand-prd.md` — The epics and product vision
+    * `blueprint/ux-ui-design-brief.md` — The screens, navigation, and interactions
+    * `genesis/problem-solar-system.md` — The problem landscape (for constraints and non-goals)
+    * `genesis/world-transformation.md` — The vision (for guiding architectural decisions)
+    * Any relevant `conductor/4-context/technical/` files (existing tech stack, conventions)
 
 2.  **Analyze Existing System** (if not greenfield):
     * **Review Codebase:** Explore folder structure, patterns, current stack
@@ -198,7 +198,7 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
 **Announce:** *"Phase 5: Assembling the Technical Vision document."*
 
 1.  **Draft the Document:**
-    Compile into `Blueprint/Technical-Vision.md` with these sections:
+    Compile into `blueprint/technical-vision.md` with these sections:
     * Overview (1 paragraph — what this architecture enables)
     * Tech Stack (table from Phase 1)
     * Data Model (entities + relationships from Phase 2)
@@ -215,7 +215,7 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
     * *"Want me to put on the CTO hat and stress-test the long-term viability of these decisions?"*
     * If yes: invoke `.agents/personas/CTO.md` for strategic review
 
-4.  **Save:** Create/update `Blueprint/Technical-Vision.md`
+4.  **Save:** Create/update `blueprint/technical-vision.md`
     * **Ask:** *"Ready for me to save the Technical Vision?"*
 
 ---

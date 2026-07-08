@@ -111,7 +111,7 @@ function selectiveCopy(sourceAgentDir, targetAgentDir, selections, registry) {
     fs.mkdirSync(targetAgentDir, { recursive: true });
 
     // 1. Always copy registry.json and core infrastructure
-    const coreFiles = ['registry.json', 'AGENTS.md'];
+    const coreFiles = ['registry.json', 'AGENTS.md', 'how-it-works.md'];
     for (const file of coreFiles) {
         const src = path.join(sourceAgentDir, file);
         const dst = path.join(targetAgentDir, file);
@@ -234,7 +234,7 @@ function syncSelections(sourceAgentDir, targetAgentDir, newSelections, oldSelect
     const removed = [];
 
     // Always update registry.json and core infrastructure
-    const coreFiles = ['registry.json', 'AGENTS.md'];
+    const coreFiles = ['registry.json', 'AGENTS.md', 'how-it-works.md'];
     for (const file of coreFiles) {
         const src = path.join(sourceAgentDir, file);
         const dst = path.join(targetAgentDir, file);

@@ -42,12 +42,14 @@ You are the Conductor in **Shipping Mode**. You are the final quality gate befor
 
 **Goal:** Lock in the value just built so it cannot be quietly broken in the future.
 
+This is not a repeat of Build's per-task TDD (`.agents/rules/test-driven-law.md`) — those tests already cover each task's unit-level behavior. This phase covers what per-task tests structurally can't: cross-feature interactions, end-to-end flows, and edge cases that only became visible once the whole implementation was assembled.
+
 **Announce:** *"Fortifying with regression tests."*
 
-1.  **Identify Core Value:** What is the critical path or core functionality that was just added or modified?
+1.  **Identify the Gap:** Re-read the task tracker's test coverage. What critical paths span *multiple* tasks, or touch other features, that no single task's tests exercised?
 2.  **Choose Framework:** Identify the testing framework used in this stack (e.g., `pytest` for Python, `jest`/`vitest` for JS/TS, `go test` for Go).
 3.  **Write Tests:**
-    * Write targeted regression tests for the newly added behavior.
+    * Write targeted regression/integration/E2E tests for the gaps identified above — not a duplicate of what Build already wrote.
     * Ensure edge cases and success paths are covered.
 4.  **Verify Tests:**
     * Run the new tests. Ensure they pass.
@@ -103,7 +105,7 @@ You are the Conductor in **Shipping Mode**. You are the final quality gate befor
 **Announce:** *"Logging the shipment and archiving."*
 
 1.  **Update Ship-Log:**
-    Add an entry to `.conductor/0-Compass/Ship-Log.md`:
+    Add an entry to `conductor/0-compass/ship-log.md`:
     ```markdown
     ## [Date] — [Implementation Name]
     - **What:** [One sentence summary]
@@ -112,10 +114,10 @@ You are the Conductor in **Shipping Mode**. You are the final quality gate befor
     ```
 
 2.  **Update Product Area:**
-    * Update `.conductor/3-Product-Areas/[Area]/[Area]-Features.md` or `[Area]-Technical.md` with the newly shipped capabilities.
+    * Update `conductor/3-product-areas/[area]/[area]-features.md` or `[area]-technical.md` with the newly shipped capabilities.
 
 3.  **Archive:**
-    * Move the completed Implementation folder from `.conductor/1-Workbench/` to `.conductor/6-Archive/Completed-Implementations/`.
+    * Move the completed Implementation folder from `conductor/1-workbench/` to `conductor/6-archive/completed-implementations/`.
 
 ---
 
@@ -134,7 +136,7 @@ Before claiming this workflow is done:
 
 ## Next Steps After Shipping
 
-* **Want to reflect?** → Trigger the **Retrospective** workflow (`.agents/workflows/Retrospective.md`)
+* **Want to reflect?** → Trigger the **Retrospective** workflow (`.agents/workflows/retrospective.md`)
 * **Next feature?** → Return to **Genesis** or **Spec-It**
 
 ---

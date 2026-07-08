@@ -11,7 +11,7 @@ Maintain a live table of tasks during execution. Updated at **every** state chan
 
 ## Format
 
-The tracker lives inside the active Implementation folder as `Task-Tracker.md`.
+The tracker lives inside the active Implementation folder as `task-tracker.md`.
 
 ```markdown
 | # | Task | Status | Evidence |

@@ -26,4 +26,4 @@ This workflow enforces the strict Test-Driven Development (TDD) cycle for all fe
 
 - **Never skip the RED phase.** You must prove the test can fail before making it pass.
 - **Micro-commits**: Consider committing or using `using-git-worktrees` after a successful GREEN or REFACTOR phase.
-- **Traceability**: If this code fulfills a specific requirement from `conductor/2-Backlog/Task-Backlog.md`, ensure the commit message or the `trace.md` file references the exact task.
+- **Traceability**: If this code fulfills a specific requirement from `conductor/2-backlog/task-backlog.md`, ensure the commit message or the `trace.md` file references the exact task.

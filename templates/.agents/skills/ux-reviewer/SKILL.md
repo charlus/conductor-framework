@@ -33,7 +33,7 @@ Conversational feedback including:
 ## Protocol
 
 1. **Review the design** - Look at what's presented (screenshot, mockup, or app location).
-2. **Check against Design System** - If `.conductor/4-Context/Design/Design-System.md` exists, reference it for consistency.
+2. **Check against Design System** - If `conductor/4-context/design/design-system.md` exists, reference it for consistency.
 3. **Identify strengths** - What's working well from a UX perspective.
 4. **Identify issues** - Potential usability problems, confusing flows, accessibility concerns.
 5. **Offer suggestions** - Concrete ideas for improvement.

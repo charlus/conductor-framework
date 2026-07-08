@@ -105,8 +105,8 @@ Draft a Feature Spec with only these sections:
 * Iterate until approved
 
 ### Save
-* Save to the active Implementation folder as `Feature-Spec.md`
-* Or to `.conductor/1-Workbench/` if no Implementation folder exists yet
+* Save to the active Implementation folder as `feature-spec.md`
+* Or to `conductor/1-workbench/` if no Implementation folder exists yet
 
 ---
 
@@ -153,7 +153,7 @@ Draft an Implementation Plan:
 
 **Announce:** *"Starting build."*
 
-* Follow the **Build** workflow (`.agents/workflows/Build.md`) with one adjustment:
+* Follow the **Build** workflow (`.agents/workflows/build.md`) with one adjustment:
   * **Batch size = all tasks** (since Quick-Path implementations are small)
   * Still do per-task verification
   * Still do the two-stage review (spec compliance → code quality)

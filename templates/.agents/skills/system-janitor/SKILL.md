@@ -31,7 +31,7 @@ Then: A prompt asking if you want the files moved.
 ## Protocol
 
 1. **Scan the framework** - Review all folders in the Conductor Framework structure.
-2. **Check against expected structure** - Compare to the standard folder purposes defined in `How-It-Works.md`.
+2. **Check against expected structure** - Compare to the standard folder purposes defined in `how-it-works.md`.
 3. **Identify misplaced files** - Find files that don't belong where they are (e.g., implementation docs in Workbench after shipping, orphan files, wrong folder).
 4. **Report findings** - List each misplaced file with current location and recommended location.
 5. **Ask permission** - "Would you like me to move these files to their recommended locations?"

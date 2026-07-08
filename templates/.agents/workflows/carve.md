@@ -9,9 +9,9 @@ description: Carve (Slicing the Blueprint)
 **Trigger:** "Carve", "Break it down", "Split into implementations"
 **Goal:** Break the Blueprint into discrete, buildable Implementations that each deliver testable value.
 **Output:**
-- `Blueprint/Implementation-Overview.md` (Master Plan)
-- `[ProjectName]-Documentation/Project-Documentation.md` (Living Docs)
-- `Implementations/` folders with blank specs.
+- `blueprint/implementation-overview.md` (Master Plan)
+- `[ProjectName]-documentation/project-documentation.md` (Living Docs)
+- `implementations/` folders with blank specs.
 
 **Prerequisites:** Grand PRD, UX/UI Design Brief, Technical Vision.
 
@@ -37,10 +37,10 @@ You are the Conductor wearing both **hats simultaneously**:
 **Announce:** *"We're entering Phase 0: Loading the Blueprint."*
 
 1.  **Load Context** (Read in this order):
-    * `Blueprint/Grand-PRD.md` — Epics and scope
-    * `Blueprint/UX-UI-Design-Brief.md` — Screens, navigation, and interactions
-    * `Blueprint/Technical-Vision.md` — Data model, architecture, and tech stack
-    * `Genesis/World-Transformation.md` — The vision (for prioritization decisions)
+    * `blueprint/grand-prd.md` — Epics and scope
+    * `blueprint/ux-ui-design-brief.md` — Screens, navigation, and interactions
+    * `blueprint/technical-vision.md` — Data model, architecture, and tech stack
+    * `genesis/world-transformation.md` — The vision (for prioritization decisions)
 
 2.  **Present Blueprint Summary:**
     * *"From the Blueprint, I see:*
@@ -172,20 +172,20 @@ For each proposed Implementation:
 
 **Announce:** *"Phase 4: Generating all artifacts."*
 
-1.  **Create `Blueprint/Implementation-Overview.md`:**
+1.  **Create `blueprint/implementation-overview.md`:**
     * Sequence table with brief descriptions
     * Dependency map
     * Parallel track opportunities
 
-2.  **Create `[ProjectName]-Documentation/Project-Documentation.md`:**
+2.  **Create `[ProjectName]-documentation/project-documentation.md`:**
     * Full definitions for each Implementation
     * Status: `Not Started` for all
     * Cross-references to the Blueprint docs they draw from
 
 3.  **Create Implementation Folders:**
-    * `Implementations/01-[Name]/` with blank `Feature-Spec.md` and `Implementation-Plan.md`
-    * `Implementations/02-[Name]/` etc.
-    * Use templates from `.conductor/5-Templates/Carve-Workflow/` if available
+    * `implementations/01-[Name]/` with blank `feature-spec.md` and `implementation-plan.md`
+    * `implementations/02-[Name]/` etc.
+    * Use templates from `conductor/5-templates/carve-workflow/` if available
 
 4.  **Verify:** List all created files and confirm they exist.
 

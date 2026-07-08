@@ -18,7 +18,7 @@ description: GitHub workflow using gh CLI — creating issues, PRs, wiki updates
 # Create issue from Feature Spec
 gh issue create \
   --title "feat: [Feature Name]" \
-  --body-file Feature-Spec.md \
+  --body-file feature-spec.md \
   --label "implementation"
 
 # List open issues

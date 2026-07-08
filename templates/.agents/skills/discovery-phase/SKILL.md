@@ -11,7 +11,7 @@ Do not execute discovery within this skill. Your only job is to load the correct
 ## Routing
 
 - If the user says: "I have an idea", "Start a new app", or "New feature area":
-  **ACTION:** Use the `view_file` tool to read `.agents/workflows/Genesis.md` and follow its instructions exactly.
+  **ACTION:** Read `.agents/workflows/genesis.md` and follow its instructions exactly.
 
 - If the user says: "Storyboard", "Shape the experience":
-  **ACTION:** Use the `view_file` tool to read `.agents/workflows/Storyboard.md` and follow its instructions exactly.
+  **ACTION:** Read `.agents/workflows/storyboard.md` and follow its instructions exactly.

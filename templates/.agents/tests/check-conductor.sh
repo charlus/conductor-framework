@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# Conductor Framework V4 — Self-Test Suite
+# Conductor Framework V5 — Self-Test Suite
 # ============================================================
 # Validates that all framework files exist, have proper naming,
 # and the framework is structurally intact.
@@ -48,7 +48,7 @@ require_dir() {
 }
 
 echo "========================================"
-echo " Conductor Framework V4 — Self-Test"
+echo " Conductor Framework V5 — Self-Test"
 echo "========================================"
 echo ""
 
@@ -80,6 +80,7 @@ echo "2. Core Files..."
 
 required_files=(
   "$AGENT_DIR/AGENTS.md"
+  "$AGENT_DIR/how-it-works.md"
   "$ROOT_DIR/CHANGELOG.md"
 )
 
@@ -142,7 +143,7 @@ echo ""
 echo "6. Rules..."
 
 rules=(
-  "prime-directive" "verification-iron-law"
+  "prime-directive" "verification-iron-law" "test-driven-law"
 )
 
 for rule in "${rules[@]}"; do
@@ -174,6 +175,21 @@ if grep -q "Conductor Framework" "$AGENT_DIR/AGENTS.md"; then
   pass "AGENTS.md references Conductor Framework"
 else
   fail "AGENTS.md does not reference Conductor Framework"
+fi
+
+# ---- 9. Dead Path References ----
+# Guards against the exact bug the V5 kebab-case migration introduced once:
+# renaming files/folders without updating the prose that points at them.
+echo ""
+echo "9. Dead Path References..."
+
+dead_refs=$(grep -rEl '\.?conductor/[0-9]-[A-Z]|\.agents/workflows/[A-Z][a-zA-Z-]*\.md|\.agents/skills/[A-Z][a-zA-Z-]*/SKILL\.md' "$AGENT_DIR" 2>/dev/null || true)
+
+if [ -z "$dead_refs" ]; then
+  pass "No dead Title-Case path references found"
+else
+  fail "Dead Title-Case path references found in:"
+  echo "$dead_refs" | while read -r f; do echo "         $f"; done
 fi
 
 # ---- Summary ----

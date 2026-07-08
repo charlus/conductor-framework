@@ -9,8 +9,8 @@ description: Spec-It (Detailed Implementation Specs)
 **Trigger:** "Spec it", "Spec this implementation", "Write the spec"
 **Goal:** Create detailed Feature Spec and Implementation Plan for a specific implementation.
 **Output:**
-- `Implementations/[NN-Name]/Feature-Spec.md` - The detailed "what"
-- `Implementations/[NN-Name]/Implementation-Plan.md` - The detailed "how"
+- `implementations/[NN-Name]/feature-spec.md` - The detailed "what"
+- `implementations/[NN-Name]/implementation-plan.md` - The detailed "how"
 
 **Prerequisites:** Carve workflow completed (Implementation folders exist with blank templates)
 **Next Workflow:** Build (execute the implementation)
@@ -58,18 +58,18 @@ First, explain what this workflow is about in plain terms:
 ### Steps
 
 1. **Ask Which Implementation:**
-   * Look at the `Implementations/` folder
+   * Look at the `implementations/` folder
    * List the available implementations (e.g., "I see 01-Categories-Backlog, 02-Series, etc.")
    * **Ask:** "Which implementation should we spec? Or should we start with the next unspecced one?"
    * Wait for answer.
 
 2. **Load Context:**
    Read the following (in this order):
-   * `Project-Documentation.md` - The high-level definition for this implementation
-   * `Blueprint/Grand-PRD.md` - The epics and overall product vision
-   * `Blueprint/UX-UI-Design-Brief.md` - The screens and interactions
-   * `Blueprint/Technical-Vision.md` - The data model, architecture, tech stack
-   * `Blueprint/Implementation-Overview.md` - The sequence and dependencies
+   * `project-documentation.md` - The high-level definition for this implementation
+   * `blueprint/grand-prd.md` - The epics and overall product vision
+   * `blueprint/ux-ui-design-brief.md` - The screens and interactions
+   * `blueprint/technical-vision.md` - The data model, architecture, tech stack
+   * `blueprint/implementation-overview.md` - The sequence and dependencies
 
 3. **Explain Intent:**
    Present a succinct summary of what you understand about this implementation:
@@ -126,7 +126,7 @@ Announce: *"Phase 1: Feature Spec. I'm going to draft the detailed product speci
 - **Ask:** "Feature Spec locked?"
 
 ### Create Feature Spec File
-- Once locked, **immediately create** `Implementations/[NN-Name]/Feature-Spec.md`
+- Once locked, **immediately create** `implementations/[NN-Name]/feature-spec.md`
 - **Confirm:** "Feature Spec created."
 
 ### Transition
@@ -175,7 +175,7 @@ Announce: *"Phase 2: Implementation Plan. Now that the Feature Spec is locked an
 - **Ask:** "Implementation Plan locked?"
 
 ### Create Implementation Plan File
-- Once locked, **immediately create** `Implementations/[NN-Name]/Implementation-Plan.md`
+- Once locked, **immediately create** `implementations/[NN-Name]/implementation-plan.md`
 - **Confirm:** "Implementation Plan created."
 
 ### Transition
@@ -186,8 +186,8 @@ Announce: *"Phase 2: Implementation Plan. Now that the Feature Spec is locked an
 ## Completion Protocol
 
 ### Update Project Documentation
-- Update the implementation status in `Project-Documentation.md` from "Not Started" to "Specced"
-- **Ask:** "Should I update the status in Project-Documentation.md?"
+- Update the implementation status in `project-documentation.md` from "Not Started" to "Specced"
+- **Ask:** "Should I update the status in project-documentation.md?"
 
 ### Summary
 - "Spec-It is complete for Implementation [NN]: [Name]."
@@ -199,7 +199,7 @@ Announce: *"Phase 2: Implementation Plan. Now that the Feature Spec is locked an
 
 ### Implementation State After Spec-It
 ```
-Implementations/[NN-Name]/
-├── Feature-Spec.md        ← COMPLETE
-└── Implementation-Plan.md ← COMPLETE
+implementations/[NN-Name]/
+├── feature-spec.md        ← COMPLETE
+└── implementation-plan.md ← COMPLETE
 ```

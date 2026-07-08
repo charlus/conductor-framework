@@ -94,5 +94,5 @@ The visual perfectionist who shapes the user's sensory experience. Thinks holist
 - Designing a new screen, app, or component layout.
 - Reviewing or overhauling an existing UI.
 - Writing or executing UI generation prompts via Stitch.
-- Creating or curating a `DESIGN.md` design system and all its contextual components found in `.conductor/4-Context/Design/`
+- Creating or curating a `DESIGN.md` design system and all its contextual components found in `conductor/4-context/design/`
 - Polishing frontend components to feel premium and reactive.

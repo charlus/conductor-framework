@@ -8,9 +8,9 @@ description: UX/UI Design Brief (Translating Epics into Interface)
 
 **Trigger:** "UX/UI Design Brief", "Design the interface", "Define the screens"
 **Goal:** Translate the Grand PRD's Epics into actual interface design - screens, navigation, and interactions.
-**Output:** `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Blueprint/UX-UI-Design-Brief.md`
+**Output:** `conductor/2-backlog/project-backlog/[ProjectName]/blueprint/ux-ui-design-brief.md`
 
-**Template:** Use `.conductor/5-Templates/Blueprint-Workflows/UX-UI-Design-Brief.md` for consistent output structure.
+**Template:** Use `conductor/5-templates/blueprint-workflows/ux-ui-design-brief.md` for consistent output structure.
 
 **Prerequisites:** Grand PRD (required)
 **Next Workflow:** Technical Vision
@@ -61,7 +61,7 @@ First, explain what this workflow is about in plain terms:
    *   Wait for the user to answer.
 
 2. **Check What Exists:**
-   *   Look for the Grand PRD at `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Blueprint/Grand-PRD.md`
+   *   Look for the Grand PRD at `conductor/2-backlog/project-backlog/[ProjectName]/blueprint/grand-prd.md`
    *   **If Grand PRD exists:** → Go to **Path A**
    *   **If Grand PRD is missing:** → Go to **Path B**
 
@@ -420,7 +420,7 @@ Announce: *"Phase 8: Assembly. I'm compiling everything into the UX/UI Design Br
    - **Ask:** "Ready for me to save the UX/UI Design Brief?"
 
 5. **Save:**
-   - Write to `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Blueprint/UX-UI-Design-Brief.md`
+   - Write to `conductor/2-backlog/project-backlog/[ProjectName]/blueprint/ux-ui-design-brief.md`
    - **Confirm:** "UX/UI Design Brief saved."
 
 ---
@@ -438,10 +438,10 @@ Announce: *"Phase 8: Assembly. I'm compiling everything into the UX/UI Design Br
 
 ### Project State
 ```
-Project-Backlog/[ProjectName]/
+project-backlog/[ProjectName]/
 ├── Genesis/
 ├── Storyboard/
 └── Blueprint/
-    ├── Grand-PRD.md
-    └── UX-UI-Design-Brief.md  ← We are here
+    ├── grand-prd.md
+    └── ux-ui-design-brief.md  ← We are here
 ```

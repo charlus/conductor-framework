@@ -206,6 +206,13 @@
       "default": true
     },
     {
+      "name": "test-driven-law",
+      "file": "test-driven-law.md",
+      "description": "Red before green. No implementation code without a failing test first.",
+      "category": "core",
+      "default": true
+    },
+    {
       "name": "verification-iron-law",
       "file": "verification-iron-law.md",
       "description": "No completion claims without fresh verification evidence.",
@@ -342,6 +349,7 @@
       ],
       "rules": [
         "prime-directive",
+        "test-driven-law",
         "verification-iron-law"
       ],
       "workflows": [

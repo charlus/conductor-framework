@@ -9,12 +9,12 @@ description: Storyboard (Shaping the Experience)
 **Trigger:** "Storyboard", "Shape the experience", "Who's the main character?"
 **Goal:** Define the main character, their desired outcomes, and the scenes they experience to achieve them.
 **Output:**
-1. `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Storyboard/Main-Character.md` (Who they are, what they want)
-2. `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Storyboard/Storyboard.md` (The scenes they go through)
+1. `conductor/2-backlog/project-backlog/[ProjectName]/storyboard/main-character.md` (Who they are, what they want)
+2. `conductor/2-backlog/project-backlog/[ProjectName]/storyboard/storyboard.md` (The scenes they go through)
 
-**Templates:** Use the templates in `.conductor/5-Templates/Storyboard-Workflow/` for consistent output structure.
+**Templates:** Use the templates in `conductor/5-templates/storyboard-workflow/` for consistent output structure.
 
-**Relationship to Projects:** Storyboard adds to an existing Project folder. If no Project exists, Genesis should be run first to create one. Storyboard outputs go in the `Storyboard/` subfolder within the Project.
+**Relationship to Projects:** Storyboard adds to an existing Project folder. If no Project exists, Genesis should be run first to create one. Storyboard outputs go in the `storyboard/` subfolder within the Project.
 
 ---
 
@@ -45,14 +45,14 @@ Announce: *"We're starting the Storyboard workflow. This is where we shape the e
     *   "By the end, you'll have a clear picture of what using this thing actually feels like."
 
 2.  **Check for Existing Project:**
-    *   Look for an existing Project folder in `.conductor/2-Backlog/Project-Backlog/` that relates to this work.
+    *   Look for an existing Project folder in `conductor/2-backlog/project-backlog/` that relates to this work.
     *   **If found:** "I see you have a Project called [ProjectName] with Genesis already completed. I'll add Storyboard to this Project and use Genesis as context."
     *   **If not found:** "I don't see a Project for this yet. We should run Genesis first to create the Project and define the problem space. Would you like to do that now?"
     *   If user wants to proceed without Genesis, create a new Project: "Okay, I'll create a new Project. What would you like to name it?"
 
 3.  **Create Storyboard Folder:**
-    *   **Action:** Create folder at `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Storyboard/`
-    *   **Confirm:** "Created Storyboard folder in Project `[ProjectName]`. This is where Main-Character.md and Storyboard.md will live."
+    *   **Action:** Create folder at `conductor/2-backlog/project-backlog/[ProjectName]/storyboard/`
+    *   **Confirm:** "Created Storyboard folder in Project `[ProjectName]`. This is where main-character.md and storyboard.md will live."
 
 4.  **Load Context (if Genesis exists):**
     *   Read the Genesis documents (Problem-Solar-System, World-Transformation, Functional-Animator)
@@ -105,11 +105,11 @@ Announce: *"We're now in Phase 1: The Main Character. This is where we define wh
     *   **Ask:** "Are you ready for me to draft the Main Character document, or is there more to explore about who they are and what they want?"
 
 8.  **Draft & Approve:**
-    *   Present the text for `Main-Character.md` using the template structure.
+    *   Present the text for `main-character.md` using the template structure.
     *   **STOP:** Wait for explicit approval.
 
 9.  **Action:**
-    *   Write to `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Storyboard/Main-Character.md`.
+    *   Write to `conductor/2-backlog/project-backlog/[ProjectName]/storyboard/main-character.md`.
 
 10. **Transition to Phase 2:**
     *   Wrap up: "Phase 1 is complete. We've defined our main character and captured their outcomes."
@@ -167,11 +167,11 @@ Announce: *"We're now in Phase 2: The Scenes. We know who our main character is 
     *   **Ask:** "Are you ready for me to draft the Storyboard document, or are there more scenes to explore?"
 
 9.  **Draft & Approve:**
-    *   Present the text for `Storyboard.md` using the template structure.
+    *   Present the text for `storyboard.md` using the template structure.
     *   **STOP:** Wait for explicit approval.
 
 10. **Action:**
-    *   Write to `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Storyboard/Storyboard.md`.
+    *   Write to `conductor/2-backlog/project-backlog/[ProjectName]/storyboard/storyboard.md`.
 
 11. **Transition to Completion:**
     *   Wrap up: "Phase 2 is complete. We've defined all the scenes and validated them against the outcomes."
@@ -200,8 +200,8 @@ Announce: *"Storyboard is complete. Let me review what we've created and talk ab
 
 5.  **Next Steps:**
     *   The natural next step is **Blueprint** - to create the Grand PRD that synthesizes everything.
-    *   Blueprint will add a `Grand-PRD.md` to this same Project.
+    *   Blueprint will add a `grand-prd.md` to this same Project.
     *   After Blueprint, **Technical Vision** explores architecture, followed by **Carve** to break into Implementations.
     *   **Ask:** "Would you like to proceed with Blueprint?"
 
-6.  **Project Lifecycle:** The Project folder lives in `.conductor/2-Backlog/Project-Backlog/` as workflows add to it. When all Implementations are complete, the entire Project moves to `.conductor/6-Archive/`.
+6.  **Project Lifecycle:** The Project folder lives in `conductor/2-backlog/project-backlog/` as workflows add to it. When all Implementations are complete, the entire Project moves to `conductor/6-archive/`.

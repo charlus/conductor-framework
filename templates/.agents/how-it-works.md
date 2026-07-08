@@ -1,0 +1,351 @@
+# How Conductor Works
+
+**System:** Conductor Framework V5 — Hybrid Architecture
+**Role:** You are the Conductor — a Product Engineer that orchestrates the full development lifecycle.
+
+> This is the full reference. `AGENTS.md` is the always-loaded briefing packet; read this file when you need folder purposes, the complete workflow/skill/persona registries, or the reasoning behind a rule. You don't need to read this every session — read it when `AGENTS.md`'s classifier or quick reference isn't enough.
+
+---
+
+## Folder Structure
+
+```
+your-project/
+├── .agents/                       # The Engine — capabilities (read-only for project logic)
+│   ├── AGENTS.md                  # Always-on briefing: request classifier + quick reference
+│   ├── how-it-works.md            # This file — full system reference
+│   ├── registry.json              # Machine-readable index of every skill/rule/workflow
+│   ├── rules/                     # Always-on laws (Prime Directive, Verification Iron Law, Test-Driven Law)
+│   ├── workflows/                 # Step-by-step guides that PRODUCE artifacts through a defined process
+│   ├── skills/                    # Atomic capabilities that EXECUTE discrete actions
+│   ├── personas/                  # Judgment partners that embody ways of THINKING
+│   └── tests/                     # Framework self-test (check-conductor.sh)
+├── conductor/                     # The Dashboard — project state (your collaborative workspace)
+│   ├── 0-compass/                 # North Star & Ship Log
+│   ├── 1-workbench/               # Active work area
+│   ├── 2-backlog/                 # Queue for ready work
+│   │   ├── task-backlog.md        # Small stuff — bugs, tweaks, no full plan needed
+│   │   ├── project-backlog/       # Projects (Genesis → Storyboard → Grand PRD → multiple Implementations)
+│   │   └── implementation-backlog/ # Individual Implementations (Feature Spec + Plan) ready to build
+│   ├── 3-product-areas/           # Product Map, organized by domain (e.g. auth/, billing/)
+│   ├── 4-context/                 # Tribal knowledge specific to YOUR product
+│   │   ├── identity/               # Problem, Vision, Target User, Brand Voice
+│   │   ├── design/                 # Design System, UI Components, Brand Assets
+│   │   ├── technical/              # Tech Stack, Architecture, Coding Patterns
+│   │   ├── product/                 # Growth Strategy, Future Plans
+│   │   └── meta/                    # Decision Log, Glossary
+│   ├── 5-templates/               # Standard structures for creating artifacts
+│   └── 6-archive/                 # Completed work
+├── conductor.config.json          # Registry URL for `conductor add/search/list --remote`
+├── GEMINI.md / CLAUDE.md          # Platform auto-discovery stubs
+└── CHANGELOG.md                   # Framework version history for this install
+```
+
+---
+
+## What Each Folder Is For
+
+### 0-compass
+Your North Star. The "where are we going?" layer.
+- **north-star.md** — The one metric that defines success right now
+- **ship-log.md** — A chronological victory log of everything you've shipped
+
+### 1-workbench
+The daily workspace. Where focus happens.
+- **inbox.md** — Dump everything here. Process later. Reachable via chat with `Inbox: X` — see Quick Capture below.
+- **scratchpad.md** — Temporary notes. Reachable via chat with `Scratchpad: X`.
+- **Active Implementation** — when you start building, its folder moves here from the Backlog.
+
+### 2-backlog
+The "To Do" queue, three tiers by weight:
+- **task-backlog.md** — small stuff (bugs, tweaks) that doesn't need a full plan
+- **implementation-backlog/** — individual Implementations (Feature Spec + Implementation Plan) ready to build
+- **project-backlog/** — Projects containing Genesis, Storyboard, Grand PRD, and multiple Implementations
+
+### 3-product-areas
+The Product Map, organized by domain. Each area has three standard files, kept alive by the `context-updater` skill after every Build:
+1. **`[area]-features.md`** — what users can do
+2. **`[area]-technical.md`** — how it works
+3. **`[area]-epics.md`** — future ideas and open problems
+
+### 4-context
+Tribal knowledge specific to your product — not the framework's, yours.
+- **identity/** — Problem, Vision, Target User, Brand Voice
+- **design/** — Design System, UI Components, Brand Assets
+- **technical/** — Tech Stack, Architecture, Coding Patterns
+- **product/** — Growth Strategy, Future Plans
+- **meta/** — Decision Log, Glossary
+
+### 5-templates
+Standard structures for creating artifacts: PRD, Persona, Skill, Agentic-Flow at the top level, plus per-workflow subfolders (`genesis-workflow/`, `storyboard-workflow/`, `blueprint-workflows/`, `carve-workflow/`) and a `new-product-area/` starter kit (features/technical/epics stubs) for standing up a new `3-product-areas/` entry.
+
+### 6-archive
+Where completed work goes — `completed-implementations/` and `completed-projects/`.
+
+---
+
+## Core Principles
+
+### Folder = State
+We don't update status fields. We move folders. `2-backlog/` = queued, `1-workbench/` = active, `6-archive/` = done.
+
+### Context First. Plan Second. Build Third.
+Never rush to a solution. Read `conductor/4-context/` and `conductor/3-product-areas/` before acting. See `.agents/rules/prime-directive.md`.
+
+### Verification Iron Law
+No completion claims without fresh verification evidence. Applies to every workflow and skill, globally. See `.agents/rules/verification-iron-law.md`.
+
+### Test-Driven by Default
+Tests aren't a Build task like the others — they're how every other Build task gets written. There are three layers, and they don't overlap:
+
+| Layer | When | Question it answers |
+|---|---|---|
+| **Analyze-Tests** skill | Before Build starts | What's the test strategy for this whole implementation? |
+| **Test-Driven Law** | During Build, per task | Does this specific increment have a failing test before it has an implementation? |
+| **Ship's Regression Fortification** | After Build | What cross-feature/E2E gaps would per-task unit tests miss? |
+
+The middle layer is a `rules/` file, not a skill you have to remember to reach for — see `.agents/rules/test-driven-law.md`. It's as non-negotiable as the Verification Iron Law, by design.
+
+### Naming Convention: kebab-case
+All framework files use **kebab-case**: workflows (`grand-prd.md`, `quick-path.md`), skills (`code-review/`, `task-tracker/`), personas (`product-manager.md`, `conductor-assistant.md`), `conductor/` folders and files alike. `conductor upgrade` auto-renames older Title-Case installs.
+
+---
+
+## System Flow
+
+### Full Pipeline (Projects)
+```
+Genesis → Storyboard → Grand PRD → UX/UI → Technical Vision → Carve → Spec-It → Build → Ship → Retrospective
+   |          |            |          |           |               |         |        |       |         |
+Problem   Experience    Epics      Screens    Architecture      Slices    Specs    Code   Polish    Lessons
+```
+
+### Quick Track (Standalone)
+```
+Quick-Path → Build → Ship → (optional) Retrospective
+     |          |       |
+  Scope+Spec   Code   Polish
+```
+
+### Task Only
+```
+task-backlog.md → Do it → ship-log.md
+```
+
+---
+
+## Request Classifier — Full Table
+
+`AGENTS.md` carries the compact version of this. Full version, with routing detail:
+
+| If the user says... | They need | You do |
+|---|---|---|
+| A question ("what is", "how does", "explain") | **Answer** | Respond directly. No workflow needed. |
+| "I have an idea", "Start a new app", "New feature area" | Discovery | → `workflows/genesis.md` |
+| "Storyboard", "Shape the experience" | Experience Design | → `workflows/storyboard.md` |
+| "Grand PRD", "Create PRD" | Blueprint | → `workflows/grand-prd.md` → `ux-ui-design-brief.md` → `technical-vision.md` |
+| "Carve", "Break it down" | Slicing | → `workflows/carve.md` |
+| "Spec it", "Write the spec" | Specification | → `workflows/spec-it.md` |
+| "Build it", "Let's code" | Execution | → `workflows/build.md` |
+| "Ship it", "Audit and ship", "Release" | Shipping | → `workflows/ship.md` |
+| "Quick path", "Just build this" | Fast Track | → `workflows/quick-path.md` (skips discovery) |
+| "Let's reflect", "Retro" | Learning | → `workflows/retrospective.md` |
+| "Brain dump", "Refine my ideas" | Skill | → `skills/brain-dump-to-epics/` |
+| "CTO mode", "Architect mode", "PM mode", etc. | Thinking Partner | → load matching persona from `personas/` |
+| "How does this framework work?" | Navigation | → load `conductor-assistant` persona |
+| "Inbox: X", "Add to inbox: X" | Capture | → append verbatim to `conductor/1-workbench/inbox.md`, no workflow |
+| "Scratchpad: X" | Capture | → append verbatim to `conductor/1-workbench/scratchpad.md`, no workflow |
+| Small fix, bug, quick task (already well-scoped) | Task | → add to `conductor/2-backlog/task-backlog.md` |
+
+**Not sure what you need?**
+- *"I'm starting a brand new app"* or *"a major new feature area"* → **Genesis**. New problem space = needs discovery.
+- *"A significant feature in an existing area"* → **Grand PRD** (if complex) or **Quick-Path** (if scope is already clear).
+- *"I know exactly what to build"* → **Quick-Path** or **Spec-It**.
+- *"I have a spec, let's go"* → **Build**.
+- *"I don't know where to start"* → **Genesis**. It'll help you find the problem.
+
+---
+
+## Quick Capture
+
+Some platforms this framework runs on (Claude Code, Antigravity 2.0) have no file browser or text editor — chat is the *only* channel the human has. Without a shortcut, there's no way to get a stray thought into `1-workbench/` except asking the agent to open a whole workflow around it, which is exactly the friction the Inbox is supposed to remove.
+
+The convention:
+
+- **`Inbox: <thought>`** or **`Add to inbox: <thought>`** → append `<thought>` verbatim as a new bullet in `conductor/1-workbench/inbox.md`
+- **`Scratchpad: <thought>`** → same, into `conductor/1-workbench/scratchpad.md`
+- Multiple items in one message (one per line, or semicolon-separated) → each becomes its own bullet
+
+**Rules, deliberately narrow:**
+1. No workflow triggers. No discussion. No clarifying questions.
+2. Don't judge, triage, categorize, or rewrite the wording — that's a second pass the human or agent does later, on purpose, when actually processing the inbox. Judging it now defeats the point: the human used this path specifically to *not* stop and think about it right now.
+3. Confirm in one line (`"Added to inbox."`) and stop.
+
+This is distinct from the Request Classifier's "small fix, bug, quick task" row, which *does* involve the agent's judgment (recognizing something is already well-scoped enough to go straight into `task-backlog.md`'s triaged, prioritized format). Quick Capture is the zero-judgment fallback for everything else — used when the human wants speed, not triage.
+
+Mechanics live in `.agents/skills/context-engineering/SKILL.md`.
+
+---
+
+## Workflow Registry
+
+### Discovery
+| Workflow | Trigger | Produces | Next |
+|---|---|---|---|
+| **Genesis** | "I have an idea", "New app", "New feature area" | Problem Solar System, World Transformation, Functional Animator | Storyboard |
+| **Storyboard** | "Shape the experience" | Main Character, Scenes | Grand PRD |
+
+### Blueprint
+| Workflow | Trigger | Produces | Next |
+|---|---|---|---|
+| **Grand PRD** | "Create PRD" | Epics | UX/UI Design Brief |
+| **UX/UI Design Brief** | "Design the interface" | Screens | Technical Vision |
+| **Technical Vision** | "Architecture" | Architecture decisions | Carve |
+
+### Execution
+| Workflow | Trigger | Produces | Next |
+|---|---|---|---|
+| **Carve** | "Break it down" | Implementation slices + folders | Spec-It |
+| **Spec-It** | "Write the spec" | Feature Spec + Implementation Plan | Build |
+| **Build** | "Let's code" | Working code, test-driven per task, Task Tracker | Ship |
+| **Ship** | "Ship it", "Audit and ship" | Empathy-audited code, regression tests, CI alignment, PR/MR | Retrospective |
+| **Quick-Path** | "Just build this" | Spec + Plan + Code in one pass | Ship |
+| **Retrospective** | "Let's reflect" | Lessons + knowledge base updates | — |
+
+### Cross-Cutting
+| Workflow | Used by | Purpose |
+|---|---|---|
+| **TDD-Cycle** | Build (mandatory, via `test-driven-law.md`) | RED → GREEN → REFACTOR mechanics for every task |
+| **Agentic-Flow** | Any workflow designing human-AI interaction | Designing agent-facing UX |
+
+---
+
+## Context File Manifest
+
+What each workflow produces, and who reads it next:
+
+| Upstream | Produces | Consumed by |
+|---|---|---|
+| Genesis | Problem Solar System, World Transformation, Functional Animator | Grand PRD, Technical Vision (constraints) |
+| Storyboard | Main Character, Storyboard | Grand PRD |
+| Grand PRD | Epics | UX/UI, Technical Vision, Carve, Spec-It |
+| UX/UI Design Brief | Screens | Technical Vision, Carve, Spec-It |
+| Technical Vision | Architecture | Carve, Spec-It |
+| Carve | Implementation Overview, Implementation folders | Spec-It |
+| Spec-It | Feature Spec, Implementation Plan | Build |
+| Build | Working code, Task Tracker, Ship-Log entry | Ship, Retrospective, `context-updater` |
+| Ship | Regression tests, CI updates, PR/MR | Retrospective |
+| Retrospective | Lessons, knowledge base updates | `3-product-areas/`, `4-context/` |
+
+---
+
+## Skill Registry
+
+### Lifecycle Routers
+Entry points that read the phase you're in and route you to the right workflow.
+| Skill | Purpose |
+|---|---|
+| `discovery-phase` | New idea / new app / new feature area → routes into Genesis |
+| `blueprint-phase` | PRD, UX/UI brief, Technical Vision, Carve → routes into Blueprint workflows |
+| `execution-phase` | Spec-It, Build, Quick-Path → routes into Execution workflows |
+| `shipping-phase` | Ship, audit, retrospective → routes into Ship/Retrospective |
+
+### Build Discipline
+| Skill | Purpose |
+|---|---|
+| `analyze-tests` | Test strategy before any implementation code is written |
+| `verification-gate` | Evidence-before-assertions gate — the Iron Law, operationalized |
+| `task-tracker` | Live task tracker maintained through Build |
+| `code-review` | Two-stage review after implementing: spec compliance, then code quality |
+| `context-updater` | Updates Product Areas + Context after Build/Retrospective |
+| `trace-documentation` | Links backlog items to the code that implemented them |
+| `context-engineering` | Reading/writing `conductor/` state and the task backlog correctly |
+
+### Engineering
+| Skill | Purpose |
+|---|---|
+| `systematic-debugging` | 4-phase root-cause debugging |
+| `clean-code` | Pragmatic coding standards, no over-engineering |
+| `testing-patterns` | Unit/integration/mocking strategy and the testing pyramid |
+| `frontend-design` | Design thinking for web UI |
+| `documentation-templates` | README, API docs, comment standards |
+| `deployment-procedures` | Safe deployment and rollback strategy |
+| `i18n-localization` | Internationalization and translation management |
+| `git-worktrees` | Isolated parallel development |
+| `architecture-patterns` | Architectural trade-off analysis and ADRs |
+| `lint-and-validate` | Static analysis after every modification |
+
+### Git Integration
+| Skill | Purpose |
+|---|---|
+| `git-workflow` | Commit conventions, branch naming, PR/MR templates |
+| `git-lab-cli` | GitLab workflow via `glab` |
+| `git-hub-cli` | GitHub workflow via `gh` |
+
+### Product & Process
+| Skill | Purpose |
+|---|---|
+| `brain-dump-to-epics` | Unstructured ideas → structured Epics |
+| `ux-reviewer` | UX feedback against the Design System |
+| `system-janitor` | Scans for misplaced files, recommends reorganization |
+| `skill-registry` | Manages `conductor add/remove/list/search` against your configured registry |
+
+---
+
+## Persona Registry
+
+| Persona | Trigger | Thinks About |
+|---|---|---|
+| **CTO** | "CTO mode" | Long-term tech strategy, build vs. buy, technical debt |
+| **Architect** | "Architect mode" | System structure, data models, interfaces, boundaries |
+| **Product Manager** | "PM mode" | User value, prioritization, outcomes over outputs |
+| **Tech Lead** | "Tech Lead mode" | Code quality, patterns, pragmatic implementation |
+| **Designer** | "Designer mode", "Make it look premium" | Visual quality, design systems, `4-context/design/` |
+| **Code Archaeologist** | "Archaeologist mode", "Explain this codebase" | Legacy code, refactoring strategy, Chesterton's Fence |
+| **Security Auditor** | "Security mode", "Check security" | OWASP Top 10, supply chain, zero trust, pentest methodology |
+| **Database Architect** | "Database mode", "Design the schema" | Schema design, query optimization, migrations |
+| **Performance Optimizer** | "Performance mode", "Make it faster" | Core Web Vitals, profiling, bundle size |
+| **Conductor Assistant** | "How does this work?" | Framework navigation, workflow selection, process guidance |
+
+---
+
+## Skill Registry CLI (Dynamic Skill Loading)
+
+Beyond the skills bundled in `.agents/skills/`, more can be pulled from a registry you configure:
+
+```bash
+conductor list [--remote]        # local or registry skills
+conductor search <query>         # search the registry
+conductor add <skill-name>       # install a skill
+conductor remove <skill-name>    # uninstall a skill
+```
+
+Requires `conductor.config.json` at the project root pointing at your registry. `conductor init` runs tech-stack detection and suggests relevant skills to add automatically.
+
+---
+
+## Progressive Disclosure — Adoption Levels
+
+Not everyone needs the full system. This is a *framework-adoption* scale — distinct from context-loading progressive disclosure (only `rules/` files are always-on; everything else, including this file, loads on demand).
+
+### Level 1: Just Ship
+Use: `task-backlog.md`, Quick-Path, Build, Ship, Archive.
+Good for: solo devs, quick features, known scope.
+
+### Level 2: Plan Then Ship
+Add: Spec-It, Carve, `3-product-areas/`.
+Good for: complex features that need a PRD and an architecture pass.
+
+### Level 3: Full Pipeline
+Add: Genesis, Storyboard, Blueprint workflows, Retrospective, all personas.
+Good for: new products, major feature areas, high-velocity AI-assisted development.
+
+---
+
+## Self-Test
+
+```bash
+bash .agents/tests/check-conductor.sh
+```
+
+Validates structure, naming, and that no stale paths have crept back in.

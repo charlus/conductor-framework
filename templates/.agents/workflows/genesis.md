@@ -9,13 +9,13 @@ description: Genesis (The App Origin Story)
 **Trigger:** "Start a new app", "I have an idea", "Genesis Mode"
 **Goal:** Transform a raw idea into the "Holy Trinity" of context documents within a new Project.
 **Output:**
-1. `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Genesis/Problem-Solar-System.md` (The Rant)
-2. `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Genesis/World-Transformation.md` (The Vision)
-3. `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Genesis/Functional-Animator.md` (The Skeleton)
+1. `conductor/2-backlog/project-backlog/[ProjectName]/genesis/problem-solar-system.md` (The Rant)
+2. `conductor/2-backlog/project-backlog/[ProjectName]/genesis/world-transformation.md` (The Vision)
+3. `conductor/2-backlog/project-backlog/[ProjectName]/genesis/functional-animator.md` (The Skeleton)
 
-**Templates:** Use the templates in `.conductor/5-Templates/Genesis-Workflow/` for consistent output structure.
+**Templates:** Use the templates in `conductor/5-templates/genesis-workflow/` for consistent output structure.
 
-**Relationship to Projects:** Genesis creates a new Project folder in the Project-Backlog. All subsequent workflows (Storyboard, Blueprint, etc.) add to this same Project folder.
+**Relationship to Projects:** Genesis creates a new Project folder in the project-backlog. All subsequent workflows (Storyboard, Blueprint, etc.) add to this same Project folder.
 
 ---
 
@@ -49,13 +49,13 @@ Announce: *"We're starting Phase 0: Setup. Before we dive into the problem, I ne
     *   Suggest a naming convention: `[ProductName]` or `[FeatureName]` (no suffix needed - it's the project name)
 
 3.  **Create the Project Folder:**
-    *   **Action:** Create folder at `.conductor/2-Backlog/Project-Backlog/[ProjectName]/`
-    *   **Action:** Create subfolder at `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Genesis/`
+    *   **Action:** Create folder at `conductor/2-backlog/project-backlog/[ProjectName]/`
+    *   **Action:** Create subfolder at `conductor/2-backlog/project-backlog/[ProjectName]/genesis/`
     *   **Confirm:** "Created Project `[ProjectName]` in the Project Backlog. Genesis outputs will go in the Genesis subfolder. Storyboard, Blueprint, and Implementations will be added as we progress."
 
 4.  **Context Scan (If Feature):**
     *   If this is a new feature within an existing product:
-    *   **Action:** Review relevant `.conductor/3-Product-Areas/` folders and existing codebase to understand what already exists.
+    *   **Action:** Review relevant `conductor/3-product-areas/` folders and existing codebase to understand what already exists.
     *   **Summarize:** "Here's what I found in the existing system that might be relevant: [summary]"
     *   This grounds the conversation and prevents rediscovering existing functionality.
 
@@ -99,11 +99,11 @@ Announce: *"We're now in Phase 1: The Rant. Our goal is to map the 'Problem Sola
     *   "Based on our chat, I see [X] as the core conflict. Do you agree?"
 
 6.  **Draft & Approve:**
-    *   Present the text for `Problem-Solar-System.md` using the template structure.
+    *   Present the text for `problem-solar-system.md` using the template structure.
     *   **STOP:** Wait for explicit user approval.
 
 7.  **Action:**
-    *   Write to `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Genesis/Problem-Solar-System.md`.
+    *   Write to `conductor/2-backlog/project-backlog/[ProjectName]/genesis/problem-solar-system.md`.
 
 ---
 
@@ -127,11 +127,11 @@ Announce: *"We're now in Phase 2: World Transformation. The problem is defined. 
     *   **Ask:** "Are you ready for me to draft the World Transformation file, or is there more we should visualize?"
 
 4.  **Draft & Approve:**
-    *   Present the text for `World-Transformation.md` (Before vs. After, North Star) using the template structure.
+    *   Present the text for `world-transformation.md` (Before vs. After, North Star) using the template structure.
     *   **STOP:** Wait for explicit user approval.
 
 5.  **Action:**
-    *   Write to `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Genesis/World-Transformation.md`.
+    *   Write to `conductor/2-backlog/project-backlog/[ProjectName]/genesis/world-transformation.md`.
 
 ---
 
@@ -168,11 +168,11 @@ Announce: *"We're now in Phase 3: The Functional Animator. We understand the pro
     *   **Ask:** "Are you ready for me to finalize the Functional Animator file, or are there other capabilities to refine?"
 
 5.  **Draft & Approve:**
-    *   Present the final text for `Functional-Animator.md` using the template structure.
+    *   Present the final text for `functional-animator.md` using the template structure.
     *   **STOP:** Wait for explicit user approval.
 
 6.  **Action:**
-    *   Write to `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Genesis/Functional-Animator.md`.
+    *   Write to `conductor/2-backlog/project-backlog/[ProjectName]/genesis/functional-animator.md`.
 
 ---
 
@@ -183,7 +183,7 @@ Announce: *"Genesis is complete. Let me review what we've created and outline ne
 
 ### Steps
 
-1.  **Review:** Read all three created files in `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Genesis/` to ensure consistency.
+1.  **Review:** Read all three created files in `conductor/2-backlog/project-backlog/[ProjectName]/genesis/` to ensure consistency.
 
 2.  **Summary:** Present a brief recap:
     *   The Sun (core problem)
@@ -194,7 +194,7 @@ Announce: *"Genesis is complete. Let me review what we've created and outline ne
 
 4.  **Next Steps:**
     *   The natural next step is **Storyboard** - to define the main character, their outcomes, and the scenes they experience.
-    *   Storyboard will add a `Storyboard/` folder to this same Project.
+    *   Storyboard will add a `storyboard/` folder to this same Project.
     *   After Storyboard, **Blueprint** creates the Grand PRD, followed by **Technical Vision** and **Carve** to break into Implementations.
 
-5.  **Project Lifecycle:** The Project folder lives in `.conductor/2-Backlog/Project-Backlog/` as workflows add to it. When all Implementations are complete, the entire Project moves to `.conductor/6-Archive/`.
+5.  **Project Lifecycle:** The Project folder lives in `conductor/2-backlog/project-backlog/` as workflows add to it. When all Implementations are complete, the entire Project moves to `conductor/6-archive/`.

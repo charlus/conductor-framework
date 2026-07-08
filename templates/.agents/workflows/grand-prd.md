@@ -8,9 +8,9 @@ description: Grand PRD (Organizing the Problem Space)
 
 **Trigger:** "Grand PRD", "Blueprint PRD", "Create PRD", "Define the epics"
 **Goal:** Transform Genesis and Storyboard content into a Grand PRD that organizes the problem space into Epics.
-**Output:** `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Blueprint/Grand-PRD.md`
+**Output:** `conductor/2-backlog/project-backlog/[ProjectName]/blueprint/grand-prd.md`
 
-**Template:** Use `.conductor/5-Templates/Blueprint-Workflows/Grand-PRD.md` for consistent output structure.
+**Template:** Use `conductor/5-templates/blueprint-workflows/grand-prd.md` for consistent output structure.
 
 **Prerequisites:** Genesis (required), Storyboard (recommended)
 **Next Workflow:** UX/UI Design Brief
@@ -56,7 +56,7 @@ Announce and explain:
    - Wait for the user to answer.
 
 2. **Verify Context:**
-   - Check `.conductor/2-Backlog/Project-Backlog/[ProjectName]/` for Genesis and Storyboard.
+   - Check `conductor/2-backlog/project-backlog/[ProjectName]/` for Genesis and Storyboard.
    - **If both exist:** → Proceed to **Path A: With Full Context**
    - **If Genesis only:** → Proceed to **Path B: Genesis Only**
    - **If neither exists:** → Proceed to **Path C: Fresh Start**
@@ -253,8 +253,8 @@ Announce: *"We're now in Phase 3: Grand PRD Assembly. I'm compiling everything i
    - **Ask:** "Ready for me to save the Grand PRD?"
 
 4. **Save:**
-   - Create Blueprint folder if needed: `.conductor/2-Backlog/Project-Backlog/[ProjectName]/Blueprint/`
-   - Write to `Blueprint/Grand-PRD.md`
+   - Create Blueprint folder if needed: `conductor/2-backlog/project-backlog/[ProjectName]/blueprint/`
+   - Write to `blueprint/grand-prd.md`
    - **Confirm:** "Grand PRD saved."
 
 ---
@@ -272,9 +272,9 @@ Announce: *"We're now in Phase 3: Grand PRD Assembly. I'm compiling everything i
 
 ### Project State
 ```
-Project-Backlog/[ProjectName]/
+project-backlog/[ProjectName]/
 ├── Genesis/
 ├── Storyboard/
 └── Blueprint/
-    └── Grand-PRD.md  ← We are here
+    └── grand-prd.md  ← We are here
 ```

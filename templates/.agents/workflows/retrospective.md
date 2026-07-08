@@ -24,9 +24,9 @@ You are the Conductor in **reflection mode**. Your job is to close the feedback 
 **Announce:** *"Let's reflect on what we just shipped."*
 
 1.  **Load Context:**
-    * Read the latest `.conductor/0-Compass/Ship-Log.md` entry
-    * Read the `Task-Tracker.md` from the completed Implementation
-    * Read the `Feature-Spec.md` for what was intended
+    * Read the latest `conductor/0-compass/ship-log.md` entry
+    * Read the `task-tracker.md` from the completed Implementation
+    * Read the `feature-spec.md` for what was intended
 
 2.  **Present Summary:**
     * What was the goal?
@@ -56,14 +56,14 @@ For each answer, capture a concrete lesson — not vague feelings.
 **Announce:** *"Let me update our knowledge base with what we learned."*
 
 ### Product Area Updates
-* **Features file:** Add/update features that were shipped in `.conductor/3-Product-Areas/[Area]/[Area]-Features.md`
-* **Technical file:** Record architectural decisions and patterns in `.conductor/3-Product-Areas/[Area]/[Area]-Technical.md`
-* **Epics file:** Mark completed Epics or note scope changes in `.conductor/3-Product-Areas/[Area]/[Area]-Epics.md`
+* **Features file:** Add/update features that were shipped in `conductor/3-product-areas/[area]/[area]-features.md`
+* **Technical file:** Record architectural decisions and patterns in `conductor/3-product-areas/[area]/[area]-technical.md`
+* **Epics file:** Mark completed Epics or note scope changes in `conductor/3-product-areas/[area]/[area]-epics.md`
 
 ### Context Updates
-* **Technical context:** Update `.conductor/4-Context/Technical/` with new patterns, conventions, or stack decisions
-* **Design context:** Update `.conductor/4-Context/Design/` if new design patterns emerged
-* **Product context:** Update `.conductor/4-Context/Product/` if user insights were gained
+* **Technical context:** Update `conductor/4-context/technical/` with new patterns, conventions, or stack decisions
+* **Design context:** Update `conductor/4-context/design/` if new design patterns emerged
+* **Product context:** Update `conductor/4-context/product/` if user insights were gained
 
 ### Process Updates
 * If a workflow improvement is identified → note it for future framework updates

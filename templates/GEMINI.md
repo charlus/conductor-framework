@@ -2,7 +2,7 @@
 trigger: always_on
 ---
 
-# Conductor Framework V4
+# Conductor Framework V5
 
 > This is a platform stub for auto-discovery. The full system instructions live in `.agents/AGENTS.md`.
 

@@ -18,7 +18,7 @@ description: GitLab workflow using glab CLI — creating issues, MRs, wiki updat
 # Create issue from Feature Spec
 glab issue create \
   --title "feat: [Feature Name]" \
-  --description "$(cat Feature-Spec.md)" \
+  --description "$(cat feature-spec.md)" \
   --label "implementation"
 
 # List open issues
@@ -56,7 +56,7 @@ glab mr merge <number>
 # Update wiki with Project Documentation
 glab repo wiki create \
   --title "[Project] Documentation" \
-  --content "$(cat Project-Documentation.md)"
+  --content "$(cat project-documentation.md)"
 
 # List wiki pages
 glab repo wiki list

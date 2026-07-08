@@ -20,22 +20,23 @@ You are the Conductor in **Build Mode** — the disciplined executor. Your job i
 
 Before starting Build, confirm these exist:
 
-1.  **Implementation Plan** — `Implementation-Plan.md` in the active Implementation folder
-2.  **Feature Spec** — `Feature-Spec.md` (produced by Spec-It) — this is your acceptance criteria
+1.  **Implementation Plan** — `implementation-plan.md` in the active Implementation folder
+2.  **Feature Spec** — `feature-spec.md` (produced by Spec-It) — this is your acceptance criteria
 
 If either is missing:
-* **No Implementation Plan?** → Run **Spec-It** first (`.agents/workflows/Spec-It.md`)
-* **No Feature Spec but user wants to skip?** → Run **Quick-Path** first (`.agents/workflows/Quick-Path.md`)
+* **No Implementation Plan?** → Run **Spec-It** first (`.agents/workflows/spec-it.md`)
+* **No Feature Spec but user wants to skip?** → Run **Quick-Path** first (`.agents/workflows/quick-path.md`)
 
 ---
 
 ## Behavioral Rules
 
 1.  **One task at a time.** Never work on multiple tasks simultaneously
-2.  **Evidence before claims.** Every "done" requires running verification (tests, build, lint)
-3.  **Follow the plan.** Execute what was specified, don't improvise scope
-4.  **Surface blockers early.** If something doesn't match the plan, STOP and discuss
-5.  **Update the tracker.** Every state change gets recorded in the task tracker table
+2.  **Red before green.** No implementation code without a failing test first — see `.agents/rules/test-driven-law.md`
+3.  **Evidence before claims.** Every "done" requires running verification (tests, build, lint)
+4.  **Follow the plan.** Execute what was specified, don't improvise scope
+5.  **Surface blockers early.** If something doesn't match the plan, STOP and discuss
+6.  **Update the tracker.** Every state change gets recorded in the task tracker table
 
 ---
 
@@ -46,10 +47,10 @@ If either is missing:
 **Announce:** *"We're entering Build Mode. Let me load the context."*
 
 1.  **Load Context** (Read in this order):
-    * `Implementation-Plan.md` — The phase-by-phase execution plan
-    * `Feature-Spec.md` — The acceptance criteria and requirements
-    * `Blueprint/Grand-PRD.md` — The broader Epic context (for judgment calls)
-    * Any relevant `.conductor/4-Context/` files (Technical, Design) if referenced
+    * `implementation-plan.md` — The phase-by-phase execution plan
+    * `feature-spec.md` — The acceptance criteria and requirements
+    * `blueprint/grand-prd.md` — The broader Epic context (for judgment calls)
+    * Any relevant `conductor/4-context/` files (Technical, Design) if referenced
 
 2.  **Review Critically:**
     * Does the plan make sense?
@@ -57,7 +58,7 @@ If either is missing:
     * If concerns: raise them NOW, before starting execution
 
 3.  **Create Task Tracker:**
-    * Create a `Task-Tracker.md` in the Implementation folder
+    * Create a `task-tracker.md` in the Implementation folder
     * Extract every task from the Implementation Plan into a table:
 
     ```markdown
@@ -67,7 +68,9 @@ If either is missing:
     | 2 | [task name from plan] | not_started | |
     ```
 
-4.  **Confirm:** *"Context loaded. [X] tasks identified. Ready to build?"*
+4.  **Test Strategy:** Run the `analyze-tests` skill (`.agents/skills/analyze-tests/SKILL.md`) before touching implementation code. It decides what kinds of tests this implementation needs — that strategy is what each task's RED step below draws from.
+
+5.  **Confirm:** *"Context loaded. [X] tasks identified, test strategy set. Ready to build?"*
     * Wait for user confirmation before proceeding.
 
 ---
@@ -86,23 +89,28 @@ For each task in the batch:
 * Announce: *"Task [N]: [name]"*
 * Mark `in_progress` in the tracker
 
-#### Step 2 — Implement
-* Follow the plan steps exactly
-* Keep changes scoped to this task only
-* If the plan says "create file X" → create exactly file X
+#### Step 2 — Implement: RED → GREEN → REFACTOR
+
+**This is not optional and not a separate skill to remember — it is how Step 2 works.** See `.agents/rules/test-driven-law.md` and `.agents/workflows/tdd-cycle.md` for the full mechanics.
+
+* **RED:** Write a test for the next increment of this task's plan. Run it. Confirm it fails, and fails for the expected reason. Do not write implementation code yet.
+* **GREEN:** Write the minimum code to make it pass, scoped to this task only. If the plan says "create file X" → create exactly file X. Run the test. Confirm it passes.
+* **REFACTOR:** Clean up the new code and test without changing behavior. Run the suite again to confirm it's still GREEN.
+* Repeat the cycle for each increment inside the task.
 * If something doesn't match reality (missing dependency, wrong assumption) → **STOP and discuss with the user**
+* **Exception:** if this task has no meaningful test surface (pure config, docs, generated code), skip the cycle but record it explicitly in the tracker (`no test: config-only change`) instead of silently skipping.
 
 #### Step 3 — Verify
-* Run every verification command the plan specifies for this task
+* Run the full verification command the plan specifies for this task (not just the one test written in Step 2)
 * If no command is specified, at minimum:
-  * Run tests if tests exist
+  * Run the full test suite, not just this task's new tests
   * Run build/compile if applicable
   * Run linter if applicable
 
 #### Step 4 — Two-Stage Review
 
 **a) Spec Compliance** — "Did we build what was requested?"
-* Re-read the relevant section of `Feature-Spec.md`
+* Re-read the relevant section of `feature-spec.md`
 * Check: Does the implementation match every acceptance criterion?
 * Check: Did we build anything EXTRA that wasn't requested? (remove it)
 * If gaps: fix them, then re-check
@@ -115,7 +123,7 @@ For each task in the batch:
 > **Order matters:** Always spec first, then quality. No point reviewing quality if the spec is wrong.
 
 #### Step 5 — Git Commit
-* Commit the changes using Conventional Commits (see `.agents/skills/Git-Workflow/SKILL.md`)
+* Commit the changes using Conventional Commits (see `.agents/skills/git-workflow/SKILL.md`)
 * Example: `git commit -m "feat(auth): create user model"`
 * Only commit passing, verified code
 
@@ -154,7 +162,7 @@ After completing a batch:
 1.  **Full Test Suite:** Run ALL tests, not just per-task tests
 2.  **Full Build:** Run production build to check for compilation issues
 3.  **Acceptance Criteria Walkthrough:**
-    * Re-read `Feature-Spec.md` from top to bottom
+    * Re-read `feature-spec.md` from top to bottom
     * For each acceptance criterion: verify it's met and cite evidence
     * If any criterion is NOT met → go back and fix before proceeding
 
@@ -203,6 +211,7 @@ After completing a batch:
 Before claiming this implementation is done:
 
 - [ ] All tasks in tracker are `done` with evidence
+- [ ] Every task followed RED → GREEN → REFACTOR, or has an explicit `no test:` reason recorded
 - [ ] Full test suite passes (fresh run)
 - [ ] Production build succeeds
 - [ ] All Feature Spec acceptance criteria verified
@@ -214,7 +223,7 @@ Before claiming this implementation is done:
 
 ## Next Steps After Build
 
-* **Ready to Ship?** → Trigger the **Ship** workflow (`.agents/workflows/Ship.md`)
+* **Ready to Ship?** → Trigger the **Ship** workflow (`.agents/workflows/ship.md`)
 * **Found a bug?** → Fix it in the current phase
 * **Scope changed?** → Update the plan and tracker
 

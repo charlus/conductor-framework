@@ -20,7 +20,7 @@ your-project/
 │   ├── AGENTS.md        # Routing table (quick reference)
 │   ├── rules/           # System rules (auto-loaded by Antigravity)
 │   ├── workflows/       # Genesis → Build pipeline
-│   ├── skills/          # 26 modular skills
+│   ├── skills/          # 28 modular skills
 │   ├── personas/        # 10 thinking partners
 │   └── tests/           # Framework self-test
 ├── conductor/           # Project state (all managed artifacts)
@@ -63,6 +63,19 @@ This will:
 - **Preserve** all your project data in `conductor/`
 - **Report** what changed (new skills, removed skills, custom overrides)
 
+### Skill Registry (optional)
+
+Beyond the 28 core skills bundled in `templates/`, Conductor can download tech-specific or domain skills on demand from a registry you configure:
+
+```bash
+npx conductor-framework list --remote          # browse the registry
+npx conductor-framework search react           # search by keyword
+npx conductor-framework add react-components    # install a skill
+npx conductor-framework remove react-components # uninstall a skill
+```
+
+This requires a `conductor.config.json` (scaffolded by `init`) pointing at your own skills registry — there is no public registry yet, so this is aimed at teams running a private one (e.g. on GitLab, via `glab`).
+
 ---
 
 ## How It Works
@@ -87,8 +100,8 @@ Genesis → Storyboard → Grand PRD → Technical Vision → Carve → Spec-It 
 
 ### What's Inside
 
-- **11 Workflows** — From Genesis (ideation) to Build (verified execution) to Retrospective (learning)
-- **26 Skills** — Verification Gate, Code Review, Frontend Design, Systematic Debugging, Git Workflow, and more
+- **13 Workflows** — From Genesis (ideation) to Build (verified execution) to Retrospective (learning)
+- **28 Skills** — Verification Gate, Code Review, Frontend Design, Systematic Debugging, Git Workflow, and more
 - **10 Personas** — CTO, Architect, Product Manager, Designer, Security Auditor, Database Architect, and more
 
 Full documentation: [`AGENTS.md`](templates/.agents/AGENTS.md)

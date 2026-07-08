@@ -60,10 +60,16 @@ function readSelections(targetDir) {
  * Rules:
  *   - If no .selections.json exists (legacy full install), everything is "selected"
  *   - registry.json is always selected
+ *   - rules/<file>      → always selected, regardless of what was recorded at install
+ *                          time. Unlike skills/workflows, every rule is `category: core`
+ *                          — there is no optional/tech-specific rule tier — so a rule
+ *                          added to the framework after a project's original install
+ *                          (e.g. test-driven-law) must still land on `upgrade`, not get
+ *                          silently stuck as AVAILABLE because it wasn't in the old
+ *                          .selections.json (which has no way to distinguish "didn't
+ *                          exist yet" from "user deselected it")
  *   - skills/<name>/... → name must be in selections.skills
- *   - rules/<file>      → file (without .md) must be in selections.rules, OR
- *                          the matching registry entry name must be in selections.rules
- *   - workflows/<file>  → similarly matched against selections.workflows
+ *   - workflows/<file>  → matched against selections.workflows
  *
  * @param {string} relativePath
  * @param {{skills: string[], rules: string[], workflows: string[]}|null} selections
@@ -78,23 +84,18 @@ function isSelected(relativePath, selections) {
 
     const parts = relativePath.split('/');
 
+    if (parts[0] === 'rules') return true;
+
     if (parts[0] === 'skills' && parts.length >= 2) {
         const skillName = parts[1];
         return selections.skills.includes(skillName);
     }
 
-    if (parts[0] === 'rules' && parts.length >= 2) {
+    if (parts[0] === 'workflows' && parts.length >= 2) {
         // Match by filename stem (e.g. "react.md" → "react")
         // Also check the full filename for registry entries with explicit `file` property
         const fileName = parts[1];
         const stem = fileName.replace(/\.md$/, '');
-        return selections.rules.includes(stem) || selections.rules.includes(fileName);
-    }
-
-    if (parts[0] === 'workflows' && parts.length >= 2) {
-        const fileName = parts[1];
-        const stem = fileName.replace(/\.md$/, '');
-        // Workflow names in registry may differ from filenames (e.g. "Elicit" → "Elicit.md")
         return selections.workflows.includes(stem) || selections.workflows.includes(fileName);
     }
 

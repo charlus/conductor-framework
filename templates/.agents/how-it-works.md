@@ -54,6 +54,7 @@ Your North Star. The "where are we going?" layer.
 The daily workspace. Where focus happens.
 - **inbox.md** — Dump everything here. Process later. Reachable via chat with `Inbox: X` — see Quick Capture below.
 - **scratchpad.md** — Temporary notes. Reachable via chat with `Scratchpad: X`.
+- **loop-state.json** — The persistent external state and telemetry ledger for headless execution.
 - **Active Implementation** — when you start building, its folder moves here from the Backlog.
 
 ### 2-backlog
@@ -150,6 +151,7 @@ task-backlog.md → Do it → ship-log.md
 | "Ship it", "Audit and ship", "Release" | Shipping | → `workflows/ship.md` |
 | "Quick path", "Just build this" | Fast Track | → `workflows/quick-path.md` (skips discovery) |
 | "Let's reflect", "Retro" | Learning | → `workflows/retrospective.md` |
+| "Loop", "Unattended", "Autonomous", "Loop-ready" | Autonomous Loop | → `workflows/unattended-loop.md` |
 | "Brain dump", "Refine my ideas" | Skill | → `skills/brain-dump-to-epics/` |
 | "CTO mode", "Architect mode", "PM mode", etc. | Thinking Partner | → load matching persona from `personas/` |
 | "How does this framework work?" | Navigation | → load `conductor-assistant` persona |
@@ -217,6 +219,7 @@ Mechanics live in `.agents/skills/context-engineering/SKILL.md`.
 |---|---|---|
 | **TDD-Cycle** | Build (mandatory, via `test-driven-law.md`) | RED → GREEN → REFACTOR mechanics for every task |
 | **Agentic-Flow** | Any workflow designing human-AI interaction | Designing agent-facing UX |
+| **Unattended-Loop** | Headless orchestrator | Recursively executes any and all lifecycle phases unattended |
 
 ---
 
@@ -305,6 +308,8 @@ Entry points that read the phase you're in and route you to the right workflow.
 | **Security Auditor** | "Security mode", "Check security" | OWASP Top 10, supply chain, zero trust, pentest methodology |
 | **Database Architect** | "Database mode", "Design the schema" | Schema design, query optimization, migrations |
 | **Performance Optimizer** | "Performance mode", "Make it faster" | Core Web Vitals, profiling, bundle size |
+| **Maker** | "Maker mode" | Spec-compliant, sandboxed TDD code generation |
+| **Checker** | "Checker mode" | Independent skeptical audits, programmatic testing, anti-reward hacking |
 | **Conductor Assistant** | "How does this work?" | Framework navigation, workflow selection, process guidance |
 
 ---

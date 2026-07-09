@@ -1,0 +1,19 @@
+{
+  "goal_description": "",
+  "current_task": "",
+  "phase": "discovery",
+  "iterations": {
+    "current": 0,
+    "max_allowed": 20
+  },
+  "telemetry": {
+    "tokens_spent": 0,
+    "consecutive_stalls": 0,
+    "last_tool_invoked": null,
+    "last_tool_arguments": null
+  },
+  "maker_branch": "",
+  "current_worker": null,
+  "status": "idle",
+  "history": []
+}

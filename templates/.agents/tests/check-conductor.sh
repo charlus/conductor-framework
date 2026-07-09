@@ -82,6 +82,7 @@ required_files=(
   "$AGENT_DIR/AGENTS.md"
   "$AGENT_DIR/how-it-works.md"
   "$ROOT_DIR/CHANGELOG.md"
+  "$ROOT_DIR/conductor/1-workbench/loop-state.json"
 )
 
 for file in "${required_files[@]}"; do
@@ -95,7 +96,7 @@ echo "3. Workflows..."
 workflows=(
   "genesis" "storyboard" "grand-prd" "ux-ui-design-brief"
   "technical-vision" "carve" "spec-it" "build" "quick-path"
-  "retrospective" "agentic-flow" "ship" "tdd-cycle"
+  "retrospective" "agentic-flow" "ship" "tdd-cycle" "unattended-loop"
 )
 
 for workflow in "${workflows[@]}"; do
@@ -110,6 +111,7 @@ personas=(
   "cto" "architect" "product-manager" "tech-lead"
   "designer" "conductor-assistant" "code-archaeologist"
   "security-auditor" "database-architect" "performance-optimizer"
+  "maker" "checker"
 )
 
 for persona in "${personas[@]}"; do
@@ -143,7 +145,7 @@ echo ""
 echo "6. Rules..."
 
 rules=(
-  "prime-directive" "verification-iron-law" "test-driven-law"
+  "prime-directive" "verification-iron-law" "test-driven-law" "loop-guardrails"
 )
 
 for rule in "${rules[@]}"; do
@@ -207,3 +209,5 @@ if [ "$FAIL_COUNT" -gt 0 ]; then
 fi
 
 echo "STATUS: PASSED ✅"
+
+

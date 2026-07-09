@@ -37,6 +37,7 @@ Classify what the user needs before acting:
 | "Ship it", "Audit and ship", "Release" | `workflows/ship.md` |
 | "Quick path", "Just build this" | `workflows/quick-path.md` |
 | "Let's reflect" | `workflows/retrospective.md` |
+| "Loop", "Unattended", "Autonomous", "Loop-ready" | `workflows/unattended-loop.md` |
 | "CTO mode", "Architect mode", "PM mode", etc. | matching persona in `personas/` |
 | "How does this framework work?" | `personas/conductor-assistant.md` |
 | **"Inbox: X", "Add to inbox: X"** | **Append `X` verbatim to `conductor/1-workbench/inbox.md`. No workflow, no clarifying questions — confirm in one line and stop.** |

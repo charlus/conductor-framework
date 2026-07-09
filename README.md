@@ -21,11 +21,11 @@ your-project/
 │   ├── rules/           # System rules (auto-loaded by Antigravity)
 │   ├── workflows/       # Genesis → Build pipeline
 │   ├── skills/          # 28 modular skills
-│   ├── personas/        # 10 thinking partners
+│   ├── personas/        # 12 thinking partners
 │   └── tests/           # Framework self-test
 ├── conductor/           # Project state (all managed artifacts)
 │   ├── 0-compass/       # North Star & Ship Log
-│   ├── 1-workbench/     # Active work
+│   ├── 1-workbench/     # Active work (scratchpad, inbox, loop-state.json)
 │   ├── 2-backlog/       # Queued work
 │   ├── 3-product-areas/ # Feature inventory
 │   ├── 4-context/       # Tribal knowledge
@@ -87,6 +87,7 @@ Tell your AI assistant what you need. The Conductor classifies and routes:
 | "I have an idea" | **Genesis** workflow → full problem exploration |
 | "Build it" | **Build** workflow → verified execution |
 | "Quick path" | **Quick-Path** → skip discovery, go fast |
+| "Loop", "Unattended" | **Unattended-Loop** workflow → headless autonomous run |
 | "CTO mode" | **CTO** persona → strategic thinking partner |
 | "Security mode" | **Security Auditor** persona → vulnerability analysis |
 
@@ -100,9 +101,9 @@ Genesis → Storyboard → Grand PRD → Technical Vision → Carve → Spec-It 
 
 ### What's Inside
 
-- **13 Workflows** — From Genesis (ideation) to Build (verified execution) to Retrospective (learning)
+- **14 Workflows** — From Genesis (ideation) to Build (verified execution) to the headless **Unattended-Loop** orchestrator
 - **28 Skills** — Verification Gate, Code Review, Frontend Design, Systematic Debugging, Git Workflow, and more
-- **10 Personas** — CTO, Architect, Product Manager, Designer, Security Auditor, Database Architect, and more
+- **12 Personas** — Including the strategic thinking partners and new loop-execution specialists (**Maker** and **Checker**)
 
 Full documentation: [`AGENTS.md`](templates/.agents/AGENTS.md)
 
@@ -115,6 +116,17 @@ Full documentation: [`AGENTS.md`](templates/.agents/AGENTS.md)
 > **No completion claims without fresh verification evidence.**
 
 Before claiming any work is done, the agent must run a check, read the output, confirm it matches, and only then claim completion. "Should work" is not evidence.
+
+---
+
+## 🤖 V5 Autonomous Loop Engine
+
+Conductor V5 introduces a self-prompting autonomous loop engine for headless, unattended building. If your agent platform or CLI harness supports recursive runs, you can trigger the **Unattended-Loop** workflow.
+
+The loop utilizes **The Spine** (a durable external JSON state ledger in `conductor/1-workbench/loop-state.json`) to track active subtasks, consecutive iterations, and stall metrics, alongside strict loop-guardrails:
+* **The Iteration Ceiling**: Restricts headless runs (default: 20 beats) to prevent runaway token spend.
+* **The Anti-Stall Law**: Automatically escalates or halts execution when an identical tool is run 3 times without code or test progress.
+* **The Evidence Rule**: Blocks model-asserted victory; only green test exits can verify task completion.
 
 ---
 

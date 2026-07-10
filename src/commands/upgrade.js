@@ -95,6 +95,17 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       stdout.write("  ✅ Created conductor/ from templates\n");
     }
 
+    // Ensure loop-state.json is installed in conductor/1-workbench/ if missing
+    const targetStateFile = join(conductorDir, "1-workbench", "loop-state.json");
+    if (!(await exists(targetStateFile))) {
+      const templateStateFile = join(templateDir, "conductor", "1-workbench", "loop-state.json");
+      if (await exists(templateStateFile)) {
+        await mkdir(join(conductorDir, "1-workbench"), { recursive: true });
+        await cp(templateStateFile, targetStateFile);
+        stdout.write("  ✅ Created conductor/1-workbench/loop-state.json\n");
+      }
+    }
+
     // ---- Step 2: Global Kebab-Case Rename Engine ----
     stdout.write("\nStep 2: Formatting repository to kebab-case...\n");
     await renameRecursive(agentsDir, stdout);

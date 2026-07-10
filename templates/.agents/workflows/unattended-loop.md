@@ -24,8 +24,11 @@ Before taking any action, you MUST verify that this task is safe for headless ex
      3. The **Verification Command** (e.g., `npm run test` or `pytest`).
    - Write these values into `loop-state.json`, set `status` to `idle`, and proceed.
 2. **Phase Determination**: Detect the project's current state relative to Conductor's 4 native phases (`discovery`, `blueprint`, `execution`, `shipping`). Set the `phase` field in `loop-state.json` accordingly.
-3. **Verification Check**: Can success be validated programmatically? (Must compile/test with exit code 0).
-4. **Isolation Check**: Is git status clean and workspace isolation supported?
+3. **The Scoping Barrier (Phase Restriction)**:
+   - **Crucial Rule**: Unattended, headless runs are strictly prohibited during the `discovery` (ideation, storyboard, requirement collection) and `blueprint` (high-level specification and planning) phases. These phases require deep empathy, creative design, and direct alignment with human users.
+   - If the phase is determined to be `discovery` or `blueprint`, you **MUST halt execution immediately**, print a clear request asking the user to co-author requirements, and decline to run headless until a structured `execution` phase is reached (i.e., a finalized specification and verification test suite exist on the workbench).
+4. **Verification Check**: Can success be validated programmatically? (Must compile/test with exit code 0).
+5. **Isolation Check**: Is git status clean and workspace isolation supported?
 
 ## Step 1: Read and Initialize State
 * Load `conductor/1-workbench/loop-state.json`.
@@ -51,10 +54,9 @@ Before starting your role, check the active files and append the matching person
 * **If `idle` or `rejected_by_checker`**:
   1. Set `status` to `maker_active` and write your worker ID to `current_worker`.
   2. Load the **Maker** persona (plus any specialized persona from the Selector above).
-  3. **Execute phase-appropriate work**:
-     - *discovery*: Run `workflows/genesis.md` or `workflows/storyboard.md` to draft spec files.
-     - *blueprint*: Run `workflows/grand-prd.md`, `ux-ui-design-brief.md`, `technical-vision.md`, or `carve.md`.
-     - *execution*: Isolate workspace with `using-git-worktrees` and run `workflows/build.md` (TDD-driven code).
+  3. **Execute execution phase work**:
+     - Isolate the workspace using the `using-git-worktrees` skill.
+     - Execute the **Build** workflow (`workflows/build.md`) following the per-task TDD-Cycle to implement the verified specifications.
   4. Write tool invocation logs to `telemetry`.
   5. Commit changes, set `status` to `ready_for_check`, and update `loop-state.json`.
   6. Stop to conclude the beat.

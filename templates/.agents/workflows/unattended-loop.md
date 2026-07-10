@@ -25,8 +25,9 @@ Before taking any action, you MUST verify that this task is safe for headless ex
    - Write these values into `loop-state.json`, set `status` to `idle`, and proceed.
 2. **Phase Determination**: Detect the project's current state relative to Conductor's 4 native phases (`discovery`, `blueprint`, `execution`, `shipping`). Set the `phase` field in `loop-state.json` accordingly.
 3. **The Scoping Barrier (Phase Restriction)**:
-   - **Crucial Rule**: Unattended, headless runs are strictly prohibited during the `discovery` (ideation, storyboard, requirement collection) and `blueprint` (high-level specification and planning) phases. These phases require deep empathy, creative design, and direct alignment with human users.
-   - If the phase is determined to be `discovery` or `blueprint`, you **MUST halt execution immediately**, print a clear request asking the user to co-author requirements, and decline to run headless until a structured `execution` phase is reached (i.e., a finalized specification and verification test suite exist on the workbench).
+   - **Crucial Rule**: Unattended, headless runs are strictly prohibited during the **`discovery`** phase (ideation, storyboard, requirement collection). Collecting, empathizing, and defining *what* to build require direct human collaboration to ensure alignment with human intent.
+   - The **`blueprint`** phase (technical specification and task slicing) and the **`execution`** phase (code implementation) **CAN run unattended**. Once the human has clarified the goal and requirements, a team of unattended specialist personas (Architect, CTO, Designer, Tech Lead) can design the technical solution, draft spec files (`grand-prd.md`, `technical-vision.md`), and carve out individual tasks without interrupting the human.
+   - If the phase is determined to be `discovery`, you **MUST halt execution immediately**, print a clear request asking the user to define the core requirements, and decline to run headless until a clear goal is set.
 4. **Verification Check**: Can success be validated programmatically? (Must compile/test with exit code 0).
 5. **Isolation Check**: Is git status clean and workspace isolation supported?
 
@@ -54,9 +55,9 @@ Before starting your role, check the active files and append the matching person
 * **If `idle` or `rejected_by_checker`**:
   1. Set `status` to `maker_active` and write your worker ID to `current_worker`.
   2. Load the **Maker** persona (plus any specialized persona from the Selector above).
-  3. **Execute execution phase work**:
-     - Isolate the workspace using the `using-git-worktrees` skill.
-     - Execute the **Build** workflow (`workflows/build.md`) following the per-task TDD-Cycle to implement the verified specifications.
+  3. **Execute phase-appropriate work**:
+     - *blueprint*: Load the `Architect` or `CTO` persona. Run the blueprinting workflows (`workflows/grand-prd.md`, `ux-ui-design-brief.md`, `technical-vision.md`, or `workflows/carve.md`) to write specifications and slice tasks.
+     - *execution*: Isolate the workspace using the `using-git-worktrees` skill and execute the **Build** workflow (`workflows/build.md`) following the per-task TDD-Cycle to implement the specifications.
   4. Write tool invocation logs to `telemetry`.
   5. Commit changes, set `status` to `ready_for_check`, and update `loop-state.json`.
   6. Stop to conclude the beat.

@@ -20,7 +20,7 @@ your-project/
 │   ├── AGENTS.md        # Routing table (quick reference)
 │   ├── rules/           # System rules (auto-loaded by Antigravity)
 │   ├── workflows/       # Genesis → Build pipeline
-│   ├── skills/          # 28 modular skills
+│   ├── skills/          # 34 modular skills
 │   ├── personas/        # 12 thinking partners
 │   └── tests/           # Framework self-test
 ├── conductor/           # Project state (all managed artifacts)
@@ -65,7 +65,7 @@ This will:
 
 ### Skill Registry (optional)
 
-Beyond the 28 core skills bundled in `templates/`, Conductor can download tech-specific or domain skills on demand from a registry you configure:
+Beyond the 34 core skills bundled in `templates/`, Conductor can download tech-specific or domain skills on demand from a registry you configure:
 
 ```bash
 npx conductor-framework list --remote          # browse the registry
@@ -94,16 +94,16 @@ Tell your AI assistant what you need. The Conductor classifies and routes:
 ### The Pipeline
 
 ```
-Genesis → Storyboard → Grand PRD → Technical Vision → Carve → Spec-It → Build → Retrospective
-   ↑                                                                          ↑
-   └── Discovery Phase ──────────────────────────── Execution Phase ──────────┘
+Genesis → Storyboard → Grand PRD → UX/UI Design Brief → Technical Vision → Carve → Spec-It → Build → Ship → Retrospective
+   ↑                                                                                                  ↑
+   └── Discovery Phase ─────────────────────────────────────────────── Execution Phase ──────────────┘
 ```
 
 ### What's Inside
 
-- **14 Workflows** — From Genesis (ideation) to Build (verified execution) to the headless **Unattended-Loop** orchestrator
-- **28 Skills** — Verification Gate, Code Review, Frontend Design, Systematic Debugging, Git Workflow, and more
-- **12 Personas** — Including the strategic thinking partners and new loop-execution specialists (**Maker** and **Checker**)
+- **15 Workflows** — From Genesis (ideation) to Build (verified execution) to Ship, plus the headless **Unattended-Loop** orchestrator and its independent **Loop-Checker**
+- **34 Skills** — including the `grilling` and `collaborative-drafting` interview/drafting primitives, `handoff` (context hygiene), Verification Gate, Code Review, Systematic Debugging, and more
+- **12 Personas** — Including the strategic thinking partners and loop-execution specialists (**Maker** and **Checker**)
 
 Full documentation: [`AGENTS.md`](templates/.agents/AGENTS.md)
 
@@ -119,14 +119,23 @@ Before claiming any work is done, the agent must run a check, read the output, c
 
 ---
 
-## 🤖 V5 Autonomous Loop Engine
+## 🤖 Autonomous Loop Backend (V6)
 
-Conductor V5 introduces a self-prompting autonomous loop engine for headless, unattended building. If your agent platform or CLI harness supports recursive runs, you can trigger the **Unattended-Loop** workflow.
+Conductor drives headless, unattended building through a **deterministic loop backend** — a pure state machine (`src/loop/driver.js`), not a prose-only prompt. Run it with `conductor loop`, or trigger the **Unattended-Loop** workflow from a recursive harness.
 
-The loop utilizes **The Spine** (a durable external JSON state ledger in `conductor/1-workbench/loop-state.json`) to track active subtasks, consecutive iterations, and stall metrics, alongside strict loop-guardrails:
-* **The Iteration Ceiling**: Restricts headless runs (default: 20 beats) to prevent runaway token spend.
-* **The Anti-Stall Law**: Automatically escalates or halts execution when an identical tool is run 3 times without code or test progress.
-* **The Evidence Rule**: Blocks model-asserted victory; only green test exits can verify task completion.
+The driver reads and writes **The Spine** (a durable JSON ledger, `conductor/1-workbench/loop-state.json` — v2 schema) and enforces the guardrails in code, not just advice:
+* **Iteration Ceiling & wall-clock budget** — bound token spend on headless runs.
+* **Driver-observable stall detection** — halts when progress stops instead of looping forever.
+* **The Evidence Rule** — task completion resolves from the verify command's exit code, fail-safe; a model can't self-declare victory.
+* **The Scoping Barrier** — headless runs are refused during `discovery` (that phase needs a human).
+
+Around the driver:
+* **Platform adapters** (`src/loop/adapters/`) — Claude Code (primary), Antigravity, and Codex, selected via `--platform` → `loop-state.json` → auto-detect.
+* **Maker/Checker split** — the Maker builds in an isolated git worktree; an **independent Checker** process verifies via a multi-vote verdict (`checker-verdict.json`, fail-safe reject).
+* **Sandbox gate** — real headless runs are gated behind a sandbox profile (`--unsafe-no-sandbox` to override); L3 requires a container.
+* **Swarm scaling & autonomy slider (L0–L3)** — parallelize independent work with a PR-gated merge queue.
+
+See [`docs/roadmap/Autonomous-Loop-Backend.md`](docs/roadmap/Autonomous-Loop-Backend.md) and [`docs/adr/0001-enforcement-and-autonomy-rebalance.md`](docs/adr/0001-enforcement-and-autonomy-rebalance.md).
 
 ---
 
@@ -144,7 +153,7 @@ bash .agents/tests/check-conductor.sh
 
 Conductor was built by standing on the shoulders of giants. This framework incorporates ideas, patterns, and direct inspiration from:
 
-- **[Conductor Framework](https://www.testinprod.co/)** by Test in Prod — The original framework that started it all. Conductor V4 is a evolution of their pioneering ASE methodology.
+- **[Conductor Framework](https://www.testinprod.co/)** by Test in Prod — The original framework that started it all. Conductor is an evolution of their pioneering ASE methodology.
 
 - **[Antigravity Kit](https://github.com/vudovn/antigravity-kit)** by vudovn — A comprehensive skill library (36 skills, 18 agents, 10 workflows) that contributed engineering skills, design patterns, and the multi-file skill architecture.
 

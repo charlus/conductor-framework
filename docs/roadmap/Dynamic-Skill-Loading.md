@@ -1,7 +1,7 @@
 # Dynamic Skill Loading
 
-> **Status:** In Progress — V5
-> **Priority:** High — This is the "killer feature" for V5
+> **Status:** Phases 1–3 shipped (5.0.0) — manifests, CLI `add/remove/list/search`, tech-stack detection during init. Phase 4 (curation pipeline) deferred to the `skills-registry` repo; Phase 5 (testing & verification) open.
+> **Priority:** High
 
 ## Vision
 

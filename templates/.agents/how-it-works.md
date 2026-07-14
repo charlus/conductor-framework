@@ -1,6 +1,6 @@
 # How Conductor Works
 
-**System:** Conductor Framework V5 — Hybrid Architecture
+**System:** Conductor Framework V5 (V6 enforcement & autonomy rebalance) — Hybrid Architecture
 **Role:** You are the Conductor — a Product Engineer that orchestrates the full development lifecycle.
 
 > This is the full reference. `AGENTS.md` is the always-loaded briefing packet; read this file when you need folder purposes, the complete workflow/skill/persona registries, or the reasoning behind a rule. You don't need to read this every session — read it when `AGENTS.md`'s classifier or quick reference isn't enough.
@@ -220,6 +220,9 @@ Mechanics live in `.agents/skills/context-engineering/SKILL.md`.
 | **TDD-Cycle** | Build (mandatory, via `test-driven-law.md`) | RED → GREEN → REFACTOR mechanics for every task |
 | **Agentic-Flow** | Any workflow designing human-AI interaction | Designing agent-facing UX |
 | **Unattended-Loop** | Headless orchestrator | Recursively executes any and all lifecycle phases unattended |
+| **Loop-Checker** | Unattended-Loop (independent Checker process) | Skeptical verification of the Maker's work; verdict via `checker-verdict.json`, fail-safe reject |
+
+> **Interview & drafting primitives:** Genesis, Storyboard, Grand PRD, and the UX/UI Design Brief supply their *agenda* and load the `grilling` + `collaborative-drafting` skills for the *how*. Spec-It synthesizes from blueprint context rather than re-interviewing; Quick-Path, Retrospective, Technical Vision, and Carve reference the primitives too.
 
 ---
 
@@ -244,6 +247,13 @@ What each workflow produces, and who reads it next:
 
 ## Skill Registry
 
+### Interview & Drafting Primitives
+The reusable "how" that discovery/blueprint/spec workflows load instead of re-implementing an interview or a draft loop.
+| Skill | Purpose |
+|---|---|
+| `grilling` | The interview primitive — one question at a time, recommend an answer to each, look facts up instead of asking, one convergence gate |
+| `collaborative-drafting` | The drafting primitive — lead with a complete draft the human corrects (propose → discuss → coverage-check → confirm), not a blank-page questionnaire |
+
 ### Lifecycle Routers
 Entry points that read the phase you're in and route you to the right workflow.
 | Skill | Purpose |
@@ -259,7 +269,7 @@ Entry points that read the phase you're in and route you to the right workflow.
 | `analyze-tests` | Test strategy before any implementation code is written |
 | `verification-gate` | Evidence-before-assertions gate — the Iron Law, operationalized |
 | `task-tracker` | Live task tracker maintained through Build |
-| `code-review` | Two-stage review after implementing: spec compliance, then code quality |
+| `code-review` | Two-stage review after implementing: spec compliance, then code quality against a Fowler smell baseline |
 | `context-updater` | Updates Product Areas + Context after Build/Retrospective |
 | `trace-documentation` | Links backlog items to the code that implemented them |
 | `context-engineering` | Reading/writing `conductor/` state and the task backlog correctly |
@@ -267,7 +277,7 @@ Entry points that read the phase you're in and route you to the right workflow.
 ### Engineering
 | Skill | Purpose |
 |---|---|
-| `systematic-debugging` | 4-phase root-cause debugging |
+| `systematic-debugging` | 4-phase root-cause debugging — build a command that goes red on *this* bug first, then rank falsifiable hypotheses |
 | `clean-code` | Pragmatic coding standards, no over-engineering |
 | `testing-patterns` | Unit/integration/mocking strategy and the testing pyramid |
 | `frontend-design` | Design thinking for web UI |
@@ -294,6 +304,7 @@ Entry points that read the phase you're in and route you to the right workflow.
 | `domain-modeling` | Active ubiquitous-language discipline — keeps a living domain model in sync with spec, code, and UI |
 | `ux-reviewer` | UX feedback against the Design System |
 | `system-janitor` | Scans for misplaced files, recommends reorganization |
+| `handoff` | Compact the conversation into a self-contained handoff doc before leaving the ~120k-token "smart zone"; used to pass work between sessions and loop iterations |
 | `skill-registry` | Manages `conductor add/remove/list/search` against your configured registry |
 
 ---

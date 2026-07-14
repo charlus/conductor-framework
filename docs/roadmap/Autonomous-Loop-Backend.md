@@ -1,6 +1,6 @@
 # Robust Autonomy Backend (Ralph-hardened Loop Engine)
 
-> **Status:** Proposed — 2026-07-14 (spec-hardened 2026-07-14)
+> **Status:** Shipped — Phases 1–4 feature-complete (2026-07-14). Only a published/maintained turnkey sandbox container image and a real-LLM CI run remain outside the code. (Spec-hardened 2026-07-14.)
 > **Priority:** High — flagship of the V6 "Enforcement & Autonomy Rebalance"
 > **Decision:** `docs/adr/0001-enforcement-and-autonomy-rebalance.md`
 > **Builds on:** V5 Autonomous Loop Engine (`b953efc..bbe8f55`)
@@ -147,7 +147,7 @@ Build the `conductor loop` subcommand over `src/loop/driver.js` (see *Where the 
 
 ### Phase 4 — Autonomy slider + swarm scaling + merge gating
 
-> **⚙️ Phase 4 partially shipped (2026-07-14) — pair-mode parts done; swarm deferred behind its evidence gate.**
+> **✅ Phase 4 shipped (2026-07-14) — autonomy slider (L0–L3), PR-gated merge, multi-vote adversarial Checker, and the opt-in swarm (`src/loop/swarm.js`) are all live. `concurrency=1` reproduces the pair exactly.**
 >
 > **Shipped (buildable now, pair mode):**
 > - **Autonomy slider L0–L3** enforced in the driver (`autonomyPreflight` + `describeHalt`): **L0** interactive-only (loop refuses to run headless); **L1** single beat then `awaiting_review`, never merges; **L2** multi-beat *blueprint only* (execution refused → `halted_autonomy`), no code merge; **L3** multi-beat execution in a sandbox with a PR-gated merge. `concurrency>1` is refused everywhere (`halted_autonomy`) because the swarm scheduler isn't built.

@@ -89,7 +89,7 @@ conductor-framework/          ← You are here (package source)
 
 - **Skill curation pipeline** — Phase 4 of Dynamic Skill Loading, deferred to the `skills-registry` repo's own backlog
 - **Testing & verification** — Phase 5 of Dynamic Skill Loading
-- **CHANGELOG.md** — has no entry yet for the V5.0.0 hybrid-architecture/dynamic-skill-loading work; back-fill before the next release
+- **CHANGELOG.md** — 6.0.0 release notes are in place (V6 rebalance, Pocock alignment, cross-version upgrade, managed stubs); keep appending as work lands
 
 ## How to Work on This Repo
 

@@ -11,6 +11,8 @@ description: Quick-Path (Fast-Track Implementation)
 **Output:** A Feature Spec, Implementation Plan, and built implementation.
 **Prerequisites:** A clear user request. That's it.
 
+**Technique:** Scope-lock uses `.agents/skills/grilling/SKILL.md` (one question at a time, recommend an answer, look facts up rather than ask). Spec & plan use `.agents/skills/collaborative-drafting/SKILL.md` (lead with a draft, iterate to one confirm). Both stay deliberately terse here — this is the lean path.
+
 ---
 
 ## When to Use
@@ -36,7 +38,7 @@ Use Quick-Path when the user:
 
 ### The Three Questions
 
-Ask these one at a time. Stop as soon as scope is clear.
+Per the Grilling primitive: ask one at a time, each with your recommended answer. Stop as soon as scope is clear.
 
 1.  **"What are you building?"**
     * Get a clear description of the feature/change

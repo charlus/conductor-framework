@@ -1,18 +1,23 @@
 # Robust Cross-Version Upgrade Migration
 
-> **Status:** Proposed — design assessment
+> **Status:** Proposed — design assessment (decisions confirmed 2026-07-14; target release **6.0.0**)
 > **Goal:** Let any user on V4, V5, or an unversioned install upgrade safely to the current framework — **preserving their `conductor/` project knowledge while replacing the `.agents/` methodology instructions wholesale.**
 
-## The principle: two zones, opposite policies
+## The principle: ownership, not location
 
-Conductor installs two fundamentally different kinds of content, and the upgrade must treat them oppositely:
+The naive split is "`.agents/` = replace, `conductor/` = preserve." That is *almost* right, but `conductor/` is not homogeneous — it contains framework-provided scaffolding (`5-templates/`, the loop-state schema) mixed in with the user's knowledge. So the real rule is about **ownership**, decided per path:
 
-| Zone | What it is | Ownership | Upgrade policy |
-|---|---|---|---|
-| `conductor/` | The user's **project knowledge** — the built app's compass, backlog, product areas, context, archive | **User-owned** | **Preserve content always.** Migrate *structure* only. Never rename user content. Back up before touching. |
-| `.agents/` | The **framework methodology** — AGENTS.md, how-it-works.md, workflows, skills, rules, personas | **Framework-owned** | **Replace wholesale.** The framework owns these files; a methodology upgrade must land the new instructions. Back up the old ones; carry forward only genuinely user-authored additions. |
+**A file is framework-owned iff it ships in the package templates** (`templates/**`). Framework-owned files are *replaced* on upgrade; everything else is *user content* and *preserved*. This one rule spans both zones and dissolves the ambiguity.
 
-Today's `upgrade` gets the `.agents/` policy backwards.
+| Content | Ownership | Upgrade policy |
+|---|---|---|
+| `.agents/**` (AGENTS.md, how-it-works.md, workflows, skills, rules, personas) | **Framework** | **Replace wholesale** with current templates. Methodology upgrade must land. |
+| `.agents/**` files *not* in the package (a user's custom skill/workflow) | **User** | Carry forward untouched. |
+| `conductor/5-templates/**` (document scaffolding the workflows reference) | **Framework** | Refresh with current templates (back up first). |
+| `conductor/1-workbench/loop-state.json` | **Framework schema** | Schema-migrate (`v1→v2`), never discard the user's live values. |
+| `conductor/{0-compass,1-workbench,2-backlog,3-product-areas,4-context,6-archive}/**` — the user's app knowledge | **User** | **Preserve content always**, even where a same-named *seed* file ships in the package. Migrate only framework-scaffolded *folder* names/structure; never rename user files. |
+
+Today's `upgrade` gets the framework-owned `.agents/` policy backwards (preserves instead of replaces) **and** never refreshes `conductor/5-templates/`.
 
 ## What's wrong today
 
@@ -28,22 +33,25 @@ Today's `upgrade` gets the `.agents/` policy backwards.
 ## Recommended design
 
 ### 1. Stamp a version (the missing primitive)
-Write `.agents/.conductor-version.json` on every `init`/`upgrade`:
+Write `.agents/.conductor-version.json` on every `init`/`upgrade`, reading the number from the package's own `package.json` (so a bump "just works"):
 ```json
-{ "frameworkVersion": "5.0.0", "installedAt": "…", "upgradedAt": "…",
+{ "frameworkVersion": "6.0.0", "installedAt": "…", "upgradedAt": "…",
   "schema": { "selections": 1, "loopState": 2 } }
 ```
-Going forward this makes upgrades **version-aware and idempotent**. For installs with no stamp, fall back to today's structure inference to detect the *shape* (V4/V5), then stamp them.
+Going forward this makes upgrades **version-aware and idempotent**. For installs with no stamp, fall back to structure inference to detect the *shape* (V4/V5), then stamp them. Detection signals (unstamped installs):
+- **V4:** `.agent/` (singular) or `.conductor/` (dotted) present; root-level Title-Case numbered folders (`0-Compass`…); no `.selections.json`/`.checksums.json`.
+- **V5:** `.agents/` + undotted `conductor/`, kebab-case, `.selections.json`/`.checksums.json` present, **no** version stamp.
 
 ### 2. Back up first — always
-Before any destructive step, copy the existing `.agents/` (and, if a structural `conductor/` migration will run, `conductor/`) to a timestamped, git-ignorable `.conductor-backup/<timestamp>/`. Nothing is ever truly lost; users can diff their old customizations. This single change removes the "no rollback" class of risk.
+Before any destructive step, copy the existing `.agents/` — and `conductor/5-templates/` plus any `conductor/` subtree a structural migration will mutate — to a timestamped **`.conductor-backup/<timestamp>/`** at the project root *(confirmed location)*. Add `.conductor-backup/` to the project `.gitignore` (create/append). The full user knowledge tree is only copied when a structural migration will actually touch it (it can be large); `.agents/` is always backed up (it's small). Nothing is ever truly lost; on any step failure the command restores from the backup and exits non-zero.
 
-### 3. `.agents/` — replace framework-owned, carry forward custom
-On upgrade, for `.agents/`:
-- **Framework-owned files** (anything present in the current templates + `registry.json`, plus always `AGENTS.md`, `how-it-works.md`, `rules/*`, `prime-directive`): **overwritten unconditionally** with the current template — no checksum gate. This is the wholesale instruction replacement the user needs.
-- **User-authored additions** (files in the install but *not* in the current templates — a custom skill/workflow/persona): **carried forward** untouched.
-- **Everything old** is in the backup regardless, so a user who edited a framework file can recover their changes deliberately.
-- **Selections:** honor `.agents/.selections.json` for *optional* skills, but always install core rules, workflows, and the interview/drafting/handoff **primitives** (same rationale as the existing "rules are always selected" rule — new core capabilities must land even if they postdate the user's selection file). Missing selections file ⇒ full install.
+### 3. Framework-owned files — replace; user content — carry forward
+The engine walks the current package templates and the install together, classifying each path by the ownership rule:
+- **Framework-owned** (path exists under `templates/**`): `.agents/**` and `conductor/5-templates/**` are **overwritten unconditionally** with the current template — **no checksum gate**. This is the wholesale instruction/template replacement the upgrade needs.
+- **User-authored additions** (present in the install, absent from `templates/**` — a custom skill/workflow/persona/template): **carried forward** untouched (today's `KEEP`).
+- **User knowledge** (`conductor/` outside `5-templates/`, and live values in `loop-state.json`): **never overwritten**, even where a same-named seed file ships in the package.
+- **Everything replaced or removed** is in the backup, so a user who edited a framework file can recover their changes deliberately.
+- **Selections:** honor `.agents/.selections.json` for *optional* skills, but always install the core set — all rules, all workflows, and the interview/drafting/handoff **primitives** (same rationale as today's "rules are always selected": new core capabilities must land even if they postdate the user's selections file). Missing selections file ⇒ full install (this replaces today's silent no-op).
 
 This deletes risks #1 and #2 outright: framework files are replaced regardless of checksum or its absence.
 
@@ -91,7 +99,21 @@ A V4 user runs the whole chain; a V5 user skips the shape steps; a current user 
 - Reuse `src/loop/driver.js`'s loop-state migration at upgrade time.
 - Tests: `node:test` cases for each starting state (fixtures for V4/V5/unversioned trees) asserting conductor content preserved, instructions replaced, custom files carried forward, backup created, idempotent re-run.
 
-## Open decisions (for the human)
-1. **Backup location** — recommend a git-ignorable `.conductor-backup/<timestamp>/` at project root (vs. inside `conductor/6-archive/`, which is for finished project work).
-2. **Carry-forward vs. backup-only for user-edited *framework* files** — user directive is "replace instructions," so: replace + back up (recover manually). Confirm we don't try to auto-merge edited framework files.
-3. **Version bump** — a change this size likely warrants publishing as the next version so the stamp is meaningful.
+## Decisions (confirmed)
+1. **Backup location** — `.conductor-backup/<timestamp>/` at project root, git-ignored. ✅
+2. **Edited framework files** — replace + back up (no auto-merge); users recover edits from the backup deliberately. ✅ (matches the "replace instructions" directive)
+3. **Version** — ship as **6.0.0**; the stamp reads the number from `package.json`. ✅
+
+## `--dry-run` output (sketch)
+```
+Conductor upgrade — plan (dry run)
+  Detected: V5 install (no version stamp)  →  target 6.0.0
+  Backup:   .conductor-backup/2026-07-14T…/  (.agents/, conductor/5-templates/)
+  .agents/  REPLACE 41 framework files · CARRY 2 custom (skills/acme-deploy, personas/ceo)
+  conductor/5-templates/  REFRESH 6 files
+  conductor/1-workbench/loop-state.json  MIGRATE schema v1 → v2
+  conductor/  preserve 128 knowledge files (untouched)
+  Regenerate: .claude/commands/*, platform stubs, git hooks
+  Stamp: .agents/.conductor-version.json → 6.0.0
+No changes written (dry run). Re-run without --dry-run to apply.
+```

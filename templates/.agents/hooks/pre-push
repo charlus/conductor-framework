@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Conductor — Verification Iron Law, deterministically enforced at the push boundary
+# (ADR-0001 D1). Runs the project's verification command; a non-zero exit blocks the
+# push. No "should work" — proof or no push. Escape: CONDUCTOR_SKIP_VERIFY="reason"
+# (logged). Disable entirely: CONDUCTOR_HOOKS=off.
+set -uo pipefail
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+[ -z "$ROOT" ] && exit 0
+# shellcheck source=/dev/null
+. "$ROOT/.agents/hooks/lib.sh"
+
+[ "${CONDUCTOR_HOOKS:-on}" = "off" ] && exit 0
+
+cmd="$(conductor_verify_cmd "$ROOT")"
+if [ -z "$cmd" ]; then
+  echo "ℹ️  Conductor: no verification command configured — set \"verify\" in conductor.config.json to enforce the Iron Law on push. Skipping."
+  exit 0
+fi
+
+if [ -n "${CONDUCTOR_SKIP_VERIFY:-}" ]; then
+  conductor_log_waiver "$ROOT" "VERIFY" "$CONDUCTOR_SKIP_VERIFY"
+  echo "⚠️  Conductor Verification Iron Law WAIVED: $CONDUCTOR_SKIP_VERIFY"
+  echo "    (logged to conductor/0-compass/ship-log.md)"
+  exit 0
+fi
+
+echo "🔬 Conductor Verification Iron Law — running: $cmd"
+if ( cd "$ROOT" && eval "$cmd" ); then
+  echo "✅ Verification passed — push allowed."
+  exit 0
+fi
+
+echo ""
+echo "🛑 Verification FAILED — push blocked."
+echo "   Fix it, or bypass explicitly: CONDUCTOR_SKIP_VERIFY=\"why\" git push …"
+exit 1

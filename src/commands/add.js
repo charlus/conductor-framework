@@ -5,6 +5,7 @@
  */
 
 import { join, resolve } from "node:path";
+import { rm } from "node:fs/promises";
 import {
   checkGlabAuth,
   resolveRegistry,
@@ -13,14 +14,19 @@ import {
   readLocalSkills,
   exists,
 } from "../registry.js";
+import { scanSkillDir, formatFindings } from "../skill-scan.js";
 
 function parseAddArgs(args) {
-  const parsed = { skillName: null, registry: null };
+  const parsed = { skillName: null, registry: null, allowUnsafe: false };
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--registry" && i + 1 < args.length) {
       parsed.registry = args[++i];
+      continue;
+    }
+    if (arg === "--allow-unsafe") {
+      parsed.allowUnsafe = true;
       continue;
     }
     if (arg.startsWith("-")) {
@@ -132,6 +138,25 @@ export async function addCommand(args, { cwd, stdout, stderr }) {
       `   SKILL.md:   ${hasSkillMd ? "✅" : "❌"}\n`
     );
     return 1;
+  }
+
+  // Supply-chain safety scan (rubric gap: registry downloads are an injection/secret
+  // vector). Critical findings block install unless --allow-unsafe is passed.
+  const scan = await scanSkillDir(skillDir);
+  if (scan.findings.length > 0) {
+    stdout.write(`\n🔍 Security scan flagged ${scan.criticalCount} critical, ${scan.warnCount} warning(s):\n`);
+    stdout.write(formatFindings(scan.findings) + "\n");
+    if (scan.criticalCount > 0 && !parsed.allowUnsafe) {
+      await rm(skillDir, { recursive: true, force: true });
+      stderr.write(
+        `\n🛑 Install aborted — "${skill.name}" contains critical patterns and was removed.\n` +
+        `   Review the source, then re-run with --allow-unsafe to install anyway.\n`
+      );
+      return 1;
+    }
+    if (scan.criticalCount > 0) {
+      stdout.write(`\n⚠️  Installing despite critical findings (--allow-unsafe). You own this decision.\n`);
+    }
   }
 
   stdout.write(`✅ Installed ${skill.name}@${skill.version}\n`);

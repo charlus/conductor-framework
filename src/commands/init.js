@@ -7,6 +7,8 @@ import { detectTechStack } from "../detect.js";
 import { resolveRegistry, fetchRegistryIndex, readLocalSkills } from "../registry.js";
 import { runInteractiveSetup } from "../prompt.js";
 import { selectiveCopy, syncSelections, readSelections } from "../selective-copy.js";
+import { generateClaudeCommands } from "../claude-commands.js";
+import { installHooksCommand } from "./install-hooks.js";
 
 function getTemplateDir() {
   return fileURLToPath(new URL("../../templates", import.meta.url));
@@ -153,6 +155,9 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
       }
     }
 
+    // Claude Code slash-command bridge (ADR-0001 D5): shim per installed workflow.
+    await generateClaudeCommands(targetDir, { stdout });
+
     // Copy conductor/ (project state folders)
     if (!parsed.agentOnly) {
       const conductorDir = join(targetDir, "conductor");
@@ -177,6 +182,12 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
       }
 
       stdout.write("\n🎼 Conductor Framework V5 initialized!\n");
+
+      // Deterministic enforcement (ADR-0001 D1): wire git hooks when in a repo.
+      if (await exists(join(targetDir, ".git"))) {
+        stdout.write("\n🔒 Enabling deterministic enforcement hooks...\n");
+        await installHooksCommand([targetDir], { cwd, stdout, stderr });
+      }
 
       if (!parsed.noDetect) {
         const detected = await detectTechStack(targetDir);

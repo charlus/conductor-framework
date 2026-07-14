@@ -4,6 +4,7 @@ import { addCommand } from "./commands/add.js";
 import { removeCommand } from "./commands/remove.js";
 import { listCommand } from "./commands/list.js";
 import { searchCommand } from "./commands/search.js";
+import { installHooksCommand } from "./commands/install-hooks.js";
 
 function helpText() {
   return [
@@ -20,14 +21,16 @@ function helpText() {
     "    conductor remove <skill-name> [--force]",
     "    conductor list [--remote] [--tier <tier>]",
     "    conductor search <query> [--tag <tag>]",
+    "    conductor install-hooks [--uninstall]",
     "",
     "  Commands:",
-    "    init        Scaffold the Conductor framework in a new project",
-    "    upgrade     Upgrade an existing project to the latest framework",
-    "    add         Download a skill from the registry",
-    "    remove      Remove an installed skill",
-    "    list        List installed skills (or --remote for registry)",
-    "    search      Search the registry for skills",
+    "    init            Scaffold the Conductor framework in a new project",
+    "    upgrade         Upgrade an existing project to the latest framework",
+    "    add             Download a skill from the registry",
+    "    remove          Remove an installed skill",
+    "    list            List installed skills (or --remote for registry)",
+    "    search          Search the registry for skills",
+    "    install-hooks   Enable deterministic TDD/verification git hooks",
     "",
     "  Init Options:",
     "    -f, --force       Overwrite existing .agent directory",
@@ -78,6 +81,8 @@ export async function runCli(args, io = process) {
       return listCommand(rest, context);
     case "search":
       return searchCommand(rest, context);
+    case "install-hooks":
+      return installHooksCommand(rest, context);
     default:
       io.stderr.write(`Unknown command: ${command}\n${helpText()}\n`);
       return 1;

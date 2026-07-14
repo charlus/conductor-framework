@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Conductor — Test-Driven Law, deterministically enforced (ADR-0001 D1).
+# Rejects a commit that changes implementation code with no accompanying test
+# change. Escape hatch: CONDUCTOR_NO_TEST="reason" git commit … (logged, never silent).
+# Disable entirely: CONDUCTOR_HOOKS=off.
+set -uo pipefail
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+[ -z "$ROOT" ] && exit 0
+# shellcheck source=/dev/null
+. "$ROOT/.agents/hooks/lib.sh"
+
+[ "${CONDUCTOR_HOOKS:-on}" = "off" ] && exit 0
+
+staged="$(git diff --cached --name-only --diff-filter=ACM)"
+[ -z "$staged" ] && exit 0
+
+impl=0
+tests=0
+impl_files=""
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if conductor_is_test_file "$f"; then
+    tests=1
+  elif conductor_is_impl_file "$f"; then
+    impl=1
+    impl_files="$impl_files\n    - $f"
+  fi
+done <<< "$staged"
+
+if [ "$impl" = "1" ] && [ "$tests" = "0" ]; then
+  if [ -n "${CONDUCTOR_NO_TEST:-}" ]; then
+    conductor_log_waiver "$ROOT" "TDD" "$CONDUCTOR_NO_TEST"
+    echo "⚠️  Conductor Test-Driven Law WAIVED: $CONDUCTOR_NO_TEST"
+    echo "    (logged to conductor/0-compass/ship-log.md)"
+    exit 0
+  fi
+  echo ""
+  echo "🛑 Conductor Test-Driven Law — commit blocked."
+  echo ""
+  echo "  You are committing implementation code with no test change:"
+  echo -e "$impl_files"
+  echo ""
+  echo "  Red before green. Either:"
+  echo "    • stage the failing/covering test alongside the code, or"
+  echo "    • if this genuinely has no test surface (config, generated code),"
+  echo "      record the reason:  CONDUCTOR_NO_TEST=\"why\" git commit …"
+  echo ""
+  exit 1
+fi
+
+exit 0

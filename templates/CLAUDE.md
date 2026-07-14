@@ -21,3 +21,9 @@ This framework is fully compatible with Claude Code's native `/loop` command. To
    ```
 
 Claude Code will automatically discover `.claude/loop.md`, initialize Conductor's `unattended-loop.md` state machine, and drive your development tasks autonomously!
+
+---
+
+## ⌨️ Workflow Slash Commands
+
+Every Conductor workflow is available as a native Claude Code slash command. `init`/`upgrade` generate one shim per workflow into `.claude/commands/` (e.g. `/build`, `/carve`, `/spec-it`, `/ship`). Each shim simply loads and runs the matching `.agents/workflows/<name>.md`, so the workflow file stays the single source of truth. Do not hand-edit the shims — change the workflow and re-run `conductor upgrade` to regenerate them.

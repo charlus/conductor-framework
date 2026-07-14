@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { planUpdate, executeUpdate } from "../update.js";
 import { renameRecursive, updateChecksumsKeys } from "../kebab.js";
+import { generateClaudeCommands } from "../claude-commands.js";
+import { installHooksCommand } from "./install-hooks.js";
 
 function getTemplateDir() {
   return fileURLToPath(new URL("../../templates", import.meta.url));
@@ -144,6 +146,21 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       } else {
         stdout.write(`  ⏭️  ${stub} exists (kept yours)\n`);
       }
+    }
+
+    // ---- Step 5: Claude Code slash commands ----
+    stdout.write("\nStep 5: Claude Code slash commands...\n");
+    const { written } = await generateClaudeCommands(targetDir, { stdout });
+    if (written === 0) {
+      stdout.write("  ⏭️  No workflows found; skipped .claude/commands/\n");
+    }
+
+    // ---- Step 6: Deterministic enforcement hooks (ADR-0001 D1) ----
+    stdout.write("\nStep 6: Enforcement hooks...\n");
+    if (await exists(join(targetDir, ".git"))) {
+      await installHooksCommand([targetDir], { cwd, stdout, stderr });
+    } else {
+      stdout.write("  ⏭️  Not a git repo; skipped hook wiring.\n");
     }
 
     // ---- Done ----

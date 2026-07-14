@@ -1,0 +1,57 @@
+// src/loop/adapters/claude.js
+//
+// The Claude Code platform adapter. It owns EXACTLY ONE thing: turning a beat
+// request into a headless `claude -p` invocation and returning its raw result.
+// Every guarantee (loop control, verification, stall, budget) lives in the
+// driver — the adapter is deliberately minimal (BYO-CLI, "thin wrapper", D7).
+//
+// Interface (shared by all adapters):
+//   runBeat({ promptPath, cwd, permissionMode, role, state }) -> { exitCode, stdout, tokens? }
+//   runChecker(...)  // separate fresh process — Phase 3, not yet used
+
+import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
+
+export const name = "claude";
+
+/** True if the `claude` CLI is on PATH (used for default adapter auto-detect). */
+export async function isAvailable() {
+  return await new Promise((resolve) => {
+    const p = spawn("claude", ["--version"], { stdio: "ignore" });
+    p.on("error", () => resolve(false));
+    p.on("close", (code) => resolve(code === 0));
+  });
+}
+
+/**
+ * Run one beat: `claude -p "<prompt>" --permission-mode <mode>` in `cwd`.
+ * The agent re-reads the workflow prompt each beat (the soft layer); the driver
+ * wraps this call with all deterministic guards.
+ */
+export async function runBeat({
+  promptPath,
+  cwd = process.cwd(),
+  permissionMode = "acceptEdits",
+}) {
+  const prompt = await readFile(promptPath, "utf8");
+  return await new Promise((resolve, reject) => {
+    const child = spawn(
+      "claude",
+      ["-p", prompt, "--permission-mode", permissionMode],
+      { cwd, stdio: ["ignore", "pipe", "pipe"] }
+    );
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d) => (stdout += d.toString()));
+    child.stderr.on("data", (d) => (stderr += d.toString()));
+    child.on("error", reject);
+    child.on("close", (exitCode) => {
+      resolve({ exitCode: exitCode ?? 1, stdout, stderr, tokens: 0 });
+    });
+  });
+}
+
+// Phase 3: a Checker in a separate fresh process for structural independence.
+export async function runChecker(opts) {
+  return runBeat(opts);
+}

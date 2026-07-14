@@ -118,7 +118,7 @@ function selectiveCopy(sourceAgentDir, targetAgentDir, selections, registry) {
         if (fs.existsSync(src)) copyFile(src, dst);
     }
     
-    const coreDirs = ['personas', 'tests', 'hooks'];
+    const coreDirs = ['personas', 'tests', 'hooks', 'sandbox'];
     for (const dir of coreDirs) {
         const srcDir = path.join(sourceAgentDir, dir);
         const dstDir = path.join(targetAgentDir, dir);
@@ -241,7 +241,7 @@ function syncSelections(sourceAgentDir, targetAgentDir, newSelections, oldSelect
         if (fs.existsSync(src)) copyFile(src, dst);
     }
     
-    const coreDirs = ['personas', 'tests', 'hooks'];
+    const coreDirs = ['personas', 'tests', 'hooks', 'sandbox'];
     for (const dir of coreDirs) {
         const srcDir = path.join(sourceAgentDir, dir);
         const dstDir = path.join(targetAgentDir, dir);

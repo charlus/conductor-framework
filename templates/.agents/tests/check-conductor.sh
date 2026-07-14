@@ -242,6 +242,64 @@ else
   fail "pre-commit hook is not executable"
 fi
 
+# ---- 12. Autonomous Loop Backend (V6 driver + v2 state) ----
+echo ""
+echo "12. Autonomous Loop Backend (deterministic driver)..."
+
+LOOP_STATE="$ROOT_DIR/conductor/1-workbench/loop-state.json"
+if [ -f "$LOOP_STATE" ]; then
+  for field in '"schema_version": 2' '"budget"' '"verification"' '"stall"' '"maker_reported_done"' '"platform"' '"sandbox"'; do
+    if grep -q "$field" "$LOOP_STATE"; then
+      pass "loop-state.json has v2 field: $field"
+    else
+      fail "loop-state.json missing v2 field: $field"
+    fi
+  done
+else
+  fail "Missing file: $LOOP_STATE"
+fi
+
+# Phase 3 isolation assets ship in the framework.
+require_file "$AGENT_DIR/workflows/loop-checker.md"
+require_file "$AGENT_DIR/sandbox/README.md"
+require_file "$AGENT_DIR/sandbox/Dockerfile.sandbox"
+
+# The soft layer must NOT re-implement driver-owned bookkeeping.
+GUARDRAILS="$AGENT_DIR/rules/loop-guardrails.md"
+WORKFLOW="$AGENT_DIR/workflows/unattended-loop.md"
+if [ -f "$WORKFLOW" ] && ! grep -q "maker_active" "$WORKFLOW"; then
+  pass "unattended-loop.md dropped the retired 'maker_active' status"
+else
+  fail "unattended-loop.md still references 'maker_active' (soft layer not reconciled)"
+fi
+if [ -f "$GUARDRAILS" ] && ! grep -q "last_tool_invoked" "$GUARDRAILS"; then
+  pass "loop-guardrails.md dropped the un-observable last_tool_invoked stall signal"
+else
+  fail "loop-guardrails.md still references last_tool_invoked"
+fi
+
+# The driver module ships in package source (src/), not into user installs.
+# Only assert it when running inside the framework repo; skip in installs.
+PKG_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
+if [ -f "$PKG_ROOT/src/loop/driver.js" ]; then
+  require_file "$PKG_ROOT/src/loop/driver.js"
+  require_file "$PKG_ROOT/src/commands/loop.js"
+  require_file "$PKG_ROOT/src/loop/adapters/index.js"
+  require_file "$PKG_ROOT/src/loop/adapters/claude.js"
+  require_file "$PKG_ROOT/src/loop/adapters/antigravity.js"
+  require_file "$PKG_ROOT/src/loop/worktree.js"
+  require_file "$PKG_ROOT/src/loop/checker.js"
+  require_file "$PKG_ROOT/src/loop/merge.js"
+  # The driver must not hardcode a platform (Phase 2 — swappable adapters).
+  if grep -q "antigravity run" "$PKG_ROOT/src/loop/driver.js"; then
+    fail "driver.js hardcodes a platform ('antigravity run')"
+  else
+    pass "driver.js is platform-agnostic (no hardcoded CLI)"
+  fi
+else
+  pass "Driver module check skipped (installed context — src/ not present)"
+fi
+
 # ---- Summary ----
 echo ""
 echo "========================================"

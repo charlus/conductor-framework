@@ -15,6 +15,7 @@
   ],
   "scripts": {
     "test": "bash templates/.agents/tests/check-conductor.sh",
+    "test:unit": "node --test test/*.test.js",
     "test:init": "node bin/conductor.js init /tmp/conductor-test-install --all && bash /tmp/conductor-test-install/.agents/tests/check-conductor.sh && rm -rf /tmp/conductor-test-install"
   },
   "keywords": [

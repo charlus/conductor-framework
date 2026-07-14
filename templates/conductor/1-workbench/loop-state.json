@@ -1,19 +1,35 @@
 {
+  "schema_version": 2,
   "goal_description": "",
-  "current_task": "",
   "phase": "discovery",
+  "autonomy_level": "L1",
+  "platform": null,
+  "sandbox": "none",
+  "status": "idle",
+  "current_worker": null,
+  "maker_reported_done": false,
   "iterations": {
     "current": 0,
     "max_allowed": 20
   },
-  "telemetry": {
+  "budget": {
+    "max_beats": 20,
+    "max_wall_clock_min": 120,
     "tokens_spent": 0,
-    "consecutive_stalls": 0,
-    "last_tool_invoked": null,
-    "last_tool_arguments": null
+    "started_at": null
   },
-  "maker_branch": "",
-  "current_worker": null,
-  "status": "idle",
+  "verification": {
+    "command": "",
+    "last_exit_code": null,
+    "last_output_hash": null
+  },
+  "stall": {
+    "consecutive": 0,
+    "last_beat_hash": null
+  },
+  "tasks": [],
+  "roles": ["maker", "checker"],
+  "concurrency": 1,
+  "merge": null,
   "history": []
 }

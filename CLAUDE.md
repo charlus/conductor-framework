@@ -69,10 +69,16 @@ conductor-framework/          ← You are here (package source)
 
 ## Current State (V5.0.0 — Hybrid Architecture + Dynamic Skill Loading)
 
-- 14 workflows, 31 skills, 12 personas, 4 rules (3 always-on: prime-directive, verification-iron-law, test-driven-law; loop-guardrails is loop-scoped since the V6 rebalance)
+- 15 workflows (incl. loop-checker), 31 skills, 12 personas, 4 rules (3 always-on: prime-directive, verification-iron-law, test-driven-law; loop-guardrails is loop-scoped since the V6 rebalance)
 - Deterministic enforcement (ADR-0001 D1): `.agents/hooks/` ships a TDD pre-commit + Verification pre-push, wired via `conductor install-hooks` (auto-run by init/upgrade in a git repo). Prose laws are now backed by code, not just advisory.
 - Claude Code adapter: `init`/`upgrade` generate `.claude/commands/*.md` slash-command shims per workflow (ADR-0001 D5)
-- Self-test: `bash templates/.agents/tests/check-conductor.sh` → 86 checks
+- Self-test: `bash templates/.agents/tests/check-conductor.sh` → 107 checks; loop unit tests: `npm run test:unit` (`node:test`, 48 cases, no agent CLI spawned)
+- **V6 Autonomous Loop Backend — Phases 1, 2, 3 & Phase 4 (pair mode) shipped:**
+  - *Phase 1 (driver):* `conductor loop` subcommand over the pure `src/loop/driver.js` (deterministic state machine: iteration ceiling, wall-clock budget, driver-observable stall detection, Evidence Rule via verify exit code, Scoping Barrier, fail-safe verify resolution mirroring `conductor_verify_cmd`). `loop-state.json` migrated to v2 (auto-migrates v1 on load). Soft layer reconciled. V5 `scripts/run-conductor-loop.js` stub deleted.
+  - *Phase 2 (adapter interface):* driver is platform-agnostic; adapter registry/resolver `src/loop/adapters/index.js` with `claude.js` (primary) + `antigravity.js`. Selection: `--platform` → `loop-state.json.platform` → auto-detect. Codex adapter deferred.
+  - *Phase 3 (isolation):* git-worktree isolation for the Maker (`src/loop/worktree.js`), document-only sandbox gate (`sandbox` field + `templates/.agents/sandbox/`; L3 refused without `sandbox:container` → `halted_sandbox_required`), and the independent Checker as a separate process (`workflows/loop-checker.md` + `src/loop/checker.js`, verdict via `checker-verdict.json`, fail-safe reject).
+  - *Phase 4 (pair mode):* autonomy slider L0–L3 enforced in the driver (`autonomyPreflight`; L0 refuses, L1 single-beat→`awaiting_review`, L2 blueprint-only, L3 execution+PR); PR-gated merge via `gh`/`glab` (`src/loop/merge.js`, never a direct push); auditable action trail to `0-compass/ship-log.md`. New terminals `awaiting_review` + `halted_autonomy`. `concurrency>1` refused (swarm not built).
+  - **Remaining = the swarm only** (task-graph blackboard, frontier scheduler, specialized roles, `concurrency>1`, multi-worktree merge queue), deferred behind an evidence gate. Full list in the roadmap's "Remaining work" section. See `docs/roadmap/Autonomous-Loop-Backend.md`.
 - Dynamic Skill Loading (see `docs/roadmap/Dynamic-Skill-Loading.md`) — Phases 1–3 shipped (manifests, CLI commands, tech-stack detection during init); Phase 4 (curation pipeline) and Phase 5 (testing) still open
 - Published: private GitHub repo `charlus/conductor-framework`
 

@@ -341,6 +341,13 @@
       "default": true
     },
     {
+      "name": "loop-checker",
+      "file": "loop-checker.md",
+      "description": "Independent Checker audit (separate process) invoked by the loop driver on a green diff; writes checker-verdict.json.",
+      "category": "core",
+      "default": true
+    },
+    {
       "name": "ux-ui-design-brief",
       "file": "ux-ui-design-brief.md",
       "description": "UX/UI Design Brief (Translating Epics into Interface)",

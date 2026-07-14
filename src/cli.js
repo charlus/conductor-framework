@@ -5,6 +5,7 @@ import { removeCommand } from "./commands/remove.js";
 import { listCommand } from "./commands/list.js";
 import { searchCommand } from "./commands/search.js";
 import { installHooksCommand } from "./commands/install-hooks.js";
+import { loopCommand } from "./commands/loop.js";
 
 function helpText() {
   return [
@@ -22,6 +23,7 @@ function helpText() {
     "    conductor list [--remote] [--tier <tier>]",
     "    conductor search <query> [--tag <tag>]",
     "    conductor install-hooks [--uninstall]",
+    "    conductor loop [target-directory] [--platform <name>] [--dry-run] [--unsafe-no-sandbox]",
     "",
     "  Commands:",
     "    init            Scaffold the Conductor framework in a new project",
@@ -31,6 +33,7 @@ function helpText() {
     "    list            List installed skills (or --remote for registry)",
     "    search          Search the registry for skills",
     "    install-hooks   Enable deterministic TDD/verification git hooks",
+    "    loop            Run the deterministic autonomous loop driver",
     "",
     "  Init Options:",
     "    -f, --force       Overwrite existing .agent directory",
@@ -83,6 +86,8 @@ export async function runCli(args, io = process) {
       return searchCommand(rest, context);
     case "install-hooks":
       return installHooksCommand(rest, context);
+    case "loop":
+      return loopCommand(rest, context);
     default:
       io.stderr.write(`Unknown command: ${command}\n${helpText()}\n`);
       return 1;

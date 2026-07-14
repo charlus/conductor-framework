@@ -13,3 +13,6 @@ Thumbs.db
 # Temp
 /tmp/
 *.log
+
+# Claude Code local state (settings + worktrees) — never commit
+.claude/

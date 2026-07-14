@@ -1,0 +1,200 @@
+// test/loop-phase4.test.js
+//
+// Phase 4 (buildable parts): autonomy-slider enforcement (L0–L3), the L1 single-
+// beat cap, level-aware completion, and the PR-gated merge module. The swarm
+// scheduler is deferred behind an evidence gate and is NOT tested here (it does
+// not exist yet); concurrency>1 is asserted to be refused.
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { runLoop, normalizeState, autonomyPreflight, describeHalt } from "../src/loop/driver.js";
+import { planMergeAction, pickForgeCli, prCommand, openPullRequest } from "../src/loop/merge.js";
+
+function harness(overrides = {}) {
+  const state = normalizeState({
+    phase: "execution",
+    status: "idle",
+    goal_description: "goal",
+    autonomy_level: "L3",
+    sandbox: "container",
+    iterations: { current: 0, max_allowed: overrides.max_allowed ?? 20 },
+    ...overrides.state,
+  });
+  let head = 0;
+  let clock = 0;
+  let mergeCalls = 0;
+  const deps = {
+    verifyCommand: overrides.verifyCommand === undefined ? "run-tests" : overrides.verifyCommand,
+    runBeat: overrides.runBeat ?? (async ({ state }) => {
+      state.maker_reported_done = true;
+      return { exitCode: 0 };
+    }),
+    runVerify: overrides.runVerify ?? (async () => ({ exitCode: 0, output: "green" })),
+    runChecker: overrides.runChecker,
+    merge: overrides.merge ?? (async () => {
+      mergeCalls++;
+      return { ok: true, branch: "conductor/loop/goal", prUrl: "http://pr/1" };
+    }),
+    gitHead: async () => `sha-${head++}`,
+    now: () => (clock += 1000),
+    persist: async () => {},
+    writeInbox: async () => {},
+    audit: async () => {},
+    log: () => {},
+  };
+  return { state, deps, mergeCalls: () => mergeCalls };
+}
+
+// ---- autonomyPreflight (pure) ---------------------------------------------
+
+test("autonomyPreflight: L0 is interactive-only → refused", () => {
+  assert.equal(autonomyPreflight(normalizeState({ autonomy_level: "L0", phase: "execution" })), "halted_autonomy");
+});
+
+test("autonomyPreflight: concurrency>1 (swarm) refused at every level", () => {
+  for (const lvl of ["L1", "L2", "L3"]) {
+    const s = normalizeState({ autonomy_level: lvl, phase: "execution", concurrency: 2, sandbox: "container" });
+    assert.equal(autonomyPreflight(s), "halted_autonomy", `${lvl} concurrency 2`);
+  }
+});
+
+test("autonomyPreflight: L2 execution refused (blueprint-only); L2 blueprint allowed", () => {
+  assert.equal(autonomyPreflight(normalizeState({ autonomy_level: "L2", phase: "execution" })), "halted_autonomy");
+  assert.equal(autonomyPreflight(normalizeState({ autonomy_level: "L2", phase: "blueprint" })), null);
+});
+
+test("autonomyPreflight: L1 and L3 permitted", () => {
+  assert.equal(autonomyPreflight(normalizeState({ autonomy_level: "L1", phase: "execution" })), null);
+  assert.equal(autonomyPreflight(normalizeState({ autonomy_level: "L3", phase: "execution", sandbox: "container" })), null);
+});
+
+test("describeHalt gives a specific reason per autonomy failure", () => {
+  assert.match(describeHalt(normalizeState({ autonomy_level: "L0" }), "halted_autonomy"), /interactive-only/);
+  assert.match(describeHalt(normalizeState({ autonomy_level: "L3", concurrency: 2 }), "halted_autonomy"), /swarm/);
+  assert.match(describeHalt(normalizeState({ autonomy_level: "L2", phase: "execution" }), "halted_autonomy"), /blueprint-only/);
+});
+
+// ---- runLoop autonomy gates -----------------------------------------------
+
+test("L0 halts before any beat", async () => {
+  let beats = 0;
+  const { state, deps } = harness({ state: { autonomy_level: "L0" }, runBeat: async () => (beats++, { exitCode: 0 }) });
+  const final = await runLoop(state, deps);
+  assert.equal(final.status, "halted_autonomy");
+  assert.equal(beats, 0);
+});
+
+test("concurrency>1 halts before any beat (swarm not implemented)", async () => {
+  const { state, deps } = harness({ state: { concurrency: 3 } });
+  const final = await runLoop(state, deps);
+  assert.equal(final.status, "halted_autonomy");
+});
+
+// ---- L1 single-beat --------------------------------------------------------
+
+test("L1 runs exactly one beat, hands off to review, and never merges", async () => {
+  const h = harness({ state: { autonomy_level: "L1" } });
+  const final = await runLoop(h.state, h.deps);
+  assert.equal(final.status, "awaiting_review");
+  assert.equal(final.iterations.current, 1); // exactly one Maker beat
+  assert.equal(h.mergeCalls(), 0); // human merges, not the loop
+});
+
+test("L1 stops after one beat even when the check fails", async () => {
+  const h = harness({ state: { autonomy_level: "L1" }, runVerify: async () => ({ exitCode: 1, output: "red" }) });
+  const final = await runLoop(h.state, h.deps);
+  assert.equal(final.status, "awaiting_review");
+  assert.equal(final.iterations.current, 1);
+});
+
+// ---- L2 blueprint completion ----------------------------------------------
+
+test("L2 blueprint completion awaits review without merging code", async () => {
+  const h = harness({ state: { autonomy_level: "L2", phase: "blueprint" } });
+  const final = await runLoop(h.state, h.deps);
+  assert.equal(final.status, "awaiting_review");
+  assert.equal(h.mergeCalls(), 0);
+});
+
+// ---- L3 execution completion → PR-gated merge -----------------------------
+
+test("L3 execution completion opens a PR and completes", async () => {
+  const h = harness(); // default L3 execution, green, done
+  const final = await runLoop(h.state, h.deps);
+  assert.equal(final.status, "completed");
+  assert.equal(h.mergeCalls(), 1);
+  assert.equal(final.merge.pr_url, "http://pr/1");
+});
+
+test("L3 completion with a failing merge escalates to awaiting_review", async () => {
+  const h = harness({ merge: async () => ({ ok: false, reason: "no gh/glab" }) });
+  const final = await runLoop(h.state, h.deps);
+  assert.equal(final.status, "awaiting_review");
+});
+
+// ---- merge module (pure + injected IO) ------------------------------------
+
+test("planMergeAction: PR only at L3 execution", () => {
+  assert.equal(planMergeAction({ autonomyLevel: "L3", phase: "execution" }), "pr");
+  assert.equal(planMergeAction({ autonomyLevel: "L3", phase: "blueprint" }), "none");
+  assert.equal(planMergeAction({ autonomyLevel: "L1", phase: "execution" }), "none");
+  assert.equal(planMergeAction({ autonomyLevel: "L2", phase: "blueprint" }), "none");
+});
+
+test("pickForgeCli prefers gh, falls back to glab, else null", () => {
+  assert.equal(pickForgeCli({ hasGh: true, hasGlab: true }), "gh");
+  assert.equal(pickForgeCli({ hasGh: false, hasGlab: true }), "glab");
+  assert.equal(pickForgeCli({ hasGh: false, hasGlab: false }), null);
+});
+
+test("prCommand shapes gh/glab argv", () => {
+  const [gh, ghArgs] = prCommand("gh", { branch: "b", title: "t" });
+  assert.equal(gh, "gh");
+  assert.ok(ghArgs.includes("pr") && ghArgs.includes("--head") && ghArgs.includes("b"));
+  const [glab, glabArgs] = prCommand("glab", { branch: "b", title: "t" });
+  assert.equal(glab, "glab");
+  assert.ok(glabArgs.includes("mr") && glabArgs.includes("--source-branch"));
+});
+
+test("openPullRequest: no forge → clean failure, no push attempted", async () => {
+  let pushed = false;
+  const res = await openPullRequest({
+    branch: "b",
+    title: "t",
+    git: async () => ((pushed = true), { ok: true, stdout: "" }),
+    run: async () => ({ ok: true, stdout: "" }),
+    hasGh: false,
+    hasGlab: false,
+  });
+  assert.equal(res.ok, false);
+  assert.match(res.reason, /no 'gh' or 'glab'/);
+  assert.equal(pushed, false);
+});
+
+test("openPullRequest: push + gh returns the PR url", async () => {
+  const res = await openPullRequest({
+    branch: "conductor/loop/x",
+    title: "t",
+    git: async (args) => ({ ok: args[0] === "push", stdout: "" }),
+    run: async () => ({ ok: true, stdout: "https://github.com/o/r/pull/7\n" }),
+    hasGh: true,
+    hasGlab: false,
+  });
+  assert.equal(res.ok, true);
+  assert.equal(res.prUrl, "https://github.com/o/r/pull/7");
+});
+
+test("openPullRequest: failed push aborts before opening a PR", async () => {
+  let prOpened = false;
+  const res = await openPullRequest({
+    branch: "b",
+    title: "t",
+    git: async () => ({ ok: false, stdout: "" }),
+    run: async () => ((prOpened = true), { ok: true, stdout: "" }),
+    hasGh: true,
+    hasGlab: false,
+  });
+  assert.equal(res.ok, false);
+  assert.match(res.reason, /git push failed/);
+  assert.equal(prOpened, false);
+});

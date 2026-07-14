@@ -4,16 +4,17 @@ Use this workflow to coordinate headless development cycles, managing state, del
 
 ```mermaid
 graph TD
-    Start[Read loop-state.json] --> PreFlight{Pre-Flight Relevance Check}
+    Driver[[conductor loop driver: owns ceiling / stall / budget / verify]] --> Start[Agent beat: read loop-state.json]
+    Start --> PreFlight{Pre-Flight Relevance Check}
     PreFlight -->|Fail: Subjective/No Spec| StopSpec[Halt & Escalate]
-    PreFlight -->|Pass| Verify[Check Iteration & Stall limits]
-    Verify -->|Passed| Action[Determine current status]
-    Verify -->|Exceeded| Stop[Terminate & Escalate]
-    Action -->|idle / rejected_by_checker| Maker[Load Maker -> Implement -> Run local tests]
-    Action -->|ready_for_check| Checker[Spawn Checker sub-agent -> Independent Audit]
-    Checker -->|Approved| Complete[Update product areas -> Merge -> End Beat]
-    Checker -->|Rejected| Retry[Increment iteration counter -> Loop back]
+    PreFlight -->|Pass| Action[Determine current status]
+    Action -->|idle / rejected_by_checker| Maker[Load Maker -> Implement -> Commit -> End beat]
+    Action -->|ready_for_check| Verify[[Driver runs verification command -> exit code decides]]
+    Verify -->|exit 0| Complete[passed_by_checker: Update product areas -> Merge]
+    Verify -->|exit != 0| Retry[rejected_by_checker: driver increments, loops back to Maker]
 ```
+
+> The double-boxed nodes are the **deterministic driver's** responsibility, not the agent's. The agent only performs the single-boxed judgment steps each beat.
 
 ## Step 0: Pre-Flight Relevance & Scoping Checks
 
@@ -34,11 +35,10 @@ Before taking any action, you MUST verify that this task is safe for headless ex
 4. **Verification Check**: Can success be validated programmatically? (Must compile/test with exit code 0).
 5. **Isolation Check**: Is git status clean and workspace isolation supported?
 
-## Step 1: Read and Initialize State
-* Load `conductor/1-workbench/loop-state.json`.
-* Validate that `iterations.current` is less than `iterations.max_allowed`.
-* Increment `iterations.current` by 1.
-* Check `telemetry.consecutive_stalls`. If at 3, halt and write to `inbox.md`.
+## Step 1: Read State (the driver owns the counters)
+* Load `conductor/1-workbench/loop-state.json` to learn the current `status`, `phase`, and `goal_description`.
+* **Do NOT increment `iterations.current`, and do NOT check or update the stall counter.** When this workflow runs under `conductor loop`, the deterministic driver owns the iteration ceiling, the wall-clock budget, and stall detection — it increments and enforces them between beats, from state deltas you cannot fake. Touching those fields yourself causes double-counting and contradicts the authority model.
+* Your job each beat is only the *judgment* for the current `status`: which persona to load and what work to do (below). The driver handles all bookkeeping and gating.
 
 ## Step 2: Determine State and Delegate
 Analyze the current `status` and `phase` fields in `loop-state.json`.
@@ -55,32 +55,26 @@ Before starting your role, check the active files and append the matching person
 
 ### Action Execution Matrix:
 
-* **If `idle` or `rejected_by_checker`**:
-  1. Set `status` to `maker_active` and write your worker ID to `current_worker`.
-  2. Load the **Maker** persona (plus any specialized persona from the Selector above).
-  3. **Execute phase-appropriate work**:
+* **If `idle` or `rejected_by_checker`** (the Maker's turn):
+  1. Load the **Maker** persona (plus any specialized persona from the Selector above). The driver has already stamped `current_worker` for you.
+  2. **Execute phase-appropriate work**:
      - *blueprint*: Load the `Architect` or `CTO` persona. Run the blueprinting workflows (`workflows/grand-prd.md`, `ux-ui-design-brief.md`, `technical-vision.md`, or `workflows/carve.md`) to write specifications and slice tasks.
      - *execution*: Isolate the workspace using the `using-git-worktrees` skill and execute the **Build** workflow (`workflows/build.md`) following the per-task TDD-Cycle to implement the specifications.
-  4. Write tool invocation logs to `telemetry`.
-  5. Commit changes, set `status` to `ready_for_check`, and update `loop-state.json`.
-  6. Stop to conclude the beat.
+  3. Commit your changes. If (and only if) you believe the entire goal is now complete, set `maker_reported_done` to `true` in `loop-state.json` — this is your one positive "done" signal; the driver still gates it behind a green verification before accepting `completed`.
+  4. Stop to conclude the beat. **Do not set `status` yourself** — the driver transitions you to `ready_for_check` and then runs verification.
 
-* **If `ready_for_check`**:
-  1. Set `status` to `checker_active` and write your worker ID to `current_worker`.
-  2. Spawn an independent sub-agent loading the **Checker** persona (plus any specialized checker persona from the Selector above).
-  3. The Checker executes the configured verification command or scans the generated specs.
-  4. If tests pass: Set `status` to `passed_by_checker`.
-  5. If tests fail: Set `status` to `rejected_by_checker` and append failure details to `history`.
-  6. Set `current_worker` to null, save `loop-state.json`, and stop.
+* **If `ready_for_check`** (the driver's verification gate — Evidence Rule in code):
+  1. The **driver** runs the resolved verification command itself and records the exit code. A non-zero exit forces `rejected_by_checker`; a zero exit is necessary but not sufficient.
+  2. You do not run verification to decide the verdict — that is the driver's authority. (In a future phase an independent Checker in a separate process reviews green diffs above this floor; until then, a green exit passes.)
+  3. Nothing for the agent to write here; the driver owns the transition.
 
-* **If `passed_by_checker`**:
+* **If `passed_by_checker`** (advancing):
   1. Run the `context-updater` skill to sync files in `3-product-areas/` and update `4-context/`.
   2. Merge the branch and clean up worktrees (if in execution).
   3. Log the victory in `conductor/0-compass/ship-log.md`.
   4. Move state through Conductor's physical folders (Folder = State).
-  5. If the entire epic is complete: Set `status` to `completed`. Else: transition `phase` to the next logical step and reset `status` to `idle`.
-  6. Set `current_worker` to null, save `loop-state.json`, and stop.
+  5. The driver reads `maker_reported_done`: if set (and verification is green) it finalizes `completed`; otherwise it resets to `idle` for the next task. You do not set the terminal status.
 
-## Step 3: Write State and Conclude Beat
-* Save the updated `loop-state.json`.
-* Output a clean one-line status update so the host runner can capture progress and schedule the next beat.
+## Step 3: Conclude the Beat
+* Save any content you produced (specs, code, commits) and any agent-owned fields you legitimately set (`maker_reported_done`, `history` notes).
+* **Leave `status`, `iterations`, `stall`, and `budget` to the driver.** It recomputes progress, enforces the guardrails, and transitions `status` between beats — then schedules the next beat. Output a clean one-line summary of what this beat did so the driver's log stays readable.

@@ -43,6 +43,13 @@
       "default": true
     },
     {
+      "name": "Collaborative-Drafting",
+      "dir": "collaborative-drafting",
+      "description": "The drafting primitive. When a workflow must produce a structured document (Epics, screens, implementation slices, an architecture), lead with a complete draft the human corrects — never a blank-page questionnaire. Reach for it in Grand PRD, UX/UI Brief, Technical Vision, Carve, and any 'propose then refine' phase.",
+      "category": "core",
+      "default": true
+    },
+    {
       "name": "Context-Engineering",
       "dir": "context-engineering",
       "description": "Use when updating the task backlog, reading PRDs, or modifying project state in the conductor/ directory",
@@ -123,6 +130,13 @@
       "name": "using-git-worktrees",
       "dir": "git-worktrees",
       "description": "Use when starting feature work that needs isolation from current workspace or before executing implementation plans - creates isolated git worktrees with smart directory selection and safety verification",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Grilling",
+      "dir": "grilling",
+      "description": "The interview primitive. A relentless, one-question-at-a-time interview that sharpens a plan, design, or idea before any building begins. Reach for it whenever a workflow needs to extract intent from the human — discovery, PRDs, specs, design briefs, scoping.",
       "category": "core",
       "default": true
     },
@@ -285,6 +299,13 @@
       "default": true
     },
     {
+      "name": "loop-checker",
+      "file": "loop-checker.md",
+      "description": "",
+      "category": "core",
+      "default": true
+    },
+    {
       "name": "quick-path",
       "file": "quick-path.md",
       "description": "Quick-Path (Fast-Track Implementation)",
@@ -341,13 +362,6 @@
       "default": true
     },
     {
-      "name": "loop-checker",
-      "file": "loop-checker.md",
-      "description": "Independent Checker audit (separate process) invoked by the loop driver on a green diff; writes checker-verdict.json.",
-      "category": "core",
-      "default": true
-    },
-    {
       "name": "ux-ui-design-brief",
       "file": "ux-ui-design-brief.md",
       "description": "UX/UI Design Brief (Translating Epics into Interface)",
@@ -366,6 +380,7 @@
         "Brain-Dump-to-Epics",
         "clean-code",
         "Code-Review",
+        "Collaborative-Drafting",
         "Context-Engineering",
         "Context-Updater",
         "deployment-procedures",
@@ -378,6 +393,7 @@
         "GitLab-CLI",
         "Git-Workflow",
         "using-git-worktrees",
+        "Grilling",
         "i18n-localization",
         "lint-and-validate",
         "Model-Routing",
@@ -404,6 +420,7 @@
         "carve",
         "genesis",
         "grand-prd",
+        "loop-checker",
         "quick-path",
         "retrospective",
         "ship",

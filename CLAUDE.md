@@ -66,10 +66,11 @@ conductor-framework/          ← You are here (package source)
 | Remote skill registry (`add`/`remove`/`list`/`search`) | "npm for AI skills" — core skills ship in `templates/`, tech-specific/domain skills download on demand from a `conductor.config.json`-configured registry |
 | Test-Driven Law as an always-on `rules/` file, not a skill | TDD needs to be structural, not something an agent has to remember to reach for — same reasoning as the Verification Iron Law. Build's per-task loop now hard-codes RED→GREEN→REFACTOR as Step 2, not a generic "implement" step |
 | `Inbox: X` / `Add to inbox: X` / `Scratchpad: X` quick-capture, in the always-on classifier | Some platforms (Claude Code, Antigravity 2.0) expose no file browser — chat is the human's only path into `conductor/1-workbench/`. The rule is deliberately zero-judgment (append verbatim, no workflow, no triage) so it stays as fast as opening a file would have been |
+| `Grilling` interview primitive as a skill, loaded by discovery/PRD/spec/design workflows | The interview technique (Interviewer persona, one-at-a-time questioning, advancement gates) was duplicated inline across Genesis, Storyboard, Grand-PRD, Spec-It, and the Design Brief. Extracted to one `skills/grilling/SKILL.md` as the single source of truth (following Matt Pocock's `grilling` primitive), adding recommend-per-question, look-up-facts-don't-ask, and a single convergence gate. Genesis now supplies the *agenda* and loads the primitive for the *how* — ~40% ceremony removed. Other interview workflows still to migrate |
 
 ## Current State (V5.0.0 — Hybrid Architecture + Dynamic Skill Loading)
 
-- 13 workflows, 28 skills, 10 personas, 3 rules (prime-directive, verification-iron-law, test-driven-law)
+- 13 workflows, 29 skills, 10 personas, 3 rules (prime-directive, verification-iron-law, test-driven-law)
 - Self-test: `bash templates/.agents/tests/check-conductor.sh` → 72 checks
 - Dynamic Skill Loading (see `docs/roadmap/Dynamic-Skill-Loading.md`) — Phases 1–3 shipped (manifests, CLI commands, tech-stack detection during init); Phase 4 (curation pipeline) and Phase 5 (testing) still open
 - Published: private GitHub repo `charlus/conductor-framework`

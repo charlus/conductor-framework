@@ -64,6 +64,13 @@
       "default": true
     },
     {
+      "name": "Grilling",
+      "dir": "grilling",
+      "description": "The interview primitive. A relentless, one-question-at-a-time interview that sharpens a plan, design, or idea before building. Loaded by discovery/PRD/spec/design workflows instead of re-inventing an interview each time.",
+      "category": "core",
+      "default": true
+    },
+    {
       "name": "Discovery-Phase",
       "dir": "discovery-phase",
       "description": "Use when the user has a new idea, wants to start a brand new app, or needs to explore a new feature area and shape the user experience.",

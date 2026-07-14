@@ -16,3 +16,4 @@ Thumbs.db
 
 # Claude Code local state (settings + worktrees) — never commit
 .claude/
+inbox/

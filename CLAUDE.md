@@ -69,8 +69,10 @@ conductor-framework/          ← You are here (package source)
 
 ## Current State (V5.0.0 — Hybrid Architecture + Dynamic Skill Loading)
 
-- 13 workflows, 28 skills, 10 personas, 3 rules (prime-directive, verification-iron-law, test-driven-law)
-- Self-test: `bash templates/.agents/tests/check-conductor.sh` → 72 checks
+- 14 workflows, 31 skills, 12 personas, 4 rules (3 always-on: prime-directive, verification-iron-law, test-driven-law; loop-guardrails is loop-scoped since the V6 rebalance)
+- Deterministic enforcement (ADR-0001 D1): `.agents/hooks/` ships a TDD pre-commit + Verification pre-push, wired via `conductor install-hooks` (auto-run by init/upgrade in a git repo). Prose laws are now backed by code, not just advisory.
+- Claude Code adapter: `init`/`upgrade` generate `.claude/commands/*.md` slash-command shims per workflow (ADR-0001 D5)
+- Self-test: `bash templates/.agents/tests/check-conductor.sh` → 86 checks
 - Dynamic Skill Loading (see `docs/roadmap/Dynamic-Skill-Loading.md`) — Phases 1–3 shipped (manifests, CLI commands, tech-stack detection during init); Phase 4 (curation pipeline) and Phase 5 (testing) still open
 - Published: private GitHub repo `charlus/conductor-framework`
 

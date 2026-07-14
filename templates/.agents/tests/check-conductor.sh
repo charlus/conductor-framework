@@ -133,7 +133,7 @@ skills=(
   "lint-and-validate"
   "analyze-tests" "trace-documentation"
   "context-engineering" "discovery-phase" "blueprint-phase" "execution-phase" "shipping-phase"
-  "skill-registry" "grilling" "collaborative-drafting"
+  "skill-registry" "grilling" "collaborative-drafting" "handoff"
   "domain-modeling" "subagent-isolation" "model-routing"
 )
 

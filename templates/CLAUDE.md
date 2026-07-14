@@ -1,3 +1,4 @@
+<!-- conductor:managed:begin — Conductor-managed; refreshed by `conductor upgrade`. Add your own notes BELOW the end marker. -->
 # Conductor Framework V6
 
 > This is a platform stub for auto-discovery. The full system instructions live in `.agents/AGENTS.md`.
@@ -27,3 +28,6 @@ Claude Code will automatically discover `.claude/loop.md`, initialize Conductor'
 ## ⌨️ Workflow Slash Commands
 
 Every Conductor workflow is available as a native Claude Code slash command. `init`/`upgrade` generate one shim per workflow into `.claude/commands/` (e.g. `/build`, `/carve`, `/spec-it`, `/ship`). Each shim simply loads and runs the matching `.agents/workflows/<name>.md`, so the workflow file stays the single source of truth. Do not hand-edit the shims — change the workflow and re-run `conductor upgrade` to regenerate them.
+<!-- conductor:managed:end -->
+
+<!-- Add your project-specific instructions below this line; they are preserved across `conductor upgrade`. -->

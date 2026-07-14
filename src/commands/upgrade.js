@@ -9,6 +9,7 @@ import { installHooksCommand } from "./install-hooks.js";
 import { normalizeState } from "../loop/driver.js";
 import { packageVersion, readVersionStamp, writeVersionStamp, detectShape } from "../version.js";
 import { createBackup, restoreBackup, ensureGitignore } from "../backup.js";
+import { applyManagedStub } from "../stubs.js";
 
 function getTemplateDir() {
   return fileURLToPath(new URL("../../templates", import.meta.url));
@@ -110,7 +111,8 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       const lsPath = join(targetDir, loopStateRel);
       stdout.write(`  ${loopStateRel}  ${(await exists(lsPath)) ? "MIGRATE schema → v2" : "CREATE"}\n`);
       stdout.write(`  Preserve: conductor/ knowledge (0-compass,2-backlog,3-product-areas,4-context,6-archive) untouched\n`);
-      stdout.write(`  Then: regenerate .claude/commands, platform stubs, git hooks; stamp ${version}\n`);
+      stdout.write(`  Stubs: refresh CLAUDE.md/GEMINI.md managed block (keep your edits + CHANGELOG.md)\n`);
+      stdout.write(`  Then: regenerate .claude/commands, git hooks; stamp ${version}\n`);
       stdout.write(`\nNo changes written (dry run). Re-run without --dry-run to apply.\n`);
       return 0;
     }
@@ -121,6 +123,9 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
     if (hasAgents) backupPaths.push(".agents");
     if (await exists(target5Templates)) backupPaths.push(join("conductor", "5-templates"));
     if (await exists(join(targetDir, loopStateRel))) backupPaths.push(loopStateRel);
+    for (const stub of ["CLAUDE.md", "GEMINI.md"]) {
+      if (await exists(join(targetDir, stub))) backupPaths.push(stub);
+    }
     if (doesStructuralMigration) {
       if (hasLegacyAgent) backupPaths.push(".agent");
       if (hasLegacyConductor) backupPaths.push(".conductor");
@@ -207,16 +212,21 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
         }
       }
 
-      // ---- Step 6: Platform stubs (created only if absent) ----
+      // ---- Step 6: Platform stubs ----
       stdout.write("\nStep 6: Platform stubs...\n");
-      for (const stub of ["GEMINI.md", "CLAUDE.md", "CHANGELOG.md"]) {
-        const stubPath = join(targetDir, stub);
-        if (!(await exists(stubPath))) {
-          await cp(join(templateDir, stub), stubPath);
-          stdout.write(`  ✅ Created ${stub}\n`);
-        } else {
-          stdout.write(`  ⏭️  ${stub} exists (kept yours)\n`);
-        }
+      // CLAUDE.md / GEMINI.md carry a Conductor-managed block — refresh it in place,
+      // preserving anything the user wrote outside the markers.
+      for (const stub of ["CLAUDE.md", "GEMINI.md"]) {
+        const outcome = applyManagedStub(join(targetDir, stub), join(templateDir, stub));
+        stdout.write(`  ${outcome === "unchanged" ? "⏭️ " : "✅"} ${stub} ${outcome} (managed block)\n`);
+      }
+      // CHANGELOG.md is the user's own project changelog — create only if absent.
+      const changelogPath = join(targetDir, "CHANGELOG.md");
+      if (!(await exists(changelogPath))) {
+        await cp(join(templateDir, "CHANGELOG.md"), changelogPath);
+        stdout.write("  ✅ Created CHANGELOG.md\n");
+      } else {
+        stdout.write("  ⏭️  CHANGELOG.md exists (kept yours — it's your changelog)\n");
       }
 
       // ---- Step 7: Claude Code slash commands ----

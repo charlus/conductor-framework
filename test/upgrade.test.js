@@ -46,6 +46,10 @@ function makeV5Install() {
   // Selections: user selected clean-code + acme-custom.
   writeFileSync(join(A, ".selections.json"), JSON.stringify({ version: 1, skills: ["clean-code", "acme-custom"], rules: [], workflows: ["genesis"], bundles: [] }));
 
+  // A CLAUDE.md stub with an old managed block + a user note below it.
+  writeFileSync(join(dir, "CLAUDE.md"),
+    "<!-- conductor:managed:begin — managed -->\n# Conductor Framework V5\nOLD STUB BODY\n<!-- conductor:managed:end -->\n\nMY CLAUDE NOTES\n");
+
   // conductor/ — user knowledge (must be PRESERVED), framework 5-templates, v1 loop-state.
   const C = join(dir, "conductor");
   mkdirSync(join(C, "0-compass"), { recursive: true });
@@ -91,6 +95,12 @@ test("upgrade replaces framework instructions, carries custom, preserves knowled
   assert.equal(ls.budget.tokens_spent, 4321, "tokens_spent folded into budget");
   assert.equal(ls.stall.consecutive, 2, "consecutive_stalls folded into stall");
   assert.equal(ls.goal_description, "ship it", "user goal preserved");
+
+  // CLAUDE.md: managed block refreshed, user note preserved.
+  const claude = readFileSync(join(dir, "CLAUDE.md"), "utf8");
+  assert.ok(!claude.includes("OLD STUB BODY"), "old managed block refreshed");
+  assert.ok(claude.includes("Conductor Framework V6"), "managed block updated to current template");
+  assert.ok(claude.includes("MY CLAUDE NOTES"), "user note outside the block preserved");
 
   // Version stamp written.
   const stamp = JSON.parse(readFileSync(join(dir, ".agents", ".conductor-version.json"), "utf8"));

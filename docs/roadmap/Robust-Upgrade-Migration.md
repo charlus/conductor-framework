@@ -51,6 +51,7 @@ The engine walks the current package templates and the install together, classif
 - **User-authored additions** (present in the install, absent from `templates/**` — a custom skill/workflow/persona/template): **carried forward** untouched (today's `KEEP`).
 - **User knowledge** (`conductor/` outside `5-templates/`, and live values in `loop-state.json`): **never overwritten**, even where a same-named seed file ships in the package.
 - **Everything replaced or removed** is in the backup, so a user who edited a framework file can recover their changes deliberately.
+- **Platform stubs** (`CLAUDE.md`/`GEMINI.md`) are *hybrid* — a framework block users extend. They carry `<!-- conductor:managed -->` markers; upgrade refreshes only the block and preserves anything outside it (`src/stubs.js`). `CHANGELOG.md` is genuinely user-owned → create-if-absent only.
 - **Selections:** honor `.agents/.selections.json` for *optional* skills, but always install the core set — all rules, all workflows, and the interview/drafting/handoff **primitives** (same rationale as today's "rules are always selected": new core capabilities must land even if they postdate the user's selections file). Missing selections file ⇒ full install (this replaces today's silent no-op).
 
 This deletes risks #1 and #2 outright: framework files are replaced regardless of checksum or its absence.

@@ -64,6 +64,13 @@
       "default": true
     },
     {
+      "name": "Collaborative-Drafting",
+      "dir": "collaborative-drafting",
+      "description": "The drafting primitive. Produce a structured document (Epics, screens, implementation slices, an architecture) by leading with a complete draft the human corrects, not a blank-page questionnaire. Loaded by Grand PRD, UX/UI Brief, Technical Vision, and Carve.",
+      "category": "core",
+      "default": true
+    },
+    {
       "name": "Grilling",
       "dir": "grilling",
       "description": "The interview primitive. A relentless, one-question-at-a-time interview that sharpens a plan, design, or idea before building. Loaded by discovery/PRD/spec/design workflows instead of re-inventing an interview each time.",

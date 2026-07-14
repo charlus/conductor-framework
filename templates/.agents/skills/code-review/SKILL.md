@@ -90,6 +90,25 @@ Only run this AFTER Stage 1 passes. Code that doesn't match the spec is wasted c
     - Now that the whole change is visible, is there duplication, a leaky abstraction, or a seam that per-task refactoring couldn't see?
     - This is a **second look, not the first.** The mandatory REFACTOR step already ran per increment inside the TDD loop (`workflows/tdd-cycle.md`, `rules/test-driven-law.md`); review-stage refactoring catches only what's visible across the assembled change. It never replaces the in-loop step, and any refactor here must keep the suite GREEN.
 
+### The smell baseline
+
+When judging quality, carry this fixed baseline of code smells (from Fowler). Each is a **judgement call, not a hard violation** — name it as "possible X" and pair it with the fix:
+
+| Smell | What it is → how to fix |
+|-------|-------------------------|
+| Mysterious Name | Name doesn't say what it is/does → rename |
+| Duplicated Code | Same structure in >1 place → extract |
+| Long Function / Feature Envy | A function more interested in another module's data → move it there |
+| Data Clumps / Primitive Obsession | The same fields travel together, or primitives model a domain concept → introduce a type |
+| Repeated Switches | Same switch on a type in many places → polymorphism |
+| Shotgun Surgery / Divergent Change | One change touches many modules, or one module changes for many reasons → regroup responsibilities |
+| Speculative Generality | Abstraction for a need that never arrived → inline it (YAGNI) |
+| Message Chains / Middle Man | `a.b().c().d()`, or a class that only delegates → collapse |
+
+Two rules on top of the baseline:
+- **The repo overrides.** Documented project conventions (`conductor/4-context/`, existing patterns) win over the baseline.
+- **Skip what tooling enforces.** Don't hand-flag formatting, lint, or type errors the linter/formatter/compiler already catches — that's noise, not review.
+
 ### Output Format
 
 ```

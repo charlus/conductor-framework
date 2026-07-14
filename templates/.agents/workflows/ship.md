@@ -88,6 +88,7 @@ This is not a repeat of Build's per-task TDD (`.agents/rules/test-driven-law.md`
     * Commit using Conventional Commits (e.g., `chore: empathy audit and regression tests for [feature]`).
 3.  **Push:**
     * Push the branch to the remote repository.
+    * **On merge/rebase conflicts:** don't `--abort` reflexively. For each conflicting hunk, recover *intent* from primary sources (the commit messages, PR/MR, linked issues) on both sides, then resolve preserving both where possible; where incompatible, keep the side matching this ship's goal and note the trade-off. Re-run the project's checks (typecheck → tests → format) before finishing the merge.
 4.  **Create MR/PR:**
     * If `glab` is available and authenticated: Use `glab mr create`.
     * If `gh` is available and authenticated: Use `gh pr create`.

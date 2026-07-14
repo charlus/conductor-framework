@@ -30,6 +30,7 @@
   "tasks": [],
   "roles": ["maker", "checker"],
   "concurrency": 1,
+  "checker_votes": 1,
   "merge": null,
   "history": []
 }

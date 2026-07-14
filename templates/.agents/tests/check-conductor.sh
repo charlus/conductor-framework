@@ -248,7 +248,7 @@ echo "12. Autonomous Loop Backend (deterministic driver)..."
 
 LOOP_STATE="$ROOT_DIR/conductor/1-workbench/loop-state.json"
 if [ -f "$LOOP_STATE" ]; then
-  for field in '"schema_version": 2' '"budget"' '"verification"' '"stall"' '"maker_reported_done"' '"platform"' '"sandbox"'; do
+  for field in '"schema_version": 2' '"budget"' '"verification"' '"stall"' '"maker_reported_done"' '"platform"' '"sandbox"' '"checker_votes"'; do
     if grep -q "$field" "$LOOP_STATE"; then
       pass "loop-state.json has v2 field: $field"
     else
@@ -287,9 +287,11 @@ if [ -f "$PKG_ROOT/src/loop/driver.js" ]; then
   require_file "$PKG_ROOT/src/loop/adapters/index.js"
   require_file "$PKG_ROOT/src/loop/adapters/claude.js"
   require_file "$PKG_ROOT/src/loop/adapters/antigravity.js"
+  require_file "$PKG_ROOT/src/loop/adapters/codex.js"
   require_file "$PKG_ROOT/src/loop/worktree.js"
   require_file "$PKG_ROOT/src/loop/checker.js"
   require_file "$PKG_ROOT/src/loop/merge.js"
+  require_file "$PKG_ROOT/src/loop/swarm.js"
   # The driver must not hardcode a platform (Phase 2 — swappable adapters).
   if grep -q "antigravity run" "$PKG_ROOT/src/loop/driver.js"; then
     fail "driver.js hardcodes a platform ('antigravity run')"

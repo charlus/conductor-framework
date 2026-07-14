@@ -15,11 +15,12 @@
 
 import * as claude from "./claude.js";
 import * as antigravity from "./antigravity.js";
+import * as codex from "./codex.js";
 
-export const ADAPTERS = Object.freeze({ claude, antigravity });
+export const ADAPTERS = Object.freeze({ claude, antigravity, codex });
 
 /** Auto-detect priority order (Claude Code first — the primary target). */
-export const PRIORITY = Object.freeze(["claude", "antigravity"]);
+export const PRIORITY = Object.freeze(["claude", "antigravity", "codex"]);
 
 /**
  * Pure adapter selection — no IO, unit-testable.

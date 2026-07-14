@@ -37,3 +37,27 @@ export function parseCheckerVerdict(text) {
 export function verdictToExitCode(verdict) {
   return verdict.approved ? 0 : 1;
 }
+
+/**
+ * Multi-vote / adversarial Checker (ADR-0001 Deferred → shipped). Run N
+ * independent Checker processes and require a strict majority to approve. This is
+ * the survey's "verify with N skeptics": any single skeptic that rejects lowers
+ * the approval count, and a tie or minority approval fails safe to reject.
+ * @param {Array<{approved:boolean,reason?:string}>} verdicts
+ * @param {number} votes total number of Checkers that were supposed to run
+ * @returns {{approved:boolean, reason:string, approvals:number, votes:number}}
+ */
+export function tallyVerdicts(verdicts, votes) {
+  const n = Math.max(1, votes || (verdicts?.length ?? 1));
+  const approvals = (verdicts ?? []).filter((v) => v && v.approved === true).length;
+  // Strict majority of the intended vote count (missing/crashed votes count as reject).
+  const approved = approvals > n / 2;
+  return {
+    approved,
+    approvals,
+    votes: n,
+    reason: approved
+      ? `${approvals}/${n} Checkers approved (majority)`
+      : `${approvals}/${n} Checkers approved (no majority) — failing safe to reject`,
+  };
+}

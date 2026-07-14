@@ -60,7 +60,7 @@ Before starting your role, check the active files and append the matching person
   2. **Execute phase-appropriate work**:
      - *blueprint*: Load the `Architect` or `CTO` persona. Run the blueprinting workflows (`workflows/grand-prd.md`, `ux-ui-design-brief.md`, `technical-vision.md`, or `workflows/carve.md`) to write specifications and slice tasks.
      - *execution*: Isolate the workspace using the `using-git-worktrees` skill and execute the **Build** workflow (`workflows/build.md`) following the per-task TDD-Cycle to implement the specifications.
-  3. Commit your changes. If (and only if) you believe the entire goal is now complete, set `maker_reported_done` to `true` in `loop-state.json` — this is your one positive "done" signal; the driver still gates it behind a green verification before accepting `completed`.
+  3. Commit your changes. If (and only if) you believe the entire goal is now complete, write `conductor/1-workbench/maker-signal.json` with `{ "done": true }` — this is your one positive "done" signal. Do **not** edit `loop-state.json` yourself; the driver owns that file and reads your signal from `maker-signal.json` after the beat (a file the driver can't clobber). The driver still gates the claim behind a green verification + Checker before accepting `completed`.
   4. Stop to conclude the beat. **Do not set `status` yourself** — the driver transitions you to `ready_for_check` and then runs verification.
 
 * **If `ready_for_check`** (the driver's verification gate — Evidence Rule in code):

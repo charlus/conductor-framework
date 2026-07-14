@@ -11,9 +11,10 @@ import { spawn } from "node:child_process";
 import { join, resolve } from "node:path";
 import { runLoop, normalizeState, resolveVerifyCommand } from "../loop/driver.js";
 import { resolveAdapter } from "../loop/adapters/index.js";
-import { createWorktree, teardownWorktree } from "../loop/worktree.js";
-import { parseCheckerVerdict, verdictToExitCode, VERDICT_REL } from "../loop/checker.js";
+import { createWorktree, teardownWorktree, worktreePlan } from "../loop/worktree.js";
+import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, VERDICT_REL } from "../loop/checker.js";
 import { openPullRequest } from "../loop/merge.js";
+import { runSwarm } from "../loop/swarm.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
 const WORKFLOW_REL = ".agents/workflows/unattended-loop.md";
@@ -219,7 +220,9 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         `  autonomy: ${state.autonomy_level}  (${autonomySummary(state)})`,
         `  sandbox:  ${state.sandbox}${state.autonomy_level === "L3" && state.sandbox !== "container" ? "  ⛔ L3 requires sandbox=container (will halt: halted_sandbox_required)" : ""}`,
         `  merge:    ${state.phase === "execution" && state.autonomy_level === "L3" ? "PR-gated (gh/glab) on completion" : "none (human reviews/merges)"}`,
-        `  concurrency: ${state.concurrency}${state.concurrency > 1 ? "  ⛔ swarm not implemented (will halt: halted_autonomy)" : ""}`,
+        `  mode:     ${state.tasks?.length ? `swarm (${state.tasks.length} tasks)` : "pair (single goal)"}`,
+        `  concurrency: ${state.concurrency}${state.concurrency > 1 && (state.autonomy_level !== "L3" || !(state.tasks?.length)) ? "  ⛔ swarm needs L3 + a task graph (will halt: halted_autonomy)" : ""}`,
+        `  checker:  ${state.checker_votes > 1 ? `${state.checker_votes}-vote (adversarial, majority)` : "single verdict"}`,
         `  platform: ${platformPref ?? "(auto-detect)"}`,
         `  adapter:  ${adapterError ? `ERROR: ${adapterError}` : resolved.name ?? "(none available)"}`,
         `  detected: ${detected.length ? detected.join(", ") : "none on PATH"}`,
@@ -245,83 +248,139 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   stdout.write(`[CONDUCTOR LOOP] platform: ${adapter.name}\n`);
 
   const git = makeGit(root);
-
-  // Phase 3 — isolation: the Maker runs in a dedicated git worktree during the
-  // execution phase, so an unattended run never mutates the user's checkout.
-  // Verify + Checker run against that same isolated tree (workCwd).
-  let workCwd = root;
-  if (state.phase === "execution") {
-    try {
-      const wt = await createWorktree({ root, goalDescription: state.goal_description, git });
-      workCwd = wt.path;
-      state.worktree = { path: wt.path, branch: wt.branch };
-      await atomicWriteJson(statePath, state);
-      stdout.write(`[CONDUCTOR LOOP] worktree: ${wt.branch} @ ${wt.path}${wt.created ? " (new)" : " (reused)"}\n`);
-    } catch (e) {
-      stderr.write(`Worktree isolation failed: ${e.message}\n`);
-      return 1;
-    }
-  }
-
-  // Phase 3 — the independent Checker as a SEPARATE process (fresh context). It
-  // records a verdict file; a missing/malformed verdict fails safe to reject.
   const checkerPromptPath = join(root, CHECKER_WORKFLOW_REL);
-  const verdictPath = join(workCwd, VERDICT_REL);
-  const runChecker = async () => {
-    await rm(verdictPath, { force: true }).catch(() => {});
-    await adapter.runChecker({ promptPath: checkerPromptPath, cwd: workCwd, permissionMode: "plan" });
-    let text = null;
-    try {
-      text = await readFile(verdictPath, "utf8");
-    } catch {
-      /* absent → fail safe */
+
+  // The independent Checker as N separate processes (multi-vote / adversarial),
+  // each with a fresh context, run in a given cwd. A missing/malformed verdict
+  // fails safe to reject; a strict majority is required to approve.
+  const votes = Math.max(1, state.checker_votes ?? 1);
+  const makeChecker = (cwd) => async () => {
+    const verdictPath = join(cwd, VERDICT_REL);
+    const verdicts = [];
+    for (let i = 0; i < votes; i++) {
+      await rm(verdictPath, { force: true }).catch(() => {});
+      await adapter.runChecker({ promptPath: checkerPromptPath, cwd, permissionMode: "plan" });
+      let text = null;
+      try {
+        text = await readFile(verdictPath, "utf8");
+      } catch {
+        /* absent → fail safe */
+      }
+      verdicts.push(parseCheckerVerdict(text));
     }
-    const verdict = parseCheckerVerdict(text);
-    stdout.write(`[CONDUCTOR LOOP] checker verdict: ${verdict.approved ? "APPROVED" : "REJECTED"} — ${verdict.reason}\n`);
-    return { exitCode: verdictToExitCode(verdict) };
+    const tally = tallyVerdicts(verdicts, votes);
+    stdout.write(`[CONDUCTOR LOOP] checker: ${tally.approved ? "APPROVED" : "REJECTED"} — ${tally.reason}\n`);
+    return { exitCode: verdictToExitCode(tally) };
   };
 
-  // Phase 4 — PR-gated merge at L3 execution completion (never a direct push).
-  const workGit = makeGit(workCwd);
-  const merge = async ({ state: s }) => {
-    const branch = s.worktree?.branch;
+  // PR-gated merge for a worktree branch (never a direct push to a protected branch).
+  const makeMerge = (cwd, branch, title) => async () => {
     if (!branch) return { ok: false, reason: "no worktree branch to open a PR from" };
     return openPullRequest({
       branch,
-      title: `Conductor loop: ${s.goal_description || branch}`,
-      git: workGit,
-      run: (cmd, argv) => runCli(cmd, argv, workCwd),
+      title,
+      git: makeGit(cwd),
+      run: (cmd, argv) => runCli(cmd, argv, cwd),
       hasGh: await cliAvailable("gh"),
       hasGlab: await cliAvailable("glab"),
     });
   };
 
-  const deps = {
-    verifyCommand,
-    runBeat: () => adapter.runBeat({ promptPath, cwd: workCwd, permissionMode: "acceptEdits" }),
-    runVerify: (cmd) => sh(cmd, workCwd),
-    gitHead: () => gitHead(workCwd),
-    runChecker,
-    merge,
-    audit: (m) => appendShipLog(root, m, Date.now()),
-    now: () => Date.now(),
-    persist: (s) => atomicWriteJson(statePath, s),
-    writeInbox: (s, reason) => writeInbox(root, s, reason),
-    log: (m) => stdout.write(`${m}\n`),
-  };
+  const audit = (m) => appendShipLog(root, m, Date.now());
 
-  const final = await runLoop(state, deps);
-  if (final.merge?.pr_url) stdout.write(`[CONDUCTOR LOOP] PR opened: ${final.merge.pr_url}\n`);
+  // ---- Route: swarm (task graph) vs. pair (single fuzzy goal) --------------
+  if (Array.isArray(state.tasks) && state.tasks.length > 0) {
+    return runSwarmMode();
+  }
+  return runPairMode();
 
-  // Teardown: remove the worktree only if it holds no unmerged commits; otherwise
-  // keep it for the human / Phase 4 merge queue (Phase 3 does not auto-merge).
-  if (state.phase === "execution" && final.worktree) {
-    const t = await teardownWorktree({ root, goalDescription: state.goal_description, git });
-    stdout.write(`[CONDUCTOR LOOP] ${t.reason}\n`);
+  // -------------------------------------------------------------------------
+  async function runPairMode() {
+    // Isolation: the Maker runs in a dedicated worktree during execution.
+    let workCwd = root;
+    if (state.phase === "execution") {
+      try {
+        const wt = await createWorktree({ root, goalDescription: state.goal_description, git });
+        workCwd = wt.path;
+        state.worktree = { path: wt.path, branch: wt.branch };
+        await atomicWriteJson(statePath, state);
+        stdout.write(`[CONDUCTOR LOOP] worktree: ${wt.branch} @ ${wt.path}${wt.created ? " (new)" : " (reused)"}\n`);
+      } catch (e) {
+        stderr.write(`Worktree isolation failed: ${e.message}\n`);
+        return 1;
+      }
+    }
+
+    // The maker signals "goal complete" by writing maker-signal.json; the driver
+    // reads it after each beat (never trusts in-memory / clobbered state).
+    const makerSignalPath = join(workCwd, "conductor/1-workbench/maker-signal.json");
+    const readMakerDone = async () => {
+      try {
+        return JSON.parse(await readFile(makerSignalPath, "utf8"))?.done === true;
+      } catch {
+        return false; // absent → not claimed this beat
+      }
+    };
+
+    const deps = {
+      verifyCommand,
+      runBeat: async () => {
+        await rm(makerSignalPath, { force: true }).catch(() => {}); // clear stale signal
+        return adapter.runBeat({ promptPath, cwd: workCwd, permissionMode: "acceptEdits" });
+      },
+      runVerify: (cmd) => sh(cmd, workCwd),
+      gitHead: () => gitHead(workCwd),
+      runChecker: makeChecker(workCwd),
+      readMakerDone,
+      merge: makeMerge(workCwd, state.worktree?.branch, `Conductor loop: ${state.goal_description || "goal"}`),
+      audit,
+      now: () => Date.now(),
+      persist: (s) => atomicWriteJson(statePath, s),
+      writeInbox: (s, reason) => writeInbox(root, s, reason),
+      log: (m) => stdout.write(`${m}\n`),
+    };
+
+    const final = await runLoop(state, deps);
+    if (final.merge?.pr_url) stdout.write(`[CONDUCTOR LOOP] PR opened: ${final.merge.pr_url}\n`);
+
+    if (state.phase === "execution" && final.worktree) {
+      const t = await teardownWorktree({ root, goalDescription: state.goal_description, git });
+      stdout.write(`[CONDUCTOR LOOP] ${t.reason}\n`);
+    }
+    stdout.write(`\n[CONDUCTOR LOOP] finished: ${final.status}\n`);
+    return final.status === "completed" || final.status === "awaiting_review" ? 0 : 1;
   }
 
-  stdout.write(`\n[CONDUCTOR LOOP] finished: ${final.status}\n`);
-  // `completed` (PR opened) and `awaiting_review` (clean human handoff) are both
-  // successful outcomes; everything else is a halt/error worth a non-zero code.
-  return final.status === "completed" || final.status === "awaiting_review" ? 0 : 1;
+  async function runSwarmMode() {
+    stdout.write(`[CONDUCTOR SWARM] ${state.tasks.length} tasks, concurrency=${state.concurrency}\n`);
+    // Per-task worktree registry so verify/checker/merge run against the right tree.
+    const cwdFor = new Map();
+    const deps = {
+      verifyCommand,
+      assignWorktree: async ({ task }) => {
+        const plan = worktreePlan(root, `${state.goal_description}-${task.id}`);
+        const res = await git(["worktree", "add", "-b", plan.branch, plan.path]);
+        if (!res.ok) await git(["worktree", "add", plan.path, plan.branch]);
+        cwdFor.set(task.id, plan.path);
+        return { path: plan.path, branch: plan.branch };
+      },
+      runBeat: ({ task }) =>
+        adapter.runBeat({ promptPath, cwd: cwdFor.get(task.id) ?? root, permissionMode: "acceptEdits" }),
+      runVerify: ({ task, cmd }) => sh(cmd, cwdFor.get(task.id) ?? root),
+      runChecker: ({ task }) => makeChecker(cwdFor.get(task.id) ?? root)(),
+      merge: ({ task }) =>
+        makeMerge(cwdFor.get(task.id) ?? root, task.worktree?.branch, `Conductor task ${task.id}: ${task.type}`)(),
+      gitHead: ({ task }) => gitHead(cwdFor.get(task.id) ?? root),
+      audit,
+      now: () => Date.now(),
+      persist: (s) => atomicWriteJson(statePath, s),
+      writeInbox: (s, reason) => writeInbox(root, s, reason),
+      log: (m) => stdout.write(`${m}\n`),
+    };
+
+    const final = await runSwarm(state, deps);
+    const merged = final.tasks.filter((t) => t.status === "merged").length;
+    stdout.write(`\n[CONDUCTOR SWARM] finished: ${final.status} (${merged}/${final.tasks.length} tasks merged)\n`);
+    return final.status === "completed" || final.status === "awaiting_review" ? 0 : 1;
+  }
 }

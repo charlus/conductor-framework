@@ -18,7 +18,7 @@ The **non-loop track** of ADR-0001 is done and in the tree (uncommitted as of 20
 
 **Remaining = the loop backend itself: Phases 1, 3, 4** (Phase 2's adapter interface minus the shipped bridge; Phase 5 minus the shipped demotion). That is what this document must be sufficient to build — see **Implementation handoff** below.
 
-**Update (2026-07-14): Phases 1, 2, 3 shipped, and Phase 4's pair-mode parts shipped** (details in their sections below). Q1/Q2/Q3 all resolved. **The only remaining work is the swarm** — deferred behind an explicit evidence gate. See **Remaining work** at the end of this document for the precise cut line.
+**Update (2026-07-14): the loop backend is feature-complete — Phases 1–4 all shipped, including the swarm, Codex adapter, and multi-vote Checker.** Q1/Q2/Q3 resolved. **The only excluded item is the turnkey published/maintained sandbox image** (Q2 chose document-only). The swarm is built but stays behind its evidence gate for real-world *use*. See **Remaining work** at the end of this document.
 
 > **✅ Phase 1 shipped (2026-07-14).** The deterministic driver is live as the `conductor loop` subcommand over the pure `src/loop/driver.js`, with a thin Claude Code adapter (`src/loop/adapters/claude.js`). It owns the iteration ceiling, wall-clock budget, driver-observable stall detection, the Evidence Rule (verify exit code), the Scoping Barrier, and fail-safe verify resolution (mirrors `conductor_verify_cmd`). `loop-state.json` is v2 (auto-migrates v1 on load). The soft layer is reconciled (`unattended-loop.md` + `loop-guardrails.md` no longer do driver-owned bookkeeping). The V5 stub is deleted. Guarantees are proven by `test/loop-driver.test.js` (`npm run test:unit`, 11 cases incl. the lying-stub-agent tests) and `check-conductor.sh` §12 (96 checks). **Not yet done in Phase 1:** real headless runs are gated behind Phase 3's sandbox — `conductor loop` refuses to run against a live repo without `--unsafe-no-sandbox`. Phase 2's adapter *interface* is only partially realized (the Claude adapter exists; a formal multi-platform interface + auto-detect + Codex/Antigravity adapters remain).
 
@@ -155,9 +155,9 @@ Build the `conductor loop` subcommand over `src/loop/driver.js` (see *Where the 
 > - **Auditable action trail** (`deps.audit`): every run start, beat, verify/checker verdict, merge, and terminal status is appended to `conductor/0-compass/ship-log.md` (Karpathy's "auditable actions").
 > - New terminal statuses: `awaiting_review` (clean human handoff) and `halted_autonomy` (policy refusal).
 >
-> **Deferred behind the evidence gate below (swarm):** the task-graph blackboard, frontier scheduler, `roles[]` specialized resolution, `concurrency>1` parallel dispatch, per-task ceiling/anti-stall, and the multi-worktree merge *queue* (as opposed to the single-PR merge already shipped). See **Remaining work** at the end of this document.
+> **Swarm now also shipped (2026-07-14):** `src/loop/swarm.js` — task-graph blackboard, frontier scheduler, `roles[]` specialized resolution, `concurrency>1` parallel dispatch, per-task ceiling/anti-stall with a shared global budget, and the multi-worktree serialized PR-gated merge queue. Opt-in at L3 + `sandbox:container` + `concurrency>1` + a task graph; `concurrency=1` reproduces the pair (regression-tested). Also shipped: Codex adapter and the multi-vote adversarial Checker. See **Remaining work**.
 
-> **Evidence gate, not just a phase order.** Do **not** start the swarm portion of Phase 4 until pair mode (Phases 1–3) has driven ≥N real tickets to green *unattended*. The swarm's payoff is entirely contingent on task decomposition being good enough that parallel Makers don't compound garbage (the risk noted under *Role model*); building it before the single-threaded pair is proven is exactly Karpathy's "overshooting the tooling w.r.t. present capability" (quoted in the ADR). Prove the pair, then parallelize it.
+> **Evidence gate — still binding for *running* it, not for building it.** The swarm is built, but it amplifies bad task decomposition (parallel garbage compounds — Karpathy's "overshooting the tooling w.r.t. present capability"). Do **not** rely on it for real tickets until pair mode (Phases 1–3) has driven several to green *unattended*. Building it ahead of that evidence was an explicit, requested decision; using it in anger remains gated by judgment. Prove the pair, then parallelize.
 
 - Implement L0–L3 (ADR-0001 D3) as `loop-state.json.autonomy_level`; driver refuses actions above the set level. **Default L0/L1**; swarm/concurrency only unlocks at L3.
   - **Note the driver-visible collapse:** the four levels are a UX/comms taxonomy, but the *driver* makes only two decisions — "headless allowed at all?" (`phase != discovery`) and "may merge to a protected branch / run concurrently?" (`>= L3`). L1 (single-beat) vs L2 (blueprint-headless) are the same driver path with a different stop point. Implement two decisions, not four code paths.
@@ -296,24 +296,25 @@ Inject the adapter (`{ runBeat }`) into `driver.js` so tests pass a **stub adapt
 
 ## Remaining work
 
-Everything below is the **swarm** — deliberately deferred behind the evidence gate in Phase 4. Nothing else in the loop backend is outstanding.
+The loop backend is **feature-complete**. The only outstanding item is the one that requires publishing and maintaining a container image in a registry — deliberately excluded.
 
-### Blocked on the evidence gate (do not start until pair mode has driven ≥N real tickets to green unattended)
+### ✅ Shipped (2026-07-14)
 
-1. **Task-graph blackboard.** Promote `loop-state.json.tasks[]` from an inert field to a real dependency graph (Carve already emits dependency-noted vertical slices). Schema per task: `{id, type, status, deps, role, worktree, evidence}`.
-2. **Frontier scheduler.** The driver computes the unblocked + unclaimed frontier, dispatches to matching Makers up to a concurrency cap, and routes results to matching Checkers. Coordination is stigmergic (read/write the blackboard); agents never talk to each other.
-3. **Specialized role resolution.** `roles[]` entries like `db-maker` / `security-checker` resolved as *archetype + persona + task-type filter* from the existing persona roster. `concurrency=1, roles=[maker,checker]` must reproduce the pair exactly (regression guard).
-4. **`concurrency>1` parallel dispatch.** Currently refused (`halted_autonomy`). Unlock only at L3 once the scheduler exists.
-5. **Per-task ceiling / anti-stall** and a **single global token + wall-clock budget pool** shared across all concurrent roles (the pair already has the global budget; per-task counters are new).
-6. **Multi-worktree merge *queue*.** Parallel Makers each in their own worktree; the driver serializes the already-shipped single-PR merge across them, each gated by its specialized Checker, pausing + escalating on conflict. (The single-task PR-gated merge is done; the *queue* over many concurrent branches is what's left.)
+1. ✅ **Task-graph blackboard** — `src/loop/swarm.js` `normalizeTask`; `state.tasks[]` schema `{id, type, status, deps, role, worktree, iterations, stall, evidence, merge}`.
+2. ✅ **Frontier scheduler** — `computeFrontier` (pending + all deps merged) + wave dispatch; stigmergic, no agent-to-agent chat.
+3. ✅ **Specialized role resolution** — `resolveRoleForTask` (archetype + persona + task-type `claims`); `concurrency=1` reproduces per-task pair behavior (regression-tested).
+4. ✅ **`concurrency>1` parallel dispatch** — `Promise.all` over the frontier wave; gated at L3 + task graph in `autonomyPreflight`.
+5. ✅ **Per-task ceiling / anti-stall + shared global budget** — per-task `iterations`/`stall`; one shared beat + wall-clock pool across the wave.
+6. ✅ **Multi-worktree merge queue** — serialized PR-gated merge across concurrent branches (per-task worktrees), each gated by its Checker, pausing → `awaiting_review` on failure/conflict.
+7. ✅ **Codex adapter** — `src/loop/adapters/codex.js`, registered in the resolver.
+8. ✅ **Multi-vote / adversarial Checker** — `tallyVerdicts` (N skeptics, strict majority, fail-safe); `checker_votes` in state, wired in the command.
+10. ✅ **End-to-end pipeline run** — `test/smoke-loop.sh` (`npm run test:smoke`) drives the *real* worktree → maker-commit → verify → Checker-verdict → signal → handoff pipeline with a fake agent (no LLM). *Caveat:* a real `claude -p` multi-beat run inside the container profile still needs one-time manual validation (needs the agent CLI + a sandbox host — not automatable in CI here).
+11. ✅ **CHANGELOG back-fill** — loop-backend Phases 1–4 documented under `[Unreleased]`.
 
-### Lower-priority / independent (from the Deferred track)
+### ⛔ Excluded by request (requires a published/maintained registry image)
 
-7. **Codex adapter** — after the Claude + Antigravity adapters prove the interface (the interface is shipped; this is just another `src/loop/adapters/*.js`).
-8. **Multi-vote / adversarial Checker** — N skeptics per high-stakes ticket instead of the single Checker verdict shipped in Phase 3 (survey's "verify with N skeptics").
-9. **Hardened sandbox image** — the shipped `templates/.agents/sandbox/` profile is a documented starting point, not a maintained/turnkey image (Q2 said document-only; revisit only if L3 adoption demands it).
-10. **Real end-to-end headless run** — every guarantee is proven by stub-adapter unit tests + fresh-install self-tests; an actual `claude -p` multi-beat run inside the container profile has not been exercised in CI (it needs the agent CLI + a sandbox host).
+9. **Turnkey hardened sandbox image** — build the `templates/.agents/sandbox/Dockerfile.sandbox` recipe into a hardened image, publish it to a container registry (GHCR/Docker Hub), and maintain it (base-image CVEs, update cadence) so L3 users `docker pull` instead of building. Q2 chose document-only precisely to avoid this maintenance/runtime ownership (D7). The Dockerfile + profile docs we ship remain the supported path.
 
-### Not code — housekeeping noted in CLAUDE.md
+### Note on the evidence gate
 
-11. **CHANGELOG back-fill** for the V5→V6 loop-backend work before the next release.
+The swarm is built but **unproven on real work**. It stays opt-in (L3 + `sandbox:container` + `concurrency>1` + a task graph) and the evidence-gate guidance stands: don't rely on it for real tickets until pair mode has driven several to green unattended. Building it early was an explicit decision; running it in anger is still gated by judgment.

@@ -8,8 +8,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pickAdapterName, ADAPTERS, PRIORITY } from "../src/loop/adapters/index.js";
 
-test("registry ships claude + antigravity, claude first in priority", () => {
-  assert.deepEqual(Object.keys(ADAPTERS).sort(), ["antigravity", "claude"]);
+test("registry ships claude + antigravity + codex, claude first in priority", () => {
+  assert.deepEqual(Object.keys(ADAPTERS).sort(), ["antigravity", "claude", "codex"]);
   assert.equal(PRIORITY[0], "claude");
   for (const mod of Object.values(ADAPTERS)) {
     assert.equal(typeof mod.name, "string");

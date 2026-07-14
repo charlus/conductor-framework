@@ -124,6 +124,7 @@ export function normalizeState(raw) {
     tasks: Array.isArray(s.tasks) ? s.tasks : [],
     roles: Array.isArray(s.roles) ? s.roles : ["maker", "checker"],
     concurrency: s.concurrency ?? 1,
+    checker_votes: s.checker_votes ?? 1, // multi-vote adversarial Checker (N skeptics)
     merge: s.merge ?? null, // { branch, pr_url } once a PR is opened (L3)
     history: Array.isArray(s.history) ? s.history : [],
   };
@@ -141,7 +142,12 @@ export function normalizeState(raw) {
 export function autonomyPreflight(state) {
   const rank = levelRank(state.autonomy_level);
   if (rank === LEVELS.L0) return "halted_autonomy"; // interactive-only
-  if ((state.concurrency ?? 1) > 1) return "halted_autonomy"; // swarm not implemented
+  const concurrency = state.concurrency ?? 1;
+  if (concurrency > 1) {
+    // The swarm (parallel Makers) is opt-in and only at L3, and needs a task graph.
+    if (rank < LEVELS.L3) return "halted_autonomy";
+    if (!(Array.isArray(state.tasks) && state.tasks.length > 0)) return "halted_autonomy";
+  }
   if (state.autonomy_level === "L2" && state.phase === "execution") {
     return "halted_autonomy"; // L2 is blueprint-only; execution needs L3
   }
@@ -157,14 +163,19 @@ export function describeHalt(state, status) {
       return "no verification command could be resolved (state.verification.command, conductor.config.json 'verify', or an npm test script). Refusing to run without a real success signal.";
     case "halted_sandbox_required":
       return "autonomy_level L3 requires sandbox='container' (see .agents/sandbox/). Refusing unattended execution without isolation.";
-    case "halted_autonomy":
-      if (levelRank(state.autonomy_level) === LEVELS.L0)
+    case "halted_autonomy": {
+      const rank = levelRank(state.autonomy_level);
+      const concurrency = state.concurrency ?? 1;
+      if (rank === LEVELS.L0)
         return "autonomy_level L0 is interactive-only; raise it to run the loop headless.";
-      if ((state.concurrency ?? 1) > 1)
-        return "concurrency>1 (swarm) is not yet implemented; set concurrency:1 (swarm scheduling is deferred behind an evidence gate).";
+      if (concurrency > 1 && rank < LEVELS.L3)
+        return "concurrency>1 (swarm) requires autonomy_level L3.";
+      if (concurrency > 1 && !(Array.isArray(state.tasks) && state.tasks.length > 0))
+        return "concurrency>1 (swarm) requires a task graph in tasks[] — carve the work into tasks first.";
       if (state.autonomy_level === "L2" && state.phase === "execution")
         return "autonomy_level L2 is blueprint-only; use L3 for headless execution.";
       return "autonomy policy refused this run.";
+    }
     default:
       return status;
   }
@@ -221,6 +232,7 @@ export async function runLoop(state, deps) {
     persist,
     verifyCommand,
     runChecker = null, // Phase 3: independent Checker in a separate process
+    readMakerDone = null, // maker's completion signal, read from a file (never trust in-memory)
     merge = null, // Phase 4: PR-gated merge at L3 (async → { ok, branch, prUrl, reason })
     audit = () => {}, // Phase 4: append to the human-auditable ship-log trail
     log = () => {},
@@ -266,6 +278,13 @@ export async function runLoop(state, deps) {
 
         const result = await runBeat({ role: "maker", state });
         state.budget.tokens_spent += result?.tokens ?? 0;
+
+        // The maker's "goal complete" claim is read from a file it writes, never
+        // from the driver's in-memory state (which the agent process can't touch)
+        // — symmetric with the Checker's verdict file. Absent ⇒ not claimed.
+        if (readMakerDone) {
+          state.maker_reported_done = await readMakerDone();
+        }
 
         // Stall detection: driver-observable progress only.
         const head = await gitHead();

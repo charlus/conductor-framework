@@ -35,6 +35,7 @@ function listFiles(dirPath, prefix) {
         } else if (entry.isFile()) {
             if (entry.name === '.checksums.json') continue;
             if (entry.name === '.selections.json') continue;
+            if (entry.name === '.conductor-version.json') continue;
             results.push(rel);
         }
     }
@@ -75,7 +76,7 @@ function readSelections(targetDir) {
  * @param {{skills: string[], rules: string[], workflows: string[]}|null} selections
  * @returns {boolean}
  */
-function isSelected(relativePath, selections) {
+function isSelected(relativePath, selections, coreSkills) {
     // No selections file → legacy "everything installed" mode
     if (!selections) return true;
 
@@ -84,19 +85,19 @@ function isSelected(relativePath, selections) {
 
     const parts = relativePath.split('/');
 
+    // Rules and workflows are core methodology — always land on upgrade, even if
+    // they postdate (or were deselected from) the user's .selections.json. A stale
+    // selection must never withhold a new core rule/workflow (same reasoning the
+    // interview primitives get below).
     if (parts[0] === 'rules') return true;
+    if (parts[0] === 'workflows') return true;
 
     if (parts[0] === 'skills' && parts.length >= 2) {
         const skillName = parts[1];
+        // Core/default skills (e.g. the grilling/collaborative-drafting/handoff
+        // primitives) always land; optional tech skills stay gated by selections.
+        if (coreSkills && coreSkills.has(skillName)) return true;
         return selections.skills.includes(skillName);
-    }
-
-    if (parts[0] === 'workflows' && parts.length >= 2) {
-        // Match by filename stem (e.g. "react.md" → "react")
-        // Also check the full filename for registry entries with explicit `file` property
-        const fileName = parts[1];
-        const stem = fileName.replace(/\.md$/, '');
-        return selections.workflows.includes(stem) || selections.workflows.includes(fileName);
     }
 
     // Unknown top-level path → treat as selected (don't filter out unexpected files)
@@ -106,23 +107,26 @@ function isSelected(relativePath, selections) {
 /**
  * Produce a plan of update actions by comparing source, target, and stored checksums.
  *
- * Decision matrix:
- *   Source present,  Target absent,  selected        → COPY  (new upstream file)
- *   Source present,  Target absent,  NOT selected    → AVAILABLE (not installed)
- *   Source present,  Target present, target==stored   → UPDATE (unmodified, safe to overwrite)
- *   Source present,  Target present, target!=stored   → SKIP  (local override kept)
- *   Source absent,   Target present                   → KEEP  (custom file detected)
+ * Decision matrix (framework files are framework-OWNED — upgrade replaces them):
+ *   Source present,  Target absent,  selected        → COPY   (new upstream file)
+ *   Source present,  Target absent,  NOT selected    → AVAILABLE (optional, not installed)
+ *   Source present,  Target present                   → UPDATE (framework file — replaced wholesale)
+ *   Source absent,   Target present                   → KEEP   (user-authored custom file — carried forward)
+ *
+ * The prior checksum-gated SKIP ("local override kept") is intentionally gone: a
+ * methodology upgrade must land new instructions even if the user edited them. The
+ * caller backs up the old tree first, so edits are recoverable from the backup.
  *
  * @param {string} sourceDir    - Absolute path to the source .agents directory.
  * @param {string} targetDir    - Absolute path to the target .agents directory.
  * @param {string} checksumPath - Absolute path to .agents/.checksums.json.
  * @returns {UpdateAction[]} Ordered list of actions.
  */
-function planUpdate(sourceDir, targetDir, checksumPath) {
-    const storedChecksums = readChecksumFile(checksumPath);
+function planUpdate(sourceDir, targetDir, checksumPath, options = {}) {
     const sourceFiles = new Set(listFiles(sourceDir));
     const targetFiles = new Set(listFiles(targetDir));
     const selections = readSelections(targetDir);
+    const coreSkills = options.coreSkills;
 
     /** @type {UpdateAction[]} */
     const plan = [];
@@ -133,23 +137,14 @@ function planUpdate(sourceDir, targetDir, checksumPath) {
 
         if (!targetFiles.has(rel)) {
             // Target absent — check if user selected this item
-            if (isSelected(rel, selections)) {
+            if (isSelected(rel, selections, coreSkills)) {
                 plan.push({ action: 'COPY', relativePath: rel, reason: 'new upstream file' });
             } else {
                 plan.push({ action: 'AVAILABLE', relativePath: rel, reason: 'not installed — run init to add' });
             }
         } else {
-            // Target exists — compare checksums
-            const targetChecksum = computeChecksum(targetPath);
-            const storedChecksum = storedChecksums[rel];
-
-            if (storedChecksum && targetChecksum === storedChecksum) {
-                // File unmodified since last init/update → safe to overwrite
-                plan.push({ action: 'UPDATE', relativePath: rel, reason: 'unmodified — safe to overwrite' });
-            } else {
-                // File was modified (or no prior checksum exists) → keep local
-                plan.push({ action: 'SKIP', relativePath: rel, reason: 'local override kept' });
-            }
+            // Target exists — framework owns this file; replace it wholesale.
+            plan.push({ action: 'UPDATE', relativePath: rel, reason: 'framework file — replaced' });
         }
     }
 
@@ -171,7 +166,7 @@ function planUpdate(sourceDir, targetDir, checksumPath) {
  * @param {string}         targetDir  - Absolute path to target .agents directory.
  * @param {string}         checksumPath - Absolute path to .checksums.json.
  */
-function executeUpdate(plan, sourceDir, targetDir, checksumPath) {
+function executeUpdate(plan, sourceDir, targetDir, checksumPath, options = {}) {
     for (const item of plan) {
         const src = path.join(sourceDir, item.relativePath);
         const dst = path.join(targetDir, item.relativePath);
@@ -181,25 +176,20 @@ function executeUpdate(plan, sourceDir, targetDir, checksumPath) {
             fs.mkdirSync(path.dirname(dst), { recursive: true });
             fs.copyFileSync(src, dst);
         }
-        // SKIP, KEEP, and AVAILABLE → no file operations
+        // KEEP and AVAILABLE → no file operations (custom files carried forward as-is)
     }
 
-    // Rebuild checksum manifest from the NEW source (what we delivered)
-    const newSourceManifest = buildChecksumManifest(sourceDir);
-    // Merge: keep checksums for custom/skipped files from the target
-    const finalManifest = {};
+    if (options.writeChecksums === false) return;
 
+    // Rebuild the checksum manifest from what we delivered (COPY/UPDATE).
+    const newSourceManifest = buildChecksumManifest(sourceDir);
+    const finalManifest = {};
     for (const item of plan) {
         if (item.action === 'COPY' || item.action === 'UPDATE') {
             finalManifest[item.relativePath] = newSourceManifest[item.relativePath];
-        } else if (item.action === 'SKIP') {
-            // Store the SOURCE checksum so next update can detect if user
-            // later reverts to upstream version
-            finalManifest[item.relativePath] = newSourceManifest[item.relativePath];
         }
-        // KEEP and AVAILABLE files are not tracked in checksums
+        // KEEP and AVAILABLE files are not framework-tracked.
     }
-
     writeChecksumFile(checksumPath, finalManifest);
 }
 

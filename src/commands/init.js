@@ -9,6 +9,7 @@ import { runInteractiveSetup } from "../prompt.js";
 import { selectiveCopy, syncSelections, readSelections } from "../selective-copy.js";
 import { generateClaudeCommands } from "../claude-commands.js";
 import { installHooksCommand } from "./install-hooks.js";
+import { writeVersionStamp, packageVersion } from "../version.js";
 
 function getTemplateDir() {
   return fileURLToPath(new URL("../../templates", import.meta.url));
@@ -155,6 +156,9 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
       }
     }
 
+    // Stamp the installed framework version (future upgrades read this).
+    writeVersionStamp(agentsDir);
+
     // Claude Code slash-command bridge (ADR-0001 D5): shim per installed workflow.
     await generateClaudeCommands(targetDir, { stdout });
 
@@ -181,7 +185,7 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
         }
       }
 
-      stdout.write("\n🎼 Conductor Framework V5 initialized!\n");
+      stdout.write(`\n🎼 Conductor Framework v${packageVersion()} initialized!\n`);
 
       // Deterministic enforcement (ADR-0001 D1): wire git hooks when in a repo.
       if (await exists(join(targetDir, ".git"))) {

@@ -1,6 +1,6 @@
 # Robust Cross-Version Upgrade Migration
 
-> **Status:** Proposed — design assessment (decisions confirmed 2026-07-14; target release **6.0.0**)
+> **Status:** ✅ Shipped in 6.0.0 (2026-07-14). Implemented in `src/commands/upgrade.js`, `src/version.js`, `src/backup.js`, `src/update.js`, `src/kebab.js`; covered by `test/upgrade.test.js`.
 > **Goal:** Let any user on V4, V5, or an unversioned install upgrade safely to the current framework — **preserving their `conductor/` project knowledge while replacing the `.agents/` methodology instructions wholesale.**
 
 ## The principle: ownership, not location

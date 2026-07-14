@@ -4,9 +4,24 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
-## [Unreleased] — V6 Enforcement & Autonomy Rebalance
+## [6.0.0] — 2026-07-14 — V6 Enforcement & Autonomy Rebalance
 
 Implements `docs/adr/0001-enforcement-and-autonomy-rebalance.md`. The autonomy-backend (deterministic loop driver, adapters, sandbox/isolation, autonomy slider, swarm) is now built — see `docs/roadmap/Autonomous-Loop-Backend.md`; only a published/maintained turnkey sandbox image and a real-LLM CI run remain.
+
+### Added — Robust cross-version upgrade (V4/V5/unversioned → 6.0.0)
+
+`upgrade` was reworked on one principle: **`conductor/` project knowledge is preserved; `.agents/` methodology is replaced.** See `docs/roadmap/Robust-Upgrade-Migration.md`.
+- **Version stamp** (`src/version.js`) — `init`/`upgrade` write `.agents/.conductor-version.json` (framework version read from `package.json`), making upgrades version-aware and idempotent. Unstamped installs are detected by structure (V4 vs V5).
+- **Backup-first + rollback** (`src/backup.js`) — the existing `.agents/`, `conductor/5-templates/`, migrated legacy folders, and `loop-state.json` are copied to a git-ignored `.conductor-backup/<timestamp>/` before any change; a mid-run failure auto-restores.
+- **Ownership-based replacement** (`src/update.js`) — framework-owned files (anything shipping in `templates/**`) are now **replaced wholesale** (the old checksum-gated `SKIP` that silently kept stale/edited instructions — and silently no-op'd checksum-less V4 installs — is gone). User-authored additions are carried forward; core rules/workflows/skills (incl. the new interview/drafting/handoff primitives) always land even if absent from a stale `.selections.json`.
+- **`conductor/5-templates/` refresh** — framework document scaffolding is refreshed on upgrade; user knowledge folders (`0-compass`, `2-backlog`, `3-product-areas`, `4-context`, `6-archive`) are never touched.
+- **Loop-state schema migration** — `loop-state.json` is migrated to the current schema during `upgrade` (reusing the driver's `normalizeState`), no longer only lazily on first run.
+- **Safer kebab engine** (`src/kebab.js`) — renames only framework-scaffolded names (numbered folders, not arbitrary user files), no longer silently clobbers on collisions, and leaves canonically-cased files (`Dockerfile.sandbox`) alone.
+- **`--dry-run`** prints the full plan and writes nothing; **`--no-backup`** opts out of the backup.
+- Covered by `test/upgrade.test.js`.
+
+### Changed
+- **Version → 6.0.0.**
 
 ### Added
 - **Deterministic enforcement hooks (D1)** — `.agents/hooks/` ships a Test-Driven-Law `pre-commit` (blocks implementation changes with no test change) and a Verification-Iron-Law `pre-push` (blocks a push whose verification command fails). Logged escape hatches (`CONDUCTOR_NO_TEST`, `CONDUCTOR_SKIP_VERIFY`, `CONDUCTOR_HOOKS=off`) and an opt-in interactive Claude Code Stop hook. Wired by the new `conductor install-hooks` command, auto-run by `init`/`upgrade` in a git repo. Prose laws are now backed by code.
@@ -50,7 +65,7 @@ Draws from [Matt Pocock's skills](https://github.com/mattpocock/skills) where it
 
 ### Tests
 - Self-test grows to 113 checks (new skills incl. the interview/drafting/handoff primitives, enforcement hooks, slash-command bridge, loop backend + v2 schema).
-- `node:test` unit suite for the loop backend (`npm run test:unit`, 62 cases — driver, adapters, isolation, autonomy, merge, swarm; no agent CLI spawned) and an end-to-end smoke test with a fake agent (`npm run test:smoke`).
+- `node:test` unit suite (`npm run test:unit`, 67 cases — loop driver/adapters/isolation/autonomy/merge/swarm + cross-version upgrade; no agent CLI spawned) and an end-to-end smoke test with a fake agent (`npm run test:smoke`).
 
 ---
 

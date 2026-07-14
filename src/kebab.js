@@ -2,7 +2,11 @@ import { readdir, rename, stat, readFile, writeFile, access } from "node:fs/prom
 import { join, parse } from "node:path";
 import { constants as fsConstants } from "node:fs";
 
-const IGNORED_FILES = new Set(["AGENTS.md", "SKILL.md", "GEMINI.md", "CLAUDE.md", "CHANGELOG.md", "README.md", "package.json"]);
+const IGNORED_FILES = new Set([
+  "AGENTS.md", "SKILL.md", "GEMINI.md", "CLAUDE.md", "CHANGELOG.md", "README.md", "package.json",
+  // Files whose casing is canonical and must not be kebab-lowercased.
+  "Dockerfile", "Dockerfile.sandbox",
+]);
 
 export function toKebabCase(str) {
   return str
@@ -40,19 +44,47 @@ export async function renameRecursive(dir, stdout) {
     }
 
     const newFullPath = join(dir, newEntry);
-    
+
+    let effectivePath = fullPath;
     if (newFullPath !== fullPath) {
       if (!(await exists(newFullPath))) {
         await rename(fullPath, newFullPath);
+        effectivePath = newFullPath;
         if (stdout) stdout.write(`  📝 Renamed: ${entry} -> ${newEntry}\n`);
       } else {
-        // Fallback: lowercase exists, just overwrite
-        await rename(fullPath, newFullPath);
+        // Collision: the kebab-cased target already exists. Do NOT clobber —
+        // leave the original in place (a backup is taken before upgrade anyway).
+        if (stdout) stdout.write(`  ⚠️  Skipped rename (target exists): ${entry}\n`);
       }
     }
-    
+
     if (stats.isDirectory()) {
-      await renameRecursive(newFullPath, stdout);
+      await renameRecursive(effectivePath, stdout);
+    }
+  }
+}
+
+// The framework-scaffolded numbered folders, Title-Case → kebab.
+const NUMBERED_FOLDER_NAMES = [
+  "0-Compass", "1-Workbench", "2-Backlog", "3-Product-Areas",
+  "4-Context", "5-Templates", "6-Archive",
+];
+
+/**
+ * Kebab-rename ONLY the known framework numbered folders at the top of
+ * `conductor/`. Deliberately does not recurse — user knowledge files inside
+ * these folders keep whatever names the user gave them.
+ */
+export async function renameNumberedFolders(conductorDir, stdout) {
+  if (!(await exists(conductorDir))) return;
+  for (const name of NUMBERED_FOLDER_NAMES) {
+    const kebab = toKebabCase(name);
+    if (name === kebab) continue;
+    const src = join(conductorDir, name);
+    const dst = join(conductorDir, kebab);
+    if ((await exists(src)) && !(await exists(dst))) {
+      await rename(src, dst);
+      if (stdout) stdout.write(`  📝 ${name}/ → ${kebab}/\n`);
     }
   }
 }

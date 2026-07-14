@@ -29,6 +29,9 @@ You are the Conductor wearing both **hats simultaneously**:
 - **Tracer bullet first.** The very first slice should be the thinnest possible end-to-end path that touches every layer (UI → API → DB → back) and actually runs — a walking skeleton, not a foundation. It proves the architecture and gives a demo on day one; later slices thicken it. Prefer "a user can log in and see an empty dashboard" over "the entire auth subsystem."
 - **Small and Testable.** Each Implementation should be demo-able. If you can't show it to a user, it's too abstract.
 - **Name in the domain's words.** Every Implementation and folder name uses the ubiquitous language from `conductor/4-context/meta/domain-model.md`, never technical or phase names (`checkout`, not `order-service-phase-2`). If a slice can't be named in the domain language, its boundary is probably wrong — revisit it.
+- **Wide refactors are the exception to vertical slicing.** A mechanical change whose blast radius fans across the codebase (rename an entity everywhere, swap a library) can't be a thin vertical slice. Carve it as **expand → migrate-in-batches → contract**: add the new form alongside the old, migrate call sites in batches that each keep CI green, then remove the old form. Sequence these like any other slice, with explicit dependency edges.
+
+**Technique:** Runs `.agents/skills/collaborative-drafting/SKILL.md` — propose the full slicing, discuss, coverage-check against the Epics, converge. Confirm once per phase (each phase's output is the next phase's input), not once per slice.
 
 ---
 

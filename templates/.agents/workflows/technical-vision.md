@@ -23,6 +23,10 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
 - **Vision not Spec:** Capture the key decisions and their rationale. Implementation details come in *Spec-It*.
 - **Lead with proposals:** You've read all the context — don't ask blank-canvas questions. Propose, then discuss.
 
+**Technique:** Each phase runs `.agents/skills/collaborative-drafting/SKILL.md`'s four moves — propose a complete draft → discuss → coverage-check → converge — with one convergence per phase (a phase's decisions feed the next), not a gate per item. Two borrowed lenses sharpen the architecture:
+- **Deep modules (the deletion test).** A good module has a *small interface hiding lots of implementation*. Mentally delete a proposed module: if the system's complexity vanishes, it was a pass-through — inline it; if that complexity would otherwise reappear across several callers, the module earns its place. Judge a boundary by how much its interface hides, not by its line count.
+- **The ADR 3-test gate** (from the `domain-modeling` skill): only record a decision as an ADR when **all three** hold — hard to reverse, surprising without context, and the result of a real trade-off. Otherwise capture it inline and move on.
+
 ---
 
 ## Phase 0: Setup & Load Context
@@ -137,6 +141,7 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
     * High-level modules and their responsibilities
     * Folder structure proposal (if relevant)
     * Component boundaries — what talks to what
+    * Apply the **deletion test** to each proposed module (see Principles): keep the ones whose interface hides real, otherwise-duplicated complexity; collapse the shallow pass-throughs.
 
 2.  **Data Flow:**
     * For the 2-3 most important user flows (from UX/UI Brief):
@@ -179,6 +184,7 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
     * Document each significant decision made in Phases 1-3
     * For each: what was chosen, what was rejected, and why
     * *"We chose [X] over [Y] because [rationale]"*
+    * Promote a decision to a standalone ADR only if it passes the **ADR 3-test gate** (hard to reverse ∧ surprising ∧ a real trade-off); otherwise it lives inline here.
 
 3.  **Non-Functional Requirements:**
     * Performance targets (tied to user experience from Storyboard)

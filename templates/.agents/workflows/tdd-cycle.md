@@ -21,6 +21,7 @@ This workflow enforces the strict Test-Driven Development (TDD) cycle for all fe
    - Review the newly written code and test for quality, readability, and adherence to clean code standards.
    - Refactor without changing behavior.
    - Run the test suite again to ensure it remains GREEN.
+   - This per-increment refactor is **mandatory and not deferrable** — it is not replaced by review. A *second*, cross-cutting refactoring look also happens later at review stage (`skills/code-review`, Stage 2), which catches duplication/abstractions only visible once the whole change is assembled. The two are complementary: refactor small here every increment, refactor broad there once.
 
 ## Rules
 

@@ -26,7 +26,9 @@ You are the Conductor wearing both **hats simultaneously**:
 **Principles:**
 - **Lead with proposals.** You've read the full Blueprint — propose the slicing, then iterate.
 - **Vertical over Horizontal.** "Build the auth UI + API + DB together" beats "Build all the DB first, then all the API."
+- **Tracer bullet first.** The very first slice should be the thinnest possible end-to-end path that touches every layer (UI → API → DB → back) and actually runs — a walking skeleton, not a foundation. It proves the architecture and gives a demo on day one; later slices thicken it. Prefer "a user can log in and see an empty dashboard" over "the entire auth subsystem."
 - **Small and Testable.** Each Implementation should be demo-able. If you can't show it to a user, it's too abstract.
+- **Name in the domain's words.** Every Implementation and folder name uses the ubiquitous language from `conductor/4-context/meta/domain-model.md`, never technical or phase names (`checkout`, not `order-service-phase-2`). If a slice can't be named in the domain language, its boundary is probably wrong — revisit it.
 
 ---
 
@@ -40,6 +42,7 @@ You are the Conductor wearing both **hats simultaneously**:
     * `blueprint/grand-prd.md` — Epics and scope
     * `blueprint/ux-ui-design-brief.md` — Screens, navigation, and interactions
     * `blueprint/technical-vision.md` — Data model, architecture, and tech stack
+    * `conductor/4-context/meta/domain-model.md` — The ubiquitous language (slice names come from here)
     * `genesis/world-transformation.md` — The vision (for prioritization decisions)
 
 2.  **Present Blueprint Summary:**
@@ -71,10 +74,12 @@ Slice in this order when possible:
 
 | Priority | Type | Examples | Rationale |
 |----------|------|---------|-----------|
-| **P0** | Foundation | Data model, Auth, Core infrastructure | Everything else depends on these |
+| **P0** | Tracer bullet | Thinnest end-to-end path touching every layer, running | Proves the architecture; demo-able on day one |
 | **P1** | Core Backend | API endpoints, Business logic | Frontend needs data to display |
 | **P2** | Core Frontend | Key screens, Navigation, Core interactions | Where the user value lives |
 | **P3** | Polish | Secondary features, Edge cases, Optimization | Builds on the working core |
+
+> **P0 is a tracer bullet, not "the foundation."** Don't carve a slice called "Data model + Auth + Infrastructure" that a user can't see. Carve the thinnest slice that runs end-to-end (e.g. "log in → land on an empty dashboard"), then let P1–P3 thicken each layer. Foundational pieces come along *as needed by* the walking skeleton, not all up front.
 
 ### AI Proposes First
 

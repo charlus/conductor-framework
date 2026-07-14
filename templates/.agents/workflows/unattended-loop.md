@@ -16,6 +16,9 @@ graph TD
 ```
 
 ## Step 0: Pre-Flight Relevance & Scoping Checks
+
+> **Load the guardrails first.** Read `.agents/rules/loop-guardrails.md` now — the iteration ceiling, anti-stall law, and Evidence Rule it defines govern every step below. (This rule is loop-scoped, not always-on, so it must be loaded here.)
+
 Before taking any action, you MUST verify that this task is safe for headless execution:
 1. **Conversational Onboarding (Interactive Trigger Only)**: If you were triggered interactively via chat and `loop-state.json` is uninitialized or blank:
    - Ask the user to define:

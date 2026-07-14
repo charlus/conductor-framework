@@ -86,6 +86,10 @@ Only run this AFTER Stage 1 passes. Code that doesn't match the spec is wasted c
     - Do tests cover the important paths?
     - Are test names descriptive?
 
+7.  **Refactoring (cross-cutting):**
+    - Now that the whole change is visible, is there duplication, a leaky abstraction, or a seam that per-task refactoring couldn't see?
+    - This is a **second look, not the first.** The mandatory REFACTOR step already ran per increment inside the TDD loop (`workflows/tdd-cycle.md`, `rules/test-driven-law.md`); review-stage refactoring catches only what's visible across the assembled change. It never replaces the in-loop step, and any refactor here must keep the suite GREEN.
+
 ### Output Format
 
 ```

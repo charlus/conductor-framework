@@ -134,6 +134,7 @@ skills=(
   "analyze-tests" "trace-documentation"
   "context-engineering" "discovery-phase" "blueprint-phase" "execution-phase" "shipping-phase"
   "skill-registry"
+  "domain-modeling" "subagent-isolation" "model-routing"
 )
 
 for skill in "${skills[@]}"; do
@@ -192,6 +193,53 @@ if [ -z "$dead_refs" ]; then
 else
   fail "Dead Title-Case path references found in:"
   echo "$dead_refs" | while read -r f; do echo "         $f"; done
+fi
+
+# ---- 10. Claude Code Slash-Command Bridge ----
+# Generated at install time (ADR-0001 D5), not shipped in templates/, so this is
+# conditional: it only runs where .claude/commands/ exists (an installed project),
+# and is skipped in the framework template repo where the dir is absent.
+echo ""
+echo "10. Claude Code Slash-Command Bridge..."
+
+commands_dir="$ROOT_DIR/.claude/commands"
+workflows_dir="$AGENT_DIR/workflows"
+if [ -d "$commands_dir" ] && [ -d "$workflows_dir" ]; then
+  missing_shims=""
+  for wf in "$workflows_dir"/*.md; do
+    [ -e "$wf" ] || continue
+    name="$(basename "$wf")"
+    if [ ! -f "$commands_dir/$name" ]; then
+      missing_shims="$missing_shims $name"
+    fi
+  done
+  if [ -z "$missing_shims" ]; then
+    pass "Every workflow has a Claude Code slash command"
+  else
+    fail "Workflows missing a .claude/commands shim:$missing_shims"
+  fi
+else
+  pass "Slash-command bridge check skipped (no .claude/commands — template repo)"
+fi
+
+# ---- 11. Enforcement Hooks ----
+echo ""
+echo "11. Enforcement Hooks (deterministic laws)..."
+
+hook_files=(
+  "$AGENT_DIR/hooks/pre-commit"
+  "$AGENT_DIR/hooks/pre-push"
+  "$AGENT_DIR/hooks/lib.sh"
+  "$AGENT_DIR/hooks/README.md"
+)
+for hf in "${hook_files[@]}"; do
+  require_file "$hf"
+done
+
+if [ -f "$AGENT_DIR/hooks/pre-commit" ] && [ -x "$AGENT_DIR/hooks/pre-commit" ]; then
+  pass "pre-commit hook is executable"
+else
+  fail "pre-commit hook is not executable"
 fi
 
 # ---- Summary ----

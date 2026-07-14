@@ -277,6 +277,8 @@ Entry points that read the phase you're in and route you to the right workflow.
 | `git-worktrees` | Isolated parallel development |
 | `architecture-patterns` | Architectural trade-off analysis and ADRs |
 | `lint-and-validate` | Static analysis after every modification |
+| `subagent-isolation` | Scout pattern — delegate read-heavy discovery, parallelize, isolate mutating work in worktrees |
+| `model-routing` | Match model tier + reasoning effort to task difficulty |
 
 ### Git Integration
 | Skill | Purpose |
@@ -289,6 +291,7 @@ Entry points that read the phase you're in and route you to the right workflow.
 | Skill | Purpose |
 |---|---|
 | `brain-dump-to-epics` | Unstructured ideas → structured Epics |
+| `domain-modeling` | Active ubiquitous-language discipline — keeps a living domain model in sync with spec, code, and UI |
 | `ux-reviewer` | UX feedback against the Design System |
 | `system-janitor` | Scans for misplaced files, recommends reorganization |
 | `skill-registry` | Manages `conductor add/remove/list/search` against your configured registry |
@@ -331,7 +334,7 @@ Requires `conductor.config.json` at the project root pointing at your registry. 
 
 ## Progressive Disclosure — Adoption Levels
 
-Not everyone needs the full system. This is a *framework-adoption* scale — distinct from context-loading progressive disclosure (only `rules/` files are always-on; everything else, including this file, loads on demand).
+Not everyone needs the full system. This is a *framework-adoption* scale — distinct from context-loading progressive disclosure (the universal `rules/` — prime-directive, verification-iron-law, test-driven-law — are always-on; `loop-guardrails` is loop-scoped and loaded only by the unattended-loop workflow; everything else, including this file, loads on demand).
 
 ### Level 1: Just Ship
 Use: `task-backlog.md`, Quick-Path, Build, Ship, Archive.

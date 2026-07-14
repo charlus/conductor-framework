@@ -78,6 +78,13 @@
       "default": true
     },
     {
+      "name": "Domain-Modeling",
+      "dir": "domain-modeling",
+      "description": "Use when establishing or refining the shared vocabulary of the product — during Technical Vision, when naming entities or slices in Carve, when writing a spec, or any time a term is ambiguous or two people mean different things by the same word. Turns the static glossary into a living ubiquitous-language discipline.",
+      "category": "core",
+      "default": true
+    },
+    {
       "name": "Execution-Phase",
       "dir": "execution-phase",
       "description": "Use to write specifications, execute code builds, or use the quick path to bypass discovery and just build something.",
@@ -134,6 +141,13 @@
       "default": true
     },
     {
+      "name": "Model-Routing",
+      "dir": "model-routing",
+      "description": "Use when deciding which model tier to run a task, subagent, or loop role on — match model capability and reasoning effort to task difficulty instead of defaulting to one model for everything. Reach for it when spinning up scouts/Checkers, configuring the autonomous loop, or when a task is either trivially mechanical or unusually hard.",
+      "category": "core",
+      "default": true
+    },
+    {
       "name": "Shipping-Phase",
       "dir": "shipping-phase",
       "description": "Use to ship polished code, audit for release, or run a retrospective after completing a project.",
@@ -144,6 +158,13 @@
       "name": "Skill-Registry",
       "dir": "skill-registry",
       "description": "Manages Conductor skills from the remote registry — install, remove, search, and list skills using the conductor CLI. Use during Technical Vision workflow or whenever the tech stack changes.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Subagent-Isolation",
+      "dir": "subagent-isolation",
+      "description": "Use when a task needs reading across many files, several independent investigations, or long unbounded exploration — delegate to scout subagents so the main context stays clean and under budget. Also the pattern for parallel work that must not collide. Isolation is the default, not an optimization.",
       "category": "core",
       "default": true
     },
@@ -201,7 +222,7 @@
     {
       "name": "loop-guardrails",
       "file": "loop-guardrails.md",
-      "description": "Strict unattended guardrails to prevent infinite loops, repetition, and budget wastage.",
+      "description": "Loop-scoped safety limits (iteration ceiling, anti-stall, evidence rule). Loaded by the unattended-loop workflow — NOT always-on. Interactive sessions don't pay for it.",
       "category": "core",
       "default": true
     },
@@ -315,7 +336,7 @@
     {
       "name": "unattended-loop",
       "file": "unattended-loop.md",
-      "description": "Orchestrates unattended, headless loop-driven development cycles using state files.",
+      "description": "",
       "category": "core",
       "default": true
     },
@@ -343,6 +364,7 @@
         "deployment-procedures",
         "Discovery-Phase",
         "documentation-templates",
+        "Domain-Modeling",
         "Execution-Phase",
         "frontend-design",
         "GitHub-CLI",
@@ -351,8 +373,10 @@
         "using-git-worktrees",
         "i18n-localization",
         "lint-and-validate",
+        "Model-Routing",
         "Shipping-Phase",
         "Skill-Registry",
+        "Subagent-Isolation",
         "System-Janitor",
         "systematic-debugging",
         "Task-Tracker",

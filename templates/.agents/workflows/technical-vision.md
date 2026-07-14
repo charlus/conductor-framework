@@ -92,9 +92,11 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
 
 **Goal:** Define the entities, relationships, and how data flows through the system.
 
-**Announce:** *"We're in Phase 2: Data Model. I'll propose entities based on the Epics and Screens."*
+**Announce:** *"We're in Phase 2: Data Model. First we'll agree on the language, then the entities."*
 
-1.  **AI Proposes First** — Present entities derived from the Grand PRD and UX/UI Brief:
+0.  **Establish the ubiquitous language first.** Before naming a single entity, invoke the **`domain-modeling` skill** to agree on what the core concepts *are* and what they're *called*. Grill the Grand PRD and UX/UI Brief for nouns, resolve synonyms/homonyms, and capture the result in `conductor/4-context/meta/domain-model.md`. Every entity you propose below MUST use these canonical terms — the data model is the ubiquitous language expressed as tables, not a second, parallel vocabulary.
+
+1.  **AI Proposes First** — Present entities derived from the Grand PRD and UX/UI Brief (named per the domain model):
 
     For each entity:
     | Field | Entity Name |

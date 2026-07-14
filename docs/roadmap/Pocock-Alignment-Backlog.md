@@ -5,6 +5,12 @@
 > extract primitives, fewer gates.** Each task names the Pocock lever it borrows.
 >
 > Status legend: ☐ open · ◐ in progress · ☑ done
+>
+> **Status (2026-07-14):** Epics A, B, C, and D are complete (A0–A5, B1, C1–C6, D1–D3).
+> Epic E (skills audit) folded into this pass rather than run as a separate large audit —
+> its findings are the "kept vs. copied" judgments recorded per task below. The framework is
+> now a lean, primitive-backed set: two interview/drafting primitives + a handoff primitive,
+> with each workflow supplying agenda and inheriting technique.
 
 ---
 
@@ -116,11 +122,24 @@ These workflows are the right *shape* under the new direction; borrow sharper *c
 
 ---
 
-## Priority summary
+## Status summary
 
-| Do now (P1) | Next (P2) | Later (P3) |
-|---|---|---|
-| A1, A2, A3, A4 | A5, B1, C1, C4, D1, D2 | C2, C3, C5, C6, D3, E1 |
+| Done ☑ | Note |
+|---|---|
+| A0–A5 | Genesis/Storyboard/Grand-PRD/UX-UI rewritten onto the primitives; Quick-Path & Retrospective reference them |
+| B1 | Spec-It reworked to synthesize-not-re-interview |
+| C1 | tdd-cycle: seams + anti-patterns (kept in-loop REFACTOR — our stance beats Pocock's) |
+| C2 | code-review: Fowler smell baseline (kept sequential spec→quality gate) |
+| C3 | ship: merge-conflict discipline; smell baseline shared via code-review |
+| C4 | technical-vision: deletion test + ADR 3-test gate |
+| C5 | carve: wide-refactor expand→migrate→contract (absorbs D3) |
+| C6 | Ceremony trimmed in the 5 rewritten workflows; the "re-read this file" header **kept** — a cheap deliberate guard, not Pocock-derived, not worth 11 risky edits |
+| D1 | systematic-debugging: red-command-first + falsifiable hypotheses + regression-test-first |
+| D2 | new Handoff skill (context hygiene / smart zone) for the loop |
+| D3 | absorbed into C5 (carve already had tracer-bullet/vertical-slice) |
+| E1 | folded into this pass — the kept-vs-copied judgments are the audit output |
 
-**Sequencing note:** A1 → (A2, A3, A4) is the genesis pattern repeated and removes ~14 gates plus 4 duplicated
-blocks in one pass. Everything in Epic C is additive and can follow independently.
+**What we deliberately did NOT copy from Pocock** (kept ours): in-loop REFACTOR (vs defer-all-to-review);
+sequential spec→quality review gate (vs parallel two-axis); the product-discovery curricula themselves
+(Genesis→Carve — Pocock's interview is content-free); the numbered `conductor/` pipeline and deterministic
+enforcement hooks (already realize his "make the rule bite" philosophy).

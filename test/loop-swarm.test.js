@@ -13,6 +13,7 @@ import {
   normalizeRole,
   normalizeTask,
   isBlocked,
+  splitForTask,
 } from "../src/loop/swarm.js";
 import { tallyVerdicts } from "../src/loop/checker.js";
 
@@ -202,4 +203,53 @@ test("swarm concurrency=1 reproduces per-task pair behavior (regression guard)",
   assert.equal(final.status, "completed");
   assert.equal(final.tasks[0].status, "merged");
   assert.equal(final.tasks[0].iterations.current, 1); // one beat, like the pair
+});
+
+// ---- TDD test-author → implementer split (opt-in) --------------------------
+
+test("normalizeRole: test-author archetype recognized (string + object)", () => {
+  assert.equal(normalizeRole("test-author").archetype, "test-author");
+  assert.equal(normalizeRole("api-test-author").archetype, "test-author");
+  assert.equal(normalizeRole({ name: "test-author" }).archetype, "test-author");
+  assert.equal(normalizeRole("logic-maker").archetype, "maker"); // implementer stays a maker
+});
+
+test("splitForTask: per-task contract_first overrides swarm-wide policy", () => {
+  assert.equal(splitForTask(normalizeTask({ id: "a" }), { tdd_split: true }), true);
+  assert.equal(splitForTask(normalizeTask({ id: "a", contract_first: false }), { tdd_split: true }), false);
+  assert.equal(splitForTask(normalizeTask({ id: "a", contract_first: true }), { tdd_split: false }), true);
+  assert.equal(splitForTask(normalizeTask({ id: "a" }), {}), false); // default off
+});
+
+test("swarm TDD split: test-author writes RED first, then implementer greens it", async () => {
+  const beats = [];
+  const state = swarmState([{ id: "t1", type: "logic" }], { concurrency: 1 });
+  state.tdd_split = true;
+  const deps = swarmDeps({
+    runBeat: async ({ role, phase }) => (beats.push({ role, phase }), { exitCode: 0 }),
+    // The contract must be RED (no implementation yet); the implementer then greens it.
+    runVerify: async ({ task }) =>
+      task.phase === "contract" ? { exitCode: 1, output: "red" } : { exitCode: 0, output: "green" },
+  });
+  const final = await runSwarm(state, deps);
+  assert.equal(final.status, "completed");
+  assert.equal(final.tasks[0].status, "merged");
+  assert.deepEqual(beats, [
+    { role: "test-author", phase: "contract" },
+    { role: "maker", phase: "implementation" },
+  ]);
+  assert.equal(final.tasks[0].iterations.current, 2); // one contract beat + one implementation beat
+});
+
+test("swarm TDD split: a GREEN contract (vacuous tests) is rejected, never merges", async () => {
+  const state = swarmState([{ id: "t1", type: "logic", iterations: { current: 0, max_allowed: 3 } }], { concurrency: 1 });
+  state.tdd_split = true;
+  let merges = 0;
+  const deps = swarmDeps({
+    runVerify: async () => ({ exitCode: 0, output: "green" }), // contract can never go red
+    merge: async () => (merges++, { ok: true }),
+  });
+  const final = await runSwarm(state, deps);
+  assert.equal(merges, 0); // implementation/merge never reached
+  assert.equal(final.tasks[0].status, "failed"); // burns the per-task ceiling on vacuous contracts
 });

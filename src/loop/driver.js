@@ -124,6 +124,7 @@ export function normalizeState(raw) {
     tasks: Array.isArray(s.tasks) ? s.tasks : [],
     roles: Array.isArray(s.roles) ? s.roles : ["maker", "checker"],
     concurrency: s.concurrency ?? 1,
+    tdd_split: s.tdd_split === true, // opt-in test-author→implementer split (swarm only)
     checker_votes: s.checker_votes ?? 1, // multi-vote adversarial Checker (N skeptics)
     merge: s.merge ?? null, // { branch, pr_url } once a PR is opened (L3)
     history: Array.isArray(s.history) ? s.history : [],

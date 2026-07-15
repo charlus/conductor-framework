@@ -31,6 +31,8 @@ You wear **two hats** here, and they must not be the same context:
 
 **Announce:** *"Initiating Empathy Audit. Code and context must be clean and readable — for the next human and the next agent."*
 
+> **This is the Maker's *fix* pass, not the empathy *verdict*.** Empathy means "legible to a mind that lacks my context" — and you, the author, are the one mind that structurally can't have that: you can't un-know why the code is shaped the way it is. So here you fix everything you *can* see (dead code, poor names, duplication, missing context). Whether the result is *actually* legible to a stranger is judged in **Phase 4** by a fresh-context reviewer — that is the only place a genuine "fresh eyes" read exists. Don't fake it here; clean thoroughly and let the independent reviewer be the honest test.
+
 1.  **Code Review (self-audit):**
     * Read through the major files modified or created during the Build phase.
     * **Cleanliness:** Are there unused imports, dead code, or commented-out blocks? Remove them.
@@ -39,7 +41,7 @@ You wear **two hats** here, and they must not be the same context:
     * **Comments:** Are there necessary docstrings/comments for complex logic? Are there *too many* unnecessary comments stating the obvious?
 
 2.  **Context Audit (empathy for the next agent):**
-    * Would an AI agent loading *only* this change into a fresh context understand what it does and why, without the surrounding conversation? If not, the intent lives in your head, not in the code.
+    * Would an AI agent loading *only* this change into a fresh context understand what it does and why, without the surrounding conversation? If not, the intent lives in your head, not in the code. (You cannot fully simulate this — you have the conversation. Catch what you can; Phase 4's fresh-context reviewer is the real check.)
     * Are names, module boundaries, and file structure legible enough that a reviewer — human or agent — spends its budget on the *logic*, not on decoding the layout?
     * Is anything left implicit that a future reader would have to reverse-engineer (magic values, undocumented assumptions, a decision with no trace)? Surface it in code, a comment, or the relevant `conductor/4-context/` doc.
 

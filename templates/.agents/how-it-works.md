@@ -210,7 +210,7 @@ Mechanics live in `.agents/skills/context-engineering/SKILL.md`.
 | **Carve** | "Break it down" | Implementation slices + folders | Spec-It |
 | **Spec-It** | "Write the spec" | Feature Spec + Implementation Plan | Build |
 | **Build** | "Let's code" | Working code, test-driven per task, Task Tracker | Ship |
-| **Ship** | "Ship it", "Audit and ship" | Empathy-audited code, regression tests, CI alignment, PR/MR | Retrospective |
+| **Ship** | "Ship it", "Audit and ship" | Empathy-audited code, regression tests, CI alignment, independent fresh-context review, PR/MR | Retrospective |
 | **Quick-Path** | "Just build this" | Spec + Plan + Code in one pass | Ship |
 | **Retrospective** | "Let's reflect" | Lessons + knowledge base updates | — |
 

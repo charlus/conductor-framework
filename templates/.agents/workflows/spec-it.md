@@ -31,6 +31,7 @@ Principles: **Feature Spec first** (lock the "what" before planning the "how") �
 
 1. **Which implementation (decision):** List `implementations/`; recommend the next unspecced one and confirm.
 2. **Load context (fact — look it up):** Read, in order — `project-documentation.md` (this implementation's definition + acceptance criteria — critical), `blueprint/grand-prd.md`, `blueprint/ux-ui-design-brief.md`, `blueprint/technical-vision.md`, `blueprint/implementation-overview.md` (sequence + dependencies).
+   - **Codebase-inventory scout (`.agents/skills/subagent-isolation/SKILL.md`):** the blueprint says *what* to build; the plan needs to know *what already exists*. Send a scout to inventory the code surface this implementation touches — the files/modules it will change, existing utilities and patterns to reuse, naming conventions — and return a short summary. This grounds the spec's "Dependencies" and the plan's "Files & Components Affected" in reality (not guesses) while keeping the raw code out of the speccing context. Skip for a greenfield area with nothing to inventory.
 3. **Confirm understanding (not an interview):** Present a tight synthesis — Implementation, what it delivers, acceptance criteria, key screens/interactions, key entities, dependencies — and ask only "anything the blueprint didn't capture before I draft?" If genuine gaps surface, grill *those* one at a time; otherwise proceed.
 
 ---

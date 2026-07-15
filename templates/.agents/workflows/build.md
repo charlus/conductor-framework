@@ -31,7 +31,7 @@ If either is missing:
 
 ## Behavioral Rules
 
-1.  **One task at a time.** Never work on multiple tasks simultaneously
+1.  **One task at a time.** Never work on multiple tasks simultaneously. This is deliberate: interactive Build keeps the human in the loop with a checkpoint between batches. *Parallel* execution of independent tasks is not squeezed in here — it's the **swarm's** job (`.agents/workflows/unattended-loop.md`, concurrency>1), which is unattended-only (L3 + sandbox + a carved task graph) precisely because running many Makers at once trades away the per-task oversight this rule guarantees. Want parallelism? Opt into the swarm; don't parallelize interactive Build.
 2.  **Red before green.** No implementation code without a failing test first — see `.agents/rules/test-driven-law.md`
 3.  **Evidence before claims.** Every "done" requires running verification (tests, build, lint)
 4.  **Follow the plan.** Execute what was specified, don't improvise scope

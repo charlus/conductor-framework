@@ -38,6 +38,7 @@ Everything about *how* to interview lives in the Grilling primitive. This file o
 2.  **Name (decision):** Propose a `[ProjectName]` and confirm. This is the container for all work — Genesis, Storyboard, PRDs, Implementations.
 3.  **Create the folders (fact/action):** `conductor/2-backlog/project-backlog/[ProjectName]/` and its `genesis/` subfolder. Confirm creation.
 4.  **Context scan (fact — do not ask, look it up):** Read the relevant `conductor/3-product-areas/` folders, existing genesis/PRD docs, and codebase yourself. Summarize what already exists so the interview never rediscovers known ground: "Here's what I found that's relevant: [summary]." Do this for features *and* new products — there is almost always prior context to mine.
+    * **Fan out when there's real ground to cover (`.agents/skills/subagent-isolation/SKILL.md`):** if the existing codebase/product-areas are large, or the platform can research externally, run the scan as **parallel scouts** — e.g. one over prior `conductor/` docs, one over the relevant code, one on existing solutions / prior art in the problem space — each returning only a short summary. This keeps the raw file dumps out of the interview thread (the interview context stays clean) and surfaces known ground faster. Keep scouts at Genesis's altitude: problem, prior art, and user-facing capability — **not** tech-stack evaluation (that's Blueprint). For a greenfield idea with no prior context, skip the scouts and scan inline.
 
 ---
 

@@ -270,6 +270,7 @@ Entry points that read the phase you're in and route you to the right workflow.
 | `verification-gate` | Evidence-before-assertions gate — the Iron Law, operationalized |
 | `task-tracker` | Live task tracker maintained through Build |
 | `code-review` | Two-stage review after implementing: spec compliance, then code quality against a Fowler smell baseline |
+| `independent-review` | The fresh-context review gate — a reviewer that did *not* produce the artifact (PRD, architecture, spec, carved plan, diff) decides whether it's ready before save/handoff. Loaded by the blueprint workflows; Ship Phase 4 is its reference implementation |
 | `context-updater` | Updates Product Areas + Context after Build/Retrospective |
 | `trace-documentation` | Links backlog items to the code that implemented them |
 | `context-engineering` | Reading/writing `conductor/` state and the task backlog correctly |

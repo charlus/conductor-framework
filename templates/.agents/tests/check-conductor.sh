@@ -135,6 +135,7 @@ skills=(
   "context-engineering" "discovery-phase" "blueprint-phase" "execution-phase" "shipping-phase"
   "skill-registry" "grilling" "collaborative-drafting" "handoff"
   "domain-modeling" "subagent-isolation" "model-routing"
+  "independent-review"
 )
 
 for skill in "${skills[@]}"; do

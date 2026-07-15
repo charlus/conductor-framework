@@ -90,6 +90,8 @@ This is not a repeat of Build's per-task TDD (`.agents/rules/test-driven-law.md`
 
 **Announce:** *"Spawning an independent reviewer with a fresh context to audit the full diff before push."*
 
+> This phase is the reference implementation of the `independent-review` gate (`skills/independent-review/SKILL.md`) — the same fresh-context Maker/Checker split the blueprint workflows now load. The mechanics below match the skill, applied with the **Diff** lens.
+
 1.  **Spawn the reviewer (isolated context).** Per `skills/subagent-isolation/SKILL.md`, the reviewer runs in a **separate, clean context** so it is not biased by the reasoning that produced the code:
     * **Claude Code:** launch a subagent (Task tool).
     * **Antigravity / others:** use the platform's sub-agent primitive.

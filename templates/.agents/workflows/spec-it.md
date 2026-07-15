@@ -49,7 +49,8 @@ Principles: **Feature Spec first** (lock the "what" before planning the "how") �
    - **Phase headers carry checkboxes:** `### - [ ] Phase 1: [Name]`.
    - **Testing Decisions:** name the **seams** Build's TDD loop will test at — prefer the highest useful seam, ideal count one (see `.agents/workflows/tdd-cycle.md`). Deciding seams here lands Build's test effort on the critical paths.
 2. **Present & iterate:** summary (3–5 bullets) then full document; revise until sign-off.
-3. **Converge & save:** one confirmation ("Implementation Plan locked?"), then immediately write `implementations/[NN-Name]/implementation-plan.md`.
+3. **Independent review (fresh-context gate):** Run `.agents/skills/independent-review/SKILL.md` with the **Feature Spec + Plan** lens across *both* documents — a reviewer that did not write them confirms every acceptance criterion is testable and unambiguous, the plan implements exactly the spec (nothing missing, nothing extra), the TDD seams are the highest useful ones, and the work is sliced into thin vertical increments. Address every `CHANGES REQUESTED` finding first.
+4. **Converge & save:** one confirmation ("Implementation Plan locked?"), then immediately write `implementations/[NN-Name]/implementation-plan.md`.
 
 ---
 

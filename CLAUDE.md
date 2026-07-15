@@ -71,7 +71,8 @@ conductor-framework/          ← You are here (package source)
 
 ## Current State (6.0.0 — V6 Enforcement & Autonomy Rebalance)
 
-- 15 workflows (incl. loop-checker), 34 skills, 12 personas, 4 rules (3 always-on: prime-directive, verification-iron-law, test-driven-law; loop-guardrails is loop-scoped since the V6 rebalance)
+- 15 workflows (incl. loop-checker), 35 skills, 12 personas, 4 rules (3 always-on: prime-directive, verification-iron-law, test-driven-law; loop-guardrails is loop-scoped since the V6 rebalance)
+- **Independent-review gate (`skills/independent-review/SKILL.md`):** Ship Phase 4's fresh-context Maker/Checker gate, extracted into a reusable primitive and wired into the blueprint workflows (Grand-PRD, Technical-Vision, Spec-It, Carve) so specs/architectures get an adversarial fresh-context review *before* they're saved — closing the "blueprint artifacts ship unchecked" gap. Retro-compatible: spawns an isolated reviewer when the platform supports subagents, else degrades to a deliberate fresh-context self-pass; one gate per artifact (not per step). Ship references the skill as its reference implementation.
 - Deterministic enforcement (ADR-0001 D1): `.agents/hooks/` ships a TDD pre-commit + Verification pre-push, wired via `conductor install-hooks` (auto-run by init/upgrade in a git repo). Prose laws are now backed by code, not just advisory.
 - Claude Code adapter: `init`/`upgrade` generate `.claude/commands/*.md` slash-command shims per workflow (ADR-0001 D5)
 - Self-test: `bash templates/.agents/tests/check-conductor.sh` → 113 checks; unit tests: `npm run test:unit` (`node:test`, 72 cases — loop backend + cross-version upgrade + managed stubs; no agent CLI spawned)

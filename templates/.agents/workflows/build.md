@@ -122,6 +122,8 @@ For each task in the batch:
 
 > **Order matters:** Always spec first, then quality. No point reviewing quality if the spec is wrong.
 
+> **This is the Maker's *self*-review — per-task hygiene, not the independent verdict.** You catch what you can see against the spec you just implemented; you can't be your own fresh-context reviewer (same limit as Ship's Empathy Audit). The independent fresh-context check happens once per *batch* at the checkpoint (Phase 2), and again at Ship Phase 4 — don't try to fake it here.
+
 #### Step 5 — Git Commit
 * Commit the changes using Conventional Commits (see `.agents/skills/git-workflow/SKILL.md`)
 * Example: `git commit -m "feat(auth): create user model"`
@@ -146,7 +148,12 @@ After completing a batch:
 
 2.  **Show Tracker:** Display the current state of the full task tracker
 
-3.  **Ask:** *"Batch [N] complete. Ready for next batch, or any feedback?"*
+3.  **Independent Review (fresh-context gate — one per batch, not per task):**
+    * Run `.agents/skills/independent-review/SKILL.md` with the **Diff** lens on this batch's changes (`git diff` for the batch) — a reviewer that did **not** write the batch checks spec compliance, then quality, and whether the new tests are meaningful or reward-hacked (assertions weakened, failing tests deleted, mocks hardcoded to pass). Address every `CHANGES REQUESTED` finding before the next batch.
+    * **Proportionality:** run it for batches that are non-trivial, risky, or touch shared surfaces; for a small low-risk batch the human reviewing the report below *is* the fresh set of eyes — say so and skip the subagent. One gate per batch keeps this from becoming a per-task ceremony.
+    * **In the autonomous loop, don't double up:** at L3 the driver already runs an independent Checker out-of-process per beat (`.agents/workflows/loop-checker.md`, verdict via `checker-verdict.json`) above the green-verify floor. This checkpoint gate is the *interactive* Build's equivalent; when the loop's Checker is active it already covers this.
+
+4.  **Ask:** *"Batch [N] complete. Ready for next batch, or any feedback?"*
     * If feedback → apply changes, re-verify, then continue
     * If ready → proceed to next batch
     * Repeat Phase 1 → Phase 2 until all tasks are done
@@ -212,6 +219,7 @@ Before claiming this implementation is done:
 
 - [ ] All tasks in tracker are `done` with evidence
 - [ ] Every task followed RED → GREEN → REFACTOR, or has an explicit `no test:` reason recorded
+- [ ] Each non-trivial batch passed an independent fresh-context review at its checkpoint (or the loop's Checker), findings addressed
 - [ ] Full test suite passes (fresh run)
 - [ ] Production build succeeds
 - [ ] All Feature Spec acceptance criteria verified

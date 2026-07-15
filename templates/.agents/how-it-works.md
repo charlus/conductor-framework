@@ -290,6 +290,7 @@ Entry points that read the phase you're in and route you to the right workflow.
 | `lint-and-validate` | Static analysis after every modification |
 | `subagent-isolation` | Scout pattern — delegate read-heavy discovery, parallelize, isolate mutating work in worktrees |
 | `model-routing` | Match model tier + reasoning effort to task difficulty |
+| `judge-panel` | Divergent-then-convergent decision primitive for wide, hard-to-reverse forks — generate N candidates from different angles, judge independently, synthesize the winner. Opt-in; loaded by Technical Vision for architecture |
 
 ### Git Integration
 | Skill | Purpose |

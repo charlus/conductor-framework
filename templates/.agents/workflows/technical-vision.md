@@ -137,6 +137,10 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
 
 **Announce:** *"We're in Phase 3: Architecture. I'll propose the structure and we'll validate it against the UX flows."*
 
+**Method — one proposal, or a judge panel?** Before drafting, decide how to reach the architecture:
+* **Wide, hard-to-reverse solution space** (more than one structural shape a competent engineer would defend, and the choice is expensive to undo) → run `.agents/skills/judge-panel/SKILL.md`: generate ~3 candidate architectures from different angles (simplest-that-works, risk-first, leverage-first), score them with independent judges against fit / simplicity (deletion test) / risk / evolvability, then synthesize the winner and graft the best of the runners-up. The synthesized architecture then feeds the steps below.
+* **Obvious shape** (CRUD over a boring stack; you'd struggle to name a serious second candidate) → skip the panel and propose the single architecture directly. Don't manufacture alternatives.
+
 1.  **Component/Module Breakdown:**
     * High-level modules and their responsibilities
     * Folder structure proposal (if relevant)

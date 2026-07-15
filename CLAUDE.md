@@ -40,7 +40,7 @@ conductor-framework/          ← You are here (package source)
 │   ├── GEMINI.md               # Platform stub (for installed projects, not this repo)
 │   ├── CLAUDE.md
 │   └── CHANGELOG.md
-├── package.json               # v5.0.0
+├── package.json               # v6.1.0
 ├── README.md                  # Public-facing with credits
 ├── CHANGELOG.md               # Package changelog
 ├── docs/roadmap/               # Design docs for in-progress/parked features
@@ -69,7 +69,9 @@ conductor-framework/          ← You are here (package source)
 | `Grilling` + `Collaborative-Drafting` interview/drafting primitives as skills, loaded by discovery/PRD/spec/design workflows | The interview technique (Interviewer persona, one-at-a-time questioning, advancement gates) and the "propose-first → discuss → coverage-check → confirm" drafting quartet were duplicated inline across Genesis, Storyboard, Grand-PRD, Spec-It, Technical Vision, Carve, and the Design Brief. Extracted to `skills/grilling/SKILL.md` (extract decisions) and `skills/collaborative-drafting/SKILL.md` (produce documents) as single sources of truth (following Matt Pocock's `grilling` primitive), adding recommend-per-question, look-up-facts-don't-ask, and one convergence gate per document. Genesis, Storyboard, Grand-PRD, and the UX/UI Brief now supply the *agenda* and load the primitives for the *how* — the UX/UI Brief dropped from 448 lines / 7 per-phase gates to one gate at save. Quick-Path, Retrospective, Technical Vision, and Carve reference the primitives too, and Spec-It was reworked to *synthesize-not-re-interview* (Pocock's `to-spec`). Companion sharpening from Pocock's repo, keeping our stronger stances where they diverge: `tdd-cycle` (agree seams first + anti-pattern tells, but kept our in-loop REFACTOR), `code-review` (Fowler smell baseline, but kept our sequential spec→quality gate), `systematic-debugging` (red-command-first), `technical-vision` (deep-module deletion test + ADR 3-test gate), `ship` (merge-conflict discipline), plus a net-new `handoff` skill (context hygiene for the loop). See `docs/roadmap/Pocock-Alignment-Backlog.md` for the full Epic A–E status |
 | Upgrade **replaces** `.agents/` instructions, **preserves** `conductor/` knowledge (ownership rule: framework-owned = ships in `templates/**`) | A methodology upgrade must land new instructions — the old checksum-gated behavior *kept* user-edited instruction files and silently no-op'd checksum-less V4 installs, stranding them on stale methodology. Now framework files are replaced wholesale (custom additions carried forward, everything backed up first to `.conductor-backup/`), while the user's app knowledge in `conductor/` is never touched. The `conductor/5-templates/` scaffolding is framework-owned and refreshed too. Confirmed with the maintainer for the 6.0.0 upgrade path |
 
-## Current State (6.0.0 — V6 Enforcement & Autonomy Rebalance)
+## Current State (6.1.0 — Multi-Agent Across Workflows)
+
+> 6.1.0 brought the V6 loop backend's multi-agent capability to the everyday workflows (see the "Multi-agent-across-workflows initiative" bullet below and `CHANGELOG.md`). The 6.0.0 foundation notes follow.
 
 - 15 workflows (incl. loop-checker), 36 skills, 12 personas, 4 rules (3 always-on: prime-directive, verification-iron-law, test-driven-law; loop-guardrails is loop-scoped since the V6 rebalance)
 - **Multi-agent-across-workflows initiative:** bringing the V6 loop backend's multi-agent capability to the everyday workflows, retro-compatibly. Two primitives shipped so far:
@@ -92,7 +94,7 @@ conductor-framework/          ← You are here (package source)
 
 - **Skill curation pipeline** — Phase 4 of Dynamic Skill Loading, deferred to the `skills-registry` repo's own backlog
 - **Testing & verification** — Phase 5 of Dynamic Skill Loading
-- **CHANGELOG.md** — 6.0.0 release notes are in place (V6 rebalance, Pocock alignment, cross-version upgrade, managed stubs); keep appending as work lands
+- **CHANGELOG.md** — 6.1.0 (Multi-Agent Across Workflows) and 6.0.0 release notes are in place; keep appending as work lands
 
 ## How to Work on This Repo
 

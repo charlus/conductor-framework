@@ -64,7 +64,8 @@ It is the first of three Blueprint documents: **Grand PRD** (this) → **UX/UI D
 ## Phase 3: Grand PRD Assembly
 
 1. **Draft the document** into the template structure: Project Overview · The Problem (Sun + Satellites) · The Transformation (Before/After/North Star) · The Main Character · The Epics (problem/why/what/outcomes) · Non-Goals.
-2. **Converge & save:** Present it, absorb final adjustments, then — one approval — create `blueprint/` if needed and write `blueprint/grand-prd.md`. Confirm saved.
+2. **Independent review (fresh-context gate):** Before saving, run `.agents/skills/independent-review/SKILL.md` with the **Grand PRD** lens — a reviewer that did not draft the PRD checks the Epics are MECE, right-sized, and collectively deliver the full transformation (no Storyboard scene lost, no outcome unaddressed, no smuggled scope). Address every `CHANGES REQUESTED` finding before continuing.
+3. **Converge & save:** Present it, absorb final adjustments, then — one approval — create `blueprint/` if needed and write `blueprint/grand-prd.md`. Confirm saved.
 
 ---
 

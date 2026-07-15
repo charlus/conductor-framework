@@ -31,6 +31,8 @@ You wear **two hats** here, and they must not be the same context:
 
 **Announce:** *"Initiating Empathy Audit. Code and context must be clean and readable — for the next human and the next agent."*
 
+> **This is the Maker's *fix* pass, not the empathy *verdict*.** Empathy means "legible to a mind that lacks my context" — and you, the author, are the one mind that structurally can't have that: you can't un-know why the code is shaped the way it is. So here you fix everything you *can* see (dead code, poor names, duplication, missing context). Whether the result is *actually* legible to a stranger is judged in **Phase 4** by a fresh-context reviewer — that is the only place a genuine "fresh eyes" read exists. Don't fake it here; clean thoroughly and let the independent reviewer be the honest test.
+
 1.  **Code Review (self-audit):**
     * Read through the major files modified or created during the Build phase.
     * **Cleanliness:** Are there unused imports, dead code, or commented-out blocks? Remove them.
@@ -39,7 +41,7 @@ You wear **two hats** here, and they must not be the same context:
     * **Comments:** Are there necessary docstrings/comments for complex logic? Are there *too many* unnecessary comments stating the obvious?
 
 2.  **Context Audit (empathy for the next agent):**
-    * Would an AI agent loading *only* this change into a fresh context understand what it does and why, without the surrounding conversation? If not, the intent lives in your head, not in the code.
+    * Would an AI agent loading *only* this change into a fresh context understand what it does and why, without the surrounding conversation? If not, the intent lives in your head, not in the code. (You cannot fully simulate this — you have the conversation. Catch what you can; Phase 4's fresh-context reviewer is the real check.)
     * Are names, module boundaries, and file structure legible enough that a reviewer — human or agent — spends its budget on the *logic*, not on decoding the layout?
     * Is anything left implicit that a future reader would have to reverse-engineer (magic values, undocumented assumptions, a decision with no trace)? Surface it in code, a comment, or the relevant `conductor/4-context/` doc.
 
@@ -89,6 +91,8 @@ This is not a repeat of Build's per-task TDD (`.agents/rules/test-driven-law.md`
 **Goal:** A reviewer that did **not** write this code decides whether the *complete* change — code, regression tests, and CI updates — is ready to be pushed. This is the Checker half of the Maker/Checker split, run **before** anything leaves the machine so issues are fixed while they are cheap and no noise is posted to the platform.
 
 **Announce:** *"Spawning an independent reviewer with a fresh context to audit the full diff before push."*
+
+> This phase is the reference implementation of the `independent-review` gate (`skills/independent-review/SKILL.md`) — the same fresh-context Maker/Checker split the blueprint workflows now load. The mechanics below match the skill, applied with the **Diff** lens.
 
 1.  **Spawn the reviewer (isolated context).** Per `skills/subagent-isolation/SKILL.md`, the reviewer runs in a **separate, clean context** so it is not biased by the reasoning that produced the code:
     * **Claude Code:** launch a subagent (Task tool).

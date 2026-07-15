@@ -44,6 +44,7 @@ A capable model at low effort can be cheaper *and* better than a weak model stra
 When the driver dispatches roles (see `workflows/unattended-loop.md`, ADR-0001 D4), route by role and task-type:
 
 - **Makers** on the balanced tier by default; the top/frontier tier for tasks the Carve graph flags as complex (architecture, tricky algorithms).
+- **TDD split roles** (when `tdd_split` is on): the **test-author** needs strong spec comprehension to encode the contract correctly — don't cheap out on it, a weak contract mis-specifies the whole task; the **implementer** can run on the balanced tier since the tests now define "done".
 - **Checkers** verifying high-stakes diffs (security, auth, data migrations) on a strong tier — a weak verifier is a false safety signal. Simple "did the tests pass" mechanical checks can run cheap.
 - **Scouts** (see `subagent-isolation`) doing plain searches/reads on the fast tier.
 - Record the model used for each autonomous action in `0-compass/ship-log.md` so cost and routing stay auditable.

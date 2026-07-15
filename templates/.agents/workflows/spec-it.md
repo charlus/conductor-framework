@@ -31,6 +31,7 @@ Principles: **Feature Spec first** (lock the "what" before planning the "how") �
 
 1. **Which implementation (decision):** List `implementations/`; recommend the next unspecced one and confirm.
 2. **Load context (fact — look it up):** Read, in order — `project-documentation.md` (this implementation's definition + acceptance criteria — critical), `blueprint/grand-prd.md`, `blueprint/ux-ui-design-brief.md`, `blueprint/technical-vision.md`, `blueprint/implementation-overview.md` (sequence + dependencies).
+   - **Codebase-inventory scout (`.agents/skills/subagent-isolation/SKILL.md`):** the blueprint says *what* to build; the plan needs to know *what already exists*. Send a scout to inventory the code surface this implementation touches — the files/modules it will change, existing utilities and patterns to reuse, naming conventions — and return a short summary. This grounds the spec's "Dependencies" and the plan's "Files & Components Affected" in reality (not guesses) while keeping the raw code out of the speccing context. Skip for a greenfield area with nothing to inventory.
 3. **Confirm understanding (not an interview):** Present a tight synthesis — Implementation, what it delivers, acceptance criteria, key screens/interactions, key entities, dependencies — and ask only "anything the blueprint didn't capture before I draft?" If genuine gaps surface, grill *those* one at a time; otherwise proceed.
 
 ---
@@ -49,7 +50,8 @@ Principles: **Feature Spec first** (lock the "what" before planning the "how") �
    - **Phase headers carry checkboxes:** `### - [ ] Phase 1: [Name]`.
    - **Testing Decisions:** name the **seams** Build's TDD loop will test at — prefer the highest useful seam, ideal count one (see `.agents/workflows/tdd-cycle.md`). Deciding seams here lands Build's test effort on the critical paths.
 2. **Present & iterate:** summary (3–5 bullets) then full document; revise until sign-off.
-3. **Converge & save:** one confirmation ("Implementation Plan locked?"), then immediately write `implementations/[NN-Name]/implementation-plan.md`.
+3. **Independent review (fresh-context gate):** Run `.agents/skills/independent-review/SKILL.md` with the **Feature Spec + Plan** lens across *both* documents — a reviewer that did not write them confirms every acceptance criterion is testable and unambiguous, the plan implements exactly the spec (nothing missing, nothing extra), the TDD seams are the highest useful ones, and the work is sliced into thin vertical increments. Address every `CHANGES REQUESTED` finding first.
+4. **Converge & save:** one confirmation ("Implementation Plan locked?"), then immediately write `implementations/[NN-Name]/implementation-plan.md`.
 
 ---
 

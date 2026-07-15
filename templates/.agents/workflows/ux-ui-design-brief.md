@@ -47,6 +47,7 @@ Work these phases in order. For **each**, apply Collaborative-Drafting's four mo
 **Phase 1 — Screens Inventory.** Propose every distinct screen as a table: name, purpose, which Epic(s) it serves. Discuss missing/combine/split.
 
 **Phase 2 — Navigation Structure.** Propose the home base, the primary nav pattern (tabs / sidebar / hub-and-spoke — consider platform), and a text nav map. Note global/floating elements (quick-capture, global search).
+> **When the nav pattern is genuinely contested** (more than one viable shape for this app — it's a hard-to-reverse choice that shapes every screen), lead with **2–3 divergent options** and their trade-offs rather than a single proposal, and let the human pick — on design, *they* are the judge (this is the judge-panel instinct with a human scorer, not an automated one). When one pattern is clearly right for the platform and app, just propose it.
 ```
 [Home Screen]
     ├── [Screen A] via [action]
@@ -71,7 +72,8 @@ Work these phases in order. For **each**, apply Collaborative-Drafting's four mo
 
 1. **Draft the document** into the template structure: Overview · Screens Inventory · Navigation Structure · Screen-by-Screen Breakdown · Key Interactions · Component Inventory · Key User Flows · Platform Considerations.
 2. **Completeness check:** every Epic has screens that deliver it; every Scene is represented in a flow.
-3. **Converge & save:** Present the complete brief, absorb final adjustments, then — one approval — write `…/[ProjectName]/blueprint/ux-ui-design-brief.md`. Confirm saved.
+3. **Independent review (fresh-context design gate):** Run `.agents/skills/independent-review/SKILL.md` before saving, with a **UX/design lens** — the reviewer adopts `.agents/skills/ux-reviewer/SKILL.md` and audits the brief against the Design System and UX heuristics (consistent interaction patterns, no gratuitous modals, navigation legibility, every Epic/Scene covered). This is the design-flavored sibling of the review gate the other blueprint workflows run; address `CHANGES REQUESTED` findings before save. (Taste calls stay with the human from the phases above; the gate checks craft and coverage, not aesthetics.)
+4. **Converge & save:** Present the complete brief, absorb final adjustments, then — one approval — write `…/[ProjectName]/blueprint/ux-ui-design-brief.md`. Confirm saved.
 
 ---
 

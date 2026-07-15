@@ -27,6 +27,7 @@ You are the Conductor in **reflection mode**. Your job is to close the feedback 
     * Read the latest `conductor/0-compass/ship-log.md` entry
     * Read the `task-tracker.md` from the completed Implementation
     * Read the `feature-spec.md` for what was intended
+    * **Mine the evidence in parallel (`.agents/skills/subagent-isolation/SKILL.md`):** the concrete lessons in Phase 2 must come from what *actually happened*, not memory. Fan out scouts across the independent evidence sources — the git history/diff for the branch, the tracker's evidence column (where retries/stalls/rework clustered), the ship-log, any `trace.md`, CI logs — each returning a short factual summary. Blind scouts don't anchor on the same story, and a fresh-context read resists the tendency to rationalize one's own work. Merge their findings into the summary below. For a small single-batch implementation, read inline instead.
 
 2.  **Present Summary:**
     * What was the goal?

@@ -364,8 +364,16 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         cwdFor.set(task.id, plan.path);
         return { path: plan.path, branch: plan.branch };
       },
-      runBeat: ({ task }) =>
-        adapter.runBeat({ promptPath, cwd: cwdFor.get(task.id) ?? root, permissionMode: "acceptEdits" }),
+      runBeat: ({ task, role, phase }) =>
+        adapter.runBeat({
+          promptPath,
+          cwd: cwdFor.get(task.id) ?? root,
+          permissionMode: "acceptEdits",
+          // Forwarded so the beat can adopt the right brief (test-author vs
+          // implementer). The agent also reads task.role/phase from loop-state.
+          role,
+          phase,
+        }),
       runVerify: ({ task, cmd }) => sh(cmd, cwdFor.get(task.id) ?? root),
       runChecker: ({ task }) => makeChecker(cwdFor.get(task.id) ?? root)(),
       merge: ({ task }) =>

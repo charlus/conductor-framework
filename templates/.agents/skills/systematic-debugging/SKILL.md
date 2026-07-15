@@ -45,12 +45,23 @@ Narrow down the source.
 ### Phase 3: Understand
 Find the root cause, not just symptoms.
 
-**List 3–5 falsifiable hypotheses and rank them *before* testing any.** A hypothesis is falsifiable only if you can name the observation that would kill it. Then test them against the red command one at a time — **instrument one variable per run**, and tag any debug logging with a unique marker (e.g. `[DEBUG-a4f2]`) so a single grep removes it all afterward. Use the 5 Whys to drive from the confirmed symptom down to the root cause.
+**List 3–5 falsifiable hypotheses and rank them *before* testing any.** A hypothesis is falsifiable only if you can name the observation that would kill it. Tag any debug logging with a unique marker (e.g. `[DEBUG-a4f2]`) so a single grep removes it all afterward, and **instrument one variable per run** so no result is ever confounded.
+
+**How to test them — one at a time, or fan out?**
+- **Few hypotheses, cheap to check, or an obvious front-runner** → test against the red command **sequentially**, top-ranked first. This is the default and the graceful-degradation floor when no sub-agent primitive exists.
+- **3–5 genuinely independent hypotheses, each non-trivial to investigate** → **fan out one empty-context scout per hypothesis** (`.agents/skills/subagent-isolation/SKILL.md`). Each scout gets *only* the red command, its *one* assigned hypothesis, and that hypothesis's kill-criterion — and runs in its **own isolated context (a separate git worktree if it instruments code)** so their probes never confound each other and no scout anchors on another's theory (the blind spots are the point). Each returns a verdict — **killed** (with the observation that killed it) or **survived** (with the supporting evidence) — *never* a "the fix is…" claim.
+
+**Merge the verdicts (the orchestrator does this, not a scout):**
+- **Exactly one survivor** → that's your lead; drive the 5 Whys on it.
+- **None survived** → the hypothesis set was wrong. Run a completeness pass — *"what did none of us look at?"* — and generate a fresh ranked set.
+- **Several survived** → either they aren't truly independent, or it's a compound cause. Refine and re-test; don't pick one arbitrarily.
+
+**Re-confirm before trusting it.** A scout's verdict is a lead, not proof — the accountable agent re-runs the red command against the surviving hypothesis itself (`.agents/rules/verification-iron-law.md`). Route hard or high-stakes investigations to a strong model tier (`.agents/skills/model-routing/SKILL.md`); a weak scout that clears a hypothesis is a false all-clear. Then use the 5 Whys to drive from the confirmed symptom down to the root cause.
 
 ```markdown
 ## Hypotheses (ranked, falsifiable)
-1. [Most likely] — killed if: [observation]
-2. [Next] — killed if: [observation]
+1. [Most likely] — killed if: [observation]  → tested [seq | scout]: killed / survived
+2. [Next] — killed if: [observation]         → tested [seq | scout]: killed / survived
 ...
 
 ## Root Cause (via 5 Whys)
@@ -111,3 +122,6 @@ pm2 logs app-name --err --lines 100
 ❌ **Assuming** - "It must be X" without proof
 ❌ **Not reproducing first** - Fixing blindly
 ❌ **Stopping at symptoms** - Not finding root cause
+❌ **Confounded parallel probes** - Fanning out scouts that share one working tree; each needs its own isolated context or their instrumentation collides
+❌ **Trusting a scout's "found it"** - A cleared hypothesis is a lead; re-run the red command yourself before acting on it
+❌ **Fanning out a one-liner** - Parallel scouts for an obvious bug is overhead; sequential is the default

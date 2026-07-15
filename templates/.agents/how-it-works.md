@@ -270,6 +270,7 @@ Entry points that read the phase you're in and route you to the right workflow.
 | `verification-gate` | Evidence-before-assertions gate — the Iron Law, operationalized |
 | `task-tracker` | Live task tracker maintained through Build |
 | `code-review` | Two-stage review after implementing: spec compliance, then code quality against a Fowler smell baseline |
+| `independent-review` | The fresh-context review gate — a reviewer that did *not* produce the artifact (PRD, architecture, spec, carved plan, diff) decides whether it's ready before save/handoff. Loaded by the blueprint workflows; Ship Phase 4 is its reference implementation |
 | `context-updater` | Updates Product Areas + Context after Build/Retrospective |
 | `trace-documentation` | Links backlog items to the code that implemented them |
 | `context-engineering` | Reading/writing `conductor/` state and the task backlog correctly |
@@ -289,6 +290,7 @@ Entry points that read the phase you're in and route you to the right workflow.
 | `lint-and-validate` | Static analysis after every modification |
 | `subagent-isolation` | Scout pattern — delegate read-heavy discovery, parallelize, isolate mutating work in worktrees |
 | `model-routing` | Match model tier + reasoning effort to task difficulty |
+| `judge-panel` | Divergent-then-convergent decision primitive for wide, hard-to-reverse forks — generate N candidates from different angles, judge independently, synthesize the winner. Opt-in; loaded by Technical Vision for architecture |
 
 ### Git Integration
 | Skill | Purpose |

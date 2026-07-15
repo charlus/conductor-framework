@@ -148,6 +148,20 @@
       "default": true
     },
     {
+      "name": "Independent-Review",
+      "dir": "independent-review",
+      "description": "The fresh-context review gate — when a workflow produces a consequential artifact (PRD, architecture, spec, carved plan, diff), a separate reviewer that did not produce it decides whether it's ready before it's saved or handed off. The Maker/Checker split applied to any artifact; loaded by the blueprint workflows and Ship.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Judge-Panel",
+      "dir": "judge-panel",
+      "description": "The divergent-then-convergent decision primitive — when a decision has a wide, hard-to-reverse solution space (an architecture, a hard design/algorithm choice), generate N candidates from different angles, score them with independent judges, then synthesize the winner while grafting the best of the runners-up. Opt-in; loaded by Technical Vision.",
+      "category": "core",
+      "default": true
+    },
+    {
       "name": "i18n-localization",
       "dir": "i18n-localization",
       "description": "Internationalization and localization patterns. Detecting hardcoded strings, managing translations, locale files, RTL support.",
@@ -401,6 +415,8 @@
         "Git-Workflow",
         "using-git-worktrees",
         "Grilling",
+        "Independent-Review",
+        "Judge-Panel",
         "i18n-localization",
         "lint-and-validate",
         "Model-Routing",

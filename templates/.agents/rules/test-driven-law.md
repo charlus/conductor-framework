@@ -30,3 +30,9 @@ TDD governs *how* code gets written, task by task. It's one of three layers — 
 | Ship's Regression Fortification | After Build | What cross-feature/E2E gaps would per-task unit tests miss? |
 
 This is not a style preference, and it is not the `tdd-cycle` skill you invoke when you remember to. It is load-bearing, the same way the Verification Iron Law is: Build does not proceed past a task without it.
+
+## Interactive vs. unattended
+
+Interactively, **one mind runs the whole cycle** — the same agent writes the RED test and the GREEN code, learning from each increment. That tight loop is the default and is not changing.
+
+In the **unattended swarm** (opt-in, L3 — see `.agents/workflows/unattended-loop.md`), the same law can be split across two fresh contexts: a **test-author** writes the failing tests (the contract), then a separate **implementer** makes them pass and is forbidden to touch the tests. RED-before-GREEN is identical; the split just makes reward-hacking structural — the agent that greens the code can't move the goalposts because it didn't write them. Use it when no human is watching; don't split the tight interactive loop, where the per-increment learning is worth more than the separation.

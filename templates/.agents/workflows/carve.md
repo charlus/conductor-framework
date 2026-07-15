@@ -180,6 +180,8 @@ For each proposed Implementation:
 
 **Announce:** *"Phase 4: Generating all artifacts."*
 
+0.  **Independent review (fresh-context gate):** Before writing the slicing to disk, run `.agents/skills/independent-review/SKILL.md` with the **Carve slicing** lens — a reviewer that did not carve confirms each Implementation delivers testable value on its own, the sequence is a valid DAG (no cycles, no orphans), nothing from the Blueprint is left uncarved, and no slice is too big to build safely. Address every `CHANGES REQUESTED` finding before generating files.
+
 1.  **Create `blueprint/implementation-overview.md`:**
     * Sequence table with brief descriptions
     * Dependency map

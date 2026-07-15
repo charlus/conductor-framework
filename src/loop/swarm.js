@@ -26,19 +26,42 @@ export function isTaskTerminal(task) {
   return TASK_TERMINAL.includes(task.status);
 }
 
+/**
+ * Infer an archetype from a role name: "…checker" → checker, "…test-author" →
+ * test-author (the TDD-split contract phase). Everything else is a maker —
+ * including the "implementer", which is just a maker briefed not to touch the
+ * tests, so the implementation phase resolves identically to the non-split path.
+ */
+function inferArchetype(name) {
+  const n = String(name);
+  if (n.includes("checker")) return "checker";
+  if (n.includes("test-author")) return "test-author";
+  return "maker";
+}
+
 /** Normalize a role entry (string or object) into a descriptor. */
 export function normalizeRole(role) {
   if (typeof role === "string") {
-    // "maker" / "checker" → generic; "db-maker" → maker archetype by suffix.
-    const archetype = role.endsWith("checker") ? "checker" : "maker";
-    return { name: role, archetype, persona: null, claims: [] };
+    return { name: role, archetype: inferArchetype(role), persona: null, claims: [] };
   }
   return {
     name: role.name ?? "role",
-    archetype: role.archetype ?? (String(role.name).includes("checker") ? "checker" : "maker"),
+    archetype: role.archetype ?? inferArchetype(role.name),
     persona: role.persona ?? null,
     claims: Array.isArray(role.claims) ? role.claims : [],
   };
+}
+
+/**
+ * Whether a task runs the opt-in TDD test-author → implementer split (ADR-0001
+ * D4, unattended form of red-before-green). Per-task `contract_first` wins;
+ * otherwise the swarm-wide `state.tdd_split` policy. Off by default — when off,
+ * `processTask` runs exactly one maker archetype per beat, as before.
+ */
+export function splitForTask(task, state) {
+  if (task.contract_first === true) return true;
+  if (task.contract_first === false) return false;
+  return state?.tdd_split === true;
 }
 
 /**
@@ -61,6 +84,10 @@ export function normalizeTask(task, defaults = {}) {
     id: task.id,
     type: task.type ?? "general",
     status: task.status ?? "pending",
+    // TDD split (opt-in): `contract_first` overrides the swarm-wide policy;
+    // `phase` tracks contract → implementation across a task's beats.
+    contract_first: typeof task.contract_first === "boolean" ? task.contract_first : null,
+    phase: task.phase ?? null,
     deps: Array.isArray(task.deps) ? task.deps : [],
     role: task.role ?? null,
     worktree: task.worktree ?? null,
@@ -94,8 +121,9 @@ export function isBlocked(task, byId) {
  * Run one task's Maker→verify→Checker chain, retrying on rejection up to the
  * per-task ceiling, sharing the global budget. Mutates the task; returns outcome.
  */
-async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker, gitHead, now, budget, audit }) {
+async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker, gitHead, now, budget, audit, roles = [], tddSplit = false }) {
   task.status = "in_progress";
+  if (tddSplit && !task.phase) task.phase = "contract";
   while (task.iterations.current < task.iterations.max_allowed) {
     // Shared global budget across all concurrent tasks.
     if (budget.beats >= budget.maxBeats) return { task, outcome: "failed", reason: "global iteration ceiling" };
@@ -104,7 +132,31 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
 
     task.iterations.current += 1;
     budget.beats += 1;
-    await runBeat({ task, role: task.role });
+
+    // ---- Contract phase (opt-in TDD split): a test-author writes the failing
+    // tests FIRST, in its own beat/context. Success here is RED, not green: the
+    // suite must fail once the new tests land (no implementation yet). A green
+    // verify means the contract is vacuous (tests assert nothing) → reject and
+    // retry. Once RED is confirmed, hand off to the implementer.
+    if (tddSplit && task.phase === "contract") {
+      const authorRole = resolveRoleForTask(task, roles, "test-author").name;
+      task.role = authorRole;
+      await runBeat({ task, role: authorRole, phase: "contract" });
+      const { exitCode, output } = await runVerify({ task, cmd: verifyCommand });
+      task.evidence = { exit_code: exitCode, output_hash: hashString(output), phase: "contract" };
+      await audit(`task ${task.id}: contract beat (${authorRole}) verify exit=${exitCode}`);
+      if (exitCode === 0) {
+        task.status = "rejected"; // tests pass with no implementation → vacuous contract
+        continue;
+      }
+      task.phase = "implementation";
+      task.role = resolveRoleForTask(task, roles, "maker").name; // implementer = a maker
+      continue;
+    }
+
+    // ---- Implementation phase (or the non-split single maker). Identical
+    // semantics to before: make it green, gated by verify then Checker.
+    await runBeat({ task, role: task.role, phase: tddSplit ? "implementation" : null });
 
     // Per-task stall detection (driver-observable: this task's HEAD + verify out).
     const head = await gitHead({ task });
@@ -214,9 +266,17 @@ export async function runSwarm(state, deps) {
     state.iterations.current = budget.beats;
     await persist(state);
 
-    // Parallel dispatch of the wave.
+    // Parallel dispatch of the wave. TDD split (if enabled for the task) is
+    // resolved per task: the contract phase uses a test-author role, the
+    // implementation phase a maker.
     const results = await Promise.all(
-      wave.map((t) => processTask(t, { verifyCommand, runBeat, runVerify, runChecker, gitHead, now, budget, audit }))
+      wave.map((t) =>
+        processTask(t, {
+          verifyCommand, runBeat, runVerify, runChecker, gitHead, now, budget, audit,
+          roles: state.roles,
+          tddSplit: splitForTask(t, state),
+        })
+      )
     );
     state.iterations.current = budget.beats;
 

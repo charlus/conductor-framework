@@ -1,8 +1,4 @@
----
-name: testing-patterns
-description: Testing patterns and principles. Unit, integration, mocking strategies.
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash
----
+> **Reference material — not a skill.** Demoted from `skills/testing-patterns/` in the skill-catalog audit (it owns test taxonomy (pyramid, AAA, mocking strategy) — advice, not a distinct workflow / tool boundary / evidence contract). Loaded on demand; see the Reference Library in `.agents/how-it-works.md`.
 
 # Testing Patterns
 

@@ -104,13 +104,14 @@ This is not a repeat of Build's per-task TDD (`.agents/rules/test-driven-law.md`
     * The **diff under review** — the branch's changes (`git diff <merge-base>...HEAD`), not the whole repo.
     * Its instructions: *adopt `.agents/personas/checker.md`, run `skills/code-review/SKILL.md` (Stage 1 spec compliance → Stage 2 quality), and apply the Phase 1 empathy lens (is this legible to the next human and the next agent?). Be adversarial: look for the reason this is **not** done.*
 
-3.  **Reviewer produces a verdict** — `APPROVE` or `CHANGES REQUESTED` — with specific, actionable findings citing `file:line`. It reviews the completed regression tests too: are they meaningful, or reward-hacked (assertions weakened, failing tests deleted, mocks hardcoded to pass)?
+3.  **Reviewer produces a verdict** — `APPROVE` or `CHANGES REQUESTED` — with specific, actionable findings citing `file:line`. It reviews the completed regression tests too: are they meaningful, or reward-hacked (assertions weakened, failing tests deleted, mocks hardcoded to pass)? **When the change has a runtime surface, don't stop at reading the tests — behavior-validate the running artifact source-blind (`skills/behavior-validator/SKILL.md`) with adversarial inputs; green tests can themselves be wrong or reward-hacked, and only observed behavior settles it.**
 
 4.  **Boundaries (non-negotiable).** The reviewer **only reports**. It does not push, merge, or edit code. Verification stays with the accountable agent (the Verification Iron Law) — a subagent's "it's fine" is never the proof.
 
-5.  **Fix loop.** If the verdict is `CHANGES REQUESTED`:
-    * Address every finding. Keep the suite GREEN.
-    * Re-spawn a **fresh** reviewer (new context) and repeat. A reviewer that found issues means *not done* — no self-approval, no exceptions.
+5.  **Triage, then fix loop.** If the verdict is `CHANGES REQUESTED`, first triage each finding per the skill's taxonomy — **in-scope blocker** (fix now) / **follow-up** (log, keep scope frozen) / **stop-and-escalate** (surface to the human):
+    * Address every **in-scope blocker**; keep the suite GREEN. Log follow-ups; escalate the rest.
+    * Re-spawn a **fresh** reviewer (new context) and repeat. A reviewer that still finds in-scope blockers means *not done* — no self-approval, no exceptions.
+    * **Convergence brake (Scoping Barrier):** stop patching and surface the state if the fix grows the diff past ~2× its frozen scope, two cycles don't converge, or the best fix needs a canonical-contract change first.
     * Only proceed to Phase 5 once a fresh reviewer returns `APPROVE`.
 
 ---

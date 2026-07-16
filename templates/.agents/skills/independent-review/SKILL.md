@@ -32,12 +32,33 @@ Run this gate **once, when a consequential artifact is complete and about to be 
 
 **4. Boundaries (non-negotiable).** The reviewer **only reports**. It does not save, merge, or edit the artifact. Verification stays with the accountable agent (`.agents/rules/verification-iron-law.md`) — a subagent's "it's fine" is never the proof.
 
+## Triaging the findings
+
+A fresh-context reviewer is *deliberately* blind to the constraints the artifact was built under. That blindness is the value — it re-opens decisions the author had stopped questioning — but it means findings arrive **unsorted**: some are latent problems the author rationalized away, some are legitimate decisions the reviewer simply couldn't see the reason for. Don't fix them all reflexively; **classify each finding first**, re-injecting the context the reviewer lacked:
+
+| Class | What it is | What you do |
+|---|---|---|
+| **In-scope blocker** | Introduced by this artifact/diff, on the same boundary, fixable without changing an upstream contract | **Fix now**, in this cycle. |
+| **Follow-up** | Real, but an adjacent bug class or cleanup the current work didn't introduce | **Don't fix inline** — capture it as a tracked follow-up (workbench backlog / an issue) and keep scope frozen. |
+| **Stop-and-escalate** | Needs a protocol/API/contract change, different ownership, or a design decision outside the original request | **Stop.** Surface it to the accountable human; in the loop, halt to `awaiting_review` rather than absorbing it silently. |
+
+Triage is adjudication: for each finding you decide *"deliberate tradeoff → dismiss with a one-line reason"* vs. *"I only told myself it was deliberate — the reviewer is right."* A dismissed finding is a valid outcome, not a failure of the gate; an **undismissable** finding you fix (if in scope) or escalate.
+
 ## The fix loop
 
+**Freeze a baseline before the first cycle:** the original request/goal, the artifact's intended scope, and its size (changed files + non-test LOC for a diff; section/Epic/slice count for a blueprint). Every later cycle is measured against it.
+
 If the verdict is `CHANGES REQUESTED`:
-1. Address **every** finding.
-2. Re-spawn a **fresh** reviewer (new context) and repeat. A reviewer that found issues means *not ready* — no self-approval, no exceptions.
+1. Triage the findings (above), then address **every in-scope blocker**. Log follow-ups; escalate the rest.
+2. Re-spawn a **fresh** reviewer (new context) and repeat. A reviewer that still finds in-scope blockers means *not ready* — no self-approval, no exceptions.
 3. Only save the artifact / advance the phase once a fresh reviewer returns `APPROVE`.
+
+**Convergence brakes (stop patching and escalate to a human — the Scoping Barrier applies).** The gate closes out an artifact; it is not licence to rewrite the task. Stop and surface the state when any of these trips:
+- The fix has grown the artifact past **~2× its frozen scope** without explicit approval.
+- **Two cycles** have passed without converging (each round still returns in-scope blockers).
+- The best fix requires **defining a canonical contract first**, or otherwise leaves the original boundary.
+
+Hitting a brake is a successful outcome of the gate, not a failure: it has found that the work is bigger than the request. In the autonomous loop this maps to the driver's Scoping Barrier and an `awaiting_review` halt.
 
 ## Review lenses (what "ready" means per artifact)
 
@@ -49,7 +70,7 @@ The calling workflow supplies the lens. Defaults:
 | **Technical Vision** (`technical-vision`) | Does the architecture support **every** Epic and serve **every** screen? Is any complexity unjustified (deep-module / deletion test)? Are the ADRs sound and the data model internally consistent? Are the named risks the real ones? |
 | **Feature Spec + Plan** (`spec-it`) | Is every acceptance criterion **testable** and unambiguous? Does the plan implement exactly the spec — nothing missing, nothing extra? Are the TDD seams the highest useful ones? Is it sliced into thin vertical increments? |
 | **Carve slicing** (`carve`) | Does each Implementation deliver testable value on its own? Is the dependency order a valid DAG with no cycles or orphans? Is anything from the Blueprint uncarved, or any slice too big to build safely? |
-| **Diff** (`ship`, loop execution) | Spec compliance first, then quality (`skills/code-review/SKILL.md`, Fowler smell baseline), plus the empathy lens (legible to the next human *and* the next agent?). Are the tests meaningful or reward-hacked (assertions weakened, failing tests deleted, mocks hardcoded to pass)? |
+| **Diff** (`ship`, loop execution) | Spec compliance first, then quality (`skills/code-review/SKILL.md`, Fowler smell baseline), plus the empathy lens (legible to the next human *and* the next agent?). Are the tests meaningful or reward-hacked (assertions weakened, failing tests deleted, mocks hardcoded to pass)? For a runtime surface, pair this static review with a source-blind behavior check of the running artifact (`skills/behavior-validator/SKILL.md`). |
 
 ## In the autonomous loop
 
@@ -61,5 +82,8 @@ The calling workflow supplies the lens. Defaults:
 
 - The author "reviewing" their own artifact in the same context they wrote it — that's proofreading, not an independent gate.
 - A gate per step instead of one gate per artifact — turns review into ceremony and trains the team to rubber-stamp.
-- Accepting a `CHANGES REQUESTED` verdict "with notes" and advancing anyway — a found issue means not ready.
+- Accepting a `CHANGES REQUESTED` verdict "with notes" and advancing anyway — a found *in-scope* issue means not ready.
 - Letting the reviewer edit the artifact — it reports; the accountable agent fixes and re-verifies.
+- **Fixing every finding reflexively instead of triaging** — a real-but-out-of-scope finding fixed inline is exactly how a narrow change balloons into a rewrite.
+- **Absorbing a stop-and-escalate finding silently to keep the loop green** — a finding that needs a contract or ownership change is escalated, not quietly swallowed; that's how scope creep hides.
+- **Looping the fix cycle without a brake** — an adversarial reviewer told to "find the reason this is not ready" will always find *something*; without the convergence brakes the gate never closes.

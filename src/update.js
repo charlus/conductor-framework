@@ -9,7 +9,7 @@ import {
 
 /**
  * @typedef {Object} UpdateAction
- * @property {'COPY'|'UPDATE'|'SKIP'|'KEEP'|'AVAILABLE'} action
+ * @property {'COPY'|'UPDATE'|'SKIP'|'KEEP'|'AVAILABLE'|'REMOVE'} action
  * @property {string} relativePath
  * @property {string} reason
  */
@@ -111,11 +111,19 @@ function isSelected(relativePath, selections, coreSkills) {
  *   Source present,  Target absent,  selected        → COPY   (new upstream file)
  *   Source present,  Target absent,  NOT selected    → AVAILABLE (optional, not installed)
  *   Source present,  Target present                   → UPDATE (framework file — replaced wholesale)
- *   Source absent,   Target present                   → KEEP   (user-authored custom file — carried forward)
+ *   Source absent,   Target present,  in old manifest → REMOVE (framework file dropped upstream — prune it)
+ *   Source absent,   Target present,  NOT in manifest → KEEP   (user-authored OR `conductor add`-imported — carried forward)
+ *
+ * The REMOVE / KEEP split turns on framework OWNERSHIP, read from the stored
+ * `.checksums.json`: that manifest records only files init/upgrade itself delivered.
+ * `conductor add` never writes to it, so registry-imported skills (terraform, angular,
+ * …) and hand-authored files are absent from the manifest and are always KEEP — only a
+ * file we ourselves installed AND that upstream has since deleted is pruned. A missing
+ * manifest (legacy/V4 install) means no proof of ownership → nothing is pruned. The
+ * caller backs up the old tree first, so a REMOVE is recoverable from the backup.
  *
  * The prior checksum-gated SKIP ("local override kept") is intentionally gone: a
- * methodology upgrade must land new instructions even if the user edited them. The
- * caller backs up the old tree first, so edits are recoverable from the backup.
+ * methodology upgrade must land new instructions even if the user edited them.
  *
  * @param {string} sourceDir    - Absolute path to the source .agents directory.
  * @param {string} targetDir    - Absolute path to the target .agents directory.
@@ -127,6 +135,9 @@ function planUpdate(sourceDir, targetDir, checksumPath, options = {}) {
     const targetFiles = new Set(listFiles(targetDir));
     const selections = readSelections(targetDir);
     const coreSkills = options.coreSkills;
+    // Ownership record: paths this install's init/upgrade actually delivered.
+    // `conductor add` does NOT write here, so imported/custom files are absent.
+    const oldManifest = readChecksumFile(checksumPath);
 
     /** @type {UpdateAction[]} */
     const plan = [];
@@ -148,10 +159,16 @@ function planUpdate(sourceDir, targetDir, checksumPath, options = {}) {
         }
     }
 
-    // 2. Process files only in target (custom files)
+    // 2. Process files only in target (not shipped by the current source)
     for (const rel of [...targetFiles].sort()) {
         if (!sourceFiles.has(rel)) {
-            plan.push({ action: 'KEEP', relativePath: rel, reason: 'custom file detected' });
+            if (Object.prototype.hasOwnProperty.call(oldManifest, rel)) {
+                // We delivered this file before; upstream has dropped it → prune it.
+                plan.push({ action: 'REMOVE', relativePath: rel, reason: 'framework file removed upstream' });
+            } else {
+                // Never framework-tracked → user-authored or `conductor add`-imported → keep.
+                plan.push({ action: 'KEEP', relativePath: rel, reason: 'custom or imported file' });
+            }
         }
     }
 
@@ -175,6 +192,20 @@ function executeUpdate(plan, sourceDir, targetDir, checksumPath, options = {}) {
             // Ensure parent directory exists
             fs.mkdirSync(path.dirname(dst), { recursive: true });
             fs.copyFileSync(src, dst);
+        } else if (item.action === 'REMOVE') {
+            // Framework file dropped upstream. Delete it, then clean up any now-empty
+            // ancestor directories (e.g. an emptied skills/<name>/) up to targetDir.
+            if (fs.existsSync(dst)) fs.rmSync(dst);
+            let dir = path.dirname(dst);
+            const stop = path.resolve(targetDir);
+            while (path.resolve(dir) !== stop && path.resolve(dir).startsWith(stop + path.sep)) {
+                try {
+                    if (fs.readdirSync(dir).length === 0) {
+                        fs.rmdirSync(dir);
+                        dir = path.dirname(dir);
+                    } else break;
+                } catch { break; }
+            }
         }
         // KEEP and AVAILABLE → no file operations (custom files carried forward as-is)
     }

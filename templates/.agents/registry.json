@@ -15,23 +15,9 @@
       "default": true
     },
     {
-      "name": "Blueprint-Phase",
-      "dir": "blueprint-phase",
-      "description": "Use to create Product Requirements Documents (PRDs), design UX/UI briefs, define Technical Vision, or break down features (Carve).",
-      "category": "core",
-      "default": true
-    },
-    {
       "name": "Brain-Dump-to-Epics",
       "dir": "brain-dump-to-epics",
       "description": "Use this skill when the user asks to transform unstructured thoughts and ideas into structured Product Epics.",
-      "category": "core",
-      "default": true
-    },
-    {
-      "name": "clean-code",
-      "dir": "clean-code",
-      "description": "Pragmatic coding standards - concise, direct, no over-engineering, no unnecessary comments",
       "category": "core",
       "default": true
     },
@@ -71,37 +57,9 @@
       "default": true
     },
     {
-      "name": "deployment-procedures",
-      "dir": "deployment-procedures",
-      "description": "Production deployment principles and decision-making. Safe deployment workflows, rollback strategies, and verification. Teaches thinking, not scripts.",
-      "category": "core",
-      "default": true
-    },
-    {
-      "name": "Discovery-Phase",
-      "dir": "discovery-phase",
-      "description": "Use when the user has a new idea, wants to start a brand new app, or needs to explore a new feature area and shape the user experience.",
-      "category": "core",
-      "default": true
-    },
-    {
-      "name": "documentation-templates",
-      "dir": "documentation-templates",
-      "description": "Documentation templates and structure guidelines. README, API docs, code comments, and AI-friendly documentation.",
-      "category": "core",
-      "default": true
-    },
-    {
       "name": "Domain-Modeling",
       "dir": "domain-modeling",
       "description": "Use when establishing or refining the shared vocabulary of the product — during Technical Vision, when naming entities or slices in Carve, when writing a spec, or any time a term is ambiguous or two people mean different things by the same word. Turns the static glossary into a living ubiquitous-language discipline.",
-      "category": "core",
-      "default": true
-    },
-    {
-      "name": "Execution-Phase",
-      "dir": "execution-phase",
-      "description": "Use to write specifications, execute code builds, or use the quick path to bypass discovery and just build something.",
       "category": "core",
       "default": true
     },
@@ -115,14 +73,14 @@
     {
       "name": "GitHub-CLI",
       "dir": "git-hub-cli",
-      "description": "GitHub workflow using gh CLI — creating issues, PRs, wiki updates, and Actions integration. Use when the project is hosted on GitHub.",
+      "description": "GitHub workflow using the gh CLI — issues, PRs, releases, and Actions. Use when the project is hosted on GitHub. Conventions (commit/branch/PR-body) come from git-workflow.",
       "category": "core",
       "default": true
     },
     {
       "name": "GitLab-CLI",
       "dir": "git-lab-cli",
-      "description": "GitLab workflow using glab CLI — creating issues, MRs, wiki updates, and CI/CD integration. Use when the project is hosted on GitLab.",
+      "description": "GitLab workflow using the glab CLI — issues, MRs, wiki, and CI/CD. Use when the project is hosted on GitLab. Conventions (commit/branch/MR-body) come from git-workflow.",
       "category": "core",
       "default": true
     },
@@ -183,13 +141,6 @@
       "default": true
     },
     {
-      "name": "Shipping-Phase",
-      "dir": "shipping-phase",
-      "description": "Use to ship polished code, audit for release, or run a retrospective after completing a project.",
-      "category": "core",
-      "default": true
-    },
-    {
       "name": "Skill-Registry",
       "dir": "skill-registry",
       "description": "Manages Conductor skills from the remote registry — install, remove, search, and list skills using the conductor CLI. Use during Technical Vision workflow or whenever the tech stack changes.",
@@ -225,13 +176,6 @@
       "default": true
     },
     {
-      "name": "testing-patterns",
-      "dir": "testing-patterns",
-      "description": "Testing patterns and principles. Unit, integration, mocking strategies.",
-      "category": "core",
-      "default": true
-    },
-    {
       "name": "Trace-Documentation",
       "dir": "trace-documentation",
       "description": "Use to generate or update trace.md files that link project backlog items directly to code modifications.",
@@ -249,6 +193,13 @@
       "name": "Verification-Gate",
       "dir": "verification-gate",
       "description": "Use this skill when about to claim any work is done. Enforces the Verification Iron Law — evidence before assertions, always.",
+      "category": "core",
+      "default": true
+    },
+    {
+      "name": "Behavior-Validator",
+      "dir": "behavior-validator",
+      "description": "Source-blind, black-box validation of the running artifact. A validator that has NOT read the implementation exercises the live app/CLI/API as a real operator, with adversarial anti-cheat probes, and reports observed behavior against a contract. Dynamic complement to verification-gate and independent-review.",
       "category": "core",
       "default": true
     }
@@ -397,36 +348,30 @@
       "skills": [
         "Analyze-Tests",
         "architecture",
-        "Blueprint-Phase",
         "Brain-Dump-to-Epics",
-        "clean-code",
         "Code-Review",
+        "Behavior-Validator",
         "Collaborative-Drafting",
         "Context-Engineering",
         "Context-Updater",
-        "deployment-procedures",
-        "Discovery-Phase",
-        "documentation-templates",
         "Domain-Modeling",
-        "Execution-Phase",
         "frontend-design",
         "GitHub-CLI",
         "GitLab-CLI",
         "Git-Workflow",
         "using-git-worktrees",
         "Grilling",
+        "Handoff",
         "Independent-Review",
         "Judge-Panel",
         "i18n-localization",
         "lint-and-validate",
         "Model-Routing",
-        "Shipping-Phase",
         "Skill-Registry",
         "Subagent-Isolation",
         "System-Janitor",
         "systematic-debugging",
         "Task-Tracker",
-        "testing-patterns",
         "Trace-Documentation",
         "UX-Reviewer",
         "Verification-Gate"

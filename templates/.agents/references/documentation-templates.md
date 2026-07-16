@@ -1,8 +1,4 @@
----
-name: documentation-templates
-description: Documentation templates and structure guidelines. README, API docs, code comments, and AI-friendly documentation.
-allowed-tools: Read, Glob, Grep
----
+> **Reference material — not a skill.** Demoted from `skills/documentation-templates/` in the skill-catalog audit (it owns doc scaffolds (README, API, ADR, changelog, JSDoc) — advice, not a distinct workflow / tool boundary / evidence contract). Loaded on demand; see the Reference Library in `.agents/how-it-works.md`.
 
 # Documentation Templates
 

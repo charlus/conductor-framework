@@ -254,14 +254,7 @@ The reusable "how" that discovery/blueprint/spec workflows load instead of re-im
 | `grilling` | The interview primitive — one question at a time, recommend an answer to each, look facts up instead of asking, one convergence gate |
 | `collaborative-drafting` | The drafting primitive — lead with a complete draft the human corrects (propose → discuss → coverage-check → confirm), not a blank-page questionnaire |
 
-### Lifecycle Routers
-Entry points that read the phase you're in and route you to the right workflow.
-| Skill | Purpose |
-|---|---|
-| `discovery-phase` | New idea / new app / new feature area → routes into Genesis |
-| `blueprint-phase` | PRD, UX/UI brief, Technical Vision, Carve → routes into Blueprint workflows |
-| `execution-phase` | Spec-It, Build, Quick-Path → routes into Execution workflows |
-| `shipping-phase` | Ship, audit, retrospective → routes into Ship/Retrospective |
+> Lifecycle routing (which phase/workflow a request maps to) lives in the always-on **Request Classifier** in `AGENTS.md` and its full table above — not in a skill. Both harnesses reach workflows directly (Antigravity: `.agents/workflows/*.md` slash-commands; Claude Code: generated `.claude/commands/*.md` shims), so no proxy skill is needed.
 
 ### Build Discipline
 | Skill | Purpose |
@@ -271,6 +264,7 @@ Entry points that read the phase you're in and route you to the right workflow.
 | `task-tracker` | Live task tracker maintained through Build |
 | `code-review` | Two-stage review after implementing: spec compliance, then code quality against a Fowler smell baseline |
 | `independent-review` | The fresh-context review gate — a reviewer that did *not* produce the artifact (PRD, architecture, spec, carved plan, diff) decides whether it's ready before save/handoff. Loaded by the blueprint workflows; Ship Phase 4 is its reference implementation |
+| `behavior-validator` | Source-blind, black-box validation of the *running* artifact with adversarial anti-cheat probes — the dynamic complement to `verification-gate` (author-run) and `independent-review` (static). Used at Ship / loop execution when a change has a runtime surface |
 | `context-updater` | Updates Product Areas + Context after Build/Retrospective |
 | `trace-documentation` | Links backlog items to the code that implemented them |
 | `context-engineering` | Reading/writing `conductor/` state and the task backlog correctly |
@@ -279,11 +273,7 @@ Entry points that read the phase you're in and route you to the right workflow.
 | Skill | Purpose |
 |---|---|
 | `systematic-debugging` | 4-phase root-cause debugging — build a command that goes red on *this* bug first, then rank falsifiable hypotheses |
-| `clean-code` | Pragmatic coding standards, no over-engineering |
-| `testing-patterns` | Unit/integration/mocking strategy and the testing pyramid |
 | `frontend-design` | Design thinking for web UI |
-| `documentation-templates` | README, API docs, comment standards |
-| `deployment-procedures` | Safe deployment and rollback strategy |
 | `i18n-localization` | Internationalization and translation management |
 | `git-worktrees` | Isolated parallel development |
 | `architecture-patterns` | Architectural trade-off analysis and ADRs |
@@ -308,6 +298,16 @@ Entry points that read the phase you're in and route you to the right workflow.
 | `system-janitor` | Scans for misplaced files, recommends reorganization |
 | `handoff` | Compact the conversation into a self-contained handoff doc before leaving the ~120k-token "smart zone"; used to pass work between sessions and loop iterations |
 | `skill-registry` | Manages `conductor add/remove/list/search` against your configured registry |
+
+### Reference Library
+Not skills — on-demand reference docs in `.agents/references/`. They carry advice or templates, not an owned workflow / tool boundary / evidence contract, so they were demoted out of the skill catalog. Read the relevant one when its topic comes up; a skill is for *doing*, a reference is for *looking up*.
+
+| Reference | Read it when | Natural caller |
+|---|---|---|
+| `references/clean-code.md` | writing or reviewing implementation code | Build, `code-review` |
+| `references/testing-patterns.md` | choosing test types / structuring a suite | Build, `test-driven-law`, `analyze-tests` |
+| `references/documentation-templates.md` | scaffolding a README / ADR / changelog / API doc | Ship, Technical Vision (ADRs) |
+| `references/deployment-procedures.md` | planning a deploy or rollback | Ship, `architecture-patterns` |
 
 ---
 

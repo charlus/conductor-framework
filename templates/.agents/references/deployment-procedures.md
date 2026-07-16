@@ -1,8 +1,4 @@
----
-name: deployment-procedures
-description: Production deployment principles and decision-making. Safe deployment workflows, rollback strategies, and verification. Teaches thinking, not scripts.
-allowed-tools: Read, Glob, Grep, Bash
----
+> **Reference material — not a skill.** Demoted from `skills/deployment-procedures/` in the skill-catalog audit (it owns deployment & rollback strategy — advice, not a distinct workflow / tool boundary / evidence contract). Loaded on demand; see the Reference Library in `.agents/how-it-works.md`.
 
 # Deployment Procedures
 

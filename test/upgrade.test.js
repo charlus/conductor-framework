@@ -33,18 +33,18 @@ function makeV5Install() {
   const dir = mkdtempSync(join(tmpdir(), "cond-v5-"));
   const A = join(dir, ".agents");
   mkdirSync(join(A, "workflows"), { recursive: true });
-  mkdirSync(join(A, "skills", "clean-code"), { recursive: true });
+  mkdirSync(join(A, "skills", "code-review"), { recursive: true });
   mkdirSync(join(A, "skills", "acme-custom"), { recursive: true });
   mkdirSync(join(A, "rules"), { recursive: true });
 
   // Framework file the user edited (must be REPLACED on upgrade).
   writeFileSync(join(A, "workflows", "genesis.md"), tpl("workflows/genesis.md") + "\n<!-- USER EDIT junk -->\n");
   copyFileSync(join(TEMPLATES, ".agents", "AGENTS.md"), join(A, "AGENTS.md"));
-  copyFileSync(join(TEMPLATES, ".agents", "skills", "clean-code", "SKILL.md"), join(A, "skills", "clean-code", "SKILL.md"));
+  copyFileSync(join(TEMPLATES, ".agents", "skills", "code-review", "SKILL.md"), join(A, "skills", "code-review", "SKILL.md"));
   // Custom skill (must be CARRIED forward).
   writeFileSync(join(A, "skills", "acme-custom", "SKILL.md"), "---\nname: acme-custom\n---\ncustom\n");
-  // Selections: user selected clean-code + acme-custom.
-  writeFileSync(join(A, ".selections.json"), JSON.stringify({ version: 1, skills: ["clean-code", "acme-custom"], rules: [], workflows: ["genesis"], bundles: [] }));
+  // Selections: user selected code-review + acme-custom.
+  writeFileSync(join(A, ".selections.json"), JSON.stringify({ version: 1, skills: ["code-review", "acme-custom"], rules: [], workflows: ["genesis"], bundles: [] }));
 
   // A CLAUDE.md stub with an old managed block + a user note below it.
   writeFileSync(join(dir, "CLAUDE.md"),

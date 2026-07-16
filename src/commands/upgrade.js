@@ -31,7 +31,7 @@ const ROOT_FOLDER_NAMES = [
 ];
 
 function planCounts(plan) {
-  const c = { COPY: 0, UPDATE: 0, KEEP: 0, AVAILABLE: 0 };
+  const c = { COPY: 0, UPDATE: 0, KEEP: 0, AVAILABLE: 0, REMOVE: 0 };
   for (const item of plan) c[item.action] = (c[item.action] || 0) + 1;
   return c;
 }
@@ -100,7 +100,7 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       stdout.write(`  Backup:   .conductor-backup/<ts>/ (.agents/${(await exists(target5Templates)) ? ", conductor/5-templates/" : ""}${doesStructuralMigration ? ", legacy dirs" : ""})\n`);
       if (hasAgents) {
         const c = planCounts(planUpdate(sourceAgentsDir, agentsDir, checksumPath, { coreSkills }));
-        stdout.write(`  .agents/  REPLACE ${c.UPDATE} framework · ADD ${c.COPY} new · CARRY ${c.KEEP} custom · ${c.AVAILABLE} optional (not selected)\n`);
+        stdout.write(`  .agents/  REPLACE ${c.UPDATE} framework · ADD ${c.COPY} new · PRUNE ${c.REMOVE} dropped · CARRY ${c.KEEP} custom · ${c.AVAILABLE} optional (not selected)\n`);
       } else {
         stdout.write(`  .agents/  fresh install\n`);
       }
@@ -183,7 +183,7 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       const plan = planUpdate(sourceAgentsDir, agentsDir, checksumPath, { coreSkills });
       const c = planCounts(plan);
       executeUpdate(plan, sourceAgentsDir, agentsDir, checksumPath);
-      stdout.write(`  ✅ Replaced ${c.UPDATE} framework files, added ${c.COPY} new, carried ${c.KEEP} custom (${c.AVAILABLE} optional not installed).\n`);
+      stdout.write(`  ✅ Replaced ${c.UPDATE} framework files, added ${c.COPY} new, pruned ${c.REMOVE} dropped upstream, carried ${c.KEEP} custom (${c.AVAILABLE} optional not installed).\n`);
 
       // ---- Step 4: Refresh conductor/5-templates (framework scaffolding) ----
       stdout.write("\nStep 4: Refreshing conductor/5-templates/...\n");

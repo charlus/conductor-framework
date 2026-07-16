@@ -1,9 +1,11 @@
 ---
 name: GitHub-CLI
-description: GitHub workflow using gh CLI — creating issues, PRs, wiki updates, and Actions integration. Use when the project is hosted on GitHub.
+description: GitHub workflow using the gh CLI — issues, PRs, releases, and Actions. Use when the project is hosted on GitHub. Conventions (commit/branch/PR-body) come from git-workflow.
 ---
 
 # GitHub CLI Integration
+
+> This skill owns the **`gh` mechanics only**. Commit messages, branch names, and the PR description structure are conventions — they live in `skills/git-workflow/SKILL.md`, the single host-agnostic source of truth. This skill does not restate them; it shows how to drive `gh`.
 
 ## Prerequisites
 
@@ -15,74 +17,41 @@ description: GitHub workflow using gh CLI — creating issues, PRs, wiki updates
 ### Issues
 
 ```bash
-# Create issue from Feature Spec
-gh issue create \
-  --title "feat: [Feature Name]" \
-  --body-file feature-spec.md \
-  --label "implementation"
+# Create issue from a Feature Spec
+gh issue create --title "feat: [Feature Name]" --body-file feature-spec.md --label "implementation"
 
-# List open issues
-gh issue list
-
-# Close issue when done
-gh issue close <number>
+gh issue list                 # list open issues
+gh issue close <number>        # close when done
 ```
 
 ### Pull Requests
 
 ```bash
-# Create PR from current branch
-gh pr create \
-  --title "feat(scope): [description]" \
-  --body "## What\n[description]\n\n## Why\n[reason]\n\n## Testing\n- [ ] Tests pass" \
-  --assignee @me
+# Write the PR body using the PR/MR template in git-workflow, save it to a file,
+# then pass it with --body-file (avoids shell-escaping the multi-line template):
+gh pr create --title "feat(scope): [description]" --body-file .git/pr-body.md --assignee @me
 
-# Create PR with auto-close issue
-gh pr create \
-  --title "feat: [description]" \
-  --body "Closes #<issue_number>" \
-  --assignee @me
+# Quick PR that auto-closes an issue on merge:
+gh pr create --title "feat: [description]" --body "Closes #<issue_number>" --assignee @me
 
-# List open PRs
-gh pr list
-
-# Merge when ready
-gh pr merge <number> --squash
+gh pr list                     # list open PRs
+gh pr merge <number> --squash  # merge when ready
 ```
 
 ### Releases
 
 ```bash
-# Create release after shipping
-gh release create v1.0.0 \
-  --title "v1.0.0 — [Release Name]" \
-  --notes "## Changes\n- [feature 1]\n- [feature 2]"
+gh release create v1.0.0 --title "v1.0.0 — [Release Name]" --notes-file release-notes.md
 ```
 
 ### Actions
 
 ```bash
-# Check workflow status
-gh run list
-
-# View run details
-gh run view <run-id>
-
-# Re-run failed workflow
-gh run rerun <run-id>
+gh run list                    # check workflow status
+gh run view <run-id>           # view run details
+gh run rerun <run-id>          # re-run a failed workflow
 ```
 
-## Build Workflow Integration
+## Build integration
 
-### During Build Phase 1 (Execute Batch)
-- Each task maps to a commit: `feat(scope): task description`
-- Push regularly: `git push origin feature/branch-name`
-
-### During Build Phase 4 (Ship & Close)
-1. Create PR: `gh pr create --title "feat: [Implementation Name]" --assignee @me`
-2. Link to issue: Include `Closes #<issue>` in description
-3. After merge: Close related issues
-
-### After Retrospective
-- Create release if applicable: `gh release create`
-- Update project wiki with documentation
+Follow `skills/git-workflow/SKILL.md` for *when* and *how* to commit (one commit per verified task, Conventional Commits, PR at Ship). This skill only supplies the `gh` commands those steps invoke — `gh pr create` at Build's Ship & Close phase, `gh release create` after Retrospective, and `gh issue close` on merge.

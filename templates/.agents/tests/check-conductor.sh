@@ -125,22 +125,41 @@ echo "5. Skills..."
 skills=(
   "brain-dump-to-epics" "system-janitor" "ux-reviewer"
   "verification-gate" "task-tracker" "code-review" "context-updater"
-  "systematic-debugging" "clean-code" "testing-patterns"
-  "frontend-design" "documentation-templates" "deployment-procedures"
+  "systematic-debugging"
+  "frontend-design"
   "i18n-localization" "git-worktrees"
   "git-workflow" "git-lab-cli" "git-hub-cli"
   "architecture-patterns"
   "lint-and-validate"
   "analyze-tests" "trace-documentation"
-  "context-engineering" "discovery-phase" "blueprint-phase" "execution-phase" "shipping-phase"
+  "context-engineering"
   "skill-registry" "grilling" "collaborative-drafting" "handoff"
   "domain-modeling" "subagent-isolation" "model-routing"
-  "independent-review" "judge-panel"
+  "independent-review" "judge-panel" "behavior-validator"
 )
 
 for skill in "${skills[@]}"; do
   require_file "$AGENT_DIR/skills/$skill/SKILL.md"
 done
+
+# ---- 5b. Reference Library (docs demoted out of the skill catalog) ----
+echo ""
+echo "5b. Reference Library..."
+
+references=(
+  "clean-code" "testing-patterns" "documentation-templates" "deployment-procedures"
+)
+for ref in "${references[@]}"; do
+  require_file "$AGENT_DIR/references/$ref.md"
+done
+
+# A reference doc is only discoverable if something loaded points to it (esp. on
+# Claude Code, which has no skill frontmatter to fall back on). Guard against orphans.
+if grep -q "references/clean-code.md" "$AGENT_DIR/how-it-works.md" 2>/dev/null; then
+  pass "Reference Library has a live referrer (how-it-works.md)"
+else
+  fail "references/ not referenced from how-it-works.md — demoted docs would be undiscoverable"
+fi
 
 # ---- 6. Rules ----
 echo ""

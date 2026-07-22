@@ -32,6 +32,7 @@ Classify what the user needs before acting:
 | "I have an idea", "New app", "New feature area" | `workflows/genesis.md` |
 | "Grand PRD", "Create PRD" | `workflows/grand-prd.md` |
 | "Carve", "Break it down" | `workflows/carve.md` |
+| "Deepen", "Improve codebase architecture", "Find shallow modules" | `workflows/deepen.md` |
 | "Spec it", "Write the spec" | `workflows/spec-it.md` |
 | "Build it", "Let's code" | `workflows/build.md` |
 | "Ship it", "Audit and ship", "Release" | `workflows/ship.md` |

@@ -257,6 +257,13 @@
       "default": true
     },
     {
+      "name": "deepen",
+      "file": "deepen.md",
+      "description": "Deepen (Brownfield Architecture Improvement) — find shallow/scattered modules in an existing codebase and reshape them into deep modules with narrow interfaces, safely. Driven by the Code Archaeologist.",
+      "category": "core",
+      "default": true
+    },
+    {
       "name": "genesis",
       "file": "genesis.md",
       "description": "Genesis (The App Origin Story)",
@@ -386,6 +393,7 @@
         "agentic-flow",
         "build",
         "carve",
+        "deepen",
         "genesis",
         "grand-prd",
         "loop-checker",

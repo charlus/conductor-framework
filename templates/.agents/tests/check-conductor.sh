@@ -95,7 +95,7 @@ echo "3. Workflows..."
 
 workflows=(
   "genesis" "storyboard" "grand-prd" "ux-ui-design-brief"
-  "technical-vision" "carve" "spec-it" "build" "quick-path"
+  "technical-vision" "deepen" "carve" "spec-it" "build" "quick-path"
   "retrospective" "agentic-flow" "ship" "tdd-cycle" "unattended-loop"
 )
 

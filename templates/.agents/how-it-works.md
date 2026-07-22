@@ -146,6 +146,7 @@ task-backlog.md → Do it → ship-log.md
 | "Storyboard", "Shape the experience" | Experience Design | → `workflows/storyboard.md` |
 | "Grand PRD", "Create PRD" | Blueprint | → `workflows/grand-prd.md` → `ux-ui-design-brief.md` → `technical-vision.md` |
 | "Carve", "Break it down" | Slicing | → `workflows/carve.md` |
+| "Deepen", "Improve codebase architecture", "Find shallow modules", "Reshape for agents" | Brownfield Architecture | → `workflows/deepen.md` (Code Archaeologist; the brownfield counterpart to `technical-vision`) |
 | "Spec it", "Write the spec" | Specification | → `workflows/spec-it.md` |
 | "Build it", "Let's code" | Execution | → `workflows/build.md` |
 | "Ship it", "Audit and ship", "Release" | Shipping | → `workflows/ship.md` |
@@ -213,6 +214,13 @@ Mechanics live in `.agents/skills/context-engineering/SKILL.md`.
 | **Ship** | "Ship it", "Audit and ship" | Empathy-audited code, regression tests, CI alignment, independent fresh-context review, PR/MR | Retrospective |
 | **Quick-Path** | "Just build this" | Spec + Plan + Code in one pass | Ship |
 | **Retrospective** | "Let's reflect" | Lessons + knowledge base updates | — |
+
+### Brownfield & Maintenance
+| Workflow | Trigger | Produces | Next |
+|---|---|---|---|
+| **Deepen** | "Deepen", "Improve codebase architecture", "Find shallow modules" | Ranked deepening report; characterization-test-first + Strangler-Fig plan for reshaping shallow/scattered modules into deep ones | Carve / Build |
+
+> **Deepen** is the brownfield counterpart to **Technical Vision**: Technical Vision designs deep modules *before* code exists; Deepen finds and safely reshapes shallow ones *after*. It's driven by the **Code Archaeologist** persona and pins behavior with a characterization test before any structure moves.
 
 ### Cross-Cutting
 | Workflow | Used by | Purpose |
@@ -320,7 +328,7 @@ Not skills — on-demand reference docs in `.agents/references/`. They carry adv
 | **Product Manager** | "PM mode" | User value, prioritization, outcomes over outputs |
 | **Tech Lead** | "Tech Lead mode" | Code quality, patterns, pragmatic implementation |
 | **Designer** | "Designer mode", "Make it look premium" | Visual quality, design systems, `4-context/design/` |
-| **Code Archaeologist** | "Archaeologist mode", "Explain this codebase" | Legacy code, refactoring strategy, Chesterton's Fence |
+| **Code Archaeologist** | "Archaeologist mode", "Explain this codebase", "Deepen the architecture" | Legacy code, refactoring strategy, Chesterton's Fence, deep modules / narrow interfaces (drives the `deepen` workflow) |
 | **Security Auditor** | "Security mode", "Check security" | OWASP Top 10, supply chain, zero trust, pentest methodology |
 | **Database Architect** | "Database mode", "Design the schema" | Schema design, query optimization, migrations |
 | **Performance Optimizer** | "Performance mode", "Make it faster" | Core Web Vitals, profiling, bundle size |

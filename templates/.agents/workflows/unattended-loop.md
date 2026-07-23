@@ -64,20 +64,19 @@ Before starting your role, check the active files and append the matching person
          - `phase: "contract"` → you are the **test-author**. Write **only** the failing tests that encode this task's spec — the executable contract — and nothing else. Success is **RED**: the suite must fail because there's no implementation yet. Do not write implementation code. (The driver confirms RED; a green suite here means your tests are vacuous and the beat is rejected.)
          - `phase: "implementation"` → you are the **implementer**. Make the contract's tests pass with the minimum code. You **must not edit, weaken, or delete the tests** — they are another agent's contract; changing them to go green is reward-hacking and the Checker will reject it. If a test is genuinely wrong, stop and surface it, don't quietly rewrite it.
          - This is the *unattended, multi-agent* form of `.agents/rules/test-driven-law.md`'s RED→GREEN — the law is identical, just split across two fresh contexts so the implementer can't move the goalposts. Interactive Build is unchanged (one mind runs the whole cycle).
-  3. Commit your changes. If (and only if) you believe the entire goal is now complete, write `conductor/1-workbench/maker-signal.json` with `{ "done": true }` — this is your one positive "done" signal. Do **not** edit `loop-state.json` yourself; the driver owns that file and reads your signal from `maker-signal.json` after the beat (a file the driver can't clobber). The driver still gates the claim behind a green verification + Checker before accepting `completed`.
-  4. Stop to conclude the beat. **Do not set `status` yourself** — the driver transitions you to `ready_for_check` and then runs verification.
+  3. **Stay a good citizen of the knowledge base (you are conductor-enabled — use it).** You auto-loaded the conductor instructions on startup, so you already know where the product knowledge lives. Two habits, every beat:
+     - *Orient before you build:* consult the knowledge relevant to THIS task — `0-compass/` (vision, principles), `3-product-areas/` (features/epics/technical for the area you're touching), `4-context/` (technical/design/product conventions) — and build consistently with it (reuse existing patterns; don't reinvent or contradict).
+     - *Keep it current when warranted (NOT mechanically):* if your change adds or changes product behavior, architecture, or a convention, run the `context-updater` skill to update the relevant `3-product-areas/` / `4-context/` files **in this same commit** — so the knowledge base stays true and the update is reviewed on the PR alongside the code. If nothing conceptual changed, don't force an update. *(This is the maker-beat home of the product-KB update: the driver — not the agent — owns the `passed_by_checker` transition below, so this must happen here, in the beat that actually runs.)*
+  4. Commit your changes. If (and only if) you believe the entire goal is now complete, write `conductor/1-workbench/maker-signal.json` with `{ "done": true }` — this is your one positive "done" signal. Do **not** edit `loop-state.json` yourself; the driver owns that file and reads your signal from `maker-signal.json` after the beat (a file the driver can't clobber). The driver still gates the claim behind a green verification + Checker before accepting `completed`.
+  5. Stop to conclude the beat. **Do not set `status` yourself** — the driver transitions you to `ready_for_check` and then runs verification.
 
 * **If `ready_for_check`** (the driver's verification gate — Evidence Rule in code):
   1. The **driver** runs the resolved verification command itself and records the exit code. A non-zero exit forces `rejected_by_checker`; a zero exit is necessary but not sufficient.
   2. You do not run verification to decide the verdict — that is the driver's authority. (In a future phase an independent Checker in a separate process reviews green diffs above this floor; until then, a green exit passes.)
   3. Nothing for the agent to write here; the driver owns the transition.
 
-* **If `passed_by_checker`** (advancing):
-  1. Run the `context-updater` skill to sync files in `3-product-areas/` and update `4-context/`.
-  2. Merge the branch and clean up worktrees (if in execution).
-  3. Log the victory in `conductor/0-compass/ship-log.md`.
-  4. Move state through Conductor's physical folders (Folder = State).
-  5. The driver reads `maker_reported_done`: if set (and verification is green) it finalizes `completed`; otherwise it resets to `idle` for the next task. You do not set the terminal status.
+* **If `passed_by_checker`** (advancing — **driver-owned; the agent is NOT invoked in this state**):
+  > The deterministic driver handles everything here between beats — there is no agent beat at `passed_by_checker`. It opens the PR-gated merge (L3), appends the `0-compass/ship-log.md` audit line, moves state through the folders, and reads `maker_reported_done` to finalize `completed` (green + done) or reset to `idle` for the next task. **Because no agent runs here, the product-knowledge update lives in the Maker step above (item 3), not in this state.** Listed for completeness so the state machine reads end-to-end.
 
 ## Step 3: Conclude the Beat
 * Save any content you produced (specs, code, commits) and any agent-owned fields you legitimately set (`maker_reported_done`, `history` notes).

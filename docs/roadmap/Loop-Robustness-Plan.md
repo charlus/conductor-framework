@@ -5,6 +5,17 @@
 > **Shipped** (branch `feat/loop-robustness-p0`): **P0.1** commit backstop (`src/loop/autocommit.js`), **P0.2** teardown dirty-guard (`src/loop/worktree.js`), **P0.3** verify-against-committed (by ordering), **P1.1** capture logged to the ship-log, **P1.2** diagnosable checker verdicts (`src/loop/checker.js`). Covered by `test/loop-robustness.test.js` (10 cases) + confirmed live by the fake-agent smoke test.
 > **Remaining:** **P1.3** `conductor/` → Spine task bridge (biggest UX win, needs the carve task-file format), **P1.4** merge-conflict/resume discipline, **P2** (self-improvement loop, architecture-checklist contract, multi-engine parity). These are larger, design-heavier efforts best done as focused follow-ups once the pair loop has more real-world mileage.
 
+## 0. North Star — two clients, one source of truth
+
+The framework must serve **two clients over the same `./conductor/` folder**, with no second database:
+
+- **`./conductor/` is the single source of truth** (durable): `0-compass/ship-log.md`, `1-workbench/inbox.md`, `2-backlog/task-backlog.md` (+ `implementation-backlog/`, `project-backlog/`), `implementations/NN-*/implementation-plan.md`, `3-product-areas/`, `4-context/`.
+- **Client A — interactive** (Claude Code in VS Code): chat → `AGENTS.md` classifier → workflows read/write `conductor/`. This is the default, primary experience and **must stay untouched**. *(All loop-robustness work lives in `src/loop/*` + `src/commands/loop.js` — the `conductor loop` CLI path — and changes **zero** `templates/` files, so the interactive experience is unaffected by design.)*
+- **Client B — autonomous fleet** (N × `claude`/`agy` CLIs via `conductor loop`): pulls work *from* `conductor/` (inbox items, backlog, open implementation-plans, bug reports), executes each item in an isolated git worktree, and writes results *back* to `conductor/` (close the item, update product-areas, append ship-log, open a PR).
+- **`loop-state.json` is ephemeral RUN/coordination state, not a competing truth.** A dispatcher *derives* it from `conductor/` at the start of a run and reflects progress *back* into `conductor/`. The Spine holds only what the driver's guardrails need (iteration/budget/stall bookkeeping) plus which agent claimed which task.
+
+Both clients therefore read and write the same folder; a human editing `inbox.md` in VS Code and a fleet agent draining it are two clients of one database. **P0 (below) is the safety prerequisite for Client B** — an autonomous agent that loses its work can't be trusted with a backlog. The **Fleet Bridge** (§5) is the work that actually delivers Client B.
+
 ## 1. What the first live run proved (and exposed)
 
 The loop is architecturally real: it resolved the `claude` adapter, created an isolated worktree, spawned a real maker beat, ran the verify command itself, spawned a **separate** independent checker process, computed a fail-safe verdict, reached `awaiting_review`, tore down the worktree, and wrote an audit trail. The **safety envelope held** — no bad merge, fail-safe reject, clean human handoff, isolation intact.
@@ -59,4 +70,16 @@ The design is sound; the **reps** are missing. `agentctl`'s 2,731-line orchestra
 
 ## 4. Sequencing
 
-P0 first (it's the data-loss bug and it's small — the commit-backstop is ~30 lines lifted from `ag-merge`). Then P1.1–P1.2 (beat reliability), then P1.3 (the plan→Spine bridge, the biggest UX win). P2 is the "catch up to agentctl's ceiling" tier and can follow once the pair loop survives real tasks.
+P0 first (it's the data-loss bug and it's small — the commit-backstop is ~30 lines lifted from `ag-merge`). Then P1.1–P1.2 (beat reliability). Then the **Fleet Bridge (§5)** — the work that turns the driver into Client B. P2 is the "catch up to agentctl's ceiling" tier and can follow once the fleet survives real tasks.
+
+## 5. The Fleet Bridge — wiring `conductor/` to the autonomous fleet (Client B)
+
+This is the epic that delivers the North Star (§0): let N agents drain the human's `conductor/` backlog autonomously, with `conductor/` as the one source of truth. It supersedes the earlier, narrower "P1.3 plan→Spine bridge". Each piece is deps-injected so the driver stays pure and unit-testable.
+
+- **FB-1 Harvester (`conductor/` → work queue).** A pure reader that turns the source of truth into a normalized work list: unprocessed `1-workbench/inbox.md` bullets, open items in `2-backlog/task-backlog.md`, ready `implementations/NN-*/implementation-plan.md` steps, and bug reports. Emits `loop-state.json.tasks[]` (each item typed: `triage` | `carve` | `build` | `bugfix`, with a stable id + a pointer back to its source location). New `src/loop/harvester.js`; `conductor loop --from-conductor` (or default when no `--goal`).
+- **FB-2 Dispatcher & claiming (no collisions).** N agents each claim a distinct work item via the swarm blackboard (`src/loop/swarm.js` already has a task-graph + serialized merge queue). Claims persist to `loop-state.json` (ephemeral coordination) AND a lightweight lock/marker in the item's `conductor/` source, so a human in VS Code sees "🤖 in progress" and doesn't double-book it. One worktree per item; `concurrency` bounds the fleet.
+- **FB-3 Write-back (results → `conductor/`).** On a green + Checker-approved item: append `0-compass/ship-log.md`, tick the backlog/inbox item as done (or move it to `6-archive/`), update the relevant `3-product-areas/*`, and open a PR (never a direct push). The single source of truth reflects fleet progress the same way it reflects human progress. New `src/loop/writeback.js`.
+- **FB-4 Work-type → workflow routing.** Map each harvested item type to the existing workflow the beat runs: `triage`→inbox triage, `carve`→`carve.md`, `build`→`build.md` (per-task TDD), `bugfix`→a debug/fix path. The beat prompt already loads `AGENTS.md` + workflows; FB-4 just tells the beat *which* workflow + *which* `conductor/` item it owns this beat (via `task.role`/`task.phase`, already forwarded by the swarm `runBeat`).
+- **FB-5 Interactive/fleet coherence guarantees.** Concurrency safety when a human edits `conductor/` mid-run (re-harvest each scheduling round; treat the file as truth, the Spine as cache); idempotent claims (a re-run reconciles against `conductor/`, never double-shipping); and a clean `--dry-run` that prints the harvested queue so an operator can see what the fleet *would* pick up before launching it.
+
+**Explicitly preserved:** none of FB touches `templates/` semantics for interactive use — it adds *readers/writers* over the same folder. Client A keeps working exactly as today; Client B becomes a second, well-behaved reader/writer of the same truth.

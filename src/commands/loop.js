@@ -5,14 +5,14 @@
 // file is the IO shell (read/persist state, run git + verify, pick the adapter);
 // all guarantees live in the pure driver so `node --test` can exercise them.
 
-import { readFile, writeFile, rename, access, rm } from "node:fs/promises";
+import { readFile, writeFile, rename, access, rm, cp, mkdir, readdir } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { spawn } from "node:child_process";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { runLoop, normalizeState, resolveVerifyCommand } from "../loop/driver.js";
 import { resolveAdapter } from "../loop/adapters/index.js";
-import { createWorktree, teardownWorktree, worktreePlan } from "../loop/worktree.js";
+import { createWorktree, teardownWorktree, worktreePlan, materializeConductorContext, CONTEXT_ANCHORS } from "../loop/worktree.js";
 import { autoCommit, autoCommitMessage } from "../loop/autocommit.js";
 import { harvestWorkQueue, renderAssignment } from "../loop/harvester.js";
 import { applyClaim, applyDone } from "../loop/writeback.js";
@@ -498,6 +498,53 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     }
   }
 
+  // Fill a fresh worktree with any conductor scaffold git didn't check out because
+  // it's untracked / gitignored (both tracked and gitignored conductor repos exist
+  // in the wild). Without this the isolated Maker is BLIND: no CLAUDE.md/.agents
+  // (instructions/skills) and no conductor/ (product KB). Ignored files stay ignored
+  // in the worktree too, so nothing pollutes the feature branch / PR. Excludes
+  // `.worktrees` (would recurse) + `.git`. Best-effort — never fails the run.
+  async function materializeContextInto(worktreePath) {
+    try {
+      const atRoot = {};
+      const inWt = {};
+      for (const a of CONTEXT_ANCHORS) {
+        atRoot[a] = await exists(join(root, a));
+        inWt[a] = await exists(join(worktreePath, a));
+      }
+      const filled = await materializeConductorContext({
+        existsAtRoot: (a) => atRoot[a],
+        existsInWorktree: (a) => inWt[a],
+        copy: async (a) => {
+          const src = join(root, a);
+          const dst = join(worktreePath, a);
+          if (a === ".agents") {
+            // The worktree lives at `.agents/.worktrees/<slug>`, so copying
+            // `.agents` wholesale is "into a subdirectory of self" — node's cp
+            // rejects it (EINVAL) before any filter runs. Copy `.agents`'s
+            // children individually, skipping `.worktrees`.
+            await mkdir(dst, { recursive: true });
+            for (const entry of await readdir(src)) {
+              if (entry === ".worktrees") continue;
+              await cp(join(src, entry), join(dst, entry), { recursive: true });
+            }
+          } else {
+            await cp(src, dst, { recursive: true });
+          }
+        },
+      });
+      if (filled.length) {
+        stdout.write(
+          `[CONDUCTOR LOOP] materialized untracked conductor context into the worktree (${filled.join(", ")}) — Maker is conductor-enabled\n`
+        );
+      }
+      return filled;
+    } catch (e) {
+      stderr.write(`[CONDUCTOR LOOP] ⚠️  could not materialize conductor context into the worktree: ${e.message}\n`);
+      return [];
+    }
+  }
+
   // ---- Route: swarm (task graph) vs. pair (single fuzzy goal) --------------
   if (fromConductor && state.tasks.length === 0) {
     stdout.write("[CONDUCTOR LOOP] conductor/ has no open work items (inbox + backlog empty). Nothing to do.\n");
@@ -560,6 +607,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         state.worktree = { path: wt.path, branch: wt.branch };
         await atomicWriteJson(statePath, state);
         stdout.write(`[CONDUCTOR LOOP] worktree: ${wt.branch} @ ${wt.path}${wt.created ? " (new)" : " (reused)"}\n`);
+        // Conductor-enable the isolated Maker even if the scaffold is gitignored.
+        await materializeContextInto(workCwd);
       } catch (e) {
         stderr.write(`Worktree isolation failed: ${e.message}\n`);
         return 1;
@@ -659,6 +708,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           const res = await git(["worktree", "add", "-b", plan.branch, plan.path]);
           if (!res.ok) await git(["worktree", "add", plan.path, plan.branch]);
         }
+        // Conductor-enable the isolated Maker even if the scaffold is gitignored.
+        await materializeContextInto(plan.path);
         cwdFor.set(task.id, plan.path);
         // FB-2: mark the item claimed in ./conductor/ so a human won't double-book it.
         // applyClaim is idempotent — a re-claim on resume no-ops (no diff → no commit).

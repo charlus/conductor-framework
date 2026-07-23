@@ -55,6 +55,32 @@ export async function createWorktree({ root, goalDescription, git }) {
   return { path, branch, created: true };
 }
 
+// The conductor scaffold a Maker needs to be conductor-enabled + product-aware.
+// `git worktree add` only checks out TRACKED files, so in a repo that gitignores
+// these (a real, legitimate setup) the worktree would be blind. We fill them in
+// from the main working tree; ignored files stay ignored in the worktree, so they
+// never pollute the feature branch / PR.
+export const CONTEXT_ANCHORS = Object.freeze(["CLAUDE.md", "GEMINI.md", ".agents", "conductor"]);
+
+/** Pure: which anchors exist at the root but are MISSING from the worktree. */
+export function anchorsToMaterialize({ anchors = CONTEXT_ANCHORS, existsAtRoot, existsInWorktree }) {
+  return anchors.filter((a) => existsAtRoot(a) && !existsInWorktree(a));
+}
+
+/**
+ * Fill an isolated worktree with any conductor scaffold git didn't check out
+ * (untracked / gitignored), so the Maker is conductor-enabled + product-aware
+ * regardless of whether the scaffold is committed. Tracked anchors are already
+ * present → skipped. IO injected: existsAtRoot/existsInWorktree(anchor)->bool,
+ * copy(anchor)->void (the caller's copy MUST exclude `.agents/.worktrees` or it
+ * recurses into the worktrees dir). @returns anchors actually materialized.
+ */
+export async function materializeConductorContext({ anchors = CONTEXT_ANCHORS, existsAtRoot, existsInWorktree, copy }) {
+  const todo = anchorsToMaterialize({ anchors, existsAtRoot, existsInWorktree });
+  for (const a of todo) await copy(a);
+  return todo;
+}
+
 /** True if `branch` has commits not reachable from `baseBranch` (unmerged work). */
 export async function hasUniqueCommits({ git, branch, baseBranch = "HEAD" }) {
   const res = await git(["rev-list", "--count", `${baseBranch}..${branch}`]);

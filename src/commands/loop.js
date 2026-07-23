@@ -12,6 +12,7 @@ import { join, resolve } from "node:path";
 import { runLoop, normalizeState, resolveVerifyCommand } from "../loop/driver.js";
 import { resolveAdapter } from "../loop/adapters/index.js";
 import { createWorktree, teardownWorktree, worktreePlan } from "../loop/worktree.js";
+import { autoCommit, autoCommitMessage } from "../loop/autocommit.js";
 import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, VERDICT_REL } from "../loop/checker.js";
 import { openPullRequest } from "../loop/merge.js";
 import { runSwarm } from "../loop/swarm.js";
@@ -335,6 +336,12 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     }
     const tally = tallyVerdicts(verdicts, votes);
     stdout.write(`[CONDUCTOR LOOP] checker: ${tally.approved ? "APPROVED" : "REJECTED"} — ${tally.reason}\n`);
+    // P1.2: surface each verdict's reason so a rejection is diagnosable (empty-diff
+    // / no-file plumbing issue vs a genuine substantive rejection).
+    if (!tally.approved) {
+      tally.reasons.forEach((r, i) => stdout.write(`[CONDUCTOR LOOP]   checker vote ${i + 1}: ${r}\n`));
+      await audit(`checker rejected: ${tally.reasons.join(" | ")}`);
+    }
     return { exitCode: verdictToExitCode(tally) };
   };
 
@@ -391,7 +398,19 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       verifyCommand,
       runBeat: async () => {
         await rm(makerSignalPath, { force: true }).catch(() => {}); // clear stale signal
-        return adapter.runBeat({ promptPath, cwd: workCwd, permissionMode: "acceptEdits" });
+        const result = await adapter.runBeat({ promptPath, cwd: workCwd, permissionMode: "acceptEdits" });
+        // P0.1 backstop: capture any uncommitted Maker change so verify sees a real
+        // diff, the Checker has commits to review, and teardown can't discard it.
+        const cap = await autoCommit({
+          git: makeGit(workCwd),
+          message: autoCommitMessage({ role: "maker", beat: state.iterations.current, goal: state.goal_description }),
+        });
+        if (cap.committed) {
+          const note = `auto-captured uncommitted maker changes${cap.bypassedHooks ? " (commit hook bypassed)" : ""}`;
+          stdout.write(`[CONDUCTOR LOOP] ${note}\n`);
+          await audit(`beat ${state.iterations.current}: ${note}`);
+        }
+        return result;
       },
       runVerify: (cmd) => sh(cmd, workCwd),
       gitHead: () => gitHead(workCwd),
@@ -429,16 +448,29 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         cwdFor.set(task.id, plan.path);
         return { path: plan.path, branch: plan.branch };
       },
-      runBeat: ({ task, role, phase }) =>
-        adapter.runBeat({
+      runBeat: async ({ task, role, phase }) => {
+        const taskCwd = cwdFor.get(task.id) ?? root;
+        const result = await adapter.runBeat({
           promptPath,
-          cwd: cwdFor.get(task.id) ?? root,
+          cwd: taskCwd,
           permissionMode: "acceptEdits",
           // Forwarded so the beat can adopt the right brief (test-author vs
           // implementer). The agent also reads task.role/phase from loop-state.
           role,
           phase,
-        }),
+        });
+        // P0.1 backstop (per-task worktree): never let uncommitted work be lost.
+        const cap = await autoCommit({
+          git: makeGit(taskCwd),
+          message: autoCommitMessage({ role: role || "maker", goal: `${state.goal_description} — task ${task.id}` }),
+        });
+        if (cap.committed) {
+          const note = `task ${task.id}: auto-captured uncommitted changes${cap.bypassedHooks ? " (commit hook bypassed)" : ""}`;
+          stdout.write(`[CONDUCTOR SWARM] ${note}\n`);
+          await audit(note);
+        }
+        return result;
+      },
       runVerify: ({ task, cmd }) => sh(cmd, cwdFor.get(task.id) ?? root),
       runChecker: ({ task }) => makeChecker(cwdFor.get(task.id) ?? root)(),
       merge: ({ task }) =>

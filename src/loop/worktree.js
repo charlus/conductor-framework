@@ -75,6 +75,18 @@ export async function teardownWorktree({ root, goalDescription, git, baseBranch 
     return { removed: false, reason: "no worktree registered" };
   }
 
+  // P0.2 (Loop-Robustness): never `--force`-drop uncommitted work. A dirty tree
+  // is kept for the human regardless of commit count — a Maker that created files
+  // but never committed them would otherwise have them destroyed here. If the
+  // status probe itself fails we also keep, erring on the side of no data loss.
+  const dirty = await git(["-C", path, "status", "--porcelain"]);
+  if (!dirty.ok) {
+    return { removed: false, reason: `could not check ${path} status — kept to avoid data loss` };
+  }
+  if (dirty.stdout.trim() !== "") {
+    return { removed: false, reason: `worktree ${path} has uncommitted changes — kept (not force-removed)` };
+  }
+
   if (await hasUniqueCommits({ git, branch, baseBranch })) {
     return {
       removed: false,

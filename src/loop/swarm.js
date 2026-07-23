@@ -84,6 +84,12 @@ export function normalizeTask(task, defaults = {}) {
     id: task.id,
     type: task.type ?? "general",
     status: task.status ?? "pending",
+    // Fleet-Bridge metadata (harvested from ./conductor/) — preserved so the beat
+    // can render its assignment and write-back can update the right source item.
+    title: task.title ?? null,
+    source: task.source ?? null,
+    route: task.route ?? null,
+    priority: task.priority ?? null,
     // TDD split (opt-in): `contract_first` overrides the swarm-wide policy;
     // `phase` tracks contract → implementation across a task's beats.
     contract_first: typeof task.contract_first === "boolean" ? task.contract_first : null,

@@ -9,10 +9,13 @@ import { readFile, writeFile, rename, access, rm } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { spawn } from "node:child_process";
 import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { runLoop, normalizeState, resolveVerifyCommand } from "../loop/driver.js";
 import { resolveAdapter } from "../loop/adapters/index.js";
 import { createWorktree, teardownWorktree, worktreePlan } from "../loop/worktree.js";
 import { autoCommit, autoCommitMessage } from "../loop/autocommit.js";
+import { harvestWorkQueue, renderAssignment } from "../loop/harvester.js";
+import { applyClaim, applyDone } from "../loop/writeback.js";
 import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, VERDICT_REL } from "../loop/checker.js";
 import { openPullRequest } from "../loop/merge.js";
 import { runSwarm } from "../loop/swarm.js";
@@ -22,6 +25,11 @@ const STATE_REL = "conductor/1-workbench/loop-state.json";
 const WORKFLOW_REL = ".agents/workflows/unattended-loop.md";
 const CHECKER_WORKFLOW_REL = ".agents/workflows/loop-checker.md";
 const TRIGGER_DOC_REL = "conductor/1-workbench/loop-trigger.md";
+// Fleet Bridge (§5): the source-of-truth work files the harvester drains, and
+// the per-beat assignment pointer a fleet agent reads to know its work item.
+const INBOX_REL = "conductor/1-workbench/inbox.md";
+const BACKLOG_REL = "conductor/2-backlog/task-backlog.md";
+const ASSIGNMENT_REL = "conductor/1-workbench/loop-assignment.md";
 
 /** One-line description of what an autonomy level permits (for dry-run). */
 function autonomySummary(state) {
@@ -168,6 +176,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   const platformFlag = flagValue(args, "--platform");
   const goalFlag = flagValue(args, "--goal");
   const eventFlag = flagValue(args, "--event");
+  const fromConductor = args.includes("--from-conductor");
 
   if (!(await exists(statePath))) {
     stderr.write(`No ${STATE_REL} found. Run 'conductor init' or 'conductor upgrade' first.\n`);
@@ -225,6 +234,24 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           Date.now()
         );
       }
+    }
+  }
+
+  // ---- Fleet Bridge FB-1: harvest ./conductor/ into the swarm's work queue ----
+  // `--from-conductor` makes the ONE source of truth the fleet's backlog: open
+  // inbox thoughts + backlog checkboxes become typed, routed tasks[]. Re-harvested
+  // every run (FB-5: the folder is truth, the Spine is cache), so a human editing
+  // conductor/ in VS Code and the fleet draining it stay coherent. Never escalates
+  // autonomy; the operator's autonomy_level/sandbox/concurrency still gate the run.
+  let harvestedQueue = [];
+  if (fromConductor) {
+    const inboxMd = (await exists(join(root, INBOX_REL))) ? await readFile(join(root, INBOX_REL), "utf8") : "";
+    const backlogMd = (await exists(join(root, BACKLOG_REL))) ? await readFile(join(root, BACKLOG_REL), "utf8") : "";
+    harvestedQueue = harvestWorkQueue({ inboxMd, backlogMd });
+    state.tasks = harvestedQueue; // swarm route; normalizeTask preserves title/source/route
+    if (!dryRun) {
+      await atomicWriteJson(statePath, state);
+      await appendShipLog(root, `harvested ${harvestedQueue.length} work item(s) from conductor/ (inbox + backlog)`, Date.now());
     }
   }
 
@@ -296,6 +323,12 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         "",
       ].join("\n")
     );
+    if (fromConductor) {
+      stdout.write(`  harvested: ${harvestedQueue.length} work item(s) from conductor/\n`);
+      for (const t of harvestedQueue) {
+        stdout.write(`    - [${t.type}${t.priority ? " " + t.priority : ""}] ${t.title}  → ${t.route ?? "(brief)"}\n`);
+      }
+    }
     return adapterError || !resolved.adapter ? 1 : 0;
   }
 
@@ -360,7 +393,31 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
 
   const audit = (m) => appendShipLog(root, m, Date.now());
 
+  // FB-2/FB-3: reflect a task's lifecycle into the ./conductor/ source of truth in
+  // the MAIN repo (visible to a human in VS Code) — claim on dispatch, done on
+  // ship. Best-effort: a write-back failure never crashes the run.
+  async function updateConductorSource(task, transform, commitMsg) {
+    const rel = task?.source?.kind === "inbox" ? INBOX_REL : task?.source?.kind === "backlog" ? BACKLOG_REL : null;
+    if (!rel) return;
+    const p = join(root, rel);
+    try {
+      if (!(await exists(p))) return;
+      const before = await readFile(p, "utf8");
+      const after = transform(before, task);
+      if (after === before) return;
+      await writeFile(p, after, "utf8");
+      await runCli("git", ["add", rel], root);
+      await runCli("git", ["commit", "-m", commitMsg], root);
+    } catch {
+      /* best-effort source-of-truth update */
+    }
+  }
+
   // ---- Route: swarm (task graph) vs. pair (single fuzzy goal) --------------
+  if (fromConductor && state.tasks.length === 0) {
+    stdout.write("[CONDUCTOR LOOP] conductor/ has no open work items (inbox + backlog empty). Nothing to do.\n");
+    return 0;
+  }
   if (Array.isArray(state.tasks) && state.tasks.length > 0) {
     return runSwarmMode();
   }
@@ -437,6 +494,9 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
 
   async function runSwarmMode() {
     stdout.write(`[CONDUCTOR SWARM] ${state.tasks.length} tasks, concurrency=${state.concurrency}\n`);
+    // Read the loop workflow once; each beat's assignment is appended to it (FB-4).
+    const swarmWorkflowText = (await exists(promptPath)) ? await readFile(promptPath, "utf8") : "";
+    const beatPromptFile = (id) => join(tmpdir(), `conductor-beat-${id.replace(/[^a-z0-9]+/gi, "-")}.md`);
     // Per-task worktree registry so verify/checker/merge run against the right tree.
     const cwdFor = new Map();
     const deps = {
@@ -446,12 +506,19 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         const res = await git(["worktree", "add", "-b", plan.branch, plan.path]);
         if (!res.ok) await git(["worktree", "add", plan.path, plan.branch]);
         cwdFor.set(task.id, plan.path);
+        // FB-2: mark the item claimed in ./conductor/ so a human won't double-book it.
+        await updateConductorSource(task, applyClaim, `chore(loop): claim ${task.id}`);
         return { path: plan.path, branch: plan.branch };
       },
       runBeat: async ({ task, role, phase }) => {
         const taskCwd = cwdFor.get(task.id) ?? root;
+        // FB-4: hand the agent its work item by appending the routed assignment to
+        // the loop workflow prompt, via a scratch file. Nothing lands in the
+        // worktree (no tracked pollution) and no templates change.
+        const beatPromptPath = beatPromptFile(task.id);
+        await writeFile(beatPromptPath, `${swarmWorkflowText}\n\n---\n\n${renderAssignment(task)}\n`, "utf8");
         const result = await adapter.runBeat({
-          promptPath,
+          promptPath: beatPromptPath,
           cwd: taskCwd,
           permissionMode: "acceptEdits",
           // Forwarded so the beat can adopt the right brief (test-author vs
@@ -473,8 +540,19 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       },
       runVerify: ({ task, cmd }) => sh(cmd, cwdFor.get(task.id) ?? root),
       runChecker: ({ task }) => makeChecker(cwdFor.get(task.id) ?? root)(),
-      merge: ({ task }) =>
-        makeMerge(cwdFor.get(task.id) ?? root, task.worktree?.branch, `Conductor task ${task.id}: ${task.type}`)(),
+      merge: async ({ task }) => {
+        const m = await makeMerge(
+          cwdFor.get(task.id) ?? root,
+          task.worktree?.branch,
+          `Conductor task ${task.id}: ${task.title || task.type}`
+        )();
+        if (m?.ok) {
+          // FB-3: reflect completion into the source of truth + ship-log.
+          await updateConductorSource(task, applyDone, `chore(loop): ${task.id} done`);
+          await appendShipLog(root, `shipped ${task.id} — ${task.title ?? task.type} (PR ${m.prUrl ?? "n/a"})`, Date.now());
+        }
+        return m;
+      },
       gitHead: ({ task }) => gitHead(cwdFor.get(task.id) ?? root),
       audit,
       now: () => Date.now(),

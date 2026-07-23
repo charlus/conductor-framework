@@ -32,14 +32,17 @@ export async function runBeat({
   promptPath,
   cwd = process.cwd(),
   permissionMode = "acceptEdits",
+  settingsPath = null,
 }) {
   const prompt = await readFile(promptPath, "utf8");
   return await new Promise((resolve, reject) => {
-    const child = spawn(
-      "claude",
-      ["-p", prompt, "--permission-mode", permissionMode],
-      { cwd, stdio: ["ignore", "pipe", "pipe"] }
-    );
+    // `--settings <file>` loads a Conductor-supplied sandbox profile WITHOUT
+    // touching the user's own .claude/settings.json. When it enables Anthropic's
+    // bubblewrap sandbox with `failIfUnavailable: true`, an unsandboxed beat can't
+    // silently happen: claude exits non-zero if the sandbox can't start.
+    const argv = ["-p", prompt, "--permission-mode", permissionMode];
+    if (settingsPath) argv.push("--settings", settingsPath);
+    const child = spawn("claude", argv, { cwd, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (d) => (stdout += d.toString()));

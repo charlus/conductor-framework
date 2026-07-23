@@ -262,16 +262,20 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     hasNpmTestScript: await hasNpmTestScript(root),
   });
 
-  // SAFETY BOUNDARY (Phase 1): no sandbox yet (that's Phase 3). Looping an agent
-  // with shell access unsandboxed is the very thing the survey (§5) prohibits.
-  // Refuse real runs unless the operator explicitly acknowledges the risk.
-  if (!unsafe && !dryRun) {
+  // SAFETY BOUNDARY. Looping an agent with shell access UNSANDBOXED is the thing
+  // the survey (§5) prohibits. With `sandbox: "cli-native"` (the engine vendor's
+  // own sandbox — Anthropic's bubblewrap for claude, enabled per-beat below with
+  // failIfUnavailable) or `"container"`, the run IS isolated, so it proceeds. Only
+  // an explicitly UNsandboxed run (`sandbox: "none"`) still needs the operator to
+  // acknowledge the risk with --unsafe-no-sandbox (e.g. they run inside a VM).
+  if (state.sandbox === "none" && !unsafe && !dryRun) {
     stderr.write(
       [
-        "⛔  'conductor loop' has NO sandbox yet (sandbox lands in Phase 3).",
-        "    Running an unattended agent with shell access against a live repo is unsafe.",
-        "    The driver's guarantees are proven via 'npm run test:unit' (stub adapter).",
-        "    To run anyway at your own risk, pass --unsafe-no-sandbox.",
+        "⛔  'conductor loop' would run an unattended agent with shell access UNSANDBOXED (sandbox: none).",
+        "    Set \"sandbox\": \"cli-native\" in loop-state.json to use the agent CLI's own sandbox",
+        "    (Anthropic's bubblewrap for claude — needs `bubblewrap`+`socat` on the host; no Docker),",
+        "    or \"container\" for a BYO container. See .agents/sandbox/README.md.",
+        "    To run unsandboxed anyway (e.g. you are already inside a VM), pass --unsafe-no-sandbox.",
         "",
       ].join("\n")
     );
@@ -311,7 +315,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         `  verify:   ${verifyCommand ?? "(none → will halt: halted_no_verification)"}`,
         `  beats:    ${state.iterations.current}/${state.iterations.max_allowed}`,
         `  autonomy: ${state.autonomy_level}  (${autonomySummary(state)})`,
-        `  sandbox:  ${state.sandbox}${state.autonomy_level === "L3" && state.sandbox !== "container" ? "  ⛔ L3 requires sandbox=container (will halt: halted_sandbox_required)" : ""}`,
+        `  sandbox:  ${state.sandbox}${state.autonomy_level === "L3" && !["cli-native", "container"].includes(state.sandbox) ? "  ⛔ L3 requires sandbox=cli-native or container (will halt: halted_sandbox_required)" : ""}`,
         `  merge:    ${state.phase === "execution" && state.autonomy_level === "L3" ? "PR-gated (gh/glab) on completion" : "none (human reviews/merges)"}`,
         `  mode:     ${state.tasks?.length ? `swarm (${state.tasks.length} tasks)` : "pair (single goal)"}`,
         `  concurrency: ${state.concurrency}${state.concurrency > 1 && (state.autonomy_level !== "L3" || !(state.tasks?.length)) ? "  ⛔ swarm needs L3 + a task graph (will halt: halted_autonomy)" : ""}`,
@@ -346,6 +350,23 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   const adapter = resolved.adapter;
   stdout.write(`[CONDUCTOR LOOP] platform: ${adapter.name}\n`);
 
+  // cli-native sandbox: hand the claude beats a settings profile that turns ON
+  // Anthropic's bubblewrap sandbox, fail-closed (failIfUnavailable). Only the
+  // claude engine reads this — codex/agy provide their own out-of-process sandbox.
+  let sandboxSettingsPath = null;
+  if (state.sandbox === "cli-native" && adapter.name === "claude") {
+    const p = join(root, ".agents/sandbox/claude-sandbox.settings.json");
+    if (await exists(p)) {
+      sandboxSettingsPath = p;
+      stdout.write(`[CONDUCTOR LOOP] sandbox: cli-native (Anthropic bubblewrap via ${".agents/sandbox/claude-sandbox.settings.json"})\n`);
+    } else {
+      stderr.write(
+        `[CONDUCTOR LOOP] ⛔ sandbox=cli-native but .agents/sandbox/claude-sandbox.settings.json is missing — refusing to run unsandboxed. Run 'conductor upgrade' to restore it.\n`
+      );
+      return 1;
+    }
+  }
+
   const git = makeGit(root);
   const checkerPromptPath = join(root, CHECKER_WORKFLOW_REL);
 
@@ -358,7 +379,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const verdicts = [];
     for (let i = 0; i < votes; i++) {
       await rm(verdictPath, { force: true }).catch(() => {});
-      await adapter.runChecker({ promptPath: checkerPromptPath, cwd, permissionMode: "plan" });
+      await adapter.runChecker({ promptPath: checkerPromptPath, cwd, permissionMode: "plan", settingsPath: sandboxSettingsPath });
       let text = null;
       try {
         text = await readFile(verdictPath, "utf8");
@@ -455,7 +476,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       verifyCommand,
       runBeat: async () => {
         await rm(makerSignalPath, { force: true }).catch(() => {}); // clear stale signal
-        const result = await adapter.runBeat({ promptPath, cwd: workCwd, permissionMode: "acceptEdits" });
+        const result = await adapter.runBeat({ promptPath, cwd: workCwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath });
         // P0.1 backstop: capture any uncommitted Maker change so verify sees a real
         // diff, the Checker has commits to review, and teardown can't discard it.
         const cap = await autoCommit({
@@ -521,6 +542,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           promptPath: beatPromptPath,
           cwd: taskCwd,
           permissionMode: "acceptEdits",
+          settingsPath: sandboxSettingsPath, // cli-native sandbox per fleet worker
           // Forwarded so the beat can adopt the right brief (test-author vs
           // implementer). The agent also reads task.role/phase from loop-state.
           role,

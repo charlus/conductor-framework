@@ -149,7 +149,9 @@ conductor loop --event ./event.json
 
 A trigger can seed the goal but is **clamped to the operator's autonomy ceiling** — a payload (which may come from an untrusted source) can de-escalate but never escalate. Every driver guardrail still binds.
 
-See [`docs/roadmap/Autonomous-Loop-Backend.md`](docs/roadmap/Autonomous-Loop-Backend.md), [`docs/roadmap/Loop-Engineering-Alignment.md`](docs/roadmap/Loop-Engineering-Alignment.md), and [`docs/adr/0001-enforcement-and-autonomy-rebalance.md`](docs/adr/0001-enforcement-and-autonomy-rebalance.md).
+**▶ How to run it on your repo:** see the step-by-step guide [`docs/Running-The-Loop.md`](docs/Running-The-Loop.md) — configure The Spine (`loop-state.json`), `--dry-run` to preview, then `conductor loop <dir> --platform claude --unsafe-no-sandbox`.
+
+See also [`docs/roadmap/Autonomous-Loop-Backend.md`](docs/roadmap/Autonomous-Loop-Backend.md), [`docs/roadmap/Loop-Engineering-Alignment.md`](docs/roadmap/Loop-Engineering-Alignment.md), [`docs/roadmap/Loop-Robustness-Plan.md`](docs/roadmap/Loop-Robustness-Plan.md), and [`docs/adr/0001-enforcement-and-autonomy-rebalance.md`](docs/adr/0001-enforcement-and-autonomy-rebalance.md).
 
 ---
 

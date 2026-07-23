@@ -138,7 +138,18 @@ Around the driver:
 * **Sandbox gate** — real headless runs are gated behind a sandbox profile (`--unsafe-no-sandbox` to override); L3 requires a container.
 * **Swarm scaling & autonomy slider (L0–L3)** — parallelize independent work with a PR-gated merge queue.
 
-See [`docs/roadmap/Autonomous-Loop-Backend.md`](docs/roadmap/Autonomous-Loop-Backend.md) and [`docs/adr/0001-enforcement-and-autonomy-rebalance.md`](docs/adr/0001-enforcement-and-autonomy-rebalance.md).
+**Ignition contract** — the driver is a *goal* loop with no scheduler of its own (by design). Seed it from an external trigger and it composes into the **time-based** and **proactive** loops of Anthropic's Loop-Engineering taxonomy:
+
+```bash
+# recurring (drive from Claude Code /schedule or host cron)
+conductor loop --goal "check for new TODO comments and address them"
+# event-driven (a webhook/CI shim writes the payload, then fires the loop)
+conductor loop --event ./event.json
+```
+
+A trigger can seed the goal but is **clamped to the operator's autonomy ceiling** — a payload (which may come from an untrusted source) can de-escalate but never escalate. Every driver guardrail still binds.
+
+See [`docs/roadmap/Autonomous-Loop-Backend.md`](docs/roadmap/Autonomous-Loop-Backend.md), [`docs/roadmap/Loop-Engineering-Alignment.md`](docs/roadmap/Loop-Engineering-Alignment.md), and [`docs/adr/0001-enforcement-and-autonomy-rebalance.md`](docs/adr/0001-enforcement-and-autonomy-rebalance.md).
 
 ---
 

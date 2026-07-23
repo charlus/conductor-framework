@@ -23,7 +23,8 @@ function helpText() {
     "    conductor list [--remote] [--tier <tier>]",
     "    conductor search <query> [--tag <tag>]",
     "    conductor install-hooks [--uninstall]",
-    "    conductor loop [target-directory] [--platform <name>] [--dry-run] [--unsafe-no-sandbox]",
+    "    conductor loop [target-directory] [--goal <text> | --event <file.json>]",
+    "                   [--platform <name>] [--dry-run] [--unsafe-no-sandbox]",
     "",
     "  Commands:",
     "    init            Scaffold the Conductor framework in a new project",
@@ -48,6 +49,7 @@ function helpText() {
     "    npx conductor-framework add react-components",
     "    npx conductor-framework list --remote",
     "    npx conductor-framework search react",
+    "    conductor loop --goal \"get all tests passing\" --dry-run",
     "",
   ].join("\n");
 }

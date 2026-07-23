@@ -49,7 +49,7 @@ node bin/conductor.js loop /path/to/repo --dry-run
 # or, if installed globally: conductor loop /path/to/repo --dry-run
 ```
 
-It prints the resolved plan — phase, verify command, autonomy summary, detected adapter, whether a worktree will be created, and any halt it *would* hit (e.g. `discovery → halted_scoping`, no verify → `halted_no_verification`, `L3` without a container → `halted_sandbox_required`). No agent is spawned.
+It prints the resolved plan — phase, verify command, autonomy summary, detected adapter, whether a worktree will be created, and any halt it *would* hit (e.g. `discovery → halted_scoping`, no verify → `halted_no_verification`, `L3` without a sandbox → `halted_sandbox_required`). No agent is spawned.
 
 ## Step 3 — Run it for real
 
@@ -57,7 +57,7 @@ It prints the resolved plan — phase, verify command, autonomy summary, detecte
 node bin/conductor.js loop /path/to/repo --platform claude --unsafe-no-sandbox
 ```
 
-`--unsafe-no-sandbox` is **required** for a real run until the container sandbox ships — it's your explicit acknowledgement that an unattended agent with shell access will run against the repo. (`L3` autonomy additionally requires `sandbox: "container"` and cannot be overridden this way.)
+`--unsafe-no-sandbox` is only needed when `sandbox: "none"` — it acknowledges that an unattended agent with shell access will run **unsandboxed** (fine if you're already inside a VM). The better path is to set `sandbox: "cli-native"` (the agent CLI's own vendor sandbox — Anthropic's bubblewrap for `claude`, no Docker; `sudo apt install bubblewrap socat`), and then you don't pass `--unsafe-no-sandbox` at all. See [`.agents/sandbox/README.md`](../templates/.agents/sandbox/README.md). `L3` (unattended execution) **requires** `sandbox: "cli-native"` or `"container"`.
 
 You'll see, per beat: `platform: claude` → `worktree: … (new)` → the maker beat → `verify exit=N` → `checker: APPROVED/REJECTED` → a status transition. An `L1` run does exactly one Maker→verify→Checker cycle and stops at `finished: awaiting_review` for you to review and merge the branch yourself.
 
@@ -68,7 +68,7 @@ You'll see, per beat: `platform: claude` → `worktree: … (new)` → the maker
 | **L0** | interactive-only — the headless loop refuses to run | — |
 | **L1** | one beat, then human review (**start here**) | none (you merge) |
 | **L2** | unattended, **blueprint only** (specs/tasks, no code) | none |
-| **L3** | unattended execution, **requires `sandbox: "container"`** | **PR-gated** (`gh`/`glab`), never a direct push |
+| **L3** | unattended execution, **requires `sandbox: "cli-native"` or `"container"`** | **PR-gated** (`gh`/`glab`), never a direct push |
 
 Set `autonomy_level` in the Spine. A `--goal`/`--event` trigger can *lower* autonomy but never *raise* it above the operator ceiling already in the file.
 
@@ -85,9 +85,10 @@ This is the "launch a fleet of agents on a repo that has Conductor set up" mode.
 # preview what the fleet WOULD pick up (safe, no agents spawned)
 node bin/conductor.js loop /path/to/repo --from-conductor --dry-run
 
-# run the fleet (real): drains inbox + backlog concurrently
-node bin/conductor.js loop /path/to/repo --from-conductor --platform claude --unsafe-no-sandbox
+# run the fleet (real): drains inbox + backlog concurrently, each worker sandboxed
+node bin/conductor.js loop /path/to/repo --from-conductor --platform claude
 ```
+(with `sandbox: "cli-native"` set in the Spine, each worker runs in Anthropic's bubblewrap sandbox — no `--unsafe-no-sandbox` needed.)
 
 What it harvests, typed and routed:
 - **`1-workbench/inbox.md`** bullets → `triage` items (the agent decides each thought's home and files it).
@@ -98,7 +99,7 @@ Then, per item, the fleet:
 2. **Works it in an isolated worktree** — running the routed workflow (`bugfix`/`task` → Build with reproduce-first TDD; `triage` → file-it brief).
 3. **Writes back to the source of truth** — on a green + Checker-approved ship, it ticks the backlog item `- [x]` (or removes the triaged inbox line), appends `0-compass/ship-log.md`, and opens a **PR** (never a direct push).
 
-Because the queue is **re-harvested every run**, a human editing `conductor/` in VS Code and the fleet draining it stay coherent — the folder is the truth, `loop-state.json` is just the run cache. For a real concurrent fleet, set `autonomy_level: "L3"`, `sandbox: "container"`, and `concurrency: N` in the Spine (the swarm's safety gates require it); at `L1`/`concurrency: 1` it drains sequentially for review. Always `--dry-run` first to see the queue.
+Because the queue is **re-harvested every run**, a human editing `conductor/` in VS Code and the fleet draining it stay coherent — the folder is the truth, `loop-state.json` is just the run cache. For a real concurrent fleet, set `autonomy_level: "L3"`, `sandbox: "cli-native"`, and `concurrency: N` in the Spine (the swarm's safety gates require it); at `L1`/`concurrency: 1` it drains sequentially for review. Always `--dry-run` first to see the queue.
 
 ## How it reads your project
 
@@ -112,6 +113,6 @@ Inside an interactive Claude Code session you can instead run `/loop` (it discov
 
 ## Safety notes & current limitations
 
-- Real runs are **unsandboxed** until the container profile ships; run only against repos you trust, ideally in a throwaway clone or a VM.
+- Prefer `sandbox: "cli-native"` for real runs — it enables the agent CLI's own vendor sandbox (Anthropic's bubblewrap for `claude`, fail-closed). `sandbox: "none"` + `--unsafe-no-sandbox` runs the agent unsandboxed; only do that inside a throwaway clone or a VM.
 - The loop is **young**. A known rough edge: if the maker creates files but forgets to `git commit`, verify can still pass on the working tree while the committed diff stays empty — and the work can be lost on worktree teardown. Prefer `L1` and review the branch before merging. Hardening is tracked in [`roadmap/Loop-Robustness-Plan.md`](roadmap/Loop-Robustness-Plan.md).
 - Escalations and the run trail are written to `conductor/1-workbench/inbox.md` and `conductor/0-compass/ship-log.md` — read those after every run.

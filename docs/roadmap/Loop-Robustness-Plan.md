@@ -10,7 +10,9 @@
 > - **Merge false-negative** — `gh pr create` exits non-zero when a PR already exists (contention/retry); `openPullRequest` now probes `gh pr list --head` and reuses it. **Checker verdict-write flakiness** — retry once on a missing verdict file. **One-loop-per-target lock** (`src/loop/lock.js`) — refuses a second concurrent loop (processes race on the shared worktree/branch/write-back). Commit `713f18e`.
 > - **P1.4-adjacent: non-force push vs a stale divergent loop branch** — `openPullRequest` now falls back to `--force-with-lease` on a rejected push (machine-owned `conductor/loop/*`). Commit `6e99050`. Validated live by planting a divergent branch.
 >
-> **Remaining:** **P1.4** merge-conflict/resume discipline (the resume half), **P2** (self-improvement loop, architecture-checklist contract, multi-engine parity), and fleet mileage at `concurrency > 1` on real tickets.
+> **Shipped — first concurrency > 1 fleet run (2026-07-23), GREEN.** A swarm of 3 independent tasks at `concurrency=2` (L3, cli-native) completed **3/3 merged** with 3 separate PRs, across two waves (2 parallel makers, then 1), serialized merge queue, **no commit/ref race** between concurrent worktrees. It exposed a per-task-isolation gap now fixed: swarm tasks shared ONE global verify, but each runs in an isolated worktree with only its own work — so (a) the Evidence-Rule floor and (b) the independent Checker both false-fail on a repo-wide verify. Fixed: `task.verify` scoped command for the floor, and a per-task Checker prompt pinned to that command (`d044bab`). Before the Checker fix: 1 false-rejection recovered only by retry luck; after: 0 rejections, first-vote approvals.
+>
+> **Remaining:** **P1.4** merge-conflict/resume discipline (the resume half), **P2** (self-improvement loop, architecture-checklist contract, multi-engine parity), higher-concurrency + write-back-under-contention mileage (`--from-conductor` at `concurrency > 1`, where per-task claims commit to `master`), and the leftover testing cases (fake-maker forgets-to-commit; done-claimed-but-no-commit re-prompt).
 
 ## 0. North Star — two clients, one source of truth
 

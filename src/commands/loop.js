@@ -404,7 +404,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   // each with a fresh context, run in a given cwd. A missing/malformed verdict
   // fails safe to reject; a strict majority is required to approve.
   const votes = Math.max(1, state.checker_votes ?? 1);
-  const makeChecker = (cwd) => async () => {
+  const makeChecker = (cwd, checkerPrompt = checkerPromptPath) => async () => {
     const verdictPath = join(cwd, VERDICT_REL);
     const verdicts = [];
     // The Checker MUST write checker-verdict.json (loop-checker.md), so it cannot
@@ -422,7 +422,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const runCheckerVote = async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
         await rm(verdictPath, { force: true }).catch(() => {});
-        await adapter.runChecker({ promptPath: checkerPromptPath, cwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath });
+        await adapter.runChecker({ promptPath: checkerPrompt, cwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath });
         try {
           return await readFile(verdictPath, "utf8");
         } catch {
@@ -584,6 +584,27 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     // Read the loop workflow once; each beat's assignment is appended to it (FB-4).
     const swarmWorkflowText = (await exists(promptPath)) ? await readFile(promptPath, "utf8") : "";
     const beatPromptFile = (id) => join(tmpdir(), `conductor-beat-${id.replace(/[^a-z0-9]+/gi, "-")}.md`);
+    // The Checker runs in the task's ISOLATED worktree, which by design holds ONLY
+    // this task's work. Left to its own devices it re-runs the repo-wide suite and
+    // false-rejects (other tasks' files are absent) — the concurrency finding. So
+    // when a task carries a scoped verify, hand the Checker a prompt that pins it to
+    // exactly that command. Scratch file → nothing lands in the worktree, no
+    // templates change. Tasks without a scoped verify use the default checker prompt.
+    const checkerWorkflowText = (await exists(checkerPromptPath)) ? await readFile(checkerPromptPath, "utf8") : "";
+    const checkerPromptFor = async (task) => {
+      if (!task.verify) return checkerPromptPath;
+      const p = join(tmpdir(), `conductor-checker-${task.id.replace(/[^a-z0-9]+/gi, "-")}.md`);
+      await writeFile(
+        p,
+        `${checkerWorkflowText}\n\n---\n\n# Verification for THIS task (isolated worktree)\n` +
+          `You are in a git worktree that contains ONLY this task's work; other tasks' files are ` +
+          `absent BY DESIGN. Treat this as the verification floor and run EXACTLY it — do NOT run ` +
+          `the repo-wide test suite, which will fail on the intentionally-missing files:\n\n` +
+          "```\n" + `${task.verify}\n` + "```\n",
+        "utf8"
+      );
+      return p;
+    };
     // Per-task worktree registry so verify/checker/merge run against the right tree.
     const cwdFor = new Map();
     const deps = {
@@ -627,7 +648,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         return result;
       },
       runVerify: ({ task, cmd }) => sh(cmd, cwdFor.get(task.id) ?? root),
-      runChecker: ({ task }) => makeChecker(cwdFor.get(task.id) ?? root)(),
+      runChecker: async ({ task }) => makeChecker(cwdFor.get(task.id) ?? root, await checkerPromptFor(task))(),
       merge: async ({ task }) => {
         const m = await makeMerge(
           cwdFor.get(task.id) ?? root,

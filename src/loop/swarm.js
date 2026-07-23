@@ -96,6 +96,11 @@ export function normalizeTask(task, defaults = {}) {
     phase: task.phase ?? null,
     deps: Array.isArray(task.deps) ? task.deps : [],
     role: task.role ?? null,
+    // Per-task verify command: concurrent tasks run in isolated worktrees, so a
+    // single repo-wide verify can't pass until EVERY task is done. A task may carry
+    // its own scoped command (e.g. `node --test test/sum.test.js`); falls back to
+    // the global verifyCommand when absent.
+    verify: task.verify ?? null,
     worktree: task.worktree ?? null,
     iterations: {
       current: task.iterations?.current ?? 0,
@@ -148,7 +153,7 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
       const authorRole = resolveRoleForTask(task, roles, "test-author").name;
       task.role = authorRole;
       await runBeat({ task, role: authorRole, phase: "contract" });
-      const { exitCode, output } = await runVerify({ task, cmd: verifyCommand });
+      const { exitCode, output } = await runVerify({ task, cmd: task.verify ?? verifyCommand });
       task.evidence = { exit_code: exitCode, output_hash: hashString(output), phase: "contract" };
       await audit(`task ${task.id}: contract beat (${authorRole}) verify exit=${exitCode}`);
       if (exitCode === 0) {
@@ -172,7 +177,7 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
     if (task.stall.consecutive >= MAX_TASK_STALLS) return { task, outcome: "failed", reason: "stalled" };
 
     // Evidence Rule floor.
-    const { exitCode, output } = await runVerify({ task, cmd: verifyCommand });
+    const { exitCode, output } = await runVerify({ task, cmd: task.verify ?? verifyCommand });
     task.evidence = { exit_code: exitCode, output_hash: hashString(output) };
     await audit(`task ${task.id}: beat ${task.iterations.current} verify exit=${exitCode}`);
     if (exitCode !== 0) {

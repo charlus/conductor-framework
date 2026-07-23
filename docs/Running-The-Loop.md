@@ -77,6 +77,29 @@ Set `autonomy_level` in the Spine. A `--goal`/`--event` trigger can *lower* auto
 - **Pair (default):** one `goal_description`, one Maker, one Checker. Leave `tasks: []`.
 - **Swarm (opt-in, L3):** populate `loop-state.json.tasks[]` with a task graph (produce it with the `carve` workflow), set `concurrency > 1`. The driver runs parallel Makers in per-task worktrees with a serialized PR-gated merge queue.
 
+## Fleet mode: drain your `./conductor/` backlog autonomously (`--from-conductor`)
+
+This is the "launch a fleet of agents on a repo that has Conductor set up" mode. Instead of one `--goal`, the loop **harvests your `./conductor/` as the source of truth** and turns it into the swarm's work queue — the same folder you edit interactively in VS Code becomes the fleet's backlog. No second database.
+
+```bash
+# preview what the fleet WOULD pick up (safe, no agents spawned)
+node bin/conductor.js loop /path/to/repo --from-conductor --dry-run
+
+# run the fleet (real): drains inbox + backlog concurrently
+node bin/conductor.js loop /path/to/repo --from-conductor --platform claude --unsafe-no-sandbox
+```
+
+What it harvests, typed and routed:
+- **`1-workbench/inbox.md`** bullets → `triage` items (the agent decides each thought's home and files it).
+- **`2-backlog/task-backlog.md`** open `- [ ]` items → `bugfix` (bug-ish titles) or `task`, tagged with their `## P1/P2/P3` priority. `- [x]` done items are skipped.
+
+Then, per item, the fleet:
+1. **Claims it** — marks the item `🤖 … (in progress)` in `conductor/` so you (or another agent) won't double-book it.
+2. **Works it in an isolated worktree** — running the routed workflow (`bugfix`/`task` → Build with reproduce-first TDD; `triage` → file-it brief).
+3. **Writes back to the source of truth** — on a green + Checker-approved ship, it ticks the backlog item `- [x]` (or removes the triaged inbox line), appends `0-compass/ship-log.md`, and opens a **PR** (never a direct push).
+
+Because the queue is **re-harvested every run**, a human editing `conductor/` in VS Code and the fleet draining it stay coherent — the folder is the truth, `loop-state.json` is just the run cache. For a real concurrent fleet, set `autonomy_level: "L3"`, `sandbox: "container"`, and `concurrency: N` in the Spine (the swarm's safety gates require it); at `L1`/`concurrency: 1` it drains sequentially for review. Always `--dry-run` first to see the queue.
+
 ## How it reads your project
 
 - **Instructions/rules/personas:** picked up automatically — the agent auto-loads `CLAUDE.md → .agents/AGENTS.md` and the workflow directs it to read `.agents/rules/` and `.agents/personas/` each beat.

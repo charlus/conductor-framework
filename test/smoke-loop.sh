@@ -84,6 +84,13 @@ s.verification={command:'test -f FEATURE.txt',last_exit_code:null,last_output_ha
 require('fs').writeFileSync(f, JSON.stringify(s,null,2));
 "
 
+# P2.1: seed the ship-log with a recurring failure (2× the same pattern, differing
+# specifics) so the post-run self-improvement mining has something to detect.
+cat >> "$PROJ/conductor/0-compass/ship-log.md" <<'SEED'
+- [2026-07-20T10:00:00Z] [loop] checker rejected: `npm test` exits non-zero: 2 of 3 fail because src/sum.js is missing
+- [2026-07-21T11:00:00Z] [loop] checker rejected: `npm test` exits non-zero: 1 of 4 fail because src/multiply.js is missing
+SEED
+
 # ---- 3. Run the loop with the fake agent on PATH ----
 echo "Running: conductor loop (fake agent)..."
 set +e
@@ -119,6 +126,20 @@ if [ -n "$cmode" ] && [ "$cmode" != "plan" ]; then
   ok "Checker invoked write-capable (mode=$cmode, not read-only 'plan')"
 else
   no "Checker invoked with mode='$cmode' — read-only 'plan' blocks the verdict write (the live-run bug)"
+fi
+
+# P2.1: the post-run self-improvement should have mined the seeded recurring
+# failure (2×) and proposed a rule — without auto-editing .agents/rules/.
+IMP="$PROJ/conductor/1-workbench/loop-improvements.md"
+if [ -f "$IMP" ] && grep -q 'seen 2' "$IMP"; then
+  ok "self-improvement mined the recurring failure → loop-improvements.md proposal"
+else
+  no "self-improvement proposal not produced from the recurring ship-log failure"
+fi
+if [ -z "$(ls -A "$PROJ/.agents/rules" 2>/dev/null | grep -v -E 'prime-directive|verification-iron-law|test-driven-law|loop-guardrails')" ]; then
+  ok "self-improvement did NOT auto-write any rule into .agents/rules/ (propose-only)"
+else
+  no "self-improvement unexpectedly added a file to .agents/rules/ (should propose, not activate)"
 fi
 
 echo ""

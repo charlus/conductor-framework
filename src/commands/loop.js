@@ -21,6 +21,7 @@ import { openPullRequest } from "../loop/merge.js";
 import { runSwarm } from "../loop/swarm.js";
 import { lockDecision, renderLock } from "../loop/lock.js";
 import { reviveForResume } from "../loop/resume.js";
+import { mineRecurringFailures, renderImprovementReport } from "../loop/improver.js";
 import { parseTriggerPayload, applyTrigger, renderTriggerDoc } from "../loop/trigger.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
@@ -517,12 +518,35 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   }
   if (lock.stale) stdout.write(`[CONDUCTOR LOOP] cleared a stale lock (dead pid ${lock.heldByPid})\n`);
   try {
-    if (Array.isArray(state.tasks) && state.tasks.length > 0) {
-      return await runSwarmMode();
-    }
-    return await runPairMode();
+    const code =
+      Array.isArray(state.tasks) && state.tasks.length > 0 ? await runSwarmMode() : await runPairMode();
+    // P2.1: mine the cross-run failure trail and propose rules (best-effort).
+    await runSelfImprovement();
+    return code;
   } finally {
     await releaseLock(root);
+  }
+
+  // -------------------------------------------------------------------------
+  // Cross-run self-improvement (P2.1). Mine the DURABLE ship-log (spans all runs)
+  // for failures recurring >= threshold and write a review doc proposing rules.
+  // Proposes only — never edits .agents/rules/ (a rule changes every future beat).
+  // Best-effort: never fails the run.
+  async function runSelfImprovement() {
+    try {
+      const logPath = join(root, "conductor/0-compass/ship-log.md");
+      if (!(await exists(logPath))) return;
+      const patterns = mineRecurringFailures(await readFile(logPath, "utf8"));
+      const report = renderImprovementReport(patterns, { nowIso: new Date(Date.now()).toISOString() });
+      if (!report) return; // nothing recurring → nothing to propose
+      await writeFile(join(root, "conductor/1-workbench/loop-improvements.md"), report, "utf8");
+      stdout.write(
+        `[CONDUCTOR LOOP] self-improvement: ${patterns.length} recurring failure pattern(s) mined ` +
+          `→ conductor/1-workbench/loop-improvements.md (proposed rules for review)\n`
+      );
+    } catch {
+      /* best-effort — self-improvement must never break a run */
+    }
   }
 
   // -------------------------------------------------------------------------

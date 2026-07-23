@@ -10,6 +10,18 @@
 - **The beat prompt:** `.agents/workflows/unattended-loop.md` (maker) and `.agents/workflows/loop-checker.md` (checker). Because the agent runs in your repo, it also auto-loads `CLAUDE.md → .agents/AGENTS.md` and reads your `.agents/` rules/personas each beat.
 - **It talks back through files:** escalations → `conductor/1-workbench/inbox.md`; audit trail → `conductor/0-compass/ship-log.md`; it stops at `awaiting_review` for you to inspect and merge.
 
+## Getting the `conductor` command (no clone needed)
+
+The outer loop ships in the package (dependency-free), so you don't clone the repo to run it. Three ways, pick one:
+
+| How | Command | When |
+|---|---|---|
+| **Persistent (recommended)** | `npm i -g github:charlus/conductor-framework` → then `conductor loop …` | you'll run it more than once; tiny install (zero deps) |
+| **Zero-install** | `npx github:charlus/conductor-framework loop …` | one-off; re-fetches each run |
+| **From a clone (dev)** | `node bin/conductor.js loop …` | you're hacking on the framework itself |
+
+The rest of this guide writes `conductor loop …`; substitute your chosen form. (`init`/`upgrade` print these commands too.)
+
 ## Prerequisites
 
 1. An agent CLI on your `PATH` — `claude` (primary), `agy`, or `codex`.
@@ -45,8 +57,7 @@ conductor loop . --event ./event.json                            # JSON payload 
 ## Step 2 — Preview with `--dry-run` (always do this first)
 
 ```bash
-node bin/conductor.js loop /path/to/repo --dry-run
-# or, if installed globally: conductor loop /path/to/repo --dry-run
+conductor loop /path/to/repo --dry-run
 ```
 
 It prints the resolved plan — phase, verify command, autonomy summary, detected adapter, whether a worktree will be created, and any halt it *would* hit (e.g. `discovery → halted_scoping`, no verify → `halted_no_verification`, `L3` without a sandbox → `halted_sandbox_required`). No agent is spawned.
@@ -54,7 +65,7 @@ It prints the resolved plan — phase, verify command, autonomy summary, detecte
 ## Step 3 — Run it for real
 
 ```bash
-node bin/conductor.js loop /path/to/repo --platform claude --unsafe-no-sandbox
+conductor loop /path/to/repo --platform claude --unsafe-no-sandbox
 ```
 
 `--unsafe-no-sandbox` is only needed when `sandbox: "none"` — it acknowledges that an unattended agent with shell access will run **unsandboxed** (fine if you're already inside a VM). The better path is to set `sandbox: "cli-native"` (the agent CLI's own vendor sandbox — Anthropic's bubblewrap for `claude`, no Docker; `sudo apt install bubblewrap socat`), and then you don't pass `--unsafe-no-sandbox` at all. See [`.agents/sandbox/README.md`](../templates/.agents/sandbox/README.md). `L3` (unattended execution) **requires** `sandbox: "cli-native"` or `"container"`.
@@ -83,10 +94,10 @@ This is the "launch a fleet of agents on a repo that has Conductor set up" mode.
 
 ```bash
 # preview what the fleet WOULD pick up (safe, no agents spawned)
-node bin/conductor.js loop /path/to/repo --from-conductor --dry-run
+conductor loop /path/to/repo --from-conductor --dry-run
 
 # run the fleet (real): drains inbox + backlog concurrently, each worker sandboxed
-node bin/conductor.js loop /path/to/repo --from-conductor --platform claude
+conductor loop /path/to/repo --from-conductor --platform claude
 ```
 (with `sandbox: "cli-native"` set in the Spine, each worker runs in Anthropic's bubblewrap sandbox — no `--unsafe-no-sandbox` needed.)
 

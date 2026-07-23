@@ -258,6 +258,7 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
     if (backup) stdout.write(`   Old instructions backed up in ${backup.backupRoot.replace(targetDir + "/", "")} (git-ignored).\n`);
     stdout.write("   Your conductor/ project knowledge was preserved.\n");
     stdout.write("   Verify: bash .agents/tests/check-conductor.sh\n");
+    stdout.write("   Autonomous loop: `conductor loop --dry-run` (npm i -g github:charlus/conductor-framework) or `npx github:charlus/conductor-framework loop --dry-run`.\n");
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

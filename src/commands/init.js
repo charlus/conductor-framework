@@ -201,7 +201,18 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
         }
       }
 
-      stdout.write("\nNext steps:\n  1. Update conductor.config.json with your registry URL\n  2. Run the self-test:  bash .agents/tests/check-conductor.sh\n  3. Start building:     Tell your AI \"Let's go\"\n\nDocs: .agents/AGENTS.md\n");
+      stdout.write(
+        "\nNext steps:\n" +
+          "  1. Update conductor.config.json with your registry URL\n" +
+          "  2. Run the self-test:  bash .agents/tests/check-conductor.sh\n" +
+          '  3. Start building:     Tell your AI "Let\'s go"\n' +
+          "\nRun the autonomous loop (no git clone needed):\n" +
+          "  • Zero-install:  npx github:charlus/conductor-framework loop --dry-run\n" +
+          "  • Persistent:    npm i -g github:charlus/conductor-framework   then:   conductor loop --dry-run\n" +
+          "  • Fleet:         conductor loop --from-conductor --dry-run   (drain your ./conductor/ backlog)\n" +
+          "  Guide: https://github.com/charlus/conductor-framework/blob/master/docs/Running-The-Loop.md\n" +
+          "\nDocs: .agents/AGENTS.md\n"
+      );
     }
     
     return 0;

@@ -1,6 +1,9 @@
 # Loop Robustness Plan — Hardening the `conductor loop` Outer Loop
 
-> **Status:** proposed (2026-07-23). Motivated by the first real end-to-end run of `conductor loop`, which drove a live `claude` maker + independent checker correctly but **lost the work** on a one-line task. This plan closes that gap, borrowing proven patterns from `agentctl` (a battle-tested peer factory; see `MEMORY` › agentctl-analysis).
+> **Status:** in progress (2026-07-23). Motivated by the first real end-to-end run of `conductor loop`, which drove a live `claude` maker + independent checker correctly but **lost the work** on a one-line task. This plan closes that gap, borrowing proven patterns from `agentctl` (a battle-tested peer factory; see `MEMORY` › agentctl-analysis).
+>
+> **Shipped** (branch `feat/loop-robustness-p0`): **P0.1** commit backstop (`src/loop/autocommit.js`), **P0.2** teardown dirty-guard (`src/loop/worktree.js`), **P0.3** verify-against-committed (by ordering), **P1.1** capture logged to the ship-log, **P1.2** diagnosable checker verdicts (`src/loop/checker.js`). Covered by `test/loop-robustness.test.js` (10 cases) + confirmed live by the fake-agent smoke test.
+> **Remaining:** **P1.3** `conductor/` → Spine task bridge (biggest UX win, needs the carve task-file format), **P1.4** merge-conflict/resume discipline, **P2** (self-improvement loop, architecture-checklist contract, multi-engine parity). These are larger, design-heavier efforts best done as focused follow-ups once the pair loop has more real-world mileage.
 
 ## 1. What the first live run proved (and exposed)
 

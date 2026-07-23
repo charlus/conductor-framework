@@ -71,9 +71,10 @@ The design is sound; the **reps** are missing. `agentctl`'s 2,731-line orchestra
 
 ## 3. Testing
 
-- Extend the unit suite (`npm run test:unit`, stub adapter) with cases for: commit-backstop no-ops when already committed; teardown refuses a dirty tree; done-claimed-but-no-commit re-prompts.
-- Extend the smoke test (`npm run test:smoke`, fake agent) so the fake maker sometimes "forgets" to commit and the harness recovers — the exact scenario the live run hit.
-- Add a **real** L1 e2e (opt-in, `--unsafe-no-sandbox`, gated by an env flag) that asserts: after a run, the maker's file exists on the branch AND the worktree was preserved (not force-dropped). This is the regression guard for the bug we found.
+- **Shipped:** the smoke test's fake agent now **honors the permission mode** (`plan` = read-only → checker writes no verdict), plus an assertion that the Checker is invoked write-capable — the deterministic CI guard for the plan-mode bug (proven non-vacuous: reintroducing `plan` fails the smoke test). `npm run test:smoke` is now 7 cases.
+- **Shipped:** a **real-agent L1 e2e** (`npm run test:e2e` / `test/e2e-loop-real.sh`), opt-in via `CONDUCTOR_E2E_REAL=1` (spawns a real `claude`; not in the default suite). Asserts the stub-invisible invariants: maker committed real work, verify green on the branch, Checker APPROVED (verdict written), worktree preserved. Validated 5/5 against a live agent.
+- **Shipped:** merge-reuse, force-with-lease-fallback, and the one-loop lock have unit cases (`test/loop-phase4.test.js`, `test/loop-lock.test.js`); unit suite now 125.
+- **Remaining:** extend the smoke so the fake maker sometimes "forgets" to commit and the harness recovers; a done-claimed-but-no-commit re-prompt case.
 
 ## 4. Sequencing
 

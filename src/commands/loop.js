@@ -19,9 +19,11 @@ import { applyClaim, applyDone } from "../loop/writeback.js";
 import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, VERDICT_REL } from "../loop/checker.js";
 import { openPullRequest } from "../loop/merge.js";
 import { runSwarm } from "../loop/swarm.js";
+import { lockDecision, renderLock } from "../loop/lock.js";
 import { parseTriggerPayload, applyTrigger, renderTriggerDoc } from "../loop/trigger.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
+const LOCK_REL = "conductor/1-workbench/loop.lock";
 const WORKFLOW_REL = ".agents/workflows/unattended-loop.md";
 const CHECKER_WORKFLOW_REL = ".agents/workflows/loop-checker.md";
 const TRIGGER_DOC_REL = "conductor/1-workbench/loop-trigger.md";
@@ -67,6 +69,34 @@ async function exists(p) {
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
+}
+
+/** Is `pid` a live process? (signal 0 probes without killing; EPERM = alive-but-not-ours.) */
+function isPidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e?.code === "EPERM";
+  }
+}
+
+/**
+ * Take the single-holder run lock for `root`, or refuse if a live loop owns it.
+ * A stale lock (owner dead) is stolen. @returns {acquired, heldByPid?, stale?}
+ */
+async function acquireLock(root) {
+  const lockPath = join(root, LOCK_REL);
+  const existingText = (await exists(lockPath)) ? await readFile(lockPath, "utf8").catch(() => "") : "";
+  const decision = lockDecision({ existingText, isAlive: isPidAlive });
+  if (!decision.acquire) return { acquired: false, heldByPid: decision.heldByPid };
+  await writeFile(lockPath, renderLock(process.pid, new Date().toISOString()), "utf8");
+  return { acquired: true, stale: decision.stale, heldByPid: decision.heldByPid };
+}
+
+/** Release the run lock (best-effort; a leftover lock is stolen next run anyway). */
+async function releaseLock(root) {
+  await rm(join(root, LOCK_REL), { force: true }).catch(() => {});
 }
 
 /** Atomic state write: temp file + rename, so a kill mid-beat never corrupts the Spine. */
@@ -377,22 +407,34 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   const makeChecker = (cwd) => async () => {
     const verdictPath = join(cwd, VERDICT_REL);
     const verdicts = [];
-    for (let i = 0; i < votes; i++) {
-      await rm(verdictPath, { force: true }).catch(() => {});
-      // The Checker MUST write checker-verdict.json (loop-checker.md), so it cannot
-      // run in read-only "plan" mode — under `claude -p` that silently blocks the
-      // write and every beat fails safe to "no verdict file". Use "acceptEdits" (as
-      // the Maker does); the "inspect only, don't modify code" discipline is enforced
-      // structurally — a fresh independent process + the workflow prose — not by the
-      // permission mode. Verified live: plan mode → checker can never approve.
-      await adapter.runChecker({ promptPath: checkerPromptPath, cwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath });
-      let text = null;
-      try {
-        text = await readFile(verdictPath, "utf8");
-      } catch {
-        /* absent → fail safe */
+    // The Checker MUST write checker-verdict.json (loop-checker.md), so it cannot
+    // run in read-only "plan" mode — under `claude -p` that silently blocks the
+    // write and every beat fails safe to "no verdict file". Use "acceptEdits" (as
+    // the Maker does); the "inspect only, don't modify code" discipline is enforced
+    // structurally — a fresh independent process + the workflow prose — not by the
+    // permission mode. Verified live: plan mode → checker can never approve.
+    //
+    // Run one checker vote, retrying ONCE if it emits no verdict file. An absent
+    // file means the agent didn't produce output (a transient hiccup) — distinct
+    // from an explicit reject verdict — so a single retry absorbs the flakiness
+    // seen live without weakening the fail-safe: still absent after the retry →
+    // parseCheckerVerdict(null) → reject.
+    const runCheckerVote = async () => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await rm(verdictPath, { force: true }).catch(() => {});
+        await adapter.runChecker({ promptPath: checkerPromptPath, cwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath });
+        try {
+          return await readFile(verdictPath, "utf8");
+        } catch {
+          if (attempt === 0) {
+            stdout.write(`[CONDUCTOR LOOP] checker emitted no verdict file — retrying once\n`);
+          }
+        }
       }
-      verdicts.push(parseCheckerVerdict(text));
+      return null; // still absent after the retry → fail safe (reject)
+    };
+    for (let i = 0; i < votes; i++) {
+      verdicts.push(parseCheckerVerdict(await runCheckerVote()));
     }
     const tally = tallyVerdicts(verdicts, votes);
     stdout.write(`[CONDUCTOR LOOP] checker: ${tally.approved ? "APPROVED" : "REJECTED"} — ${tally.reason}\n`);
@@ -445,10 +487,28 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     stdout.write("[CONDUCTOR LOOP] conductor/ has no open work items (inbox + backlog empty). Nothing to do.\n");
     return 0;
   }
-  if (Array.isArray(state.tasks) && state.tasks.length > 0) {
-    return runSwarmMode();
+
+  // One loop per target: independent loop processes race on the shared worktree/
+  // branch/PR and the conductor/ write-back. Refuse to start a second (dry-run,
+  // which never mutates, is exempt above by returning before this point).
+  const lock = await acquireLock(root);
+  if (!lock.acquired) {
+    stderr.write(
+      `⛔  Another 'conductor loop' is already running on this target (pid ${lock.heldByPid}). ` +
+        `Concurrent loops race on the worktree/branch/write-back — refusing to start a second. ` +
+        `Wait for it to finish, or kill it and retry.\n`
+    );
+    return 1;
   }
-  return runPairMode();
+  if (lock.stale) stdout.write(`[CONDUCTOR LOOP] cleared a stale lock (dead pid ${lock.heldByPid})\n`);
+  try {
+    if (Array.isArray(state.tasks) && state.tasks.length > 0) {
+      return await runSwarmMode();
+    }
+    return await runPairMode();
+  } finally {
+    await releaseLock(root);
+  }
 
   // -------------------------------------------------------------------------
   async function runPairMode() {

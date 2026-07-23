@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runLoop, normalizeState, autonomyPreflight, describeHalt } from "../src/loop/driver.js";
-import { planMergeAction, pickForgeCli, prCommand, openPullRequest } from "../src/loop/merge.js";
+import { planMergeAction, pickForgeCli, prCommand, prLookupCommand, openPullRequest } from "../src/loop/merge.js";
 
 function harness(overrides = {}) {
   const state = normalizeState({
@@ -151,6 +151,9 @@ test("prCommand shapes gh/glab argv", () => {
   const [gh, ghArgs] = prCommand("gh", { branch: "b", title: "t" });
   assert.equal(gh, "gh");
   assert.ok(ghArgs.includes("pr") && ghArgs.includes("--head") && ghArgs.includes("b"));
+  const [ghl, ghlArgs] = prLookupCommand("gh", { branch: "b" });
+  assert.equal(ghl, "gh");
+  assert.deepEqual(ghlArgs.slice(0, 4), ["pr", "list", "--head", "b"]);
   const [glab, glabArgs] = prCommand("glab", { branch: "b", title: "t" });
   assert.equal(glab, "glab");
   assert.ok(glabArgs.includes("mr") && glabArgs.includes("--source-branch"));
@@ -197,4 +200,42 @@ test("openPullRequest: failed push aborts before opening a PR", async () => {
   assert.equal(res.ok, false);
   assert.match(res.reason, /git push failed/);
   assert.equal(prOpened, false);
+});
+
+// Regression (live-run finding): `gh pr create` exits non-zero when a PR already
+// exists for the branch (contention / a retried beat). That must NOT be read as a
+// merge failure — probe for an existing PR and reuse it.
+test("openPullRequest: create fails but a PR already exists → reuse it (no false-negative)", async () => {
+  const res = await openPullRequest({
+    branch: "conductor/loop/x",
+    title: "t",
+    git: async (args) => ({ ok: args[0] === "push", stdout: "" }),
+    run: async (_cmd, argv) => {
+      if (argv[0] === "pr" && argv[1] === "create") return { ok: false, stdout: "a pull request already exists" };
+      if (argv[0] === "pr" && argv[1] === "list") return { ok: true, stdout: "https://github.com/o/r/pull/9\n" };
+      return { ok: false, stdout: "" };
+    },
+    hasGh: true,
+    hasGlab: false,
+  });
+  assert.equal(res.ok, true);
+  assert.equal(res.prUrl, "https://github.com/o/r/pull/9");
+  assert.equal(res.reused, true);
+});
+
+test("openPullRequest: create fails and no PR exists → genuine failure", async () => {
+  const res = await openPullRequest({
+    branch: "conductor/loop/x",
+    title: "t",
+    git: async (args) => ({ ok: args[0] === "push", stdout: "" }),
+    run: async (_cmd, argv) => {
+      if (argv[1] === "create") return { ok: false, stdout: "some real error" };
+      if (argv[1] === "list") return { ok: true, stdout: "\n" }; // no url → none open
+      return { ok: false, stdout: "" };
+    },
+    hasGh: true,
+    hasGlab: false,
+  });
+  assert.equal(res.ok, false);
+  assert.match(res.reason, /failed to open the PR/);
 });

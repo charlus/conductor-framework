@@ -202,6 +202,31 @@ test("openPullRequest: failed push aborts before opening a PR", async () => {
   assert.equal(prOpened, false);
 });
 
+// Regression (live-run finding): a stale same-named loop branch from a prior run
+// (divergent history) rejects a plain push; the loop owns conductor/loop/* so it
+// falls back to --force-with-lease, then opens the PR.
+test("openPullRequest: plain push rejected → force-with-lease fallback, then PR", async () => {
+  const pushes = [];
+  const res = await openPullRequest({
+    branch: "conductor/loop/x",
+    title: "t",
+    git: async (args) => {
+      if (args[0] === "push") {
+        pushes.push(args);
+        return { ok: args.includes("--force-with-lease") }; // plain fails, forced ok
+      }
+      return { ok: true, stdout: "" }; // fetch
+    },
+    run: async () => ({ ok: true, stdout: "https://github.com/o/r/pull/12\n" }),
+    hasGh: true,
+    hasGlab: false,
+  });
+  assert.equal(res.ok, true);
+  assert.equal(res.prUrl, "https://github.com/o/r/pull/12");
+  assert.equal(pushes.length, 2); // plain, then force-with-lease
+  assert.ok(pushes[1].includes("--force-with-lease"));
+});
+
 // Regression (live-run finding): `gh pr create` exits non-zero when a PR already
 // exists for the branch (contention / a retried beat). That must NOT be read as a
 // merge failure — probe for an existing PR and reuse it.

@@ -82,9 +82,18 @@ export async function openPullRequest({ branch, title, git, run, hasGh, hasGlab 
   }
 
   // Push the branch (set upstream). Never touch a protected branch directly.
-  const push = await git(["push", "-u", "origin", branch]);
+  let push = await git(["push", "-u", "origin", branch]);
   if (!push.ok) {
-    return { ok: false, branch, reason: `git push failed for ${branch}` };
+    // A leftover same-named loop branch from a PRIOR run (divergent history)
+    // rejects a plain non-fast-forward push. conductor/loop/* is machine-owned, so
+    // refresh our view of the remote ref and replace it with --force-with-lease:
+    // this overwrites a stale machine branch but STILL rejects a genuine concurrent
+    // push we haven't fetched (lease mismatch). Only then do we give up.
+    await git(["fetch", "origin", branch]);
+    push = await git(["push", "--force-with-lease", "-u", "origin", branch]);
+    if (!push.ok) {
+      return { ok: false, branch, reason: `git push failed for ${branch}` };
+    }
   }
 
   const [cmd, argv] = prCommand(forge, { branch, title });

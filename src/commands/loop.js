@@ -379,7 +379,13 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const verdicts = [];
     for (let i = 0; i < votes; i++) {
       await rm(verdictPath, { force: true }).catch(() => {});
-      await adapter.runChecker({ promptPath: checkerPromptPath, cwd, permissionMode: "plan", settingsPath: sandboxSettingsPath });
+      // The Checker MUST write checker-verdict.json (loop-checker.md), so it cannot
+      // run in read-only "plan" mode — under `claude -p` that silently blocks the
+      // write and every beat fails safe to "no verdict file". Use "acceptEdits" (as
+      // the Maker does); the "inspect only, don't modify code" discipline is enforced
+      // structurally — a fresh independent process + the workflow prose — not by the
+      // permission mode. Verified live: plan mode → checker can never approve.
+      await adapter.runChecker({ promptPath: checkerPromptPath, cwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath });
       let text = null;
       try {
         text = await readFile(verdictPath, "utf8");

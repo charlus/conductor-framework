@@ -15,10 +15,12 @@ import { createWorktree, teardownWorktree, worktreePlan } from "../loop/worktree
 import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, VERDICT_REL } from "../loop/checker.js";
 import { openPullRequest } from "../loop/merge.js";
 import { runSwarm } from "../loop/swarm.js";
+import { parseTriggerPayload, applyTrigger, renderTriggerDoc } from "../loop/trigger.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
 const WORKFLOW_REL = ".agents/workflows/unattended-loop.md";
 const CHECKER_WORKFLOW_REL = ".agents/workflows/loop-checker.md";
+const TRIGGER_DOC_REL = "conductor/1-workbench/loop-trigger.md";
 
 /** One-line description of what an autonomy level permits (for dry-run). */
 function autonomySummary(state) {
@@ -147,6 +149,15 @@ async function writeInbox(root, state, reason) {
   }
 }
 
+/** Drop the current run's trigger brief into the workbench (best-effort). */
+async function writeTriggerDoc(root, provenance) {
+  try {
+    await writeFile(join(root, TRIGGER_DOC_REL), renderTriggerDoc(provenance), "utf8");
+  } catch {
+    /* best-effort — the goal is already on the Spine */
+  }
+}
+
 export async function loopCommand(args, { cwd, stdout, stderr }) {
   const positional = args.find((a) => !a.startsWith("-"));
   const root = resolve(cwd, positional || ".");
@@ -154,6 +165,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   const unsafe = args.includes("--unsafe-no-sandbox");
   const dryRun = args.includes("--dry-run");
   const platformFlag = flagValue(args, "--platform");
+  const goalFlag = flagValue(args, "--goal");
+  const eventFlag = flagValue(args, "--event");
 
   if (!(await exists(statePath))) {
     stderr.write(`No ${STATE_REL} found. Run 'conductor init' or 'conductor upgrade' first.\n`);
@@ -170,6 +183,49 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   }
   const state = normalizeState(raw);
   await atomicWriteJson(statePath, state);
+
+  // ---- Ignition: seed this run's goal from an external trigger -------------
+  // `--goal "<text>"` (a bare-string trigger) or `--event <path>` (a JSON
+  // payload) let a scheduler / cron / webhook seed the loop. autonomy is CLAMPED
+  // to the operator ceiling already in state — a trigger can never escalate.
+  let triggerProvenance = null;
+  if (goalFlag || eventFlag) {
+    let text;
+    if (eventFlag) {
+      try {
+        text = await readFile(resolve(root, eventFlag), "utf8");
+      } catch (e) {
+        stderr.write(`Could not read --event file '${eventFlag}': ${e.message}\n`);
+        return 1;
+      }
+    } else {
+      text = goalFlag;
+    }
+    let payload;
+    try {
+      payload = parseTriggerPayload(text);
+    } catch (e) {
+      stderr.write(`Invalid trigger: ${e.message}\n`);
+      return 1;
+    }
+    if (payload) {
+      // Always apply in-memory so a --dry-run preview reflects the seeded goal;
+      // only persist / write the brief / audit on a real run.
+      triggerProvenance = applyTrigger(state, payload, { now: Date.now }).provenance;
+      if (!dryRun) {
+        await atomicWriteJson(statePath, state);
+        await writeTriggerDoc(root, triggerProvenance);
+        const clamp = triggerProvenance.clamped_from
+          ? ` (autonomy clamped down from requested ${triggerProvenance.clamped_from} → ${triggerProvenance.effective_autonomy})`
+          : "";
+        await appendShipLog(
+          root,
+          `trigger from '${triggerProvenance.source}': goal="${state.goal_description}"${clamp}`,
+          Date.now()
+        );
+      }
+    }
+  }
 
   // Resolve the verify command up front (mirrors conductor_verify_cmd).
   const verifyCommand = resolveVerifyCommand({
@@ -214,6 +270,15 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         "conductor loop — dry run",
         `  state:    ${statePath}`,
         `  status:   ${state.status}`,
+        `  goal:     ${state.goal_description || "(none set)"}`,
+        ...(triggerProvenance
+          ? [
+              `  trigger:  '${triggerProvenance.source}' → autonomy ${triggerProvenance.effective_autonomy}` +
+                (triggerProvenance.clamped_from
+                  ? `  ⛔ escalation to ${triggerProvenance.clamped_from} refused (clamped to operator ceiling)`
+                  : ""),
+            ]
+          : []),
         `  phase:    ${state.phase}`,
         `  verify:   ${verifyCommand ?? "(none → will halt: halted_no_verification)"}`,
         `  beats:    ${state.iterations.current}/${state.iterations.max_allowed}`,

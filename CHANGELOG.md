@@ -4,6 +4,18 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Added — Loop ignition contract (time-based & proactive loops)
+- **`conductor loop --goal "<text>"` and `--event <file.json>`** — an external trigger can now seed the loop's goal, turning the goal-based driver into the **time-based** and **proactive** loops of Anthropic's Loop-Engineering taxonomy *by composition*. Conductor deliberately ships **no scheduler of its own** — drive `conductor loop` from Claude Code's native `/schedule` or host `cron` (time-based), or from a webhook/CI shim that writes an event payload (proactive). Rationale and the full four-loop readiness map: `docs/roadmap/Loop-Engineering-Alignment.md`.
+- **`src/loop/trigger.js`** (pure) — `parseTriggerPayload` (a JSON object *or* a bare goal string), `applyTrigger` (seeds `goal_description`/`phase`, records provenance), `clampAutonomy`, `renderTriggerDoc`. Covered by `test/loop-trigger.test.js` (11 `node:test` cases).
+- **Safety — autonomy clamp.** A trigger payload may originate from untrusted input (a Slack message, a GitHub issue body). It may set the goal/phase/context and may *request* an autonomy level, but the level is **clamped to the operator ceiling already in `loop-state.json`** — a trigger can de-escalate but **never escalate**. Privilege stays with the operator, not the event.
+- **Auditability.** The seeded goal + provenance persist to the Spine (`loop-state.json.last_trigger`), the run's brief is written to `conductor/1-workbench/loop-trigger.md` (data for the Maker, never spliced into driver control flow), and the trigger — including any refused escalation — is logged to `0-compass/ship-log.md`. `--dry-run` previews all of it without mutating state.
+
+### Documentation
+- **`how-it-works.md`** gained a **"Four Loop Types"** section mapping each rung (turn / goal / time / proactive) to the Conductor primitive that serves it — including that Conductor's deterministic TDD/verify **git hooks** are one rung *stronger* than the guide's "encode verification in a `SKILL.md`" (a hook is code the agent cannot reason around).
+- **`README.md`** documents the ignition contract in the Autonomous Loop Backend section.
+
 ## [6.1.0] — 2026-07-15 — Multi-Agent Across Workflows
 
 Brings the V6 loop backend's multi-agent capability to the everyday workflows — retro-compatibly and proportionately. Two mechanisms recur: **empty-context** agents (a reviewer/verifier that never saw the producing context, for honest judgment) and **parallelization** (independent sub-tasks in isolated contexts, merged). Every enhancement degrades gracefully — an isolated subagent when the platform supports one, else a deliberate fresh-context self-pass or sequential inline work — and each gate is one-per-artifact, never per-step. Two new reusable primitives (`independent-review`, `judge-panel`) that the rest of the framework composes with. No breaking changes; `conductor upgrade` lands the new skills on existing installs.

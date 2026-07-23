@@ -232,6 +232,19 @@ Mechanics live in `.agents/skills/context-engineering/SKILL.md`.
 
 > **Interview & drafting primitives:** Genesis, Storyboard, Grand PRD, and the UX/UI Design Brief supply their *agenda* and load the `grilling` + `collaborative-drafting` skills for the *how*. Spec-It synthesizes from blueprint context rather than re-interviewing; Quick-Path, Retrospective, Technical Vision, and Carve reference the primitives too.
 
+### The Four Loop Types
+
+A maturity ladder for autonomy (Anthropic's *Loop Engineering* taxonomy), and the Conductor primitive that serves each rung. Climb it as the work earns it — a single well-scoped prompt still handles most daily work.
+
+| # | Loop | When | Conductor primitive |
+|---|------|------|---------------------|
+| 1 | **Turn-based** | Exploring, deciding, work you want to see step by step | You prompt; the agent self-checks. Conductor makes the check **deterministic** — TDD `pre-commit` + verify `pre-push` **git hooks**, not just a `SKILL.md`. This is one rung *stronger* than "encode verification in a prompt": a hook is code the agent cannot reason around. |
+| 2 | **Goal-based** | A measurable exit condition (tests green, zero failing checks) | `conductor loop` — the deterministic driver *is* a goal loop: `goal_description` + `budget.max_beats` (turn cap) + wall-clock budget + Evidence Rule (verify exit code) + a multi-vote adversarial **Checker** (the "evaluator") in a fresh process. |
+| 3 | **Time-based** | Recurring work, same task, changing inputs | **Ignition contract** — drive `conductor loop --goal "…"` from Claude Code's native `/schedule` or host `cron`. Conductor does **not** ship its own scheduler; it rides the platform's. |
+| 4 | **Proactive** | Event-driven, run unattended until every item is handled | `conductor loop --event payload.json` (a webhook/CI shim writes the payload) + autonomy **L3** + worktree isolation + `judge-panel` (explore N solutions, judge adversarially) + PR-gated merge. |
+
+> **The ignition contract (rungs 3–4).** A trigger seeds the run's goal but is **clamped to the operator's autonomy ceiling** in `loop-state.json` — a payload (which may come from an untrusted Slack/GitHub source) can *de-escalate* but never *escalate*. The seeded brief lands in `conductor/1-workbench/loop-trigger.md`; the deterministic driver still owns every guardrail. See `src/loop/trigger.js` and `docs/roadmap/Loop-Engineering-Alignment.md`.
+
 ---
 
 ## Context File Manifest

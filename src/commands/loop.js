@@ -20,6 +20,7 @@ import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, VERDICT_REL } fr
 import { openPullRequest } from "../loop/merge.js";
 import { runSwarm } from "../loop/swarm.js";
 import { lockDecision, renderLock } from "../loop/lock.js";
+import { reviveForResume } from "../loop/resume.js";
 import { parseTriggerPayload, applyTrigger, renderTriggerDoc } from "../loop/trigger.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
@@ -222,6 +223,20 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     return 1;
   }
   const state = normalizeState(raw);
+
+  // ---- Resume discipline (P1.4): a prior run may have died mid-beat, freezing a
+  // task at a working status the frontier never re-selects (→ deadlock on resume)
+  // or the pair run at a half-finished sub-status. Rewind those to a clean entry
+  // point so THIS invocation picks up cleanly. Terminal work (merged/failed) is
+  // untouched. Safe: the one-loop lock guarantees no live worker to race, and a
+  // re-run is idempotent (maker re-verifies, auto-commit no-ops, merge reuses PR).
+  const revived = reviveForResume(state);
+  if (revived.tasks || revived.run) {
+    stdout.write(
+      `[CONDUCTOR LOOP] resuming: revived ${revived.tasks} in-flight task(s)` +
+        `${revived.run ? " + the run status" : ""} from a prior interrupted run\n`
+    );
+  }
   await atomicWriteJson(statePath, state);
 
   // ---- Ignition: seed this run's goal from an external trigger -------------
@@ -611,10 +626,18 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       verifyCommand,
       assignWorktree: async ({ task }) => {
         const plan = worktreePlan(root, `${state.goal_description}-${task.id}`);
-        const res = await git(["worktree", "add", "-b", plan.branch, plan.path]);
-        if (!res.ok) await git(["worktree", "add", plan.path, plan.branch]);
+        // Idempotent (P1.4 resume): a prior interrupted run may have left this
+        // task's worktree + branch on disk. Reuse it rather than failing the
+        // `add`; a fresh `git worktree add` on an existing path/branch errors out.
+        const list = await git(["worktree", "list", "--porcelain"]);
+        const alreadyThere = list.ok && list.stdout.includes(plan.path);
+        if (!alreadyThere) {
+          const res = await git(["worktree", "add", "-b", plan.branch, plan.path]);
+          if (!res.ok) await git(["worktree", "add", plan.path, plan.branch]);
+        }
         cwdFor.set(task.id, plan.path);
         // FB-2: mark the item claimed in ./conductor/ so a human won't double-book it.
+        // applyClaim is idempotent — a re-claim on resume no-ops (no diff → no commit).
         await updateConductorSource(task, applyClaim, `chore(loop): claim ${task.id}`);
         return { path: plan.path, branch: plan.branch };
       },

@@ -78,6 +78,11 @@ test("antigravity: permission mode maps to agy --mode (writable by default)", ()
   const args = antigravity.beatArgs({ prompt: "P", permissionMode: "acceptEdits" });
   assert.deepEqual(args, ["--print", "P", "--mode", "accept-edits", "--dangerously-skip-permissions"]);
   assert.ok(!args.includes("run"), "must not use the removed `run` subcommand");
+  // agy's workspace is decoupled from cwd — without --add-dir it writes to its own
+  // scratch project, so the loop must anchor it to the worktree (verified live).
+  const withDir = antigravity.beatArgs({ prompt: "P", permissionMode: "acceptEdits", addDir: "/wt" });
+  const di = withDir.indexOf("--add-dir");
+  assert.ok(di !== -1 && withDir[di + 1] === "/wt", "must pass --add-dir <worktree>");
   // Headless writable beats MUST auto-approve tools or agy silently no-ops (exit 0).
   assert.ok(
     args.includes("--dangerously-skip-permissions"),

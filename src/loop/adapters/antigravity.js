@@ -38,10 +38,17 @@ export function mapMode(permissionMode) {
  *  own prescribed fix is `--dangerously-skip-permissions`; it is paired with agy's
  *  `--sandbox` (terminal-restricted) under the loop's L3 sandbox gate so
  *  "auto-approve" still runs confined — the same posture as agentctl's engines.
- *  `plan` stays strictly read-only (no auto-approve). */
-export function beatArgs({ prompt, permissionMode = "acceptEdits", sandbox = false } = {}) {
+ *  `plan` stays strictly read-only (no auto-approve).
+ *
+ *  `addDir` is REQUIRED for the loop: agy's workspace is decoupled from the
+ *  process cwd — without `--add-dir <worktree>` it writes to its own scratch
+ *  project (~/.gemini/antigravity-cli/scratch/), so the maker's work would never
+ *  land in the loop's git worktree (verified live: cwd alone → scratch;
+ *  --add-dir → cwd). runBeat always passes the beat's cwd as addDir. */
+export function beatArgs({ prompt, permissionMode = "acceptEdits", sandbox = false, addDir = null } = {}) {
   const argv = ["--print", prompt, "--mode", mapMode(permissionMode)];
   if (permissionMode !== "plan") argv.push("--dangerously-skip-permissions");
+  if (addDir) argv.push("--add-dir", addDir);
   if (sandbox) argv.push("--sandbox");
   return argv;
 }
@@ -63,7 +70,8 @@ export async function isAvailable() {
 export async function runBeat({ promptPath, cwd = process.cwd(), permissionMode = "acceptEdits", sandbox = false }) {
   const prompt = await readFile(promptPath, "utf8");
   return await new Promise((resolve, reject) => {
-    const child = spawn(CLI, beatArgs({ prompt, permissionMode, sandbox }), {
+    // addDir: cwd anchors agy's workspace to the loop's worktree (see beatArgs).
+    const child = spawn(CLI, beatArgs({ prompt, permissionMode, sandbox, addDir: cwd }), {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
     });

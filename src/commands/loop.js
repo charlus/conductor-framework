@@ -416,6 +416,12 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     }
   }
 
+  // agy expresses cli-native sandboxing as a boolean `--sandbox` (terminal
+  // restrictions), not a settings file. Pass it through for the antigravity
+  // adapter so an L3 agy beat runs confined (claude uses sandboxSettingsPath).
+  const agySandbox = state.sandbox === "cli-native" && adapter.name === "antigravity";
+  if (agySandbox) stdout.write(`[CONDUCTOR LOOP] sandbox: cli-native (agy --sandbox)\n`);
+
   const git = makeGit(root);
   const checkerPromptPath = join(root, CHECKER_WORKFLOW_REL);
 
@@ -441,7 +447,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const runCheckerVote = async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
         await rm(verdictPath, { force: true }).catch(() => {});
-        await adapter.runChecker({ promptPath: checkerPrompt, cwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath });
+        await adapter.runChecker({ promptPath: checkerPrompt, cwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath, sandbox: agySandbox });
         try {
           return await readFile(verdictPath, "utf8");
         } catch {
@@ -659,7 +665,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       verifyCommand,
       runBeat: async () => {
         await rm(makerSignalPath, { force: true }).catch(() => {}); // clear stale signal
-        const result = await adapter.runBeat({ promptPath, cwd: workCwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath });
+        const result = await adapter.runBeat({ promptPath, cwd: workCwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath, sandbox: agySandbox });
         // P0.1 backstop: capture any uncommitted Maker change so verify sees a real
         // diff, the Checker has commits to review, and teardown can't discard it.
         const cap = await autoCommit({
@@ -763,7 +769,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           promptPath: beatPromptPath,
           cwd: taskCwd,
           permissionMode: "acceptEdits",
-          settingsPath: sandboxSettingsPath, // cli-native sandbox per fleet worker
+          settingsPath: sandboxSettingsPath, // cli-native sandbox per fleet worker (claude)
+          sandbox: agySandbox, // cli-native sandbox for agy (boolean --sandbox)
           // Forwarded so the beat can adopt the right brief (test-author vs
           // implementer). The agent also reads task.role/phase from loop-state.
           role,

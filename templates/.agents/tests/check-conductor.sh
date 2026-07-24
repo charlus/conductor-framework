@@ -143,6 +143,26 @@ for skill in "${skills[@]}"; do
   require_file "$AGENT_DIR/skills/$skill/SKILL.md"
 done
 
+# Level C: Conductor's own LLM-judge surfaces must carry a versioned rubric.
+judge_surfaces=(
+  "skills/judge-panel/SKILL.md"
+  "skills/independent-review/SKILL.md"
+  "skills/behavior-validator/SKILL.md"
+  "workflows/loop-checker.md"
+)
+for js in "${judge_surfaces[@]}"; do
+  if grep -q "Rubric v" "$AGENT_DIR/$js" 2>/dev/null; then
+    pass "judge surface carries a versioned rubric: $js"
+  else
+    fail "judge surface missing a versioned rubric (Level C): $js"
+  fi
+done
+if grep -q "## Calibration" "$AGENT_DIR/skills/judge-panel/SKILL.md" 2>/dev/null; then
+  pass "judge-panel documents the Calibration discipline (who watches the watchers)"
+else
+  fail "judge-panel missing the Calibration section"
+fi
+
 # ---- 5b. Reference Library (docs demoted out of the skill catalog) ----
 echo ""
 echo "5b. Reference Library..."

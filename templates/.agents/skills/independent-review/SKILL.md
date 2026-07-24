@@ -62,6 +62,8 @@ Hitting a brake is a successful outcome of the gate, not a failure: it has found
 
 ## Review lenses (what "ready" means per artifact)
 
+> **Rubric v1** — these lenses are the reviewer's rubric; versioned and calibrated (see Calibration in `skills/judge-panel/SKILL.md`). Editing a lens bumps the version; spot-check verdicts against human judgment.
+
 The calling workflow supplies the lens. Defaults:
 
 | Artifact | The reviewer asks |

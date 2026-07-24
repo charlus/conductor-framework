@@ -63,8 +63,8 @@ If the staged diff contains an LLM-feature file and **no** eval file is staged �
 
 ## Deferred (follow-ups, explicitly out of the first increment)
 - ~~**v2 run-gate**: `conductor_eval_cmd` (config `eval` field) run in CI/pre-push.~~ **SHIPPED (2026-07-24).** `pre-push` runs the configured `eval` command when the repo has evalsets — presence gated at commit, passing gated at push. `lib.sh` `conductor_eval_cmd` (config `eval` → `npm run eval` → empty) + `conductor_has_eval_files`; escape hatch `CONDUCTOR_SKIP_EVAL` (logged); non-LLM repos never see it. `test/hooks-eval-gate.sh` R1–R5.
-- **P2.2 fusion**: fold the architecture-checklist into a single machine-readable ship-contract the Checker verifies (build the eval gate first, prove the mechanism, then fuse).
-- **Level C**: version + spot-check Conductor's own judge-panel/Checker rubrics.
+- ~~**P2.2 fusion**: fold the architecture-checklist into a single machine-readable ship-contract the Checker verifies.~~ **SHIPPED (2026-07-24).** `skills/architecture-checklist` + the ship-contract framing (deterministic half = TDD/Eval hooks + `check:` items; semantic half = Checker/independent-review). Produced by technical-vision, verified by loop-checker + independent-review. Semantic-by-nature, so no new hook stage — the teeth are the Checker + optional `check:` commands.
+- ~~**Level C**: version + spot-check Conductor's own judge-panel/Checker rubrics.~~ **SHIPPED (2026-07-24).** Every judge surface (judge-panel, loop-checker, independent-review, behavior-validator) carries a `Rubric vN` stamp; judge-panel documents the **Calibration** discipline (version the rubric, spot-check against human judgment, diverse lenses). Self-test asserts all four are versioned.
 
 ## Open questions for review
 1. **Always-on vs skill-only** for the how-to — this doc says skill-only (progressive disclosure). Agree?

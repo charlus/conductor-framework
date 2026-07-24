@@ -36,6 +36,8 @@ Spawn candidate authors in **isolated contexts** (`skills/subagent-isolation/SKI
 
 Spawn **2–3 judges**, each in a fresh context, each scoring **every** candidate against explicit criteria (1–5). Judges are Checkers (`skills/independent-review/SKILL.md`) — adversarial, not cheerleaders. Route them to a strong model tier (`skills/model-routing/SKILL.md`); a weak judge is a false signal on a high-stakes call.
 
+> **Rubric v1** — these criteria are the judge's rubric. A rubric is *config*: changing it changes every verdict, so bump this version when you edit the criteria, and calibrate per the section below.
+
 Default criteria (adapt per decision):
 - **Fit** — does it satisfy *every* requirement (each Epic, each screen/flow)? A candidate that drops a requirement loses regardless of elegance.
 - **Simplicity** — fewest parts for the required capability; passes the **deletion test** (no shallow pass-through modules — `skills/architecture-patterns`). **Ties break toward the simplest candidate**, always. Removing complexity later is far harder than adding it.
@@ -52,6 +54,16 @@ Aggregate the scores (mean per candidate; note where judges *disagree* — diver
 2. **Graft the runners-up** — pull in specific superior ideas from the losing candidates where they compose cleanly (e.g. the simplest winner + one risk-first candidate's isolation boundary).
 3. **Re-apply the deletion test to the merged result.** Synthesis bloats — grafting adds parts. Collapse any module the merge introduced that doesn't hide real, otherwise-duplicated complexity. The output must be *simpler* than the sum of its parents, not a union of everyone's ideas.
 4. **Record the decision** — winner, why, and what was rejected and why. This is exactly the Phase 4 "Key Decisions & Trade-offs" input; promote to an ADR only if it passes the 3-test gate.
+
+## Calibration — who watches the watchers
+
+Conductor leans on LLM judges — this panel, the loop **Checker** (`workflows/loop-checker.md`), `independent-review`, `behavior-validator`. An LLM judge is itself fallible, and *"an eval without a clear rubric measures nothing"* cuts both ways: a rubric can be miscalibrated, and a judge that rubber-stamps is a false safety signal. So the same eval discipline Conductor demands of the apps it builds (`skills/writing-evals`) applies to Conductor's own judges:
+
+- **Version the rubric.** Every judge surface carries a `Rubric vN` stamp. Changing the criteria bumps it — a rubric change is a config change that alters every downstream verdict, and should be reviewed as one, not slipped in.
+- **Spot-check against human judgment.** On a handful of cases, compare the judge's verdict to what a human reviewer concludes. Persistent divergence means the rubric is miscalibrated — fix the rubric, don't trust the judge. A judge that *never* rejects is broken; look for the case it should have caught.
+- **Diverse lenses over redundant ones.** When it matters, give each judge a distinct angle (correctness / security / does-it-reproduce) rather than N identical scorers — diversity catches failure modes redundancy can't.
+
+This is the Level-C honesty pass: the gates that check everything else are themselves checkable, versioned, and calibrated.
 
 ## The panel does not replace the review gate
 

@@ -26,6 +26,8 @@ Run it when a change has an **observable runtime surface** and the claim "it wor
 
 ## The behavior contract
 
+> **Rubric v1** — the contract clauses + anti-cheat probes are this gate's rubric; versioned and calibrated (see Calibration in `skills/judge-panel/SKILL.md`). Spot-check verdicts against a human's; a validator that always PASSes isn't validating.
+
 Validate against a contract, not a vibe. **Read the contract first; if none exists, write a short one from the acceptance criteria / goal before testing.** A contract states:
 
 1. **User tasks** — the workflows a real operator performs, in their words.

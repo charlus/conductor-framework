@@ -76,8 +76,16 @@ test("antigravity: permission mode maps to agy --mode (writable by default)", ()
   assert.equal(antigravity.mapMode("plan"), "plan");
   assert.equal(antigravity.mapMode(undefined), "accept-edits"); // default writable
   const args = antigravity.beatArgs({ prompt: "P", permissionMode: "acceptEdits" });
-  assert.deepEqual(args, ["--print", "P", "--mode", "accept-edits"]);
+  assert.deepEqual(args, ["--print", "P", "--mode", "accept-edits", "--dangerously-skip-permissions"]);
   assert.ok(!args.includes("run"), "must not use the removed `run` subcommand");
+  // Headless writable beats MUST auto-approve tools or agy silently no-ops (exit 0).
+  assert.ok(
+    args.includes("--dangerously-skip-permissions"),
+    "a writable headless beat must auto-approve tool permissions"
+  );
+  // plan = strictly read-only: no auto-approve.
+  assert.ok(!antigravity.beatArgs({ prompt: "P", permissionMode: "plan" }).includes("--dangerously-skip-permissions"));
+  // sandbox pairs with skip-permissions to keep auto-approve confined.
   assert.deepEqual(antigravity.beatArgs({ prompt: "P", sandbox: true }).slice(-1), ["--sandbox"]);
 });
 

@@ -29,9 +29,19 @@ export function mapMode(permissionMode) {
   return permissionMode === "plan" ? "plan" : "accept-edits";
 }
 
-/** Pure argv builder for one beat — unit-testable without spawning a process. */
+/** Pure argv builder for one beat — unit-testable without spawning a process.
+ *
+ *  Headless (`--print`) mode cannot prompt for tool permissions, so a writable
+ *  beat MUST auto-approve them or every command/write tool is silently denied and
+ *  agy exits 0 having done NOTHING (verified live: "a tool required the 'command'
+ *  permission that headless mode cannot prompt for, so it was auto-denied"). agy's
+ *  own prescribed fix is `--dangerously-skip-permissions`; it is paired with agy's
+ *  `--sandbox` (terminal-restricted) under the loop's L3 sandbox gate so
+ *  "auto-approve" still runs confined — the same posture as agentctl's engines.
+ *  `plan` stays strictly read-only (no auto-approve). */
 export function beatArgs({ prompt, permissionMode = "acceptEdits", sandbox = false } = {}) {
   const argv = ["--print", prompt, "--mode", mapMode(permissionMode)];
+  if (permissionMode !== "plan") argv.push("--dangerously-skip-permissions");
   if (sandbox) argv.push("--sandbox");
   return argv;
 }

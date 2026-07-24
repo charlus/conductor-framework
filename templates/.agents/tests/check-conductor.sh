@@ -136,11 +136,32 @@ skills=(
   "skill-registry" "grilling" "collaborative-drafting" "handoff"
   "domain-modeling" "subagent-isolation" "model-routing"
   "independent-review" "judge-panel" "behavior-validator"
+  "writing-evals" "architecture-checklist"
 )
 
 for skill in "${skills[@]}"; do
   require_file "$AGENT_DIR/skills/$skill/SKILL.md"
 done
+
+# Level C: Conductor's own LLM-judge surfaces must carry a versioned rubric.
+judge_surfaces=(
+  "skills/judge-panel/SKILL.md"
+  "skills/independent-review/SKILL.md"
+  "skills/behavior-validator/SKILL.md"
+  "workflows/loop-checker.md"
+)
+for js in "${judge_surfaces[@]}"; do
+  if grep -q "Rubric v" "$AGENT_DIR/$js" 2>/dev/null; then
+    pass "judge surface carries a versioned rubric: $js"
+  else
+    fail "judge surface missing a versioned rubric (Level C): $js"
+  fi
+done
+if grep -q "## Calibration" "$AGENT_DIR/skills/judge-panel/SKILL.md" 2>/dev/null; then
+  pass "judge-panel documents the Calibration discipline (who watches the watchers)"
+else
+  fail "judge-panel missing the Calibration section"
+fi
 
 # ---- 5b. Reference Library (docs demoted out of the skill catalog) ----
 echo ""
@@ -260,6 +281,32 @@ if [ -f "$AGENT_DIR/hooks/pre-commit" ] && [ -x "$AGENT_DIR/hooks/pre-commit" ];
   pass "pre-commit hook is executable"
 else
   fail "pre-commit hook is not executable"
+fi
+
+# Eval-Driven Law: the gate + its detection helpers must be present.
+for helper in conductor_is_llm_feature_file conductor_is_eval_file; do
+  if grep -q "$helper" "$AGENT_DIR/hooks/lib.sh" 2>/dev/null; then
+    pass "lib.sh defines eval-gate helper: $helper"
+  else
+    fail "lib.sh missing eval-gate helper: $helper"
+  fi
+done
+if grep -q "Eval-Driven Law" "$AGENT_DIR/hooks/pre-commit" 2>/dev/null; then
+  pass "pre-commit enforces the Eval-Driven Law (presence)"
+else
+  fail "pre-commit does not enforce the Eval-Driven Law"
+fi
+for helper in conductor_eval_cmd conductor_has_eval_files; do
+  if grep -q "$helper" "$AGENT_DIR/hooks/lib.sh" 2>/dev/null; then
+    pass "lib.sh defines eval run-gate helper: $helper"
+  else
+    fail "lib.sh missing eval run-gate helper: $helper"
+  fi
+done
+if grep -q "Eval-Driven Law" "$AGENT_DIR/hooks/pre-push" 2>/dev/null; then
+  pass "pre-push enforces the Eval-Driven Law run-gate"
+else
+  fail "pre-push does not enforce the Eval-Driven Law run-gate"
 fi
 
 # ---- 12. Autonomous Loop Backend (V6 driver + v2 state) ----

@@ -1,8 +1,14 @@
 # 🎼 Conductor Framework
 
-**The Conductor** — an AI Software Engineering framework for the full development lifecycle.
+**The Conductor** — a framework for **disciplined, verifiable, autonomous AI software engineering**.
 
-Workflows, skills, and personas that turn any AI coding assistant into a Product Engineer. Plan → Design → Build → Ship → Learn.
+Conductor is a harness layer: it configures your AI coding assistant (Claude Code, Antigravity, Codex) with a full engineering methodology — Plan → Design → Build → Ship → Learn — and enforces the discipline in **code, not prose**, so AI output becomes something you can actually depend on.
+
+**What makes it different:**
+
+- **Laws enforced by code.** Deterministic git hooks gate every commit and push: no implementation without a test (Test-Driven Law), no LLM feature without an eval (Eval-Driven Law). Prose rules are advisory; a hook can't be reasoned around.
+- **Evals for the non-deterministic surface.** Tests verify deterministic code; **evals** verify LLM output. A **ship-contract** (`architecture-checklist`) turns "follow the architecture" into checkable items the Checker verifies before anything merges.
+- **An autonomous, multi-engine loop.** `conductor loop` drives a Maker/Checker build cycle unattended across Claude Code / `agy` / `codex`, with safety baked in: PR-gated merge (never a direct push), sandbox isolation, and an Evidence Rule — a model can't self-declare victory.
 
 ---
 
@@ -16,12 +22,14 @@ This scaffolds the full Conductor Framework into your project:
 
 ```
 your-project/
-├── .agents/              # AI agent core (rules, workflows, skills, personas)
+├── .agents/              # AI agent core (rules, workflows, skills, personas, hooks)
 │   ├── AGENTS.md        # Routing table (quick reference)
-│   ├── rules/           # System rules (auto-loaded by Antigravity)
-│   ├── workflows/       # Genesis → Build pipeline
-│   ├── skills/          # 34 modular skills
+│   ├── rules/           # Always-on laws (Prime Directive, Verification, Test-Driven)
+│   ├── workflows/       # Genesis → Build → Ship pipeline
+│   ├── skills/          # 31 modular skills
 │   ├── personas/        # 12 thinking partners
+│   ├── hooks/           # Deterministic enforcement (TDD + Eval git hooks)
+│   ├── references/      # On-demand reference docs
 │   └── tests/           # Framework self-test
 ├── conductor/           # Project state (all managed artifacts)
 │   ├── 0-compass/       # North Star & Ship Log
@@ -68,7 +76,7 @@ Preview any upgrade with `upgrade --dry-run` (prints the plan, writes nothing).
 
 ### Skill Registry (optional)
 
-Beyond the 34 core skills bundled in `templates/`, Conductor can download tech-specific or domain skills on demand from a registry you configure:
+Beyond the 31 core skills bundled in `templates/`, Conductor can download tech-specific or domain skills on demand from a registry you configure:
 
 ```bash
 npx conductor-framework list --remote          # browse the registry
@@ -104,8 +112,8 @@ Genesis → Storyboard → Grand PRD → UX/UI Design Brief → Technical Vision
 
 ### What's Inside
 
-- **15 Workflows** — From Genesis (ideation) to Build (verified execution) to Ship, plus the headless **Unattended-Loop** orchestrator and its independent **Loop-Checker**
-- **34 Skills** — including the `grilling` and `collaborative-drafting` interview/drafting primitives, `handoff` (context hygiene), Verification Gate, Code Review, Systematic Debugging, and more
+- **16 Workflows** — From Genesis (ideation) to Build (verified execution) to Ship, plus the headless **Unattended-Loop** orchestrator and its independent **Loop-Checker**
+- **31 Skills** — including the `grilling` and `collaborative-drafting` interview/drafting primitives, `writing-evals` + `architecture-checklist` (the ship-contract), `handoff` (context hygiene), Verification Gate, Code Review, Systematic Debugging, and more
 - **12 Personas** — Including the strategic thinking partners and loop-execution specialists (**Maker** and **Checker**)
 
 Full documentation: [`AGENTS.md`](templates/.agents/AGENTS.md)
@@ -120,6 +128,11 @@ Full documentation: [`AGENTS.md`](templates/.agents/AGENTS.md)
 
 Before claiming any work is done, the agent must run a check, read the output, confirm it matches, and only then claim completion. "Should work" is not evidence.
 
+Conductor backs its laws with **code, not just prose** — deterministic git hooks (`.agents/hooks/`, wired by `conductor install-hooks`), because prose rules are advisory and only code enforces:
+
+- **Test-Driven Law** — a `pre-commit` gate blocks implementation code staged with no test.
+- **Eval-Driven Law** — tests verify the deterministic surface; **evals** verify the non-deterministic LLM-output surface of the apps you build. If a feature calls an LLM provider, a `pre-commit` gate requires an evalset alongside it and a `pre-push` gate runs it — see the `writing-evals` skill (three grading modes). The **ship-contract** extends this: `architecture-checklist` turns "follow the architecture" into checkable items the Checker verifies. Every escape hatch is logged, never silent.
+
 ---
 
 ## 🤖 Autonomous Loop Backend (V6)
@@ -133,9 +146,9 @@ The driver reads and writes **The Spine** (a durable JSON ledger, `conductor/1-w
 * **The Scoping Barrier** — headless runs are refused during `discovery` (that phase needs a human).
 
 Around the driver:
-* **Platform adapters** (`src/loop/adapters/`) — Claude Code (primary), Antigravity, and Codex, selected via `--platform` → `loop-state.json` → auto-detect.
+* **Platform adapters** (`src/loop/adapters/`) — Claude Code (primary), Antigravity (`agy`), and Codex (`codex`), each verified against the installed CLI; selected via `--platform` → `loop-state.json` → auto-detect.
 * **Maker/Checker split** — the Maker builds in an isolated git worktree; an **independent Checker** process verifies via a multi-vote verdict (`checker-verdict.json`, fail-safe reject).
-* **Sandbox gate** — real headless runs are gated behind a sandbox profile (`--unsafe-no-sandbox` to override); L3 requires a container.
+* **Sandbox gate** — real headless runs are gated behind a sandbox (`--unsafe-no-sandbox` to override); L3 requires `cli-native` (the CLI vendor's own sandbox — Anthropic bubblewrap for `claude`, no Docker image needed) or a container.
 * **Swarm scaling & autonomy slider (L0–L3)** — parallelize independent work with a PR-gated merge queue.
 
 **Ignition contract** — the driver is a *goal* loop with no scheduler of its own (by design). Seed it from an external trigger and it composes into the **time-based** and **proactive** loops of Anthropic's Loop-Engineering taxonomy:

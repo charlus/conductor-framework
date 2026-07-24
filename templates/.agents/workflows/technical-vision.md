@@ -232,6 +232,7 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
     * This is a high-stakes artifact — every downstream Implementation builds on it — so route the reviewer to a strong tier (`.agents/skills/model-routing/SKILL.md`). Address every `CHANGES REQUESTED` finding before saving.
 
 5.  **Save:** Create/update `blueprint/technical-vision.md`
+    * **Distill the ship-contract:** for each architecture decision worth enforcing on *every* future change — a layer boundary, a type discipline, a security invariant, a seam rule — add a checkable item to `conductor/0-compass/architecture-checklist.md` (`.agents/skills/architecture-checklist/SKILL.md`). Prefer a `check:` shell command where the rule is grep-able; leave genuinely semantic rules for the Checker. This is what turns the vision's prose into something the loop Checker and `independent-review` can actually enforce — don't skip it for anything load-bearing.
     * **Ask:** *"Ready for me to save the Technical Vision?"*
 
 ---

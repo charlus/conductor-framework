@@ -70,6 +70,8 @@ If either is missing:
 
 4.  **Test Strategy:** Run the `analyze-tests` skill (`.agents/skills/analyze-tests/SKILL.md`) before touching implementation code. It decides what kinds of tests this implementation needs — that strategy is what each task's RED step below draws from.
 
+    * **Eval surface (Eval-Driven Law):** If any task calls an LLM provider (`openai`, `anthropic`, `langchain`, …), that feature's non-deterministic output needs an **evalset**, not just a test — load the `writing-evals` skill (`.agents/skills/writing-evals/SKILL.md`) for the three grading modes. The `pre-commit` hook enforces this: provider-calling code staged without an eval is blocked. Fold the evalset into that task's RED step alongside its test.
+
 5.  **Confirm:** *"Context loaded. [X] tasks identified, test strategy set. Ready to build?"*
     * Wait for user confirmation before proceeding.
 

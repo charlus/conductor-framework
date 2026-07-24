@@ -11,10 +11,13 @@ Read and adopt `.agents/personas/checker.md`. Bring an adversarial, skeptical po
 - The passing verification output (the floor is already met).
 
 ## Audit checklist
+> **Rubric v1** — this checklist is the Checker's rubric; it is versioned and calibrated (see Calibration in `.agents/skills/judge-panel/SKILL.md`). Spot-check verdicts against human judgment; a Checker that never rejects is a broken gate, not a clean codebase.
+
 1. Does the change actually implement the stated goal — all of it, not a partial slice?
 2. Do the tests genuinely exercise the new behavior (not tautological, not skipped, not asserting nothing)?
 3. Any obvious correctness, security, or data-loss risk the tests wouldn't catch?
 4. Is anything left in a broken or half-migrated state?
+5. **Architecture ship-contract:** if `conductor/0-compass/architecture-checklist.md` exists, verify the diff against **every** item (`skills/architecture-checklist/SKILL.md`) — run each item's `check:` command, and read the diff for the semantic ones. An unsatisfied item is a rejection; name the failing item in your `reason`.
 
 ## Record your verdict (REQUIRED)
 Write `conductor/1-workbench/checker-verdict.json` with exactly:

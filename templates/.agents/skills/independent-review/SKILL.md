@@ -62,6 +62,8 @@ Hitting a brake is a successful outcome of the gate, not a failure: it has found
 
 ## Review lenses (what "ready" means per artifact)
 
+> **Rubric v1** — these lenses are the reviewer's rubric; versioned and calibrated (see Calibration in `skills/judge-panel/SKILL.md`). Editing a lens bumps the version; spot-check verdicts against human judgment.
+
 The calling workflow supplies the lens. Defaults:
 
 | Artifact | The reviewer asks |
@@ -70,7 +72,7 @@ The calling workflow supplies the lens. Defaults:
 | **Technical Vision** (`technical-vision`) | Does the architecture support **every** Epic and serve **every** screen? Is any complexity unjustified (deep-module / deletion test)? Are the ADRs sound and the data model internally consistent? Are the named risks the real ones? |
 | **Feature Spec + Plan** (`spec-it`) | Is every acceptance criterion **testable** and unambiguous? Does the plan implement exactly the spec — nothing missing, nothing extra? Are the TDD seams the highest useful ones? Is it sliced into thin vertical increments? |
 | **Carve slicing** (`carve`) | Does each Implementation deliver testable value on its own? Is the dependency order a valid DAG with no cycles or orphans? Is anything from the Blueprint uncarved, or any slice too big to build safely? |
-| **Diff** (`ship`, loop execution) | Spec compliance first, then quality (`skills/code-review/SKILL.md`, Fowler smell baseline), plus the empathy lens (legible to the next human *and* the next agent?). Are the tests meaningful or reward-hacked (assertions weakened, failing tests deleted, mocks hardcoded to pass)? For a runtime surface, pair this static review with a source-blind behavior check of the running artifact (`skills/behavior-validator/SKILL.md`). |
+| **Diff** (`ship`, loop execution) | Spec compliance first, then quality (`skills/code-review/SKILL.md`, Fowler smell baseline), plus the empathy lens (legible to the next human *and* the next agent?). Are the tests meaningful or reward-hacked (assertions weakened, failing tests deleted, mocks hardcoded to pass)? **If `conductor/0-compass/architecture-checklist.md` exists, verify the diff against every item** (`skills/architecture-checklist/SKILL.md`). For a runtime surface, pair this static review with a source-blind behavior check of the running artifact (`skills/behavior-validator/SKILL.md`). |
 
 ## In the autonomous loop
 

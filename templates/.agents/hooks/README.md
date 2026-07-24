@@ -7,6 +7,7 @@
 | Hook | Law | When it fires | Blocks when… |
 |---|---|---|---|
 | `pre-commit` | **Test-Driven Law** | `git commit` | implementation code is staged with no test change |
+| `pre-commit` | **Eval-Driven Law** | `git commit` | code that calls an LLM provider is staged with no eval alongside (waiver: `CONDUCTOR_NO_EVAL="reason"`). See `skills/writing-evals/`. The two gates are independent — waiving one never skips the other. |
 | `pre-push` | **Verification Iron Law** | `git push` | the configured verification command exits non-zero |
 | `verification-stop-hook.sh` | Verification Iron Law (interactive) | Claude Code `Stop` | **opt-in** — code changed since HEAD and verify is red |
 | `lib.sh` | — | sourced by the others | shared helpers |
@@ -36,17 +37,33 @@ Set it explicitly for real enforcement:
 { "verify": "npm test" }
 ```
 
+## Configuring evals (Eval-Driven Law run-gate)
+
+If the repo has evalsets (an `evals/` file or `*.eval.*`), `pre-push` also runs your **eval command** — presence is gated at commit, *passing* is gated here. Resolved in this order:
+
+1. `"eval"` in `conductor.config.json` — e.g. `"eval": "npm run eval"`
+2. `npm run eval`, if `package.json` defines an `eval` script
+3. nothing → the push hook notes that evalsets exist but no command is set, and allows the push (a gap to close, not a hard block)
+
+```json
+{ "verify": "npm test", "eval": "npm run eval" }
+```
+
+Non-LLM projects (no eval files) never see this gate.
+
 ## Escape hatches (never silent)
 
 Determinism can over-block legitimate config/doc work, so every gate has a logged bypass:
 
 ```bash
-CONDUCTOR_NO_TEST="config-only change"  git commit …    # TDD hook
-CONDUCTOR_SKIP_VERIFY="hotfix, tests offline" git push … # verify hook
+CONDUCTOR_NO_TEST="config-only change"  git commit …    # TDD gate (pre-commit)
+CONDUCTOR_NO_EVAL="stub, no eval surface" git commit …   # Eval presence gate (pre-commit)
+CONDUCTOR_SKIP_VERIFY="hotfix, tests offline" git push … # verify gate (pre-push)
+CONDUCTOR_SKIP_EVAL="eval infra down" git push …         # Eval run-gate (pre-push)
 CONDUCTOR_HOOKS=off git commit …                         # disable all Conductor hooks
 ```
 
-`CONDUCTOR_NO_TEST` / `CONDUCTOR_SKIP_VERIFY` reasons are appended to `conductor/0-compass/ship-log.md` so bypasses stay auditable. Prefer these over `git commit --no-verify`, which silently skips *every* hook and leaves no trail.
+All four reasons are appended to `conductor/0-compass/ship-log.md` so bypasses stay auditable. Prefer these over `git commit --no-verify`, which silently skips *every* hook and leaves no trail.
 
 ## Optional: interactive Verification hook (Claude Code)
 

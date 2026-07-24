@@ -7,6 +7,7 @@
 | Hook | Law | When it fires | Blocks when… |
 |---|---|---|---|
 | `pre-commit` | **Test-Driven Law** | `git commit` | implementation code is staged with no test change |
+| `pre-commit` | **Eval-Driven Law** | `git commit` | code that calls an LLM provider is staged with no eval alongside (waiver: `CONDUCTOR_NO_EVAL="reason"`). See `skills/writing-evals/`. The two gates are independent — waiving one never skips the other. |
 | `pre-push` | **Verification Iron Law** | `git push` | the configured verification command exits non-zero |
 | `verification-stop-hook.sh` | Verification Iron Law (interactive) | Claude Code `Stop` | **opt-in** — code changed since HEAD and verify is red |
 | `lib.sh` | — | sourced by the others | shared helpers |

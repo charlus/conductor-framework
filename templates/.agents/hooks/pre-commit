@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Conductor — Test-Driven Law, deterministically enforced (ADR-0001 D1).
-# Rejects a commit that changes implementation code with no accompanying test
-# change. Escape hatch: CONDUCTOR_NO_TEST="reason" git commit … (logged, never silent).
-# Disable entirely: CONDUCTOR_HOOKS=off.
+# Conductor — Test-Driven Law + Eval-Driven Law, deterministically enforced (ADR-0001 D1).
+#   TDD:  implementation change with no accompanying test change is rejected.
+#   Eval: LLM-feature code (calls a provider) with no accompanying eval is rejected.
+# The two gates are INDEPENDENT — waiving one never skips the other. LLM-feature
+# code needs BOTH a test (deterministic glue) and an eval (non-deterministic output).
+# Escape hatches (logged, never silent): CONDUCTOR_NO_TEST="reason" / CONDUCTOR_NO_EVAL="reason".
+# Disable everything: CONDUCTOR_HOOKS=off.
 set -uo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
@@ -15,9 +18,8 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 staged="$(git diff --cached --name-only --diff-filter=ACM)"
 [ -z "$staged" ] && exit 0
 
-impl=0
-tests=0
-impl_files=""
+impl=0; tests=0; impl_files=""
+llm=0;  evals=0; llm_files=""
 while IFS= read -r f; do
   [ -z "$f" ] && continue
   if conductor_is_test_file "$f"; then
@@ -26,27 +28,61 @@ while IFS= read -r f; do
     impl=1
     impl_files="$impl_files\n    - $f"
   fi
+  if conductor_is_eval_file "$f"; then
+    evals=1
+  elif conductor_is_llm_feature_file "$ROOT/$f"; then
+    llm=1
+    llm_files="$llm_files\n    - $f"
+  fi
 done <<< "$staged"
 
+blocked=0
+
+# ---- Test-Driven Law ------------------------------------------------------
 if [ "$impl" = "1" ] && [ "$tests" = "0" ]; then
   if [ -n "${CONDUCTOR_NO_TEST:-}" ]; then
     conductor_log_waiver "$ROOT" "TDD" "$CONDUCTOR_NO_TEST"
     echo "⚠️  Conductor Test-Driven Law WAIVED: $CONDUCTOR_NO_TEST"
     echo "    (logged to conductor/0-compass/ship-log.md)"
-    exit 0
+  else
+    echo ""
+    echo "🛑 Conductor Test-Driven Law — commit blocked."
+    echo ""
+    echo "  You are committing implementation code with no test change:"
+    echo -e "$impl_files"
+    echo ""
+    echo "  Red before green. Either:"
+    echo "    • stage the failing/covering test alongside the code, or"
+    echo "    • if this genuinely has no test surface (config, generated code),"
+    echo "      record the reason:  CONDUCTOR_NO_TEST=\"why\" git commit …"
+    echo ""
+    blocked=1
   fi
-  echo ""
-  echo "🛑 Conductor Test-Driven Law — commit blocked."
-  echo ""
-  echo "  You are committing implementation code with no test change:"
-  echo -e "$impl_files"
-  echo ""
-  echo "  Red before green. Either:"
-  echo "    • stage the failing/covering test alongside the code, or"
-  echo "    • if this genuinely has no test surface (config, generated code),"
-  echo "      record the reason:  CONDUCTOR_NO_TEST=\"why\" git commit …"
-  echo ""
-  exit 1
 fi
 
-exit 0
+# ---- Eval-Driven Law ------------------------------------------------------
+if [ "$llm" = "1" ] && [ "$evals" = "0" ]; then
+  if [ -n "${CONDUCTOR_NO_EVAL:-}" ]; then
+    conductor_log_waiver "$ROOT" "Eval" "$CONDUCTOR_NO_EVAL"
+    echo "⚠️  Conductor Eval-Driven Law WAIVED: $CONDUCTOR_NO_EVAL"
+    echo "    (logged to conductor/0-compass/ship-log.md)"
+  else
+    echo ""
+    echo "🛑 Conductor Eval-Driven Law — commit blocked."
+    echo ""
+    echo "  You are committing code that calls an LLM with no eval change:"
+    echo -e "$llm_files"
+    echo ""
+    echo "  Tests verify the deterministic parts; evals verify the non-deterministic"
+    echo "  LLM output. A passing unit test is not enough. Either:"
+    echo "    • stage an evalset alongside the code (evals/… or *.eval.*) — see the"
+    echo "      writing-evals skill for the three grading modes (rubric/judge,"
+    echo "      property, reference), or"
+    echo "    • if this has no eval surface (a stub, plumbing, config),"
+    echo "      record the reason:  CONDUCTOR_NO_EVAL=\"why\" git commit …"
+    echo ""
+    blocked=1
+  fi
+fi
+
+exit "$blocked"

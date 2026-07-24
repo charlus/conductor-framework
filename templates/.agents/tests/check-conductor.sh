@@ -136,6 +136,7 @@ skills=(
   "skill-registry" "grilling" "collaborative-drafting" "handoff"
   "domain-modeling" "subagent-isolation" "model-routing"
   "independent-review" "judge-panel" "behavior-validator"
+  "writing-evals"
 )
 
 for skill in "${skills[@]}"; do
@@ -260,6 +261,20 @@ if [ -f "$AGENT_DIR/hooks/pre-commit" ] && [ -x "$AGENT_DIR/hooks/pre-commit" ];
   pass "pre-commit hook is executable"
 else
   fail "pre-commit hook is not executable"
+fi
+
+# Eval-Driven Law: the gate + its detection helpers must be present.
+for helper in conductor_is_llm_feature_file conductor_is_eval_file; do
+  if grep -q "$helper" "$AGENT_DIR/hooks/lib.sh" 2>/dev/null; then
+    pass "lib.sh defines eval-gate helper: $helper"
+  else
+    fail "lib.sh missing eval-gate helper: $helper"
+  fi
+done
+if grep -q "Eval-Driven Law" "$AGENT_DIR/hooks/pre-commit" 2>/dev/null; then
+  pass "pre-commit enforces the Eval-Driven Law"
+else
+  fail "pre-commit does not enforce the Eval-Driven Law"
 fi
 
 # ---- 12. Autonomous Loop Backend (V6 driver + v2 state) ----

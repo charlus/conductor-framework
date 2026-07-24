@@ -416,11 +416,21 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     }
   }
 
-  // agy expresses cli-native sandboxing as a boolean `--sandbox` (terminal
-  // restrictions), not a settings file. Pass it through for the antigravity
-  // adapter so an L3 agy beat runs confined (claude uses sandboxSettingsPath).
-  const agySandbox = state.sandbox === "cli-native" && adapter.name === "antigravity";
-  if (agySandbox) stdout.write(`[CONDUCTOR LOOP] sandbox: cli-native (agy --sandbox)\n`);
+  // agy's own `--sandbox` (terminal restrictions) was VERIFIED live to BLOCK the
+  // agent from operating: an otherwise-identical beat produces nothing (empty
+  // worktree, silent no-op) — likely it severs the API network and/or writes to
+  // the external worktree path. So agy has no working cli-native sandbox; refuse
+  // loudly and point to `container` rather than pass a flag that yields empty runs.
+  const agySandbox = false; // agy --sandbox is non-functional for autonomous work
+  if (state.sandbox === "cli-native" && adapter.name === "antigravity" && !dryRun) {
+    stderr.write(
+      "⛔  sandbox=cli-native is not supported for the antigravity engine: agy's --sandbox " +
+        "blocks the agent from operating (verified live — the beat produces nothing). Use " +
+        '"sandbox": "container" for an isolated L3 agy run, or run L1/L2 with ' +
+        '"sandbox": "none" + --unsafe-no-sandbox.\n'
+    );
+    return 1;
+  }
 
   const git = makeGit(root);
   const checkerPromptPath = join(root, CHECKER_WORKFLOW_REL);

@@ -1,8 +1,14 @@
 # 🎼 Conductor Framework
 
-**The Conductor** — an AI Software Engineering framework for the full development lifecycle.
+**The Conductor** — a framework for **disciplined, verifiable, autonomous AI software engineering**.
 
-Workflows, skills, and personas that turn any AI coding assistant into a Product Engineer. Plan → Design → Build → Ship → Learn.
+Conductor is a harness layer: it configures your AI coding assistant (Claude Code, Antigravity, Codex) with a full engineering methodology — Plan → Design → Build → Ship → Learn — and enforces the discipline in **code, not prose**, so AI output becomes something you can actually depend on.
+
+**What makes it different:**
+
+- **Laws enforced by code.** Deterministic git hooks gate every commit and push: no implementation without a test (Test-Driven Law), no LLM feature without an eval (Eval-Driven Law). Prose rules are advisory; a hook can't be reasoned around.
+- **Evals for the non-deterministic surface.** Tests verify deterministic code; **evals** verify LLM output. A **ship-contract** (`architecture-checklist`) turns "follow the architecture" into checkable items the Checker verifies before anything merges.
+- **An autonomous, multi-engine loop.** `conductor loop` drives a Maker/Checker build cycle unattended across Claude Code / `agy` / `codex`, with safety baked in: PR-gated merge (never a direct push), sandbox isolation, and an Evidence Rule — a model can't self-declare victory.
 
 ---
 
@@ -16,12 +22,14 @@ This scaffolds the full Conductor Framework into your project:
 
 ```
 your-project/
-├── .agents/              # AI agent core (rules, workflows, skills, personas)
+├── .agents/              # AI agent core (rules, workflows, skills, personas, hooks)
 │   ├── AGENTS.md        # Routing table (quick reference)
-│   ├── rules/           # System rules (auto-loaded by Antigravity)
-│   ├── workflows/       # Genesis → Build pipeline
-│   ├── skills/          # 34 modular skills
+│   ├── rules/           # Always-on laws (Prime Directive, Verification, Test-Driven)
+│   ├── workflows/       # Genesis → Build → Ship pipeline
+│   ├── skills/          # 31 modular skills
 │   ├── personas/        # 12 thinking partners
+│   ├── hooks/           # Deterministic enforcement (TDD + Eval git hooks)
+│   ├── references/      # On-demand reference docs
 │   └── tests/           # Framework self-test
 ├── conductor/           # Project state (all managed artifacts)
 │   ├── 0-compass/       # North Star & Ship Log
@@ -68,7 +76,7 @@ Preview any upgrade with `upgrade --dry-run` (prints the plan, writes nothing).
 
 ### Skill Registry (optional)
 
-Beyond the 34 core skills bundled in `templates/`, Conductor can download tech-specific or domain skills on demand from a registry you configure:
+Beyond the 31 core skills bundled in `templates/`, Conductor can download tech-specific or domain skills on demand from a registry you configure:
 
 ```bash
 npx conductor-framework list --remote          # browse the registry

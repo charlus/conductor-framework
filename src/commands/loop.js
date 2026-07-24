@@ -51,12 +51,26 @@ function autonomySummary(state) {
   }
 }
 
-/** Parse `--flag value` or `--flag=value`; returns null if absent. */
+/** The loop's own option tokens — used so `flagValue` never mistakes a missing
+ *  value for the next flag (and vice-versa). */
+const LOOP_FLAGS = new Set([
+  "--unsafe-no-sandbox",
+  "--dry-run",
+  "--platform",
+  "--goal",
+  "--event",
+  "--from-conductor",
+]);
+
+/** Parse `--flag value` or `--flag=value`; returns null if absent. Accepts a
+ *  value that begins with '-' (e.g. a goal starting with a dash) but never
+ *  swallows another recognized loop flag when the value was omitted. */
 function flagValue(args, flag) {
   const eq = args.find((a) => a.startsWith(`${flag}=`));
   if (eq) return eq.slice(flag.length + 1);
   const i = args.indexOf(flag);
-  if (i !== -1 && args[i + 1] && !args[i + 1].startsWith("-")) return args[i + 1];
+  const next = i !== -1 ? args[i + 1] : undefined;
+  if (i !== -1 && next !== undefined && !LOOP_FLAGS.has(next)) return next;
   return null;
 }
 
@@ -238,7 +252,9 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         `${revived.run ? " + the run status" : ""} from a prior interrupted run\n`
     );
   }
-  await atomicWriteJson(statePath, state);
+  // NB: the revive mutates `state` in memory only. The persist is DEFERRED to the
+  // post-lock block below — a --dry-run must not rewrite on-disk state, and a 2nd
+  // invocation racing a live run must not rewind its tasks before the lock refuses it.
 
   // ---- Ignition: seed this run's goal from an external trigger -------------
   // `--goal "<text>"` (a bare-string trigger) or `--event <path>` (a JSON
@@ -265,21 +281,11 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       return 1;
     }
     if (payload) {
-      // Always apply in-memory so a --dry-run preview reflects the seeded goal;
-      // only persist / write the brief / audit on a real run.
+      // Apply in-memory so a --dry-run preview reflects the seeded goal. The
+      // persist + brief + audit are DEFERRED to the post-lock block below — a
+      // trigger must never rewrite a live run's state before the lock refuses a
+      // 2nd loop (payloads can come from untrusted schedulers/webhooks).
       triggerProvenance = applyTrigger(state, payload, { now: Date.now }).provenance;
-      if (!dryRun) {
-        await atomicWriteJson(statePath, state);
-        await writeTriggerDoc(root, triggerProvenance);
-        const clamp = triggerProvenance.clamped_from
-          ? ` (autonomy clamped down from requested ${triggerProvenance.clamped_from} → ${triggerProvenance.effective_autonomy})`
-          : "";
-        await appendShipLog(
-          root,
-          `trigger from '${triggerProvenance.source}': goal="${state.goal_description}"${clamp}`,
-          Date.now()
-        );
-      }
     }
   }
 
@@ -295,10 +301,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const backlogMd = (await exists(join(root, BACKLOG_REL))) ? await readFile(join(root, BACKLOG_REL), "utf8") : "";
     harvestedQueue = harvestWorkQueue({ inboxMd, backlogMd });
     state.tasks = harvestedQueue; // swarm route; normalizeTask preserves title/source/route
-    if (!dryRun) {
-      await atomicWriteJson(statePath, state);
-      await appendShipLog(root, `harvested ${harvestedQueue.length} work item(s) from conductor/ (inbox + backlog)`, Date.now());
-    }
+    // persist + audit DEFERRED to the post-lock block below (dry-run stays read-only).
   }
 
   // Resolve the verify command up front (mirrors conductor_verify_cmd).
@@ -564,6 +567,32 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     return 1;
   }
   if (lock.stale) stdout.write(`[CONDUCTOR LOOP] cleared a stale lock (dead pid ${lock.heldByPid})\n`);
+
+  // ---- Deferred writes: EVERY disk mutation happens HERE, after the one-loop
+  // lock is held. A --dry-run returns before the lock (never reaching this), and
+  // a 2nd invocation racing a live run is refused by the lock above — so neither
+  // can rewind on-disk state. Single persist point for the v1→v2 migration, the
+  // resume-revive, the ignition trigger, and the --from-conductor harvest.
+  await atomicWriteJson(statePath, state);
+  if (triggerProvenance) {
+    await writeTriggerDoc(root, triggerProvenance);
+    const clamp = triggerProvenance.clamped_from
+      ? ` (autonomy clamped down from requested ${triggerProvenance.clamped_from} → ${triggerProvenance.effective_autonomy})`
+      : "";
+    await appendShipLog(
+      root,
+      `trigger from '${triggerProvenance.source}': goal="${state.goal_description}"${clamp}`,
+      Date.now()
+    );
+  }
+  if (fromConductor) {
+    await appendShipLog(
+      root,
+      `harvested ${harvestedQueue.length} work item(s) from conductor/ (inbox + backlog)`,
+      Date.now()
+    );
+  }
+
   try {
     const code =
       Array.isArray(state.tasks) && state.tasks.length > 0 ? await runSwarmMode() : await runPairMode();

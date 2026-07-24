@@ -86,7 +86,7 @@ export function parseBacklog(md) {
 export function harvestWorkQueue({ inboxMd = "", backlogMd = "" } = {}) {
   const backlog = parseBacklog(backlogMd).map((it) => ({ ...it, sourceKind: "backlog" }));
   const inbox = parseInbox(inboxMd).map((it) => ({ ...it, sourceKind: "inbox" }));
-  const rank = { bugfix: 0, task: 1, triage: 2, build: 1 };
+  const rank = { bugfix: 0, task: 1, triage: 2 };
   const ordered = [...backlog, ...inbox].sort((a, b) => (rank[a.type] ?? 9) - (rank[b.type] ?? 9));
 
   const seen = new Set();

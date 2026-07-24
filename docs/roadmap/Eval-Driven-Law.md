@@ -1,6 +1,6 @@
 # Eval-Driven Law — evals for the app's non-deterministic surface
 
-> **Status:** design (2026-07-24), pre-build. Review before any `templates/` change.
+> **Status:** first increment SHIPPED (2026-07-24, branch `feat/eval-driven-law`). The pre-commit presence-gate + `lib.sh` helpers + `writing-evals` skill + Build/registry/docs wiring + `test/hooks-eval-gate.sh` (7 cases) are in. Approved design calls: skill-only how-to, full provider list (false positives mitigated by the waiver), hard-block-with-waiver. **Deferred (below):** v2 CI run-gate, P2.2 fusion, Level-C rubric versioning.
 > Origin: the Google *New SDLC with Vibe Coding* analysis (see `MEMORY` › agentic-swe-2026-rubric). Its sharpest actionable gap: **tests ≠ evals.** Tests verify the deterministic parts of a system; **evals** verify the non-deterministic parts (did the LLM output meet the quality bar). Conductor enforces TDD but is blind to the eval surface of the apps it builds.
 
 ## The one-line thesis

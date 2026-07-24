@@ -127,6 +127,13 @@
       "default": true
     },
     {
+      "name": "Architecture-Checklist",
+      "dir": "architecture-checklist",
+      "description": "Turn 'follow the architecture' into explicit checkable items. Technical-Vision/Carve write a machine-readable compliance checklist (conductor/0-compass/architecture-checklist.md) from the architecture decisions; the Checker (loop + independent-review) verifies the diff against each item — deterministic (a `check:` shell command) or semantic. The semantic half of the ship-contract; the Eval-Driven Law is the deterministic half.",
+      "category": "core",
+      "default": true
+    },
+    {
       "name": "i18n-localization",
       "dir": "i18n-localization",
       "description": "Internationalization and localization patterns. Detecting hardcoded strings, managing translations, locale files, RTL support.",

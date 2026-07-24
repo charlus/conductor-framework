@@ -136,7 +136,7 @@ skills=(
   "skill-registry" "grilling" "collaborative-drafting" "handoff"
   "domain-modeling" "subagent-isolation" "model-routing"
   "independent-review" "judge-panel" "behavior-validator"
-  "writing-evals"
+  "writing-evals" "architecture-checklist"
 )
 
 for skill in "${skills[@]}"; do

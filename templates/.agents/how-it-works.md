@@ -110,6 +110,13 @@ The middle layer is a `rules/` file, not a skill you have to remember to reach f
 ### Eval-Driven Law (for the apps you build)
 Tests verify the **deterministic** parts; **evals** verify the **non-deterministic** LLM-output surface of the app you're building. If a feature calls an LLM provider, a passing unit test is not enough — it needs an evalset. Enforced in two stages, mirroring TDD + Verification: `pre-commit` gates **presence** (provider-calling code staged without an eval — an `evals/` file or `*.eval.*` — is blocked, like TDD blocks impl-without-test), and `pre-push` gates **passing** (if the repo has evalsets, the configured `eval` command must pass — set `"eval"` in `conductor.config.json`). The gates are independent; waiving one (`CONDUCTOR_NO_EVAL` / `CONDUCTOR_SKIP_EVAL`, both logged) never skips the other. The *how* — three grading modes (rubric/LM-judge, property/assertion, reference) — lives in the on-demand `skills/writing-evals/` skill, loaded by Build when a task touches LLM-feature code. It is **not** an always-on rule: evals matter only to LLM-feature projects, so the enforcement is the (silent-when-irrelevant) hook, not static-context prose. Design: `docs/roadmap/Eval-Driven-Law.md`.
 
+### The ship-contract (deterministic + semantic)
+A change ships only if it satisfies the project's **ship-contract**, which has two complementary halves:
+- **Deterministic half** — facts a command decides, enforced by git hooks/CI: the **Test-Driven Law** (a test exists), the **Eval-Driven Law** (an eval exists and passes for LLM features), and any architecture-checklist item that carries a `check:` shell command.
+- **Semantic half** — judgments only a reader can make, enforced by the **Checker** (`workflows/loop-checker.md`) and `independent-review`: does the diff honor the intended architecture and boundaries in spirit.
+
+The bridge between them is `conductor/0-compass/architecture-checklist.md` (`skills/architecture-checklist/`): `technical-vision`/`carve` distill each enforceable architecture decision into a checkable item — deterministic (a `check:`) where grep-able, semantic otherwise — and the Checker verifies the diff against every item, citing any it fails. This turns "follow the architecture" from a vibe into a contract, the same way the hooks turned the two Laws from prose into code.
+
 ### Naming Convention: kebab-case
 All framework files use **kebab-case**: workflows (`grand-prd.md`, `quick-path.md`), skills (`code-review/`, `task-tracker/`), personas (`product-manager.md`, `conductor-assistant.md`), `conductor/` folders and files alike. `conductor upgrade` auto-renames older Title-Case installs.
 

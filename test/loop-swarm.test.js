@@ -253,3 +253,30 @@ test("swarm TDD split: a GREEN contract (vacuous tests) is rejected, never merge
   assert.equal(merges, 0); // implementation/merge never reached
   assert.equal(final.tasks[0].status, "failed"); // burns the per-task ceiling on vacuous contracts
 });
+
+test("per-task verify: a task's own command overrides the global verifyCommand", async () => {
+  // Concurrent tasks run in isolated worktrees, so each may need its OWN scoped
+  // verify; a task without one falls back to the swarm-wide verifyCommand.
+  const seen = {};
+  const deps = swarmDeps({
+    runVerify: async ({ task, cmd }) => {
+      seen[task.id] = cmd;
+      return { exitCode: 0, output: "green" };
+    },
+  });
+  const state = swarmState(
+    [
+      { id: "a", verify: "node --test test/a.test.js" },
+      { id: "b" }, // no per-task verify → global fallback
+    ],
+    { concurrency: 2 }
+  );
+  await runSwarm(state, deps);
+  assert.equal(seen.a, "node --test test/a.test.js");
+  assert.equal(seen.b, "run-tests");
+});
+
+test("normalizeTask preserves a per-task verify command", () => {
+  assert.equal(normalizeTask({ id: "x", verify: "npm run t:x" }).verify, "npm run t:x");
+  assert.equal(normalizeTask({ id: "y" }).verify, null);
+});

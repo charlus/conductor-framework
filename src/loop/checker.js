@@ -49,13 +49,19 @@ export function verdictToExitCode(verdict) {
  */
 export function tallyVerdicts(verdicts, votes) {
   const n = Math.max(1, votes || (verdicts?.length ?? 1));
-  const approvals = (verdicts ?? []).filter((v) => v && v.approved === true).length;
+  const list = verdicts ?? [];
+  const approvals = list.filter((v) => v && v.approved === true).length;
   // Strict majority of the intended vote count (missing/crashed votes count as reject).
   const approved = approvals > n / 2;
+  // Per-vote reasons make a rejection DIAGNOSABLE (Loop-Robustness P1.2): the
+  // caller can tell "no verdict file written" (plumbing/empty-diff) apart from an
+  // explicit "Checker did not approve" (a genuine substantive rejection).
+  const reasons = list.map((v) => v?.reason ?? "no verdict");
   return {
     approved,
     approvals,
     votes: n,
+    reasons,
     reason: approved
       ? `${approvals}/${n} Checkers approved (majority)`
       : `${approvals}/${n} Checkers approved (no majority) — failing safe to reject`,

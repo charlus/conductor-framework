@@ -177,3 +177,40 @@ test("teardownWorktree: keeps a worktree with unmerged commits, removes a clean 
   const removed = await teardownWorktree({ root: "/repo", goalDescription: "Add search", git: gitClean });
   assert.equal(removed.removed, true);
 });
+
+// Conductor-context materialization: `git worktree add` only checks out TRACKED
+// files, so a gitignored conductor scaffold must be copied into the worktree or
+// the isolated Maker is blind. anchorsToMaterialize decides what to fill in.
+import { anchorsToMaterialize, materializeConductorContext, CONTEXT_ANCHORS } from "../src/loop/worktree.js";
+
+test("anchorsToMaterialize: fills only anchors present at root but missing in the worktree", () => {
+  // Tracked repo: everything already in the worktree → nothing to copy.
+  assert.deepEqual(
+    anchorsToMaterialize({ existsAtRoot: () => true, existsInWorktree: () => true }),
+    []
+  );
+  // Gitignored repo: present at root, absent from the (committed) worktree → copy all.
+  assert.deepEqual(
+    anchorsToMaterialize({ existsAtRoot: () => true, existsInWorktree: () => false }),
+    [...CONTEXT_ANCHORS]
+  );
+  // Mixed: .agents committed, conductor/ gitignored, CLAUDE.md committed, no GEMINI.md.
+  const atRoot = { "CLAUDE.md": true, "GEMINI.md": false, ".agents": true, conductor: true };
+  const inWt = { "CLAUDE.md": true, "GEMINI.md": false, ".agents": true, conductor: false };
+  assert.deepEqual(
+    anchorsToMaterialize({ existsAtRoot: (a) => atRoot[a], existsInWorktree: (a) => inWt[a] }),
+    ["conductor"]
+  );
+});
+
+test("materializeConductorContext copies exactly the missing anchors", async () => {
+  const copied = [];
+  const inWt = { "CLAUDE.md": true, "GEMINI.md": false, ".agents": false, conductor: false };
+  const filled = await materializeConductorContext({
+    existsAtRoot: () => true,
+    existsInWorktree: (a) => inWt[a],
+    copy: async (a) => copied.push(a),
+  });
+  assert.deepEqual(filled, ["GEMINI.md", ".agents", "conductor"]);
+  assert.deepEqual(copied, ["GEMINI.md", ".agents", "conductor"]);
+});

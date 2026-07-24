@@ -23,7 +23,7 @@ function helpText() {
     "    conductor list [--remote] [--tier <tier>]",
     "    conductor search <query> [--tag <tag>]",
     "    conductor install-hooks [--uninstall]",
-    "    conductor loop [target-directory] [--goal <text> | --event <file.json>]",
+    "    conductor loop [target-directory] [--goal <text> | --event <file.json> | --from-conductor]",
     "                   [--platform <name>] [--dry-run] [--unsafe-no-sandbox]",
     "",
     "  Commands:",
@@ -50,6 +50,7 @@ function helpText() {
     "    npx conductor-framework list --remote",
     "    npx conductor-framework search react",
     "    conductor loop --goal \"get all tests passing\" --dry-run",
+    "    conductor loop --from-conductor --dry-run   # preview the fleet's backlog queue",
     "",
   ].join("\n");
 }

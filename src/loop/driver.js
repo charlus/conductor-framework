@@ -30,6 +30,16 @@ export const TERMINAL_STATUSES = Object.freeze([
 /** Autonomy slider (ADR-0001 D3). Higher rank = more autonomy. */
 export const LEVELS = Object.freeze({ L0: 0, L1: 1, L2: 2, L3: 3 });
 
+/**
+ * Sandbox providers that satisfy the L3 isolation gate. `cli-native` (the
+ * recommended default) uses the agent CLI vendor's OWN maintained sandbox —
+ * Anthropic's bubblewrap+seccomp for `claude`, Google's hosted sandbox for `agy`,
+ * OpenAI's for `codex` — so there is no image for this project to maintain.
+ * `container` is the BYO-container path (defence-in-depth / unsupported hosts).
+ * `none` never satisfies L3.
+ */
+export const SANDBOX_PROVIDERS = Object.freeze(["cli-native", "container"]);
+
 export function levelRank(level) {
   return LEVELS[level] ?? LEVELS.L1;
 }
@@ -164,7 +174,7 @@ export function describeHalt(state, status) {
     case "halted_no_verification":
       return "no verification command could be resolved (state.verification.command, conductor.config.json 'verify', or an npm test script). Refusing to run without a real success signal.";
     case "halted_sandbox_required":
-      return "autonomy_level L3 requires sandbox='container' (see .agents/sandbox/). Refusing unattended execution without isolation.";
+      return "autonomy_level L3 requires an isolating sandbox — set sandbox='cli-native' (the agent CLI's own vendor sandbox, e.g. Anthropic's bubblewrap; no Docker) or 'container' (BYO). See .agents/sandbox/. Refusing unattended execution without isolation.";
     case "halted_autonomy": {
       const rank = levelRank(state.autonomy_level);
       const concurrency = state.concurrency ?? 1;
@@ -192,9 +202,11 @@ export function describeHalt(state, status) {
 export function preflight(state, { verifyCommand }) {
   // Order: scoping (never headless) → safety (sandbox) → autonomy policy → config.
   if (state.phase === "discovery") return "halted_scoping";
-  // L3 (unattended execution) is only permitted inside a sandbox (Q2: document-only).
-  // Refuse unsafe autonomy before quibbling about config.
-  if (state.autonomy_level === "L3" && state.sandbox !== "container") {
+  // L3 (unattended execution) is only permitted inside an isolating sandbox.
+  // Refuse unsafe autonomy before quibbling about config. Any recognized provider
+  // (cli-native = the engine vendor's own sandbox; or a BYO container) qualifies;
+  // 'none' does not.
+  if (state.autonomy_level === "L3" && !SANDBOX_PROVIDERS.includes(state.sandbox)) {
     return "halted_sandbox_required";
   }
   const autonomyHalt = autonomyPreflight(state);

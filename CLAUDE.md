@@ -1,6 +1,17 @@
 # Conductor Framework — Development Context
 
-> You are working on **the Conductor Framework itself** — an npm package that provides AI Software Engineering methodology to other projects. This is NOT a project using Conductor. This IS Conductor.
+> You are working on **the Conductor Framework itself** — the npm package that scaffolds an AI Software Engineering methodology into other projects. This is NOT a project using Conductor. This IS Conductor. It is a **harness-configuration + orchestration layer**: the methodology in `templates/` configures a real coding-agent harness (Claude Code / agy / codex), and `conductor loop` (`src/loop/`) is an outer orchestrator that drives those harnesses unattended — it is not itself a harness.
+
+## How I Must Operate Here (read this first)
+
+Almost everything in this repo is **instructions for other agents' harnesses** (`templates/`) or **control code for an unattended orchestrator** (`src/loop/`) — not ordinary app code. A wrong line propagates to every install, or fires on every autonomous beat with no human watching. Four operating truths, each learned the hard way:
+
+1. **The tests lie by omission.** A green `test:unit` / self-test / `test:smoke` ≠ working for anything **agent-, loop-, or adapter-shaped** — that whole layer is *stubbed*. Real behavior is proven only by a **live run** (`conductor loop … --platform <p>` in a background shell with a `timeout` backstop). Never claim a behavior you have not executed. Every real adapter bug this class ever had passed all green suites and died only on a live run.
+2. **The interactive path is sacred.** Loop/backend work lives in `src/loop/*` + `src/commands/loop.js` and keeps `templates/.agents/workflows/` **byte-identical** except `unattended-loop.md`. Verify: `git diff --name-only master..HEAD -- templates/.agents/workflows/ | grep -v unattended-loop` → empty. One source of truth (`conductor/`), two clients (interactive Claude Code + the autonomous fleet).
+3. **Enforce with code, not prose.** A non-negotiable gets a deterministic **hook + a *behavior* test** (red→green) wherever the rule is grep-able; the Checker handles the semantic rest. Prose rules are advisory. (A *behavior* test — not a structural existence check — is what caught the eval gate's false-positive.)
+4. **Never weaken the orchestrator's safety envelope.** `conductor loop` runs unattended, so these invariants must survive every edit: **PR-gated merge (never a direct push), the L3 sandbox gate, the Evidence Rule (verify exit code, not self-report), worktree isolation, the autonomy clamp, and fail-safe-on-missing-verdict.** If a change touches one, that is the thing to get right.
+
+Also: this harness (Claude Code) hard-blocks merges and dangerous flags — those are the human's, not obstacles to route around. Durable state between sessions lives in the `memory/` dir + the roadmap docs' **status blocks** — read them first, keep them current.
 
 ## What This Repo Is
 
@@ -40,7 +51,7 @@ conductor-framework/          ← You are here (package source)
 │   ├── GEMINI.md               # Platform stub (for installed projects, not this repo)
 │   ├── CLAUDE.md
 │   └── CHANGELOG.md
-├── package.json               # v6.1.0
+├── package.json               # manifest + npm test scripts (test:unit/smoke/hooks)
 ├── README.md                  # Public-facing with credits
 ├── CHANGELOG.md               # Package changelog
 ├── docs/roadmap/               # Design docs for in-progress/parked features
@@ -69,44 +80,34 @@ conductor-framework/          ← You are here (package source)
 | `Grilling` + `Collaborative-Drafting` interview/drafting primitives as skills, loaded by discovery/PRD/spec/design workflows | The interview technique (Interviewer persona, one-at-a-time questioning, advancement gates) and the "propose-first → discuss → coverage-check → confirm" drafting quartet were duplicated inline across Genesis, Storyboard, Grand-PRD, Spec-It, Technical Vision, Carve, and the Design Brief. Extracted to `skills/grilling/SKILL.md` (extract decisions) and `skills/collaborative-drafting/SKILL.md` (produce documents) as single sources of truth (following Matt Pocock's `grilling` primitive), adding recommend-per-question, look-up-facts-don't-ask, and one convergence gate per document. Genesis, Storyboard, Grand-PRD, and the UX/UI Brief now supply the *agenda* and load the primitives for the *how* — the UX/UI Brief dropped from 448 lines / 7 per-phase gates to one gate at save. Quick-Path, Retrospective, Technical Vision, and Carve reference the primitives too, and Spec-It was reworked to *synthesize-not-re-interview* (Pocock's `to-spec`). Companion sharpening from Pocock's repo, keeping our stronger stances where they diverge: `tdd-cycle` (agree seams first + anti-pattern tells, but kept our in-loop REFACTOR), `code-review` (Fowler smell baseline, but kept our sequential spec→quality gate), `systematic-debugging` (red-command-first), `technical-vision` (deep-module deletion test + ADR 3-test gate), `ship` (merge-conflict discipline), plus a net-new `handoff` skill (context hygiene for the loop). See `docs/roadmap/Pocock-Alignment-Backlog.md` for the full Epic A–E status |
 | Upgrade **replaces** `.agents/` instructions, **preserves** `conductor/` knowledge (ownership rule: framework-owned = ships in `templates/**`) | A methodology upgrade must land new instructions — the old checksum-gated behavior *kept* user-edited instruction files and silently no-op'd checksum-less V4 installs, stranding them on stale methodology. Now framework files are replaced wholesale (custom additions carried forward, everything backed up first to `.conductor-backup/`), while the user's app knowledge in `conductor/` is never touched. The `conductor/5-templates/` scaffolding is framework-owned and refreshed too. Confirmed with the maintainer for the 6.0.0 upgrade path |
 
-## Current State (6.1.0 — Multi-Agent Across Workflows)
+## Current State — read the source, not this file
 
-> 6.1.0 brought the V6 loop backend's multi-agent capability to the everyday workflows (see the "Multi-agent-across-workflows initiative" bullet below and `CHANGELOG.md`). The 6.0.0 foundation notes follow.
+This used to be a version-stamped prose snapshot; it drifts (it predated the V6 loop backend, multi-engine parity, and the Eval-Driven Law). **Truth lives in the source, not here:**
 
-- 16 workflows (incl. loop-checker), 29 skills, 12 personas, 4 rules (3 always-on: prime-directive, verification-iron-law, test-driven-law; loop-guardrails is loop-scoped since the V6 rebalance), plus a new **`.agents/references/`** reference-doc library. Skill count reflects the Steinberger-bar audit: added `behavior-validator` (source-blind runtime gate); removed the 4 `*-phase` router skills (redundant with the always-on `AGENTS.md` classifier + generated `.claude/commands/` shims); git-CLI skills stripped of duplicated conventions (defer to `git-workflow`); and 4 advice docs (clean-code / testing-patterns / documentation-templates / deployment-procedures) demoted from skills to `references/`, cataloged in `how-it-works.md`'s Reference Library so they stay discoverable on Claude Code. `references/` is copied by init (`selective-copy.js` coreDirs) and upgrade (unknown-top-level → selected).
-  - **Upgrade prune (fixed):** `src/update.js` now emits a `REMOVE` action for a target file that is in the stored `.checksums.json` manifest (framework-delivered) **and** absent from source — so skills dropped upstream (the phase routers, the demoted advice docs) are pruned from existing installs on `upgrade`, with now-empty dirs cleaned up. Ownership is the discriminator: `conductor add` never writes the manifest, so registry-imported skills (terraform, angular…) and hand-authored files are absent from it and always KEEP. A missing manifest (legacy/V4) prunes nothing (no proof of ownership). Backup-first (Step 0) makes it recoverable; count surfaced in the upgrade summary ("pruned N dropped upstream"). Covered by `test/update-prune.test.js`.
-- **Multi-agent-across-workflows initiative:** bringing the V6 loop backend's multi-agent capability to the everyday workflows, retro-compatibly. Two primitives shipped so far:
-  - **Independent-review gate (`skills/independent-review/SKILL.md`):** Ship Phase 4's fresh-context Maker/Checker gate, extracted into a reusable primitive and wired into the blueprint workflows (Grand-PRD, Technical-Vision, Spec-It, Carve) so specs/architectures get an adversarial fresh-context review *before* they're saved — closing the "blueprint artifacts ship unchecked" gap. Retro-compatible: spawns an isolated reviewer when the platform supports subagents, else degrades to a deliberate fresh-context self-pass; one gate per artifact (not per step). Ship references the skill as its reference implementation.
-  - **Judge-panel (`skills/judge-panel/SKILL.md`):** divergent-then-convergent decision primitive for wide, hard-to-reverse forks — generate N candidate solutions from different angles (simplest / risk-first / leverage-first), score with independent judges, synthesize the winner grafting the best of the runners-up. Opt-in, wired into Technical-Vision Phase 3 (architecture); the deletion test + simplicity-breaks-ties guard against divergent generation's bias toward cleverness. Composes with the review gate (panel produces the artifact, gate checks it).
-- **`deepen` workflow (brownfield architecture):** the brownfield counterpart to `technical-vision`. Finds shallow/scattered modules in an *existing* codebase (hot-spot scoping → friction scan → deletion-test + seam-rule candidates → `independent-review` gate) and reshapes them into deep modules with narrow interfaces — but always **characterization-test-first + Strangler-Fig**, the safety discipline Pocock's `improve-codebase-architecture` skill skips. Driven by the **Code Archaeologist** persona (given a new "shape-for-agents" tendency + the deletion-test/seam-rule frameworks). Deletion-test definition is single-sourced in `technical-vision.md` and referenced, not duplicated; findings land in `conductor/1-workbench/deepening-report.md`, not a separate HTML deck. Inspired by Matt Pocock's skill + the 2026 "codebase is the new prompt" consensus (see [[conductor-vs-pocock-analysis]]).
-- **Loop ignition contract (`[Unreleased]`):** `conductor loop` now accepts `--goal "<text>"` / `--event <file.json>` so an *external* trigger (Claude Code `/schedule`, host cron, a webhook/CI shim) can seed the run's goal — turning the goal-based driver into the **time-based** and **proactive** loops of Anthropic's Loop-Engineering taxonomy *by composition*, without Conductor shipping a scheduler of its own. `src/loop/trigger.js` (pure: parse/apply/clamp/render) + `test/loop-trigger.test.js`. Load-bearing safety: a trigger is **clamped to the operator's autonomy ceiling** in `loop-state.json` (de-escalate yes, escalate never) since payloads may come from untrusted sources (rubric §5.5); provenance persists to `last_trigger`, the brief to `1-workbench/loop-trigger.md`, and the trigger to the ship-log. Design + full four-loop readiness map: `docs/roadmap/Loop-Engineering-Alignment.md`.
-- Deterministic enforcement (ADR-0001 D1): `.agents/hooks/` ships a TDD pre-commit + Verification pre-push, wired via `conductor install-hooks` (auto-run by init/upgrade in a git repo). Prose laws are now backed by code, not just advisory.
-- Claude Code adapter: `init`/`upgrade` generate `.claude/commands/*.md` slash-command shims per workflow (ADR-0001 D5)
-- Self-test: `bash templates/.agents/tests/check-conductor.sh` → 113 checks; unit tests: `npm run test:unit` (`node:test`, 72 cases — loop backend + cross-version upgrade + managed stubs; no agent CLI spawned)
-- **Robust cross-version upgrade (6.0.0):** `upgrade` preserves `conductor/` knowledge and *replaces* `.agents/` methodology wholesale — backup-first to git-ignored `.conductor-backup/<ts>/` with auto-rollback (`src/backup.js`), version stamp `.agents/.conductor-version.json` (`src/version.js`), ownership-based replacement (framework files always replaced, custom carried, core skills/rules/workflows always land — `src/update.js`), `conductor/5-templates/` refresh, loop-state schema migration, safer kebab engine, and `--dry-run`. Works from V4/V5/unversioned installs. See `docs/roadmap/Robust-Upgrade-Migration.md`.
-- **V6 Autonomous Loop Backend — Phases 1, 2, 3 & Phase 4 (pair mode) shipped:**
-  - *Phase 1 (driver):* `conductor loop` subcommand over the pure `src/loop/driver.js` (deterministic state machine: iteration ceiling, wall-clock budget, driver-observable stall detection, Evidence Rule via verify exit code, Scoping Barrier, fail-safe verify resolution mirroring `conductor_verify_cmd`). `loop-state.json` migrated to v2 (auto-migrates v1 on load). Soft layer reconciled. V5 `scripts/run-conductor-loop.js` stub deleted.
-  - *Phase 2 (adapter interface):* driver is platform-agnostic; adapter registry/resolver `src/loop/adapters/index.js` with `claude.js` (primary) + `antigravity.js`. Selection: `--platform` → `loop-state.json.platform` → auto-detect. Codex adapter deferred.
-  - *Phase 3 (isolation):* git-worktree isolation for the Maker (`src/loop/worktree.js`), document-only sandbox gate (`sandbox` field + `templates/.agents/sandbox/`; L3 refused without `sandbox:container` → `halted_sandbox_required`), and the independent Checker as a separate process (`workflows/loop-checker.md` + `src/loop/checker.js`, verdict via `checker-verdict.json`, fail-safe reject).
-  - *Phase 4 (autonomy + merge + swarm):* autonomy slider L0–L3 in the driver (`autonomyPreflight`; L0 refuses, L1 single-beat→`awaiting_review`, L2 blueprint-only, L3 execution+PR); PR-gated merge via `gh`/`glab` (`src/loop/merge.js`, never a direct push); auditable trail to `0-compass/ship-log.md`; multi-vote adversarial Checker (`checker_votes`); Codex adapter; and the opt-in **swarm** (`src/loop/swarm.js`: task-graph blackboard, frontier scheduler, specialized roles, concurrent Makers, serialized merge queue — `concurrency=1` reproduces the pair). Maker completion via `maker-signal.json` (driver reads from disk, never clobberable in-memory). New terminals `awaiting_review` + `halted_autonomy`.
-  - **Feature-complete.** Only excluded item: a published/maintained turnkey sandbox *image* (Q2 = document-only; we ship the Dockerfile + profile). The swarm is built but stays behind its evidence gate for real-world use. Tests: `npm run test:unit` (72 `node:test` cases) + `npm run test:smoke` (fake-agent e2e). See `docs/roadmap/Autonomous-Loop-Backend.md`.
-- Dynamic Skill Loading (see `docs/roadmap/Dynamic-Skill-Loading.md`) — Phases 1–3 shipped (manifests, CLI commands, tech-stack detection during init); Phase 4 (curation pipeline) and Phase 5 (testing) still open
-- Published: private GitHub repo `charlus/conductor-framework`
+- **What shipped & why** → `docs/roadmap/*.md` (each carries a live status block) + `CHANGELOG.md`.
+- **Cross-session / in-flight findings** → the `memory/` dir (start at `MEMORY.md`).
+- **The methodology surface** → `templates/.agents/how-it-works.md` (routing table, skill/rule registries, the ship-contract).
 
-## Open Roadmap Items
+Stable pointers to where the big subsystems live:
+- **Autonomous loop** → `src/loop/` (driver, adapters, worktree, checker, merge, swarm, trigger) + `src/commands/loop.js`; the only interactive template it touches is `.agents/workflows/unattended-loop.md`. Design: `docs/roadmap/Autonomous-Loop-Backend.md`, `docs/roadmap/Loop-Robustness-Plan.md`.
+- **Deterministic enforcement** → `templates/.agents/hooks/` (`lib.sh` + `pre-commit` for the TDD + Eval *presence* gates, `pre-push` for Verify + Eval *run* gates), wired by `conductor install-hooks`. The ship-contract (Eval-Driven Law + `architecture-checklist`, judge-rubric calibration): `docs/roadmap/Eval-Driven-Law.md`.
+- **CLI** → `src/` (`cli.js` parser; `init`/`upgrade` in `src/commands/`; `update.js`/`backup.js`/`version.js` for the robust cross-version upgrade — `docs/roadmap/Robust-Upgrade-Migration.md`).
 
-- **Skill curation pipeline** — Phase 4 of Dynamic Skill Loading, deferred to the `skills-registry` repo's own backlog
-- **Testing & verification** — Phase 5 of Dynamic Skill Loading
-- **CHANGELOG.md** — 6.1.0 (Multi-Agent Across Workflows) and 6.0.0 release notes are in place; keep appending as work lands
+> **Version note:** `package.json` may lag what's on `master` — several PRs can land before a bump. Don't trust a version number as a statement of what's shipped; trust the roadmap status blocks + `git log`.
 
 ## How to Work on This Repo
 
-1. **Edit templates/** when changing the framework content
-2. **Edit src/** when changing the CLI behavior
-3. **Always sync templates** after testing changes locally
-4. **Run the self-test** after every change: `bash templates/.agents/tests/check-conductor.sh`
-5. **Test the full flow**: `node bin/conductor.js init /tmp/test && bash /tmp/test/.agents/tests/check-conductor.sh`
-6. **Commit with Conventional Commits**: `feat:`, `fix:`, `docs:`, `refactor:`
+1. **Edit `templates/`** for framework content, **`src/`** for CLI behavior.
+2. **TDD the framework itself** — a failing test first. For a non-negotiable, that means a **hook + a behavior test** (Operating Truth 3), not a prose rule.
+3. **Prove agent/loop/adapter behavior with a live run** (Operating Truth 1) — never from the stubbed suites.
+4. **After any change**, run the full local suite and — for loop work — confirm the interactive path is untouched:
+   ```bash
+   npm run test:unit && npm test && npm run test:smoke && npm run test:hooks
+   git diff --name-only master..HEAD -- templates/.agents/workflows/ | grep -v unattended-loop   # empty for loop work
+   ```
+   Full install flow: `node bin/conductor.js init /tmp/test --all && bash /tmp/test/.agents/tests/check-conductor.sh`.
+5. **Commit** with Conventional Commits (`feat:`/`fix:`/`docs:`/`refactor:`); don't squash commits a roadmap doc cites by hash; keep the relevant roadmap status block + `memory/` current.
+6. **Hand off** merges and classifier-blocked / dangerous-flag actions to the human.
 
 ## Credits
 

@@ -104,8 +104,8 @@ Genesis → Storyboard → Grand PRD → UX/UI Design Brief → Technical Vision
 
 ### What's Inside
 
-- **15 Workflows** — From Genesis (ideation) to Build (verified execution) to Ship, plus the headless **Unattended-Loop** orchestrator and its independent **Loop-Checker**
-- **34 Skills** — including the `grilling` and `collaborative-drafting` interview/drafting primitives, `handoff` (context hygiene), Verification Gate, Code Review, Systematic Debugging, and more
+- **16 Workflows** — From Genesis (ideation) to Build (verified execution) to Ship, plus the headless **Unattended-Loop** orchestrator and its independent **Loop-Checker**
+- **31 Skills** — including the `grilling` and `collaborative-drafting` interview/drafting primitives, `writing-evals` + `architecture-checklist` (the ship-contract), `handoff` (context hygiene), Verification Gate, Code Review, Systematic Debugging, and more
 - **12 Personas** — Including the strategic thinking partners and loop-execution specialists (**Maker** and **Checker**)
 
 Full documentation: [`AGENTS.md`](templates/.agents/AGENTS.md)
@@ -120,6 +120,11 @@ Full documentation: [`AGENTS.md`](templates/.agents/AGENTS.md)
 
 Before claiming any work is done, the agent must run a check, read the output, confirm it matches, and only then claim completion. "Should work" is not evidence.
 
+Conductor backs its laws with **code, not just prose** — deterministic git hooks (`.agents/hooks/`, wired by `conductor install-hooks`), because prose rules are advisory and only code enforces:
+
+- **Test-Driven Law** — a `pre-commit` gate blocks implementation code staged with no test.
+- **Eval-Driven Law** — tests verify the deterministic surface; **evals** verify the non-deterministic LLM-output surface of the apps you build. If a feature calls an LLM provider, a `pre-commit` gate requires an evalset alongside it and a `pre-push` gate runs it — see the `writing-evals` skill (three grading modes). The **ship-contract** extends this: `architecture-checklist` turns "follow the architecture" into checkable items the Checker verifies. Every escape hatch is logged, never silent.
+
 ---
 
 ## 🤖 Autonomous Loop Backend (V6)
@@ -133,9 +138,9 @@ The driver reads and writes **The Spine** (a durable JSON ledger, `conductor/1-w
 * **The Scoping Barrier** — headless runs are refused during `discovery` (that phase needs a human).
 
 Around the driver:
-* **Platform adapters** (`src/loop/adapters/`) — Claude Code (primary), Antigravity, and Codex, selected via `--platform` → `loop-state.json` → auto-detect.
+* **Platform adapters** (`src/loop/adapters/`) — Claude Code (primary), Antigravity (`agy`), and Codex (`codex`), each verified against the installed CLI; selected via `--platform` → `loop-state.json` → auto-detect.
 * **Maker/Checker split** — the Maker builds in an isolated git worktree; an **independent Checker** process verifies via a multi-vote verdict (`checker-verdict.json`, fail-safe reject).
-* **Sandbox gate** — real headless runs are gated behind a sandbox profile (`--unsafe-no-sandbox` to override); L3 requires a container.
+* **Sandbox gate** — real headless runs are gated behind a sandbox (`--unsafe-no-sandbox` to override); L3 requires `cli-native` (the CLI vendor's own sandbox — Anthropic bubblewrap for `claude`, no Docker image needed) or a container.
 * **Swarm scaling & autonomy slider (L0–L3)** — parallelize independent work with a PR-gated merge queue.
 
 **Ignition contract** — the driver is a *goal* loop with no scheduler of its own (by design). Seed it from an external trigger and it composes into the **time-based** and **proactive** loops of Anthropic's Loop-Engineering taxonomy:

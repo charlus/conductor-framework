@@ -4,7 +4,35 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [6.2.0] — 2026-07-24 — Loop Robustness, Multi-Engine & the Eval-Driven Law
+
+Hardens the V6 autonomous loop from a working prototype into something trustworthy (borrowing proven patterns from the `agentctl` peer factory), brings real **multi-engine parity** (Claude Code + Antigravity `agy` + `codex`, each verified against the installed CLI), and adds the **Eval-Driven Law + ship-contract** — the "tests ≠ evals" discipline, enforced deterministically like TDD. No breaking changes; `conductor upgrade` lands every new skill and hook on existing installs (verified end-to-end, with a backup written first and all `conductor/` knowledge preserved).
+
+### Added — Eval-Driven Law + the ship-contract
+- **The Eval-Driven Law**, enforced in two stages like TDD: a `pre-commit` **presence** gate blocks provider-calling code (`openai`/`anthropic`/`langchain`/…) staged without an evalset (`evals/…` or `*.eval.*`); a `pre-push` **run** gate runs the configured `eval` command (`conductor.config.json` `"eval"`) and blocks on failure. Independent from the TDD gate — waiving one never skips the other. Escape hatches `CONDUCTOR_NO_EVAL` / `CONDUCTOR_SKIP_EVAL`, both waiver-logged. Detection is gated to impl files, so docs/config that merely *name* a provider are never flagged.
+- **`writing-evals` skill** — the how-to: three grading modes (rubric/LM-judge, property/assertion, reference) so "no labelled data" is never an excuse. A skill, not an always-on rule (evals matter only to LLM-feature projects).
+- **`architecture-checklist` skill + the ship-contract** — turns "follow the architecture" into checkable items (deterministic `check:` shell commands or Checker-verified), produced by `technical-vision`/`carve`, verified by `loop-checker` + `independent-review`. The ship-contract has two halves: deterministic (TDD/Eval hooks + `check:` items) and semantic (the Checker).
+- **Judge calibration (Level C)** — every LLM-judge surface (`judge-panel`, `loop-checker`, `independent-review`, `behavior-validator`) carries a `Rubric vN` stamp; `judge-panel` documents the Calibration discipline (version the rubric, spot-check against human judgment, diverse lenses). New `test/hooks-eval-gate.sh` (12 behavior cases) via `npm run test:hooks`. Design: `docs/roadmap/Eval-Driven-Law.md`.
+
+### Added — Multi-engine parity (Claude Code + `agy` + `codex`)
+- The loop's adapter layer now works against the **real** `agy` (Antigravity 1.1.6) and `codex` (0.145.0) CLIs, with every flag verified against the CLI — not guessed. **`agy`** (proven end-to-end on a live L1 run): correct binary (`agy`, not `antigravity`), `--print`/`--mode`, headless auto-approval, and `--add-dir` to anchor its workspace to the loop worktree. **`codex`**: `codex exec -s workspace-write` so the Checker can write its verdict. Flag mappings are unit-tested (`mapMode`/`beatArgs`).
+- **Sandbox finding:** `agy --sandbox` blocks the agent from operating, so `sandbox: cli-native` + `agy` is refused with guidance to use `container`; `codex` is confined by construction (`workspace-write`).
+
+### Added — Autonomous loop hardening (Loop Robustness Plan)
+- **P0 data-loss fixes** — a commit-before-verify backstop (`autoCommit`), a teardown dirty-guard, and verify-against-committed, so a Maker that forgets to commit never loses its work (the original live-run failure). Plus an **empty-done guard**: a done-claim on a branch with no committed work re-prompts instead of opening an empty PR.
+- **Fleet Bridge** (`conductor loop --from-conductor`) — drains `conductor/` inbox + backlog into a routed work queue and reflects results back (claim → done → PR), so the interactive dashboard and the autonomous fleet share one source of truth.
+- **cli-native sandbox** — L3 runs in the CLI vendor's own sandbox (Anthropic bubblewrap for `claude`), no maintained Docker image required.
+- **Resume discipline** — a killed run resumes without stranding worktrees; **cross-run self-improvement** mines the ship-log for recurring failures and proposes rules (propose-only). The isolated Maker is conductor-enabled even when the scaffold is gitignored. Design + status: `docs/roadmap/Loop-Robustness-Plan.md`.
+
+### Added — Skill catalog audit + Reference Library
+- Skill catalog streamlined (37 → 29) against a coherent-responsibility bar; four advice docs demoted to a new `.agents/references/` library (still discoverable via `how-it-works.md`). `upgrade` now prunes framework-owned skills dropped upstream while keeping registry-imported and hand-authored ones (ownership via the checksum manifest; `test/update-prune.test.js`).
+
+### Added — `deepen` brownfield architecture workflow
+- The brownfield counterpart to `technical-vision`: finds shallow/scattered modules in an existing codebase and reshapes them into deep modules with narrow interfaces — characterization-test-first + Strangler-Fig. Driven by the Code Archaeologist persona.
+
+### Fixed
+- **Dry-run purity + lock ordering** (`conductor loop`): all disk writes deferred until after the one-loop lock, so `--dry-run` never mutates state and a second invocation can't rewind a live run's on-disk tasks.
+- **Checker write-capability, merge, and cross-process safety** — the independent Checker runs write-capable (not read-only `plan`); PR reuse on contention; `--force-with-lease` fallback on a stale loop branch; per-task verification for concurrent swarm tasks.
 
 ### Added — Loop ignition contract (time-based & proactive loops)
 - **`conductor loop --goal "<text>"` and `--event <file.json>`** — an external trigger can now seed the loop's goal, turning the goal-based driver into the **time-based** and **proactive** loops of Anthropic's Loop-Engineering taxonomy *by composition*. Conductor deliberately ships **no scheduler of its own** — drive `conductor loop` from Claude Code's native `/schedule` or host `cron` (time-based), or from a webhook/CI shim that writes an event payload (proactive). Rationale and the full four-loop readiness map: `docs/roadmap/Loop-Engineering-Alignment.md`.

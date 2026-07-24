@@ -42,6 +42,8 @@ function harness(overrides = {}) {
     gitHead: overrides.gitHead ?? (async () => `sha-${headCounter++}`),
     merge: overrides.merge ?? (async () => ({ ok: true, branch: "b", prUrl: "http://pr" })),
     now: overrides.now ?? (() => (clock += 1000)),
+    // Only set when a test exercises the empty-done guard; absent ⇒ guard skipped.
+    branchHasWork: overrides.branchHasWork,
     persist: async (s) => persisted.push(s.status),
     writeInbox: async () => {},
     log: () => {},
@@ -200,4 +202,53 @@ test("(g) green verification with maker_reported_done reaches completed", async 
   assert.equal(final.status, "completed");
   assert.equal(final.verification.last_exit_code, 0);
   assert.equal(final.iterations.current, 1);
+});
+
+// ---- (h) empty done-claim guard: reported done but no committed work -------
+// Defense-in-depth for the "done-claimed-but-no-commit" gap. Even with green
+// verify AND (here) no Checker to catch it, a done-claim on a branch that carries
+// no committed work must NEVER open a PR — there is nothing to ship. The driver
+// re-prompts a maker beat; the stall detector bounds a maker that keeps lying.
+
+test("(h) L3 done-claim with no committed work is never merged — re-prompts, then bounds out", async () => {
+  let mergeCalls = 0;
+  const { state, deps } = harness({
+    gitHead: async () => "sha-const", // maker never lands a commit…
+    runBeat: async ({ state }) => {
+      state.maker_reported_done = true; // …but insists it's done every beat
+      return { exitCode: 0 };
+    },
+    runVerify: async () => ({ exitCode: 0, output: "green" }),
+    merge: async () => {
+      mergeCalls++;
+      return { ok: true, branch: "b", prUrl: "http://pr" };
+    },
+    branchHasWork: async () => false, // the branch has no unique commits
+  });
+  const final = await runLoop(state, deps);
+  assert.equal(mergeCalls, 0, "must never open a PR for an empty done-claim");
+  assert.notEqual(final.status, "completed");
+  assert.ok(isTerminal(final.status), "the run must terminate (bounded), not loop forever");
+  assert.equal(final.status, "stalled"); // constant HEAD + verify → stall detector fires
+});
+
+// ---- (i) the guard does NOT false-block real work -------------------------
+
+test("(i) L3 done-claim WITH committed work still merges to completed", async () => {
+  let mergeCalls = 0;
+  const { state, deps } = harness({
+    runBeat: async ({ state }) => {
+      state.maker_reported_done = true;
+      return { exitCode: 0 };
+    },
+    runVerify: async () => ({ exitCode: 0, output: "green" }),
+    merge: async () => {
+      mergeCalls++;
+      return { ok: true, branch: "b", prUrl: "http://pr" };
+    },
+    branchHasWork: async () => true, // real commits on the branch
+  });
+  const final = await runLoop(state, deps);
+  assert.equal(mergeCalls, 1);
+  assert.equal(final.status, "completed");
 });

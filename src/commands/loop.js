@@ -12,7 +12,7 @@ import { join, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { runLoop, normalizeState, resolveVerifyCommand } from "../loop/driver.js";
 import { resolveAdapter } from "../loop/adapters/index.js";
-import { createWorktree, teardownWorktree, worktreePlan, materializeConductorContext, CONTEXT_ANCHORS } from "../loop/worktree.js";
+import { createWorktree, teardownWorktree, worktreePlan, materializeConductorContext, CONTEXT_ANCHORS, hasUniqueCommits } from "../loop/worktree.js";
 import { autoCommit, autoCommitMessage } from "../loop/autocommit.js";
 import { harvestWorkQueue, renderAssignment } from "../loop/harvester.js";
 import { applyClaim, applyDone } from "../loop/writeback.js";
@@ -678,6 +678,13 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       runChecker: makeChecker(workCwd),
       readMakerDone,
       merge: makeMerge(workCwd, state.worktree?.branch, `Conductor loop: ${state.goal_description || "goal"}`),
+      // Empty done-claim guard: only ship if the loop branch carries committed work
+      // beyond master (a maker commit or a P0.1 auto-capture). Blueprint/non-execution
+      // phases aren't gated on commits → true. `git` (root) sees the loop branch.
+      branchHasWork: async (s) =>
+        s.phase !== "execution" || !s.worktree?.branch
+          ? true
+          : hasUniqueCommits({ git, branch: s.worktree.branch, baseBranch: "HEAD" }),
       audit,
       now: () => Date.now(),
       persist: (s) => atomicWriteJson(statePath, s),

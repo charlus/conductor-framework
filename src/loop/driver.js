@@ -248,6 +248,7 @@ export async function runLoop(state, deps) {
     runChecker = null, // Phase 3: independent Checker in a separate process
     readMakerDone = null, // maker's completion signal, read from a file (never trust in-memory)
     merge = null, // Phase 4: PR-gated merge at L3 (async → { ok, branch, prUrl, reason })
+    branchHasWork = null, // (state)=>bool: does the branch carry committed work to ship?
     audit = () => {}, // Phase 4: append to the human-auditable ship-log trail
     log = () => {},
     writeInbox = () => {},
@@ -397,6 +398,21 @@ export async function runLoop(state, deps) {
         }
         // Goal reported complete. How we finish depends on the autonomy level.
         if (state.phase === "execution" && levelRank(state.autonomy_level) >= LEVELS.L3) {
+          // Empty done-claim guard (defense-in-depth, independent of the Checker):
+          // verify is green and the Checker approved, but if the branch carries NO
+          // committed work (the maker changed nothing and the P0.1 auto-capture found
+          // nothing to commit) there is nothing to ship — opening a PR would be empty.
+          // Clear the false "done" and re-prompt a maker beat; the stall detector
+          // bounds a maker that keeps claiming done with nothing to show.
+          if (branchHasWork && !(await branchHasWork(state))) {
+            state.maker_reported_done = false;
+            state.status = "idle";
+            await audit(
+              `beat ${state.iterations.current}: done claimed but branch has no committed work → re-prompting maker`
+            );
+            await persist(state);
+            break;
+          }
           // L3 execution: never a silent push to a protected branch — open a PR,
           // gated by the green floor + Checker approval already established above.
           if (merge) {

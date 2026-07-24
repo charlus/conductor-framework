@@ -12,7 +12,7 @@ import { join, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { runLoop, normalizeState, resolveVerifyCommand } from "../loop/driver.js";
 import { resolveAdapter } from "../loop/adapters/index.js";
-import { createWorktree, teardownWorktree, worktreePlan, materializeConductorContext, CONTEXT_ANCHORS } from "../loop/worktree.js";
+import { createWorktree, teardownWorktree, worktreePlan, materializeConductorContext, CONTEXT_ANCHORS, hasUniqueCommits } from "../loop/worktree.js";
 import { autoCommit, autoCommitMessage } from "../loop/autocommit.js";
 import { harvestWorkQueue, renderAssignment } from "../loop/harvester.js";
 import { applyClaim, applyDone } from "../loop/writeback.js";
@@ -416,6 +416,22 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     }
   }
 
+  // agy's own `--sandbox` (terminal restrictions) was VERIFIED live to BLOCK the
+  // agent from operating: an otherwise-identical beat produces nothing (empty
+  // worktree, silent no-op) — likely it severs the API network and/or writes to
+  // the external worktree path. So agy has no working cli-native sandbox; refuse
+  // loudly and point to `container` rather than pass a flag that yields empty runs.
+  const agySandbox = false; // agy --sandbox is non-functional for autonomous work
+  if (state.sandbox === "cli-native" && adapter.name === "antigravity" && !dryRun) {
+    stderr.write(
+      "⛔  sandbox=cli-native is not supported for the antigravity engine: agy's --sandbox " +
+        "blocks the agent from operating (verified live — the beat produces nothing). Use " +
+        '"sandbox": "container" for an isolated L3 agy run, or run L1/L2 with ' +
+        '"sandbox": "none" + --unsafe-no-sandbox.\n'
+    );
+    return 1;
+  }
+
   const git = makeGit(root);
   const checkerPromptPath = join(root, CHECKER_WORKFLOW_REL);
 
@@ -441,7 +457,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const runCheckerVote = async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
         await rm(verdictPath, { force: true }).catch(() => {});
-        await adapter.runChecker({ promptPath: checkerPrompt, cwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath });
+        await adapter.runChecker({ promptPath: checkerPrompt, cwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath, sandbox: agySandbox });
         try {
           return await readFile(verdictPath, "utf8");
         } catch {
@@ -659,7 +675,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       verifyCommand,
       runBeat: async () => {
         await rm(makerSignalPath, { force: true }).catch(() => {}); // clear stale signal
-        const result = await adapter.runBeat({ promptPath, cwd: workCwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath });
+        const result = await adapter.runBeat({ promptPath, cwd: workCwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath, sandbox: agySandbox });
         // P0.1 backstop: capture any uncommitted Maker change so verify sees a real
         // diff, the Checker has commits to review, and teardown can't discard it.
         const cap = await autoCommit({
@@ -678,6 +694,13 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       runChecker: makeChecker(workCwd),
       readMakerDone,
       merge: makeMerge(workCwd, state.worktree?.branch, `Conductor loop: ${state.goal_description || "goal"}`),
+      // Empty done-claim guard: only ship if the loop branch carries committed work
+      // beyond master (a maker commit or a P0.1 auto-capture). Blueprint/non-execution
+      // phases aren't gated on commits → true. `git` (root) sees the loop branch.
+      branchHasWork: async (s) =>
+        s.phase !== "execution" || !s.worktree?.branch
+          ? true
+          : hasUniqueCommits({ git, branch: s.worktree.branch, baseBranch: "HEAD" }),
       audit,
       now: () => Date.now(),
       persist: (s) => atomicWriteJson(statePath, s),
@@ -756,7 +779,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           promptPath: beatPromptPath,
           cwd: taskCwd,
           permissionMode: "acceptEdits",
-          settingsPath: sandboxSettingsPath, // cli-native sandbox per fleet worker
+          settingsPath: sandboxSettingsPath, // cli-native sandbox per fleet worker (claude)
+          sandbox: agySandbox, // cli-native sandbox for agy (boolean --sandbox)
           // Forwarded so the beat can adopt the right brief (test-author vs
           // implementer). The agent also reads task.role/phase from loop-state.
           role,

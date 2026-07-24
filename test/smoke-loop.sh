@@ -52,10 +52,15 @@ case "$prompt" in
     ;;
   *)
     echo "maker mode=$mode" >> "${CALLS_LOG:-/dev/null}"
-    # Maker: make a real change + commit, then signal completion.
+    # Maker: make a real change, then signal completion. It commits ONLY when
+    # MAKER_COMMIT=1 (default). MAKER_COMMIT=0 simulates a maker that FORGETS to
+    # commit — the P0.1 auto-capture backstop in the real loop must still land the
+    # work, or it would be destroyed on teardown (the original data-loss bug).
     date > FEATURE.txt
-    git add -A >/dev/null 2>&1
-    git commit -q -m "feat: smoke feature" >/dev/null 2>&1 || true
+    if [ "${MAKER_COMMIT:-1}" = "1" ]; then
+      git add -A >/dev/null 2>&1
+      git commit -q -m "feat: smoke feature" >/dev/null 2>&1 || true
+    fi
     mkdir -p conductor/1-workbench
     printf '{"done": true}' > conductor/1-workbench/maker-signal.json
     ;;
@@ -141,6 +146,60 @@ if [ -z "$(ls -A "$PROJ/.agents/rules" 2>/dev/null | grep -v -E 'prime-directive
 else
   no "self-improvement unexpectedly added a file to .agents/rules/ (should propose, not activate)"
 fi
+
+# ============================================================
+# Scenario 2 — maker FORGETS to commit → P0.1 auto-capture must still land the
+# work end-to-end (the original data-loss chain, closed by the backstop).
+# ============================================================
+echo ""
+echo "Scenario 2: maker forgets to commit (auto-capture backstop)..."
+PROJ2="$WORK/proj2"
+mkdir -p "$PROJ2"
+node "$REPO_ROOT/bin/conductor.js" init "$PROJ2" --all >/dev/null 2>&1
+cd "$PROJ2"
+git init -q
+git config user.email smoke@test.local
+git config user.name "Smoke Test"
+git add -A >/dev/null 2>&1
+git commit -q -m "init"
+
+STATE2="$PROJ2/conductor/1-workbench/loop-state.json"
+node -e "
+const f='$STATE2'; const s=require(f);
+s.goal_description='backstop test goal';
+s.phase='execution';
+s.autonomy_level='L1';
+s.verification={command:'test -f FEATURE.txt',last_exit_code:null,last_output_hash:null};
+require('fs').writeFileSync(f, JSON.stringify(s,null,2));
+"
+
+set +e
+MAKER_COMMIT=0 PATH="$BIN:$PATH" node "$REPO_ROOT/bin/conductor.js" loop "$PROJ2" --unsafe-no-sandbox --platform claude > "$WORK/out2.log" 2>&1
+code2=$?
+set -e
+sed 's/^/    /' "$WORK/out2.log"
+
+echo "Assertions (scenario 2):"
+[ "$code2" -eq 0 ] && ok "exit code 0 despite the maker never committing" || no "exit code was $code2"
+
+# The backstop must have logged an auto-capture (the maker left an uncommitted file).
+if grep -q 'auto-captured uncommitted maker changes' "$WORK/out2.log"; then
+  ok "P0.1 backstop auto-captured the uncommitted maker change"
+else
+  no "no auto-capture logged — the forgotten commit was not backstopped"
+fi
+
+# And the work is durable: FEATURE.txt is COMMITTED on the loop branch (not just a
+# stray working-tree file that teardown would have destroyed).
+WT2="$PROJ2/.agents/.worktrees/backstop-test-goal"
+if git -C "$PROJ2" show "conductor/loop/backstop-test-goal:FEATURE.txt" >/dev/null 2>&1; then
+  ok "auto-captured work is a real commit on the loop branch (survives teardown)"
+else
+  no "FEATURE.txt is not committed on the loop branch — work would be lost"
+fi
+
+status2="$(node -e "console.log(require('$STATE2').status)")"
+[ "$status2" = "awaiting_review" ] && ok "terminal status = awaiting_review (clean handoff)" || no "status was '$status2'"
 
 echo ""
 echo "  smoke: $pass passed, $fail failed"

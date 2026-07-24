@@ -51,3 +51,48 @@ test("custom priority order is respected in auto-detect", () => {
   const avail = { claude: true, antigravity: true };
   assert.equal(pickAdapterName(null, avail, ["antigravity", "claude"]), "antigravity");
 });
+
+// ---- Adapter invocation parity (flags verified against agy 1.1.6 / codex 0.145.0)
+// The maker AND the Checker must run WRITE-CAPABLE, or the Checker can't write its
+// verdict file — the read-only bug that bit the claude adapter live. Each engine
+// expresses that differently; these assert the mapping without spawning a CLI.
+
+import * as antigravity from "../src/loop/adapters/antigravity.js";
+import * as codex from "../src/loop/adapters/codex.js";
+
+test("every adapter exposes the full interface incl. runChecker", () => {
+  for (const mod of Object.values(ADAPTERS)) {
+    assert.equal(typeof mod.runChecker, "function");
+  }
+});
+
+test("antigravity: binary is `agy`, not `antigravity`", () => {
+  assert.equal(antigravity.CLI, "agy");
+  assert.equal(antigravity.name, "antigravity");
+});
+
+test("antigravity: permission mode maps to agy --mode (writable by default)", () => {
+  assert.equal(antigravity.mapMode("acceptEdits"), "accept-edits");
+  assert.equal(antigravity.mapMode("plan"), "plan");
+  assert.equal(antigravity.mapMode(undefined), "accept-edits"); // default writable
+  const args = antigravity.beatArgs({ prompt: "P", permissionMode: "acceptEdits" });
+  assert.deepEqual(args, ["--print", "P", "--mode", "accept-edits"]);
+  assert.ok(!args.includes("run"), "must not use the removed `run` subcommand");
+  assert.deepEqual(antigravity.beatArgs({ prompt: "P", sandbox: true }).slice(-1), ["--sandbox"]);
+});
+
+test("codex: exec with a writable sandbox by default; plan is read-only", () => {
+  assert.equal(codex.mapMode("acceptEdits"), "workspace-write");
+  assert.equal(codex.mapMode("plan"), "read-only");
+  assert.equal(codex.mapMode(undefined), "workspace-write"); // default writable
+  assert.deepEqual(codex.beatArgs({ prompt: "P", permissionMode: "acceptEdits" }), [
+    "exec",
+    "P",
+    "-s",
+    "workspace-write",
+  ]);
+  // danger-full-access is a real value but must never be emitted by the mapping.
+  for (const m of ["acceptEdits", "plan", "anything", undefined]) {
+    assert.notEqual(codex.mapMode(m), "danger-full-access");
+  }
+});

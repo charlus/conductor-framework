@@ -57,6 +57,28 @@ conductor_verify_cmd() {
   printf '%s' "$cmd"
 }
 
+# Echo the project's EVAL command (Eval-Driven Law run-gate).
+# Priority: conductor.config.json "eval" → package.json "eval" script → empty.
+conductor_eval_cmd() {
+  local root="$1"
+  local cmd=""
+  if [ -f "$root/conductor.config.json" ]; then
+    cmd="$(node -e "try{process.stdout.write((require('$root/conductor.config.json').eval||'').toString())}catch(e){}" 2>/dev/null || true)"
+  fi
+  if [ -z "$cmd" ] && [ -f "$root/package.json" ]; then
+    if node -e "process.exit(require('$root/package.json').scripts&&require('$root/package.json').scripts.eval?0:1)" 2>/dev/null; then
+      cmd="npm run eval"
+    fi
+  fi
+  printf '%s' "$cmd"
+}
+
+# True (0) if the repo tracks any eval file (same convention as conductor_is_eval_file).
+conductor_has_eval_files() {
+  local root="$1"
+  git -C "$root" ls-files 2>/dev/null | grep -Eiq '(\.|_)(eval|evals)\.|(^|/)evals?/'
+}
+
 # Append a waiver line to the ship-log so bypasses are auditable, never silent.
 conductor_log_waiver() {
   local root="$1" kind="$2" reason="$3"

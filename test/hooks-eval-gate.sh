@@ -109,6 +109,61 @@ done
 [ "$t5" = "0" ] && ok "T5: shell/docs/config that only mention a provider are NOT flagged (impl-only)"
 rm -rf "$D"
 
+# ============================================================
+# Eval-Driven Law — pre-push RUN-gate (v2): presence isn't passing. If the repo
+# has evalsets and an eval command, they must pass or the push is blocked.
+# ============================================================
+echo ""
+echo "Eval-Driven Law — pre-push run-gate:"
+
+# A repo with a tracked eval file, an eval command, and NO verify command (so the
+# verify block is inert and only the eval behavior is under test).
+run_repo() {  # $1 = eval command (config value, may be empty)
+  local d; d="$(fresh_repo)"
+  printf 'export const evalset=[{input:"hi",rubric:"greets"}];\n' > "$d/answer.eval.ts"
+  if [ -n "$1" ]; then printf '{"eval": "%s"}\n' "$1" > "$d/conductor.config.json"; fi
+  git -C "$d" add -A >/dev/null 2>&1
+  CONDUCTOR_NO_EVAL=setup CONDUCTOR_NO_TEST=setup git -C "$d" commit -q -m seed >/dev/null 2>&1
+  printf '%s' "$d"
+}
+run_prepush() { ( cd "$1" && bash .agents/hooks/pre-push </dev/null >/tmp/pp.out 2>&1 ); }  # returns exit code
+
+# R1: eval command PASSES → push allowed (exit 0)
+D="$(run_repo 'true')"; run_prepush "$D"
+[ "$?" -eq 0 ] && ok "R1: evals present + passing command → push allowed" || { no "R1: passing evals blocked the push"; sed 's/^/      /' /tmp/pp.out; }
+rm -rf "$D"
+
+# R2: eval command FAILS → push blocked (exit 1)
+D="$(run_repo 'false')"; run_prepush "$D"
+[ "$?" -ne 0 ] && ok "R2: failing evals BLOCK the push" || no "R2: failing evals did not block the push"
+rm -rf "$D"
+
+# R3: eval files exist but NO eval command → warn, do not block (exit 0)
+D="$(run_repo '')"; run_prepush "$D"
+if [ "$?" -eq 0 ] && grep -qi "eval command" /tmp/pp.out; then
+  ok "R3: evals present but no command → warns, does not block"
+else
+  no "R3: missing-eval-command case did not warn-and-continue"; sed 's/^/      /' /tmp/pp.out
+fi
+rm -rf "$D"
+
+# R4: NO eval files → run-gate silent (exit 0)
+D="$(fresh_repo)"; printf 'x\n' > "$D/readme.txt"; git -C "$D" add -A >/dev/null 2>&1
+CONDUCTOR_NO_TEST=x git -C "$D" commit -q -m seed >/dev/null 2>&1
+run_prepush "$D"
+[ "$?" -eq 0 ] && ! grep -qi "running evals" /tmp/pp.out && ok "R4: no evalsets → run-gate silent" || no "R4: run-gate fired with no evalsets"
+rm -rf "$D"
+
+# R5: failing evals + CONDUCTOR_SKIP_EVAL waiver → allowed (exit 0) + logged
+D="$(run_repo 'false')"
+( cd "$D" && CONDUCTOR_SKIP_EVAL="prototype" bash .agents/hooks/pre-push </dev/null >/tmp/pp.out 2>&1 )
+if [ "$?" -eq 0 ] && grep -qi "eval" "$D/conductor/0-compass/ship-log.md"; then
+  ok "R5: CONDUCTOR_SKIP_EVAL waiver unblocks + is logged"
+else
+  no "R5: eval run-gate waiver did not unblock/log"; sed 's/^/      /' /tmp/pp.out
+fi
+rm -rf "$D"
+
 echo ""
 echo "  hooks-eval-gate: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Conductor — Verification Iron Law, deterministically enforced at the push boundary
-# (ADR-0001 D1). Runs the project's verification command; a non-zero exit blocks the
-# push. No "should work" — proof or no push. Escape: CONDUCTOR_SKIP_VERIFY="reason"
-# (logged). Disable entirely: CONDUCTOR_HOOKS=off.
+# Conductor — Verification Iron Law + Eval-Driven Law (run-gate), enforced at the
+# push boundary (ADR-0001 D1). Verify: the project's verification command must pass.
+# Eval: if the repo has evalsets and an eval command, they must pass too — presence
+# was gated at commit; passing is gated here. No "should work" — proof or no push.
+# Escapes (logged): CONDUCTOR_SKIP_VERIFY / CONDUCTOR_SKIP_EVAL. Disable: CONDUCTOR_HOOKS=off.
 set -uo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
@@ -12,26 +13,50 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 
 [ "${CONDUCTOR_HOOKS:-on}" = "off" ] && exit 0
 
+# ---- Verification Iron Law ------------------------------------------------
 cmd="$(conductor_verify_cmd "$ROOT")"
 if [ -z "$cmd" ]; then
-  echo "ℹ️  Conductor: no verification command configured — set \"verify\" in conductor.config.json to enforce the Iron Law on push. Skipping."
-  exit 0
-fi
-
-if [ -n "${CONDUCTOR_SKIP_VERIFY:-}" ]; then
+  echo "ℹ️  Conductor: no verification command configured — set \"verify\" in conductor.config.json to enforce the Iron Law on push. Skipping verify."
+elif [ -n "${CONDUCTOR_SKIP_VERIFY:-}" ]; then
   conductor_log_waiver "$ROOT" "VERIFY" "$CONDUCTOR_SKIP_VERIFY"
   echo "⚠️  Conductor Verification Iron Law WAIVED: $CONDUCTOR_SKIP_VERIFY"
   echo "    (logged to conductor/0-compass/ship-log.md)"
-  exit 0
+else
+  echo "🔬 Conductor Verification Iron Law — running: $cmd"
+  if ( cd "$ROOT" && eval "$cmd" ); then
+    echo "✅ Verification passed."
+  else
+    echo ""
+    echo "🛑 Verification FAILED — push blocked."
+    echo "   Fix it, or bypass explicitly: CONDUCTOR_SKIP_VERIFY=\"why\" git push …"
+    exit 1
+  fi
 fi
 
-echo "🔬 Conductor Verification Iron Law — running: $cmd"
-if ( cd "$ROOT" && eval "$cmd" ); then
-  echo "✅ Verification passed — push allowed."
-  exit 0
+# ---- Eval-Driven Law (run-gate) -------------------------------------------
+# Presence was enforced at commit; here the evalsets must actually pass. Only
+# engages when the repo has evalsets — non-LLM projects never see it.
+if conductor_has_eval_files "$ROOT"; then
+  eval_cmd="$(conductor_eval_cmd "$ROOT")"
+  if [ -z "$eval_cmd" ]; then
+    echo "ℹ️  Conductor: evalsets exist but no eval command is configured — set \"eval\" in conductor.config.json (or an \"eval\" npm script) to run them on push. Skipping eval run."
+  elif [ -n "${CONDUCTOR_SKIP_EVAL:-}" ]; then
+    conductor_log_waiver "$ROOT" "EVAL" "$CONDUCTOR_SKIP_EVAL"
+    echo "⚠️  Conductor Eval-Driven Law (run) WAIVED: $CONDUCTOR_SKIP_EVAL"
+    echo "    (logged to conductor/0-compass/ship-log.md)"
+  else
+    echo "🧪 Conductor Eval-Driven Law — running evals: $eval_cmd"
+    if ( cd "$ROOT" && eval "$eval_cmd" ); then
+      echo "✅ Evals passed."
+    else
+      echo ""
+      echo "🛑 Evals FAILED — push blocked."
+      echo "   Tests being green is not enough — the non-deterministic surface regressed."
+      echo "   Fix the evalset, or bypass explicitly: CONDUCTOR_SKIP_EVAL=\"why\" git push …"
+      exit 1
+    fi
+  fi
 fi
 
-echo ""
-echo "🛑 Verification FAILED — push blocked."
-echo "   Fix it, or bypass explicitly: CONDUCTOR_SKIP_VERIFY=\"why\" git push …"
-exit 1
+echo "✅ Push allowed."
+exit 0

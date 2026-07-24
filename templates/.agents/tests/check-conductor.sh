@@ -272,9 +272,21 @@ for helper in conductor_is_llm_feature_file conductor_is_eval_file; do
   fi
 done
 if grep -q "Eval-Driven Law" "$AGENT_DIR/hooks/pre-commit" 2>/dev/null; then
-  pass "pre-commit enforces the Eval-Driven Law"
+  pass "pre-commit enforces the Eval-Driven Law (presence)"
 else
   fail "pre-commit does not enforce the Eval-Driven Law"
+fi
+for helper in conductor_eval_cmd conductor_has_eval_files; do
+  if grep -q "$helper" "$AGENT_DIR/hooks/lib.sh" 2>/dev/null; then
+    pass "lib.sh defines eval run-gate helper: $helper"
+  else
+    fail "lib.sh missing eval run-gate helper: $helper"
+  fi
+done
+if grep -q "Eval-Driven Law" "$AGENT_DIR/hooks/pre-push" 2>/dev/null; then
+  pass "pre-push enforces the Eval-Driven Law run-gate"
+else
+  fail "pre-push does not enforce the Eval-Driven Law run-gate"
 fi
 
 # ---- 12. Autonomous Loop Backend (V6 driver + v2 state) ----

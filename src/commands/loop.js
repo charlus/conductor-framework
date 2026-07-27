@@ -16,7 +16,7 @@ import { createWorktree, teardownWorktree, worktreePlan, materializeConductorCon
 import { autoCommit, autoCommitMessage } from "../loop/autocommit.js";
 import { harvestWorkQueue, renderAssignment } from "../loop/harvester.js";
 import { applyClaim, applyDone } from "../loop/writeback.js";
-import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, VERDICT_REL } from "../loop/checker.js";
+import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, isInfraReason, VERDICT_REL } from "../loop/checker.js";
 import { openPullRequest } from "../loop/merge.js";
 import { runSwarm } from "../loop/swarm.js";
 import { lockDecision, renderLock } from "../loop/lock.js";
@@ -477,7 +477,11 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     // / no-file plumbing issue vs a genuine substantive rejection).
     if (!tally.approved) {
       tally.reasons.forEach((r, i) => stdout.write(`[CONDUCTOR LOOP]   checker vote ${i + 1}: ${r}\n`));
-      await audit(`checker rejected: ${tally.reasons.join(" | ")}`);
+      // Distinguish an INFRASTRUCTURE outage (every vote failed to run/produce a
+      // verdict) from a substantive rejection, so the self-improvement miner never
+      // proposes a content rule for a beat where no Checker actually ran.
+      const infra = tally.reasons.length > 0 && tally.reasons.every(isInfraReason);
+      await audit(`${infra ? "checker infra-failure" : "checker rejected"}: ${tally.reasons.join(" | ")}`);
     }
     return { exitCode: verdictToExitCode(tally) };
   };

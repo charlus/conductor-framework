@@ -29,6 +29,10 @@ export function parseShipLogMessages(shipLogMd) {
 // lines (shipped, harvested, claim, auto-captured-clean) are intentionally NOT
 // signals — we mine what went WRONG.
 const SIGNAL_MATCHERS = [
+  // Infra outage (Checker never ran/emitted a verdict) — matched BEFORE the
+  // content-rejection signal so an outage never clusters as a missing acceptance
+  // criterion. A rule addressed to an agent cannot fix a beat where none ran.
+  { kind: "checker-infra", re: /^checker infra-failure:\s*(.+)$/i, reason: (m) => m[1] },
   { kind: "checker-rejection", re: /^checker rejected:\s*(.+)$/i, reason: (m) => m[1] },
   { kind: "task-failure", re: /^task\s+\S+:\s*failed\s*\((.+)\)\s*$/i, reason: (m) => m[1] },
   { kind: "merge-failure", re: /merge failed(?::|\s*→)\s*(.*)$/i, reason: (m) => m[1] || "unknown" },
@@ -84,6 +88,8 @@ export function mineRecurringFailures(shipLogMd, { threshold = 2 } = {}) {
 /** A short, human-actionable rule suggestion per failure kind. */
 function suggestionFor(kind) {
   switch (kind) {
+    case "checker-infra":
+      return "This is an INFRASTRUCTURE/outage signal — the Checker process could not run or write a verdict (e.g. an agent-CLI usage/session limit or crash), NOT a content gap. Do NOT write a `.agents/rules/` rule for it: a rule addressed to an agent cannot fix a beat where no agent ran. Investigate the driver/adapter/CLI instead (see docs/roadmap/Loop-Deadbeat-Robustness.md).";
     case "checker-rejection":
       return "The Checker keeps rejecting for the same reason — encode the missing acceptance criterion as a rule so the Maker satisfies it up front (e.g. a Definition-of-Done check the beat must meet before signaling done).";
     case "task-failure":

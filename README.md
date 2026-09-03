@@ -133,6 +133,15 @@ Conductor backs its laws with **code, not just prose** — deterministic git hoo
 - **Test-Driven Law** — a `pre-commit` gate blocks implementation code staged with no test.
 - **Eval-Driven Law** — tests verify the deterministic surface; **evals** verify the non-deterministic LLM-output surface of the apps you build. If a feature calls an LLM provider, a `pre-commit` gate requires an evalset alongside it and a `pre-push` gate runs it — see the `writing-evals` skill (three grading modes). The **ship-contract** extends this: `architecture-checklist` turns "follow the architecture" into checkable items the Checker verifies. Every escape hatch is logged, never silent.
 
+**And the law now has a memory.** "Fresh evidence" used to mean *fresh at the moment of the check* — after that the result was trusted indefinitely, which is why a review round would re-run the whole suite to prove something it had already proven. `conductor evidence` binds a verification run to a **content fingerprint of the working tree**:
+
+```bash
+conductor evidence run --label tests -- npm test     # run it, and record what it ran against
+conductor evidence check --label tests               # FRESH / STALE / MISSING
+```
+
+Commit exactly the code that was tested and the evidence stays **FRESH**. Add an untracked source file and it goes **STALE**. `pre-push` uses this to skip a re-run it does not need — and only ever to *skip* one: no ledger, no CLI, or any doubt at all, and the command runs. The ledger can never satisfy the gate on its own.
+
 ---
 
 ## 🤖 Autonomous Loop Backend (V6)
@@ -162,9 +171,79 @@ conductor loop --event ./event.json
 
 A trigger can seed the goal but is **clamped to the operator's autonomy ceiling** — a payload (which may come from an untrusted source) can de-escalate but never escalate. Every driver guardrail still binds.
 
+### Triggers from outside are treated as untrusted
+
+`--event` lets an issue body, a PR comment or a chat message seed a run — which means anyone who can file an issue can put text in front of an unattended agent holding your credentials. That is a live attack class, not a hypothetical: in 2026 a single malicious issue *title* was turned into an npm supply-chain compromise, and the same shape was disclosed in three major coding agents.
+
+So privilege comes from **you**, never from the event:
+
+- **Trust follows authorship, not transport.** A third-party source without operator-level access is untrusted. A `cron` or CI trigger carrying text *you* wrote keeps full trust. A shim forwarding third-party text marks it with `author_association` or `"untrusted": true`.
+- An untrusted run is clamped to the **no-merge floor**, so the worst case is a branch you review.
+- Its goal and context are **enveloped and labelled as data, never instructions**, with injection attempts flagged inline and fullwidth/zero-width evasion folded for matching.
+- It gets an explicit **tool allowlist** — read and edit, no shell, no network. An allowlist, because every published bypass of this agent class defeated a blocklist.
+
 **▶ How to run it on your repo:** see the step-by-step guide [`docs/Running-The-Loop.md`](docs/Running-The-Loop.md) — configure The Spine (`loop-state.json`), `--dry-run` to preview, then `conductor loop <dir> --platform claude --unsafe-no-sandbox`.
 
 See also [`docs/roadmap/Autonomous-Loop-Backend.md`](docs/roadmap/Autonomous-Loop-Backend.md), [`docs/roadmap/Loop-Engineering-Alignment.md`](docs/roadmap/Loop-Engineering-Alignment.md), [`docs/roadmap/Loop-Robustness-Plan.md`](docs/roadmap/Loop-Robustness-Plan.md), and [`docs/adr/0001-enforcement-and-autonomy-rebalance.md`](docs/adr/0001-enforcement-and-autonomy-rebalance.md).
+
+---
+
+## Review That Finishes
+
+An independent fresh-context reviewer checks every consequential artifact before it ships — a PRD, an architecture, a spec, a diff. The hard part is making that gate **terminate**: a reviewer told to "find the reason this is not ready" will always find something, so review-until-clean never converges and the cost lands on you as a fourth round and a request for help.
+
+Conductor's answer (**Rubric v2**) is one short, self-contained reviewer brief with a bar on the *rejection*, not on the approval:
+
+- A **BLOCKER** needs the **quoted line that proves it** and confidence **≥ 7**. Cannot quote it? It is reported as IMPORTANT — never promoted to clear the bar.
+- **`APPROVE` means zero blockers, not zero findings.** IMPORTANT and NIT are reported and the change still ships.
+- The reviewer judges the **acceptance criteria as a checklist**, so "is this finished?" is a bounded question with a reachable answer.
+- It reports the **whole class**, not one instance — otherwise every instance costs a round.
+- An explicit **"Not a finding"** list: already fixed in this diff, anything the linter enforces, process artefacts, test-structure opinions, consistency-only churn.
+- **One** delta round, then a single batched question to you. No follow-up backlog — a proven defect is fixed now or written into the PR body under *Known gaps*.
+
+The bar is enforced in code (`src/loop/checker.js`), not just prose, and it can only ever make the gate stricter: a malformed blocker is still a rejection, and a verdict that approves while listing a blocker fails safe.
+
+### It measures itself
+
+A rubric is config: change it and every verdict changes. So the gate keeps a ledger and tells you when **it** is the problem:
+
+```bash
+conductor review-log summary
+```
+
+```
+Review findings: 4 (1 blockers)
+Dismissal rate:  75%
+
+By class:
+     3    0 blk  100% dismissed  test-structure
+     1    1 blk    0% dismissed  sql
+
+Rubric suspects (dismissed >50% of the time, n>=3):
+  test-structure — add a worked case to skills/independent-review/calibration.md
+```
+
+A class you keep dismissing is a **rubric** defect, not a discipline problem. Fix the rubric.
+
+---
+
+## Progressive Disclosure, With a Number
+
+A methodology that loads everything up front is just a big prompt. Conductor loads a compact classifier plus a handful of always-on rules; skills and workflows are pulled in on demand. That is only true if something enforces it:
+
+```bash
+conductor context-bill
+```
+
+```
+ALWAYS-ON (every session pays this): 16.1 KB ≈ 4409 tokens
+     3.8 KB  classifier         AGENTS.md
+     2.6 KB  rule               rules/test-driven-law.md
+     ...
+EAGER (paid only when invoked): 31 skills, 16 workflows
+```
+
+CI fails on growth past a committed ceiling **and** on a new skill or workflow with no budget entry at all — so adding context is a visible decision, never a default. Ceilings are in bytes: exact, and they do not drift when a tokenizer changes.
 
 ---
 

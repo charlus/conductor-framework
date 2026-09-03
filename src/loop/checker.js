@@ -39,6 +39,22 @@ export function verdictToExitCode(verdict) {
 }
 
 /**
+ * True when a rejection reason reflects an INFRASTRUCTURE failure (the Checker
+ * process could not run or emit a well-formed verdict) rather than a substantive
+ * "the work is wrong" rejection. Matches the two non-substantive outcomes
+ * `parseCheckerVerdict` produces: a missing verdict file and invalid JSON.
+ *
+ * The self-improvement miner uses this to avoid proposing a CONTENT rule for an
+ * outage — a rule addressed to an agent cannot fix a beat where no agent ran
+ * (the JuRaph session-limit incident: 47 "no verdict file" rejections that were
+ * an outage, not a missing acceptance criterion).
+ */
+export function isInfraReason(reason) {
+  const r = String(reason ?? "").toLowerCase();
+  return r.includes("no verdict file") || r.includes("not valid json");
+}
+
+/**
  * Multi-vote / adversarial Checker (ADR-0001 Deferred → shipped). Run N
  * independent Checker processes and require a strict majority to approve. This is
  * the survey's "verify with N skeptics": any single skeptic that rejects lowers

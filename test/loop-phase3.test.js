@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runLoop, normalizeState, preflight } from "../src/loop/driver.js";
-import { parseCheckerVerdict, verdictToExitCode } from "../src/loop/checker.js";
+import { parseCheckerVerdict, verdictToExitCode, isInfraReason } from "../src/loop/checker.js";
 import {
   slugify,
   worktreePlan,
@@ -126,6 +126,15 @@ test("parseCheckerVerdict: missing / empty / malformed all reject", () => {
     assert.equal(v.approved, false, `should reject: ${JSON.stringify(bad)}`);
     assert.equal(verdictToExitCode(v), 1);
   }
+});
+
+test("isInfraReason distinguishes an outage (no verdict / bad JSON) from a substantive reject", () => {
+  // The two reasons parseCheckerVerdict emits when the Checker could not run/produce output.
+  assert.equal(isInfraReason(parseCheckerVerdict(null).reason), true);
+  assert.equal(isInfraReason(parseCheckerVerdict("not json").reason), true);
+  // A real rejection with a substantive reason is NOT infra.
+  assert.equal(isInfraReason("acceptance test for the happy path is missing"), false);
+  assert.equal(isInfraReason(parseCheckerVerdict('{"approved": false, "reason": "logic is wrong"}').reason), false);
 });
 
 // ---- Worktree lifecycle (stub git) ----------------------------------------

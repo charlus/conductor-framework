@@ -22,14 +22,48 @@ elif [ -n "${CONDUCTOR_SKIP_VERIFY:-}" ]; then
   echo "⚠️  Conductor Verification Iron Law WAIVED: $CONDUCTOR_SKIP_VERIFY"
   echo "    (logged to conductor/0-compass/ship-log.md)"
 else
-  echo "🔬 Conductor Verification Iron Law — running: $cmd"
-  if ( cd "$ROOT" && eval "$cmd" ); then
-    echo "✅ Verification passed."
+  # ---- Evidence ledger fast path (E2) ------------------------------------
+  # If this EXACT command already ran green against this EXACT working-tree
+  # content, re-running it proves nothing new. `conductor evidence check` binds
+  # freshness to a content fingerprint, so committing the tested code keeps its
+  # evidence FRESH while any source change invalidates it.
+  #
+  # Strictly opt-out and strictly fail-safe: no `conductor` on PATH, no ledger,
+  # any doubt at all → we run the command. The ledger can only ever SKIP a
+  # redundant run; it can never satisfy the gate on its own.
+  fresh=0
+  if [ "${CONDUCTOR_EVIDENCE:-on}" != "off" ] && command -v conductor >/dev/null 2>&1; then
+    # Allow-list: a release-note or version edit between the test run and the
+    # push is not a behaviour change. Deliberately SMALL and never a source
+    # path — override with CONDUCTOR_EVIDENCE_ALLOW_PATHS if your release flow
+    # touches other non-source files.
+    allow="${CONDUCTOR_EVIDENCE_ALLOW_PATHS:-CHANGELOG.md,VERSION}"
+    if ( cd "$ROOT" && conductor evidence check --label verify --expect-cmd "$cmd" --allow-paths "$allow" >/dev/null 2>&1 ); then
+      fresh=1
+    fi
+  fi
+
+  if [ "$fresh" = "1" ]; then
+    echo "✅ Verification FRESH — this exact command already passed against this exact content."
+    echo "   (evidence ledger; re-run anyway with CONDUCTOR_EVIDENCE=off)"
   else
-    echo ""
-    echo "🛑 Verification FAILED — push blocked."
-    echo "   Fix it, or bypass explicitly: CONDUCTOR_SKIP_VERIFY=\"why\" git push …"
-    exit 1
+    echo "🔬 Conductor Verification Iron Law — running: $cmd"
+    # Wrap the run so the result is recorded and the next push can trust it.
+    # The wrapper is transparent: the command's exit code is the wrapper's, so
+    # this can never turn a red suite green or a green suite red.
+    if [ "${CONDUCTOR_EVIDENCE:-on}" != "off" ] && command -v conductor >/dev/null 2>&1; then
+      runner() { ( cd "$ROOT" && conductor evidence run --label verify -- "$cmd" ); }
+    else
+      runner() { ( cd "$ROOT" && eval "$cmd" ); }
+    fi
+    if runner; then
+      echo "✅ Verification passed."
+    else
+      echo ""
+      echo "🛑 Verification FAILED — push blocked."
+      echo "   Fix it, or bypass explicitly: CONDUCTOR_SKIP_VERIFY=\"why\" git push …"
+      exit 1
+    fi
   fi
 fi
 

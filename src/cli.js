@@ -5,6 +5,9 @@ import { removeCommand } from "./commands/remove.js";
 import { listCommand } from "./commands/list.js";
 import { searchCommand } from "./commands/search.js";
 import { installHooksCommand } from "./commands/install-hooks.js";
+import { evidenceCommand } from "./commands/evidence.js";
+import { reviewLogCommand } from "./commands/review-log.js";
+import { contextBillCommand } from "./commands/context-bill.js";
 import { loopCommand } from "./commands/loop.js";
 
 function helpText() {
@@ -23,6 +26,9 @@ function helpText() {
     "    conductor list [--remote] [--tier <tier>]",
     "    conductor search <query> [--tag <tag>]",
     "    conductor install-hooks [--uninstall]",
+    "    conductor evidence <run|check|list> …",
+    "    conductor review-log <append|summary>",
+    "    conductor context-bill [dir] [--all] [--json] [--budget <file>]",
     "    conductor loop [target-directory] [--goal <text> | --event <file.json> | --from-conductor]",
     "                   [--platform <name>] [--dry-run] [--unsafe-no-sandbox]",
     "",
@@ -34,6 +40,9 @@ function helpText() {
     "    list            List installed skills (or --remote for registry)",
     "    search          Search the registry for skills",
     "    install-hooks   Enable deterministic TDD/verification git hooks",
+    "    evidence        Record/grade verification evidence against the working tree",
+    "    review-log      Record review findings + dispositions; summarise the rubric",
+    "    context-bill    What the framework costs an agent per session (always-on vs eager)",
     "    loop            Run the deterministic autonomous loop driver",
     "",
     "  Init Options:",
@@ -89,6 +98,12 @@ export async function runCli(args, io = process) {
       return searchCommand(rest, context);
     case "install-hooks":
       return installHooksCommand(rest, context);
+    case "evidence":
+      return evidenceCommand(rest, context);
+    case "review-log":
+      return reviewLogCommand(rest, context);
+    case "context-bill":
+      return contextBillCommand(rest, context);
     case "loop":
       return loopCommand(rest, context);
     default:

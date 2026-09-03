@@ -33,6 +33,7 @@ Classify what the user needs before acting:
 | "Grand PRD", "Create PRD" | `workflows/grand-prd.md` |
 | "Carve", "Break it down" | `workflows/carve.md` |
 | "Deepen", "Improve codebase architecture", "Find shallow modules" | `workflows/deepen.md` |
+| "Design a flow", "Agentic flow" | `workflows/agentic-flow.md` |
 | "Spec it", "Write the spec" | `workflows/spec-it.md` |
 | "Build it", "Let's code" | `workflows/build.md` |
 | "Ship it", "Audit and ship", "Release" | `workflows/ship.md` |

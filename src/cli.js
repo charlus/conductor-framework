@@ -5,6 +5,7 @@ import { removeCommand } from "./commands/remove.js";
 import { listCommand } from "./commands/list.js";
 import { searchCommand } from "./commands/search.js";
 import { installHooksCommand } from "./commands/install-hooks.js";
+import { trustVerifyCommand } from "./commands/trust-verify.js";
 import { evidenceCommand } from "./commands/evidence.js";
 import { reviewLogCommand } from "./commands/review-log.js";
 import { contextBillCommand } from "./commands/context-bill.js";
@@ -26,6 +27,7 @@ function helpText() {
     "    conductor list [--remote] [--tier <tier>]",
     "    conductor search <query> [--tag <tag>]",
     "    conductor install-hooks [--uninstall]",
+    "    conductor trust-verify [--revoke] [--list]",
     "    conductor evidence <run|check|list> …",
     "    conductor review-log <append|summary>",
     "    conductor context-bill [dir] [--all] [--json] [--budget <file>]",
@@ -40,6 +42,7 @@ function helpText() {
     "    list            List installed skills (or --remote for registry)",
     "    search          Search the registry for skills",
     "    install-hooks   Enable deterministic TDD/verification git hooks",
+    "    trust-verify    Record operator consent for this repo's verify command",
     "    evidence        Record/grade verification evidence against the working tree",
     "    review-log      Record review findings + dispositions; summarise the rubric",
     "    context-bill    What the framework costs an agent per session (always-on vs eager)",
@@ -98,6 +101,8 @@ export async function runCli(args, io = process) {
       return searchCommand(rest, context);
     case "install-hooks":
       return installHooksCommand(rest, context);
+    case "trust-verify":
+      return trustVerifyCommand(rest, context);
     case "evidence":
       return evidenceCommand(rest, context);
     case "review-log":

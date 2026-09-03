@@ -125,13 +125,33 @@ Two rules on top of the baseline:
 Verdict: APPROVED / CHANGES REQUESTED
 ```
 
-**If CHANGES REQUESTED:** Fix the issues, then re-run Stage 2. Repeat until approved.
+**If issues were found:** fix them. Re-run Stage 2 **once** over what you changed, then
+stop — this is your own hygiene pass, and a self-review cannot converge by iterating
+against itself. What decides whether the change is ready is the independent gate.
 
 ---
 
-## Review Loop Rules
+## This is the author's pass, not the verdict
 
-1.  **Never skip re-review.** If you fixed issues, run the review again
-2.  **Never combine stages.** Spec first, quality second. Always
-3.  **Never self-approve silently.** Report the review output explicitly
-4.  **Reviewer found issues = not done.** No exceptions
+You wrote this code, so you are the one mind that structurally cannot read it fresh —
+you cannot un-know why it is shaped this way. Clean what you can see here; the
+fresh-context reviewer (`skills/independent-review/SKILL.md`) is the honest test, and
+its rubric (`reviewer.md`) is what "ready" means.
+
+**Severity, so this pass doesn't become a loop.** Use the same three levels the
+independent reviewer uses, and treat them the same way:
+
+| Level | What it is | Here |
+|---|---|---|
+| **BLOCKER** | An acceptance criterion missed, or a correctness/security/data-loss defect, or a test that doesn't test what it claims — with the line quoted | Fix before the gate |
+| **IMPORTANT** | A real defect outside those classes | Fix if cheap and in scope, else record under **Known gaps** in the PR body |
+| **NIT** | Style, naming, preference | Your discretion |
+
+## Rules
+
+1.  **Never combine stages.** Spec first, quality second. Always.
+2.  **Never self-approve silently.** Report what you found and what you did about it.
+3.  **A finding needs the line that proves it.** If you cannot quote it, it is not a
+    BLOCKER — the same bar the independent reviewer is held to.
+4.  **Don't flag what the linter, formatter, or type checker enforces**, and don't flag
+    anything already addressed elsewhere in the change.

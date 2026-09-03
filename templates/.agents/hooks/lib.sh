@@ -86,3 +86,76 @@ conductor_log_waiver() {
   [ -f "$log" ] || return 0
   printf -- '- [%s] Hook waiver (%s): %s\n' "$(date '+%Y-%m-%d %H:%M')" "$kind" "$reason" >> "$log"
 }
+
+# ---------------------------------------------------------------------------
+# Verify-command trust store (E4).
+#
+# The Stop hook runs the project's declared verification command. Hooks BYPASS
+# the permission system, so that command executes with no human in the loop —
+# and it is read from a file inside the repo. A cloned or contributed repo can
+# therefore name any command. The gate is that a declared command never runs
+# until the operator has recorded it once:
+#
+#   conductor trust-verify        (run from inside the repo)
+#
+# Store: ${CONDUCTOR_HOME:-$HOME/.conductor}/verify-trust, one
+# "realpath<TAB>sha256" line per repo, mode 0600, rewritten atomically. Editing
+# the declared command changes its hash and invalidates trust until re-run.
+# pre-push is deliberately NOT gated: the operator typed `git push`.
+
+conductor_trust_store() {
+  printf '%s' "${CONDUCTOR_HOME:-$HOME/.conductor}/verify-trust"
+}
+
+conductor_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    printf '%s' "$1" | sha256sum | cut -d' ' -f1
+  elif command -v shasum >/dev/null 2>&1; then
+    printf '%s' "$1" | shasum -a 256 | cut -d' ' -f1
+  else
+    printf '%s' "$1" | openssl dgst -sha256 | awk '{print $NF}'
+  fi
+}
+
+# Symlink-stable key for a repo root.
+conductor_trust_key() {
+  (cd "$1" 2>/dev/null && pwd -P) || printf '%s' "$1"
+}
+
+# True (0) when $2 is the trusted verify command for repo root $1.
+conductor_verify_trusted() {
+  local key hash store p h
+  key="$(conductor_trust_key "$1")"
+  hash="$(conductor_sha256 "$2")"
+  store="$(conductor_trust_store)"
+  [ -f "$store" ] || return 1
+  while IFS="$(printf '\t')" read -r p h; do
+    [ "$p" = "$key" ] && [ "$h" = "$hash" ] && return 0
+  done < "$store"
+  return 1
+}
+
+# Record repo root $1 -> sha256($2), replacing any prior entry for that root.
+# Also appends a grant record so a trust decision is never invisible.
+conductor_trust_verify_record() {
+  local key hash store tmp p h log
+  key="$(conductor_trust_key "$1")"
+  hash="$(conductor_sha256 "$2")"
+  store="$(conductor_trust_store)"
+  mkdir -p "$(dirname "$store")"
+  tmp="$store.tmp.$$"
+  : > "$tmp"
+  chmod 600 "$tmp" 2>/dev/null || true
+  if [ -f "$store" ]; then
+    while IFS="$(printf '\t')" read -r p h; do
+      [ "$p" = "$key" ] || printf '%s\t%s\n' "$p" "$h" >> "$tmp"
+    done < "$store"
+  fi
+  printf '%s\t%s\n' "$key" "$hash" >> "$tmp"
+  mv -f "$tmp" "$store"
+
+  log="$(dirname "$store")/verify-trust-grants.log"
+  [ -f "$log" ] || : > "$log"
+  chmod 600 "$log" 2>/dev/null || true
+  printf '%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$key" "$hash" "$2" >> "$log"
+}

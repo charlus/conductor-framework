@@ -72,3 +72,27 @@ test("renderImprovementReport: null when empty, actionable doc when patterns exi
   assert.match(doc, /PROPOSALS, not active rules/); // safety framing present
   assert.match(doc, /Suggested rule:/);
 });
+
+// ---- Fix C: an infra outage must not masquerade as a content rejection ------
+// The JuRaph incident: the Checker never ran (session limit), so it wrote no
+// verdict file — a distinct `parseCheckerVerdict` outcome from a substantive
+// reject. When loop.js emits it as `checker infra-failure:`, the miner must
+// classify it as an outage signal, NEVER as a `checker-rejection` content
+// pattern (which would propose an .agents/rules/ rule for a beat where no agent ran).
+
+test("classifyMessage: infra-failure is its own kind, not a content rejection", () => {
+  const sig = classifyMessage("checker infra-failure: no verdict file written by Checker");
+  assert.equal(sig.kind, "checker-infra");
+  assert.notEqual(sig.kind, "checker-rejection");
+  // a genuine substantive rejection is still checker-rejection
+  assert.equal(classifyMessage("checker rejected: acceptance test missing").kind, "checker-rejection");
+});
+
+test("renderImprovementReport: a checker-infra pattern warns against a content rule", () => {
+  const doc = renderImprovementReport(
+    [{ kind: "checker-infra", key: "k", count: 47, reason: "no verdict file written by Checker", samples: ["checker infra-failure: no verdict file written by Checker"] }],
+    { nowIso: "2026-07-27T00:00:00Z" }
+  );
+  assert.match(doc, /infrastructure|outage/i);
+  assert.match(doc, /do not|don't/i); // explicitly steers away from a content rule
+});

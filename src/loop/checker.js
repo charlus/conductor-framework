@@ -13,24 +13,117 @@
 export const VERDICT_REL = "conductor/1-workbench/checker-verdict.json";
 
 /**
+ * The rubric-v2 evidence bar, in code (E3).
+ *
+ * `.agents/skills/independent-review/reviewer.md` says a BLOCKER needs a
+ * quoted line and confidence >= 7, so an unsure Checker DOWNGRADES rather than
+ * rejecting. Prose is advisory; this enforces it.
+ *
+ * DIRECTION IS EVERYTHING (Operating Truth 4). The bar may only ever make the
+ * gate stricter or leave it unchanged. A malformed BLOCKER is malformed — it
+ * does NOT become an approval, because "write a sloppy finding to get waved
+ * through" would invert the whole point. What the bar buys is a DIAGNOSTIC: the
+ * driver can tell an evidenced rejection from a Checker rejecting on vibes, and
+ * the latter is a Checker problem, not a Maker problem.
+ *
+ * @param {object} f a finding from the verdict's `findings[]`
+ * @returns {string|null} what is wrong with it, or null when it is well-formed
+ */
+function blockerDefect(f) {
+  if (!f || typeof f !== "object") return "finding is not an object";
+  if (String(f.severity ?? "").toUpperCase() !== "BLOCKER") return null; // bar is blockers-only
+  if (!String(f.quote ?? "").trim()) {
+    return "BLOCKER has no `quote` — the verbatim line that proves it is required (rubric v2)";
+  }
+  const c = Number(f.confidence);
+  if (!Number.isFinite(c) || c < 7) {
+    return "BLOCKER has confidence below 7 — an unsure finding is reported as IMPORTANT, not a blocker (rubric v2)";
+  }
+  if (!String(f.file ?? "").trim()) {
+    return "BLOCKER has no `file` — a finding must be located";
+  }
+  return null;
+}
+
+/** Normalize the optional `findings[]` field. A junk value degrades to []. */
+function readFindings(obj) {
+  return Array.isArray(obj?.findings) ? obj.findings : [];
+}
+
+/**
  * Parse a Checker verdict file's contents into a normalized result.
+ *
  * @param {string|null|undefined} text raw file contents (or null if absent)
- * @returns {{approved: boolean, reason: string}}
+ * @returns {{approved: boolean, reason: string, findings: object[],
+ *            malformedFindings: {problem: string, finding: object}[],
+ *            provenBlockers: number}}
  */
 export function parseCheckerVerdict(text) {
+  const empty = { findings: [], malformedFindings: [], provenBlockers: 0 };
+
   if (text == null || String(text).trim() === "") {
-    return { approved: false, reason: "no verdict file written by Checker" };
+    return { approved: false, reason: "no verdict file written by Checker", ...empty };
   }
   let obj;
   try {
     obj = JSON.parse(text);
   } catch {
-    return { approved: false, reason: "Checker verdict was not valid JSON" };
+    return { approved: false, reason: "Checker verdict was not valid JSON", ...empty };
   }
-  if (obj && obj.approved === true) {
-    return { approved: true, reason: String(obj.reason ?? "approved") };
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+    return { approved: false, reason: "Checker verdict was not a JSON object", ...empty };
   }
-  return { approved: false, reason: String(obj?.reason ?? "Checker did not approve") };
+
+  const findings = readFindings(obj);
+  const malformedFindings = [];
+  let provenBlockers = 0;
+  for (const f of findings) {
+    const problem = blockerDefect(f);
+    if (problem) malformedFindings.push({ problem, finding: f });
+    else if (String(f?.severity ?? "").toUpperCase() === "BLOCKER") provenBlockers += 1;
+  }
+  const blockerCount = findings.filter(
+    (f) => String(f?.severity ?? "").toUpperCase() === "BLOCKER",
+  ).length;
+
+  if (obj.approved === true) {
+    // A verdict that approves while listing a BLOCKER contradicts itself.
+    // Fail safe: the blocker wins. (Rubric v2: APPROVE means zero BLOCKERS —
+    // IMPORTANT and NIT findings are expected alongside an approval.)
+    if (blockerCount > 0) {
+      return {
+        approved: false,
+        reason:
+          `Checker approved while listing ${blockerCount} BLOCKER finding(s) — a contradictory ` +
+          `verdict fails safe to reject`,
+        findings,
+        malformedFindings,
+        provenBlockers,
+      };
+    }
+    return {
+      approved: true,
+      reason: String(obj.reason ?? "approved"),
+      findings,
+      malformedFindings,
+      provenBlockers,
+    };
+  }
+
+  // A rejection. Report whether it actually carried evidence, so an operator
+  // reading the audit trail can tell a real gate from a Checker on vibes.
+  const stated = String(obj.reason ?? "Checker did not approve");
+  const unproven = blockerCount > 0 && provenBlockers === 0;
+  return {
+    approved: false,
+    reason: unproven
+      ? `${stated} — WARNING: rejected with no quoted evidence (all ${blockerCount} BLOCKER finding(s) malformed: ` +
+        `${malformedFindings.map((m) => m.problem).join("; ")})`
+      : stated,
+    findings,
+    malformedFindings,
+    provenBlockers,
+  };
 }
 
 /** Map a verdict onto the exit-code contract the driver's runChecker expects. */

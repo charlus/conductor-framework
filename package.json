@@ -1,7 +1,7 @@
 {
   "name": "conductor-framework",
   "version": "6.2.0",
-  "description": "The Conductor — an AI Software Engineering framework for the full development lifecycle. Workflows, skills, and personas for AI-assisted product engineering.",
+  "description": "The Conductor \u2014 an AI Software Engineering framework for the full development lifecycle. Workflows, skills, and personas for AI-assisted product engineering.",
   "type": "module",
   "bin": {
     "conductor": "bin/conductor.js"
@@ -18,6 +18,8 @@
     "test:unit": "node --test test/*.test.js",
     "test:smoke": "bash test/smoke-loop.sh",
     "test:hooks": "bash test/hooks-eval-gate.sh",
+    "eval:routing": "node test/evals/routing-eval.mjs",
+    "eval:routing:sensitivity": "node test/evals/routing-eval.mjs --mutate deepen.md --case deepen",
     "test:e2e": "bash test/e2e-loop-real.sh",
     "test:init": "node bin/conductor.js init /tmp/conductor-test-install --all && bash /tmp/conductor-test-install/.agents/tests/check-conductor.sh && rm -rf /tmp/conductor-test-install"
   },

@@ -5,6 +5,7 @@ import { removeCommand } from "./commands/remove.js";
 import { listCommand } from "./commands/list.js";
 import { searchCommand } from "./commands/search.js";
 import { installHooksCommand } from "./commands/install-hooks.js";
+import { trustVerifyCommand } from "./commands/trust-verify.js";
 import { loopCommand } from "./commands/loop.js";
 
 function helpText() {
@@ -23,6 +24,7 @@ function helpText() {
     "    conductor list [--remote] [--tier <tier>]",
     "    conductor search <query> [--tag <tag>]",
     "    conductor install-hooks [--uninstall]",
+    "    conductor trust-verify [--revoke] [--list]",
     "    conductor loop [target-directory] [--goal <text> | --event <file.json> | --from-conductor]",
     "                   [--platform <name>] [--dry-run] [--unsafe-no-sandbox]",
     "",
@@ -34,6 +36,7 @@ function helpText() {
     "    list            List installed skills (or --remote for registry)",
     "    search          Search the registry for skills",
     "    install-hooks   Enable deterministic TDD/verification git hooks",
+    "    trust-verify    Record operator consent for this repo's verify command",
     "    loop            Run the deterministic autonomous loop driver",
     "",
     "  Init Options:",
@@ -89,6 +92,8 @@ export async function runCli(args, io = process) {
       return searchCommand(rest, context);
     case "install-hooks":
       return installHooksCommand(rest, context);
+    case "trust-verify":
+      return trustVerifyCommand(rest, context);
     case "loop":
       return loopCommand(rest, context);
     default:

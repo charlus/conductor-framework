@@ -24,7 +24,7 @@
     {
       "name": "Code-Review",
       "dir": "code-review",
-      "description": "Use after implementing code to run a two-stage review — spec compliance first, then code quality. Order matters.",
+      "description": "Use after implementing code to run a two-stage review \u2014 spec compliance first, then code quality. Order matters.",
       "category": "core",
       "default": true
     },
@@ -38,7 +38,7 @@
     {
       "name": "Collaborative-Drafting",
       "dir": "collaborative-drafting",
-      "description": "The drafting primitive. When a workflow must produce a structured document (Epics, screens, implementation slices, an architecture), lead with a complete draft the human corrects — never a blank-page questionnaire. Reach for it in Grand PRD, UX/UI Brief, Technical Vision, Carve, and any 'propose then refine' phase.",
+      "description": "The drafting primitive. When a workflow must produce a structured document (Epics, screens, implementation slices, an architecture), lead with a complete draft the human corrects \u2014 never a blank-page questionnaire. Reach for it in Grand PRD, UX/UI Brief, Technical Vision, Carve, and any 'propose then refine' phase.",
       "category": "core",
       "default": true
     },
@@ -59,7 +59,7 @@
     {
       "name": "Domain-Modeling",
       "dir": "domain-modeling",
-      "description": "Use when establishing or refining the shared vocabulary of the product — during Technical Vision, when naming entities or slices in Carve, when writing a spec, or any time a term is ambiguous or two people mean different things by the same word. Turns the static glossary into a living ubiquitous-language discipline.",
+      "description": "Use when establishing or refining the shared vocabulary of the product \u2014 during Technical Vision, when naming entities or slices in Carve, when writing a spec, or any time a term is ambiguous or two people mean different things by the same word. Turns the static glossary into a living ubiquitous-language discipline.",
       "category": "core",
       "default": true
     },
@@ -73,21 +73,21 @@
     {
       "name": "GitHub-CLI",
       "dir": "git-hub-cli",
-      "description": "GitHub workflow using the gh CLI — issues, PRs, releases, and Actions. Use when the project is hosted on GitHub. Conventions (commit/branch/PR-body) come from git-workflow.",
+      "description": "GitHub workflow using the gh CLI \u2014 issues, PRs, releases, and Actions. Use when the project is hosted on GitHub. Conventions (commit/branch/PR-body) come from git-workflow.",
       "category": "core",
       "default": true
     },
     {
       "name": "GitLab-CLI",
       "dir": "git-lab-cli",
-      "description": "GitLab workflow using the glab CLI — issues, MRs, wiki, and CI/CD. Use when the project is hosted on GitLab. Conventions (commit/branch/MR-body) come from git-workflow.",
+      "description": "GitLab workflow using the glab CLI \u2014 issues, MRs, wiki, and CI/CD. Use when the project is hosted on GitLab. Conventions (commit/branch/MR-body) come from git-workflow.",
       "category": "core",
       "default": true
     },
     {
       "name": "Git-Workflow",
       "dir": "git-workflow",
-      "description": "Core git workflow conventions — commit messages, branch naming, PR/MR descriptions. Use whenever committing, branching, or creating pull/merge requests.",
+      "description": "Core git workflow conventions \u2014 commit messages, branch naming, PR/MR descriptions. Use whenever committing, branching, or creating pull/merge requests.",
       "category": "core",
       "default": true
     },
@@ -101,35 +101,35 @@
     {
       "name": "Grilling",
       "dir": "grilling",
-      "description": "The interview primitive. A relentless, one-question-at-a-time interview that sharpens a plan, design, or idea before any building begins. Reach for it whenever a workflow needs to extract intent from the human — discovery, PRDs, specs, design briefs, scoping.",
+      "description": "The interview primitive. A relentless, one-question-at-a-time interview that sharpens a plan, design, or idea before any building begins. Reach for it whenever a workflow needs to extract intent from the human \u2014 discovery, PRDs, specs, design briefs, scoping.",
       "category": "core",
       "default": true
     },
     {
       "name": "Independent-Review",
       "dir": "independent-review",
-      "description": "The fresh-context review gate — when a workflow produces a consequential artifact (PRD, architecture, spec, carved plan, diff), a separate reviewer that did not produce it decides whether it's ready before it's saved or handed off. The Maker/Checker split applied to any artifact; loaded by the blueprint workflows and Ship.",
+      "description": "The fresh-context review gate \u2014 when a workflow produces a consequential artifact (PRD, architecture, spec, carved plan, diff), a separate reviewer that did not produce it decides whether it's ready before it's saved or handed off. The Maker/Checker split applied to any artifact; loaded by the blueprint workflows and Ship.",
       "category": "core",
       "default": true
     },
     {
       "name": "Judge-Panel",
       "dir": "judge-panel",
-      "description": "The divergent-then-convergent decision primitive — when a decision has a wide, hard-to-reverse solution space (an architecture, a hard design/algorithm choice), generate N candidates from different angles, score them with independent judges, then synthesize the winner while grafting the best of the runners-up. Opt-in; loaded by Technical Vision.",
+      "description": "The divergent-then-convergent decision primitive \u2014 when a decision has a wide, hard-to-reverse solution space (an architecture, a hard design/algorithm choice), generate N candidates from different angles, score them with independent judges, then synthesize the winner while grafting the best of the runners-up. Opt-in; loaded by Technical Vision.",
       "category": "core",
       "default": true
     },
     {
       "name": "Writing-Evals",
       "dir": "writing-evals",
-      "description": "How to write an evalset for the app's non-deterministic surface — LLM-calling features whose output a unit test can't pin down. The Eval-Driven Law's how-to (the pre-commit gate requires an eval alongside provider-calling code). Three grading modes: rubric/LM-judge, property/assertion, reference. Loaded by Build when a task touches LLM-feature code.",
+      "description": "How to write an evalset for the app's non-deterministic surface \u2014 LLM-calling features whose output a unit test can't pin down. The Eval-Driven Law's how-to (the pre-commit gate requires an eval alongside provider-calling code). Three grading modes: rubric/LM-judge, property/assertion, reference. Loaded by Build when a task touches LLM-feature code.",
       "category": "core",
       "default": true
     },
     {
       "name": "Architecture-Checklist",
       "dir": "architecture-checklist",
-      "description": "Turn 'follow the architecture' into explicit checkable items. Technical-Vision/Carve write a machine-readable compliance checklist (conductor/0-compass/architecture-checklist.md) from the architecture decisions; the Checker (loop + independent-review) verifies the diff against each item — deterministic (a `check:` shell command) or semantic. The semantic half of the ship-contract; the Eval-Driven Law is the deterministic half.",
+      "description": "Turn 'follow the architecture' into explicit checkable items. Technical-Vision/Carve write a machine-readable compliance checklist (conductor/0-compass/architecture-checklist.md) from the architecture decisions; the Checker (loop + independent-review) verifies the diff against each item \u2014 deterministic (a `check:` shell command) or semantic. The semantic half of the ship-contract; the Eval-Driven Law is the deterministic half.",
       "category": "core",
       "default": true
     },
@@ -150,21 +150,21 @@
     {
       "name": "Model-Routing",
       "dir": "model-routing",
-      "description": "Use when deciding which model tier to run a task, subagent, or loop role on — match model capability and reasoning effort to task difficulty instead of defaulting to one model for everything. Reach for it when spinning up scouts/Checkers, configuring the autonomous loop, or when a task is either trivially mechanical or unusually hard.",
+      "description": "Use when deciding which model tier to run a task, subagent, or loop role on \u2014 match model capability and reasoning effort to task difficulty instead of defaulting to one model for everything. Reach for it when spinning up scouts/Checkers, configuring the autonomous loop, or when a task is either trivially mechanical or unusually hard.",
       "category": "core",
       "default": true
     },
     {
       "name": "Skill-Registry",
       "dir": "skill-registry",
-      "description": "Manages Conductor skills from the remote registry — install, remove, search, and list skills using the conductor CLI. Use during Technical Vision workflow or whenever the tech stack changes.",
+      "description": "Manages Conductor skills from the remote registry \u2014 install, remove, search, and list skills using the conductor CLI. Use during Technical Vision workflow or whenever the tech stack changes.",
       "category": "core",
       "default": true
     },
     {
       "name": "Subagent-Isolation",
       "dir": "subagent-isolation",
-      "description": "Use when a task needs reading across many files, several independent investigations, or long unbounded exploration — delegate to scout subagents so the main context stays clean and under budget. Also the pattern for parallel work that must not collide. Isolation is the default, not an optimization.",
+      "description": "Use when a task needs reading across many files, several independent investigations, or long unbounded exploration \u2014 delegate to scout subagents so the main context stays clean and under budget. Also the pattern for parallel work that must not collide. Isolation is the default, not an optimization.",
       "category": "core",
       "default": true
     },
@@ -206,7 +206,7 @@
     {
       "name": "Verification-Gate",
       "dir": "verification-gate",
-      "description": "Use this skill when about to claim any work is done. Enforces the Verification Iron Law — evidence before assertions, always.",
+      "description": "Use this skill when about to claim any work is done. Enforces the Verification Iron Law \u2014 evidence before assertions, always.",
       "category": "core",
       "default": true
     },
@@ -222,7 +222,7 @@
     {
       "name": "loop-guardrails",
       "file": "loop-guardrails.md",
-      "description": "Loop-scoped safety limits (iteration ceiling, anti-stall, evidence rule). Loaded by the unattended-loop workflow — NOT always-on. Interactive sessions don't pay for it.",
+      "description": "Loop-scoped safety limits (iteration ceiling, anti-stall, evidence rule). Loaded by the unattended-loop workflow \u2014 NOT always-on. Interactive sessions don't pay for it.",
       "category": "core",
       "default": true
     },
@@ -273,7 +273,7 @@
     {
       "name": "deepen",
       "file": "deepen.md",
-      "description": "Deepen (Brownfield Architecture Improvement) — find shallow/scattered modules in an existing codebase and reshape them into deep modules with narrow interfaces, safely. Driven by the Code Archaeologist.",
+      "description": "Deepen (Brownfield Architecture Improvement) \u2014 find shallow/scattered modules in an existing codebase and reshape them into deep modules with narrow interfaces, safely. Driven by the Code Archaeologist.",
       "category": "core",
       "default": true
     },
@@ -294,7 +294,7 @@
     {
       "name": "loop-checker",
       "file": "loop-checker.md",
-      "description": "",
+      "description": "The independent Checker's audit brief, run as a SEPARATE process each loop beat: adopt the Checker persona, judge the diff against goal_description plus the architecture checklist, and record a fail-safe verdict to checker-verdict.json. The driver treats a missing or malformed verdict as a rejection.",
       "category": "core",
       "default": true
     },
@@ -336,7 +336,7 @@
     {
       "name": "TDD-Cycle",
       "file": "tdd-cycle.md",
-      "description": "Use during execution to enforce the strict RED → GREEN → REFACTOR test-driven development loop.",
+      "description": "Use during execution to enforce the strict RED \u2192 GREEN \u2192 REFACTOR test-driven development loop.",
       "category": "core",
       "default": true
     },
@@ -350,7 +350,7 @@
     {
       "name": "unattended-loop",
       "file": "unattended-loop.md",
-      "description": "",
+      "description": "The autonomous loop's agent-side workflow: the per-beat judgment the deterministic `conductor loop` driver delegates. Reads loop-state.json, applies the Scoping Barrier and trigger-trust checks, loads the phase-appropriate persona, and does one beat of work. The driver owns every counter, gate and merge.",
       "category": "core",
       "default": true
     },

@@ -90,31 +90,60 @@ This is not a repeat of Build's per-task TDD (`.agents/rules/test-driven-law.md`
 
 **Goal:** A reviewer that did **not** write this code decides whether the *complete* change — code, regression tests, and CI updates — is ready to be pushed. This is the Checker half of the Maker/Checker split, run **before** anything leaves the machine so issues are fixed while they are cheap and no noise is posted to the platform.
 
-**Announce:** *"Spawning an independent reviewer with a fresh context to audit the full diff before push."*
+> This phase is the reference implementation of the `independent-review` gate (`skills/independent-review/SKILL.md`). The mechanics below are that skill applied with the **Diff** lens. The reviewer's own brief is one self-contained file, `skills/independent-review/reviewer.md`, handed over verbatim — do not append other skills to it.
 
-> This phase is the reference implementation of the `independent-review` gate (`skills/independent-review/SKILL.md`) — the same fresh-context Maker/Checker split the blueprint workflows now load. The mechanics below match the skill, applied with the **Diff** lens.
+### 4.0 — Does this diff need the gate? (proportionality)
 
-1.  **Spawn the reviewer (isolated context).** Per `skills/subagent-isolation/SKILL.md`, the reviewer runs in a **separate, clean context** so it is not biased by the reasoning that produced the code:
-    * **Claude Code:** launch a subagent (Task tool).
-    * **Antigravity / others:** use the platform's sub-agent primitive.
-    * **No sub-agent primitive available:** do a deliberate fresh-context pass yourself — clear the mental slate and re-read **only** the diff, the goal/spec, and the tests; do **not** reason from the build conversation you just had.
+Measure the change first:
 
-2.  **Brief it narrowly.** Give the reviewer exactly what it needs and nothing more:
-    * The **goal / spec** (the acceptance criteria, or `goal_description` if this ran from the loop).
-    * The **diff under review** — the branch's changes (`git diff <merge-base>...HEAD`), not the whole repo.
-    * Its instructions: *adopt `.agents/personas/checker.md`, run `skills/code-review/SKILL.md` (Stage 1 spec compliance → Stage 2 quality), and apply the Phase 1 empathy lens (is this legible to the next human and the next agent?). Be adversarial: look for the reason this is **not** done.*
+```bash
+BASE=$(git merge-base origin/HEAD HEAD 2>/dev/null || git merge-base origin/main HEAD)
+git diff "$BASE"...HEAD --stat -- . ':(exclude)*test*' ':(exclude)*spec*' | tail -1
+git diff "$BASE"...HEAD --name-only
+```
 
-3.  **Reviewer produces a verdict** — `APPROVE` or `CHANGES REQUESTED` — with specific, actionable findings citing `file:line`. It reviews the completed regression tests too: are they meaningful, or reward-hacked (assertions weakened, failing tests deleted, mocks hardcoded to pass)? **When the change has a runtime surface, don't stop at reading the tests — behavior-validate the running artifact source-blind (`skills/behavior-validator/SKILL.md`) with adversarial inputs; green tests can themselves be wrong or reward-hacked, and only observed behavior settles it.**
+**Skip the subagent** when **both** hold:
+- fewer than **50 changed non-test lines**, and
+- no changed path is a **risk path**: auth/session/permissions, payments/billing, database migrations or schema, API contracts, security or secrets handling, CI config, git hooks.
 
-4.  **Boundaries (non-negotiable).** The reviewer **only reports**. It does not push, merge, or edit code. Verification stays with the accountable agent (the Verification Iron Law) — a subagent's "it's fine" is never the proof.
+If you skip: say so in one line (`Independent review skipped: 23 non-test lines, no risk path touched`) and go to Phase 5. Phases 1–3 plus the green suite plus the human's own read of the PR are the gate for a change that size. LOC alone is not a risk proxy — a five-line auth change takes the full gate.
 
-5.  **Triage, then fix loop.** If the verdict is `CHANGES REQUESTED`, first triage each finding per the skill's taxonomy — **in-scope blocker** (fix now) / **follow-up** (log, keep scope frozen) / **stop-and-escalate** (surface to the human):
-    * Address every **in-scope blocker**; keep the suite GREEN. Log follow-ups; escalate the rest.
-    * Re-spawn a **fresh** reviewer (new context) and repeat. A reviewer that still finds in-scope blockers means *not done* — no self-approval, no exceptions.
-    * **Convergence brake (Scoping Barrier):** stop patching and surface the state if the fix grows the diff past ~2× its frozen scope, two cycles don't converge, or the best fix needs a canonical-contract change first.
-    * Only proceed to Phase 5 once a fresh reviewer returns `APPROVE`.
+Otherwise run the gate.
 
----
+### 4.1 — Spawn the reviewer (isolated context)
+
+Per `skills/subagent-isolation/SKILL.md`, the reviewer runs in a **separate, clean context** so it is not biased by the reasoning that produced the code:
+- **Claude Code:** launch a subagent (Task tool).
+- **Antigravity / others:** use the platform's sub-agent primitive.
+- **No sub-agent primitive available:** do a deliberate fresh-context pass yourself — re-read **only** the diff, the acceptance criteria, and the tests; do **not** reason from the build conversation you just had.
+
+Route its model tier by stakes (`skills/model-routing/SKILL.md`).
+
+### 4.2 — Hand it exactly three things
+
+1. **`skills/independent-review/reviewer.md`** — verbatim.
+2. **`skills/independent-review/calibration.md`** — a shippable diff is consequential, so include it.
+3. **The definition of done + the diff:** the spec's acceptance criteria (or `goal_description` if this ran from the loop), every item of `conductor/0-compass/architecture-checklist.md` if it exists, and `git diff <merge-base>...HEAD`. Not the whole repo.
+
+**When the change has a runtime surface,** behavior-validate the running artifact yourself, source-blind, with adversarial inputs (`skills/behavior-validator/SKILL.md`), and hand the reviewer that output as evidence. Green tests can themselves be wrong or reward-hacked; only observed behavior settles it. The reviewer reads the evidence — it does not run the app.
+
+### 4.3 — Read the verdict
+
+The reviewer returns findings (each with `file:line`, a quoted line, a confidence, and a class) and one line: `VERDICT: APPROVE` or `VERDICT: CHANGES REQUESTED`. **APPROVE means zero blockers** — IMPORTANT and NIT findings do not withhold it.
+
+The reviewer **only reports**. It does not push, merge, or edit code. Verification stays with you (`.agents/rules/verification-iron-law.md`) — a subagent's "it's fine" is never the proof.
+
+### 4.4 — Dispose of the findings, then one delta round
+
+Per the gate skill: fix every **BLOCKER** — the whole class the reviewer named, including its `also:` list, verified with the reviewer's own detection method. **IMPORTANT** items are fixed if cheap and in scope, otherwise recorded under **Known gaps** in the PR body. **NIT** is your discretion. A **`SCOPE:`** finding goes to the human. No follow-up backlog from review.
+
+Then re-review **once**: a fresh reviewer, given round-1 findings *plus your disposition of each*, and `git diff` of the **fix commits only**. Its only job is whether the named classes are closed and whether the fix introduced a new blocker.
+
+- Delta round returns `APPROVE` → Phase 5.
+- Blockers remain → **stop and ask the human once**, batching every remaining blocker into a **single question** with its quote, your recommendation per item, and an overall recommendation. Do not spawn a third reviewer.
+- **Never escalate an unreviewed fix round** — if you fixed blockers, the delta review runs before you report anything back, or you are handing back work you never looked at.
+- Other brakes (stop and surface): the fix has grown the diff past ~2× its frozen scope, or the best fix needs a canonical-contract change first.
+
 
 ## Phase 5: Git Flow & Platform Integration
 

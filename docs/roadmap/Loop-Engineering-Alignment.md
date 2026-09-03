@@ -3,6 +3,7 @@
 > **Status:** Analysis + Phase 1 shipped (the ignition contract). 2026-07-23.
 > **Trigger:** Anthropic's *Loop Engineering* guide, via Joe Njenga's Medium write-up (`inbox/`).
 > **Grounded in:** the 2026 agentic-SWE rubric, the practitioner-consensus notes, and the V6 loop backend (`docs/roadmap/Autonomous-Loop-Backend.md`, `docs/adr/0001-…`).
+> **Extended 2026-09-03 (E2/E4):** verification evidence is now bound to a working-tree content fingerprint (`src/evidence/`, consumed by `pre-push`), and untrusted trigger input is clamped, enveloped and tool-allowlisted (`src/loop/untrusted.js`). See `docs/roadmap/Review-Convergence-And-Harness-Alignment.md`.
 
 ## 1. What the source says
 

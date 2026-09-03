@@ -17,3 +17,6 @@ Thumbs.db
 # Claude Code local state (settings + worktrees) — never commit
 .claude/
 inbox/
+
+# Eval run artifacts (regenerated on every eval run)
+test/evals/last-run-*.json

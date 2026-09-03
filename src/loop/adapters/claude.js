@@ -24,6 +24,39 @@ export async function isAvailable() {
 }
 
 /**
+ * Build the `claude` argv for one beat. Pure — extracted so the flag contract
+ * is unit-testable without spawning a CLI.
+ *
+ * `--settings <file>` loads a Conductor-supplied sandbox profile WITHOUT
+ * touching the user's own .claude/settings.json. When it enables Anthropic's
+ * bubblewrap sandbox with `failIfUnavailable: true`, an unsandboxed beat can't
+ * silently happen: claude exits non-zero if the sandbox can't start.
+ *
+ * `--allowed-tools` is an ALLOWLIST, passed only for a run seeded by untrusted
+ * input (E4, `src/loop/untrusted.js`). Every published bypass of this class of
+ * agent defeated a *blocklist*, so there is deliberately no blocklist path here.
+ *
+ * @param {{prompt: string, permissionMode?: string, settingsPath?: string|null,
+ *          allowedTools?: string[]|null}} opts
+ * @returns {string[]}
+ */
+export function buildArgv({
+  prompt,
+  permissionMode = "acceptEdits",
+  settingsPath = null,
+  allowedTools = null,
+}) {
+  const argv = ["-p", prompt, "--permission-mode", permissionMode];
+  if (settingsPath) argv.push("--settings", settingsPath);
+  // An empty array is NOT passed: `--allowed-tools` with no values would be a
+  // dangling flag that swallows the next argument.
+  if (Array.isArray(allowedTools) && allowedTools.length > 0) {
+    argv.push("--allowed-tools", ...allowedTools);
+  }
+  return argv;
+}
+
+/**
  * Run one beat: `claude -p "<prompt>" --permission-mode <mode>` in `cwd`.
  * The agent re-reads the workflow prompt each beat (the soft layer); the driver
  * wraps this call with all deterministic guards.
@@ -33,15 +66,11 @@ export async function runBeat({
   cwd = process.cwd(),
   permissionMode = "acceptEdits",
   settingsPath = null,
+  allowedTools = null,
 }) {
   const prompt = await readFile(promptPath, "utf8");
   return await new Promise((resolve, reject) => {
-    // `--settings <file>` loads a Conductor-supplied sandbox profile WITHOUT
-    // touching the user's own .claude/settings.json. When it enables Anthropic's
-    // bubblewrap sandbox with `failIfUnavailable: true`, an unsandboxed beat can't
-    // silently happen: claude exits non-zero if the sandbox can't start.
-    const argv = ["-p", prompt, "--permission-mode", permissionMode];
-    if (settingsPath) argv.push("--settings", settingsPath);
+    const argv = buildArgv({ prompt, permissionMode, settingsPath, allowedTools });
     const child = spawn("claude", argv, { cwd, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";

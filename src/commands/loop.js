@@ -23,6 +23,7 @@ import { lockDecision, renderLock } from "../loop/lock.js";
 import { reviveForResume } from "../loop/resume.js";
 import { mineRecurringFailures, renderImprovementReport } from "../loop/improver.js";
 import { parseTriggerPayload, applyTrigger, renderTriggerDoc } from "../loop/trigger.js";
+import { allowedToolsFor } from "../loop/untrusted.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
 const LOCK_REL = "conductor/1-workbench/loop.lock";
@@ -355,9 +356,17 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         ...(triggerProvenance
           ? [
               `  trigger:  '${triggerProvenance.source}' → autonomy ${triggerProvenance.effective_autonomy}` +
+                (triggerProvenance.trusted === false ? "  [UNTRUSTED]" : "") +
                 (triggerProvenance.clamped_from
-                  ? `  ⛔ escalation to ${triggerProvenance.clamped_from} refused (clamped to operator ceiling)`
+                  ? `  ⛔ ${triggerProvenance.clamped_from} refused (clamped to ` +
+                    // Name the ACTUAL reason: an untrusted seed is forced to the
+                    // no-merge floor regardless of how high the operator ceiling is,
+                    // so reporting "operator ceiling" here would be wrong.
+                    `${triggerProvenance.trusted === false ? "the untrusted floor" : "operator ceiling"})`
                   : ""),
+              ...(triggerProvenance.trusted === false
+                ? [`            untrusted: ${triggerProvenance.trust_reason} — tools restricted, no merge`]
+                : []),
             ]
           : []),
         `  phase:    ${state.phase}`,
@@ -457,7 +466,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const runCheckerVote = async () => {
       for (let attempt = 0; attempt < 2; attempt++) {
         await rm(verdictPath, { force: true }).catch(() => {});
-        await adapter.runChecker({ promptPath: checkerPrompt, cwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath, sandbox: agySandbox });
+        await adapter.runChecker({ promptPath: checkerPrompt, cwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath, sandbox: agySandbox, allowedTools: allowedToolsFor(state) });
         try {
           return await readFile(verdictPath, "utf8");
         } catch {
@@ -675,7 +684,17 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       verifyCommand,
       runBeat: async () => {
         await rm(makerSignalPath, { force: true }).catch(() => {}); // clear stale signal
-        const result = await adapter.runBeat({ promptPath, cwd: workCwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath, sandbox: agySandbox });
+        const result = await adapter.runBeat({
+          promptPath,
+          cwd: workCwd,
+          permissionMode: "acceptEdits",
+          settingsPath: sandboxSettingsPath,
+          sandbox: agySandbox,
+          // E4: a run seeded by untrusted input gets an explicit tool ALLOWLIST
+          // (null = unrestricted). Recomputed per beat so a trust change in
+          // loop-state takes effect immediately.
+          allowedTools: allowedToolsFor(state),
+        });
         // P0.1 backstop: capture any uncommitted Maker change so verify sees a real
         // diff, the Checker has commits to review, and teardown can't discard it.
         const cap = await autoCommit({
@@ -781,6 +800,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           permissionMode: "acceptEdits",
           settingsPath: sandboxSettingsPath, // cli-native sandbox per fleet worker (claude)
           sandbox: agySandbox, // cli-native sandbox for agy (boolean --sandbox)
+          allowedTools: allowedToolsFor(state), // E4: untrusted seed → tool allowlist
           // Forwarded so the beat can adopt the right brief (test-author vs
           // implementer). The agent also reads task.role/phase from loop-state.
           role,

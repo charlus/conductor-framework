@@ -80,3 +80,19 @@ Off by default. To make Claude Code refuse to end a session "done" while your co
 ```
 
 It only engages when tracked implementation files differ from HEAD, so it won't nag on doc-only or exploratory sessions. Disable anytime with `CONDUCTOR_HOOKS=off` or by removing the entry.
+
+### The stop hook needs your consent once
+
+Hooks **bypass the permission system** — nothing prompts before this one runs your verification command. That command is read from a file *inside the repo* (`conductor.config.json` → `verify`, else the `test` npm script), so a cloned, forked, or contributed repo could name anything. The gate therefore stays inactive until you have read the command and recorded it:
+
+```bash
+conductor trust-verify            # shows the command, then records consent
+conductor trust-verify --list     # what is trusted, on this machine
+conductor trust-verify --revoke   # withdraw it for this repo
+```
+
+Trust is keyed on `realpath(repo root)` + `sha256(command)`, stored `0600` at `${CONDUCTOR_HOME:-~/.conductor}/verify-trust`, and every grant is appended to `verify-trust-grants.log`. **Edit the command and it must be trusted again.** Until then the stop hook allows the session to end with a one-line note, and never executes the command.
+
+`pre-commit` and `pre-push` are deliberately *not* gated this way: there you typed `git commit` / `git push`, so a human action is already in the chain.
+
+**Bounded re-entry.** Claude Code re-runs `Stop` hooks after a block. A re-entry is not a free pass — the check re-runs, so a red suite cannot be cleared by stopping again — but it is bounded at 3 blocks per episode, after which the hook allows the session to end with a loud `UNVERIFIED` warning rather than trapping it on a permanently broken check. A green run resets the counter.

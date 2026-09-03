@@ -18,6 +18,7 @@
     "test:unit": "node --test test/*.test.js",
     "test:smoke": "bash test/smoke-loop.sh",
     "test:hooks": "bash test/hooks-eval-gate.sh",
+    "test:trust": "bash test/hooks-trust-store.sh",
     "eval:routing": "node test/evals/routing-eval.mjs",
     "eval:routing:sensitivity": "node test/evals/routing-eval.mjs --mutate deepen.md --case deepen",
     "test:e2e": "bash test/e2e-loop-real.sh",

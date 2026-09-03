@@ -21,6 +21,7 @@ export const TERMINAL_STATUSES = Object.freeze([
   "stalled",
   "max_iterations_exceeded",
   "budget_exceeded",
+  "usage_limit_reached",
   "halted_scoping",
   "halted_no_verification",
   "halted_sandbox_required",
@@ -64,6 +65,37 @@ export function hashString(input) {
 }
 
 /**
+ * Normalize verify output BEFORE hashing it for stall detection.
+ *
+ * The beat-progress hash must be deterministic across identical work, but every
+ * common test/build runner prints a fresh timestamp + duration each run (vitest
+ * `Start at …` / `Duration  Nms`, vite `built in Nms`, jest `Time: N s`). Left in,
+ * those tokens rotated the hash every beat, so `stall.consecutive` reset to 0
+ * forever and MAX_CONSECUTIVE_STALLS could never fire — the loop burned 47 dead
+ * beats on a frozen git HEAD in the JuRaph session-limit incident. Stripping them
+ * is engine-agnostic and fixes every project centrally (no per-project verify
+ * massaging). A GENUINE change (a test flips red, a new failure line) still alters
+ * the normalized text, so real progress is still observable.
+ */
+export function normalizeVerifyOutput(output) {
+  return (
+    String(output ?? "")
+      // ANSI colour/cursor escapes (nondeterministic across TTY/CI).
+      .replace(/\[[0-9;]*[A-Za-z]/g, "")
+      // Runner wall-clock lines: vitest "Start at HH:MM:SS", jest "Time: N s".
+      .replace(/^\s*(?:start at|time:)\s.*$/gim, "")
+      // Duration/elapsed tokens: "Duration  986ms (…)", "built in 1243ms", "1.23 s".
+      .replace(/\b(?:duration|built in|elapsed|ran in|finished in)\b[^\n]*/gi, "")
+      .replace(/\b\d+(?:\.\d+)?\s?m?s\b/gi, "‹t›")
+      // Bare clock timestamps HH:MM(:SS)(am/pm).
+      .replace(/\b\d{1,2}:\d{2}(?::\d{2})?(?:\s?[ap]m)?\b/gi, "‹clock›")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n{2,}/g, "\n")
+      .trim()
+  );
+}
+
+/**
  * The beat-progress hash — DRIVER-OBSERVABLE state only (git HEAD + verify
  * output). The V5 `last_tool+args` component is deliberately excluded: it lives
  * inside the agent process and is not observable without agent self-report,
@@ -80,6 +112,37 @@ export function computeStallHash({ gitHead, verifyOutput }) {
  */
 export function statusAfterVerify(exitCode) {
   return exitCode === 0 ? "passed_by_checker" : "rejected_by_checker";
+}
+
+/**
+ * Agent-CLI usage/session-limit banners. Kept specific (anchored to the "hit your
+ * … limit" phrasing the vendors print) so ordinary maker output that merely
+ * mentions "rate limit" in code or prose does not trip a false terminal halt.
+ */
+export const USAGE_LIMIT_PATTERNS = Object.freeze([
+  /you've hit your (?:session|usage) limit/i,
+  /\bhit your (?:session|usage) limit\b/i,
+  /\busage limit reached\b/i,
+]);
+
+/**
+ * Classify a beat's raw adapter result to catch a DEAD beat — one where the agent
+ * CLI never really ran. The driver otherwise reads only `result.tokens` and treats
+ * a `claude -p` that printed "hit your session limit" in 3s as a successful beat,
+ * charging it to the iteration counter (the JuRaph incident: 47 such beats, then a
+ * misleading `max_iterations_exceeded`). A usage limit is external and terminal:
+ * no other beat will fare better, so the loop must stop with a truthful status and
+ * surface the reset time — not spend its remaining budget on dead beats.
+ *
+ * Pure: takes the adapter's {exitCode, stdout, stderr} and returns a verdict.
+ */
+export function classifyBeatResult(result) {
+  const text = `${result?.stdout ?? ""}\n${result?.stderr ?? ""}`;
+  if (USAGE_LIMIT_PATTERNS.some((re) => re.test(text))) {
+    const m = text.match(/resets?\s+(?:at\s+)?(\d{1,2}:\d{2}\s*(?:[ap]m)?)/i);
+    return { dead: true, kind: "usage_limit", resetHint: m ? m[1].replace(/\s+/g, "") : null };
+  }
+  return { dead: false };
 }
 
 /**
@@ -294,6 +357,31 @@ export async function runLoop(state, deps) {
         const result = await runBeat({ role: "maker", state });
         state.budget.tokens_spent += result?.tokens ?? 0;
 
+        // Dead-beat guard: a beat where the agent CLI never really ran (a usage
+        // limit) is external and terminal — stop truthfully instead of burning the
+        // remaining budget. Refund the iteration we just charged: it did no work.
+        const outcome = classifyBeatResult(result);
+        if (outcome.dead) {
+          state.iterations.current -= 1;
+          state.current_worker = null;
+          state.status = "usage_limit_reached";
+          const resetNote = outcome.resetHint ? ` — resets ${outcome.resetHint}` : "";
+          await writeInbox(
+            state,
+            `agent CLI reported a usage/session limit${resetNote}. No work was done this beat; raise the limit or wait, then re-run.`
+          );
+          await audit(`beat ${state.iterations.current + 1}: dead (usage limit) → usage_limit_reached${resetNote}`);
+          await persist(state);
+          break;
+        }
+        // A non-zero CLI exit that ISN'T a usage limit (crash/auth/network) is not
+        // its own terminal state — surface it for diagnosis; repeated no-progress
+        // beats are now bounded by the (fixed) stall detector.
+        if (result?.exitCode) {
+          log(`[CONDUCTOR LOOP] beat ${state.iterations.current}: agent CLI exited ${result.exitCode}`);
+          await audit(`beat ${state.iterations.current}: agent CLI exited ${result.exitCode}`);
+        }
+
         // The maker's "goal complete" claim is read from a file it writes, never
         // from the driver's in-memory state (which the agent process can't touch)
         // — symmetric with the Checker's verdict file. Absent ⇒ not claimed.
@@ -338,7 +426,9 @@ export async function runLoop(state, deps) {
         // The Evidence Rule, in code — the driver runs verify itself (the FLOOR).
         const { exitCode, output } = await runVerify(verifyCommand);
         state.verification.last_exit_code = exitCode;
-        state.verification.last_output_hash = hashString(output);
+        // Hash the NORMALIZED output so nondeterministic runner timings don't
+        // rotate the stall hash every beat (see normalizeVerifyOutput).
+        state.verification.last_output_hash = hashString(normalizeVerifyOutput(output));
 
         let checkerExit = null;
         if (exitCode !== 0) {

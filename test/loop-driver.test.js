@@ -13,6 +13,8 @@ import {
   resolveVerifyCommand,
   statusAfterVerify,
   computeStallHash,
+  normalizeVerifyOutput,
+  classifyBeatResult,
   isTerminal,
 } from "../src/loop/driver.js";
 
@@ -251,4 +253,90 @@ test("(i) L3 done-claim WITH committed work still merges to completed", async ()
   const final = await runLoop(state, deps);
   assert.equal(mergeCalls, 1);
   assert.equal(final.status, "completed");
+});
+
+// ---- Fix B: deterministic stall hash (the JuRaph session-limit incident) ----
+// A stall detector that resets on nondeterministic verify output is decorative.
+// vitest/jest/vite all print a changing Duration/timestamp every run, so the
+// beat-progress hash rotated every beat and MAX_CONSECUTIVE_STALLS never fired
+// (47 dead beats on a frozen git HEAD). normalizeVerifyOutput() must strip the
+// nondeterministic tokens so identical work hashes identically.
+
+test("normalizeVerifyOutput collapses runner timings/timestamps to a stable form", () => {
+  const run1 = [
+    "✓ src/foo.test.ts (12 tests)",
+    "  Start at  06:05:33",
+    "  Duration  986ms (transform 4.26s, setup 0ms, import 6.12s)",
+    "  built in 1243ms",
+    "Time:        1.234 s",
+  ].join("\n");
+  const run2 = [
+    "✓ src/foo.test.ts (12 tests)",
+    "  Start at  09:41:07",
+    "  Duration  1201ms (transform 3.11s, setup 0ms, import 5.02s)",
+    "  built in 1876ms",
+    "Time:        1.501 s",
+  ].join("\n");
+  assert.equal(normalizeVerifyOutput(run1), normalizeVerifyOutput(run2));
+  // A REAL content change (a failing test) must NOT be normalized away.
+  const failed = run1.replace("✓ src/foo.test.ts (12 tests)", "✗ src/foo.test.ts (11 tests, 1 failed)");
+  assert.notEqual(normalizeVerifyOutput(run1), normalizeVerifyOutput(failed));
+});
+
+test("(j) stall fires on frozen HEAD even when verify output timings rotate each beat", async () => {
+  // The incident: git HEAD frozen (maker lands nothing) but every verify run
+  // prints a different Duration → today the hash rotates and the loop burns to
+  // the iteration ceiling. After Fix B it must stall within MAX_CONSECUTIVE_STALLS.
+  let n = 0;
+  const { state, deps } = harness({
+    max_allowed: 50,
+    gitHead: async () => "frozen-sha",
+    runVerify: async () => ({
+      exitCode: 0,
+      output: `✓ tests passed\n  Start at  06:05:3${n}\n  Duration  ${900 + n++}ms (import 6.12s)`,
+    }),
+  });
+  const final = await runLoop(state, deps);
+  assert.equal(final.status, "stalled");
+  assert.equal(final.stall.consecutive, 3);
+});
+
+// ---- Fix A: dead-beat / usage-limit detection -----------------------------
+// The driver discarded the CLI's stdout, so a `claude -p` that printed "hit your
+// session limit" in 3s was indistinguishable from a successful beat — 47 such
+// beats were charged to the iteration counter and the run stopped as
+// `max_iterations_exceeded`, masking an external outage with budget to spare.
+
+test("classifyBeatResult flags a usage-limit banner and extracts the reset hint", () => {
+  const dead = classifyBeatResult({
+    exitCode: 0,
+    stdout: "You've hit your session limit · resets 1:20am (Europe/Brussels)",
+  });
+  assert.equal(dead.dead, true);
+  assert.equal(dead.kind, "usage_limit");
+  assert.equal(dead.resetHint, "1:20am");
+  // The banner may arrive on stderr instead of stdout.
+  assert.equal(classifyBeatResult({ exitCode: 1, stderr: "hit your usage limit" }).dead, true);
+  // Ordinary beat output is not a dead beat.
+  assert.equal(classifyBeatResult({ exitCode: 0, stdout: "created src/foo.ts and committed" }).dead, false);
+  assert.equal(classifyBeatResult(null).dead, false);
+});
+
+test("(k) a usage-limit beat halts as usage_limit_reached without charging the iteration", async () => {
+  const inbox = [];
+  const { state, deps } = harness({
+    max_allowed: 60,
+    runBeat: async () => ({
+      exitCode: 0,
+      stdout: "You've hit your session limit · resets 1:20am (Europe/Brussels)",
+      tokens: 0,
+    }),
+  });
+  deps.writeInbox = async (_s, reason) => inbox.push(reason);
+  const final = await runLoop(state, deps);
+  assert.equal(final.status, "usage_limit_reached");
+  assert.ok(isTerminal("usage_limit_reached"), "must be a terminal status");
+  assert.equal(final.iterations.current, 0, "the dead beat must be refunded, not charged");
+  assert.equal(inbox.length, 1);
+  assert.match(inbox[0], /1:20am/, "the reset time must reach the inbox");
 });

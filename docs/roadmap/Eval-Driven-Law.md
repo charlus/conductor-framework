@@ -2,6 +2,7 @@
 
 > **Status:** first increment SHIPPED (2026-07-24, branch `feat/eval-driven-law`). The pre-commit presence-gate + `lib.sh` helpers + `writing-evals` skill + Build/registry/docs wiring + `test/hooks-eval-gate.sh` (7 cases) are in. Approved design calls: skill-only how-to, full provider list (false positives mitigated by the waiver), hard-block-with-waiver. **Deferred (below):** v2 CI run-gate, P2.2 fusion, Level-C rubric versioning.
 > Origin: the Google *New SDLC with Vibe Coding* analysis (see `MEMORY` › agentic-swe-2026-rubric). Its sharpest actionable gap: **tests ≠ evals.** Tests verify the deterministic parts of a system; **evals** verify the non-deterministic parts (did the LLM output meet the quality bar). Conductor enforces TDD but is blind to the eval surface of the apps it builds.
+> **Extended 2026-09-03 (E1–E5):** the judge/Checker rubric is now **v2** — a BLOCKER requires a quoted line and confidence ≥ 7, and the bar is enforced in `src/loop/checker.js`, not just in prose. See `docs/roadmap/Review-Convergence-And-Harness-Alignment.md`.
 
 ## The one-line thesis
 

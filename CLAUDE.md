@@ -6,7 +6,7 @@
 
 Almost everything in this repo is **instructions for other agents' harnesses** (`templates/`) or **control code for an unattended orchestrator** (`src/loop/`) — not ordinary app code. A wrong line propagates to every install, or fires on every autonomous beat with no human watching. Four operating truths, each learned the hard way:
 
-1. **The tests lie by omission.** A green `test:unit` / self-test / `test:smoke` ≠ working for anything **agent-, loop-, or adapter-shaped** — that whole layer is *stubbed*. Real behavior is proven only by a **live run** (`conductor loop … --platform <p>` in a background shell with a `timeout` backstop). Never claim a behavior you have not executed. Every real adapter bug this class ever had passed all green suites and died only on a live run.
+1. **The tests lie by omission.** A green `test:unit` / self-test / `test:smoke` ≠ working for anything **agent-, loop-, or adapter-shaped** — that whole layer is *stubbed*. Real behavior is proven only by a **live run** (`conductor loop … --platform <p>` in a background shell with a `timeout` backstop) or by the agent-layer evals in `test/evals/` (`CONDUCTOR_EVALS=1`). Never claim a behavior you have not executed. Every real adapter bug this class ever had passed all green suites and died only on a live run.
 2. **The interactive path is sacred.** Loop/backend work lives in `src/loop/*` + `src/commands/loop.js` and keeps `templates/.agents/workflows/` **byte-identical** except `unattended-loop.md`. Verify: `git diff --name-only master..HEAD -- templates/.agents/workflows/ | grep -v unattended-loop` → empty. One source of truth (`conductor/`), two clients (interactive Claude Code + the autonomous fleet).
 3. **Enforce with code, not prose.** A non-negotiable gets a deterministic **hook + a *behavior* test** (red→green) wherever the rule is grep-able; the Checker handles the semantic rest. Prose rules are advisory. (A *behavior* test — not a structural existence check — is what caught the eval gate's false-positive.)
 4. **Never weaken the orchestrator's safety envelope.** `conductor loop` runs unattended, so these invariants must survive every edit: **PR-gated merge (never a direct push), the L3 sandbox gate, the Evidence Rule (verify exit code, not self-report), worktree isolation, the autonomy clamp, and fail-safe-on-missing-verdict.** If a change touches one, that is the thing to get right.
@@ -92,6 +92,12 @@ Stable pointers to where the big subsystems live:
 - **Autonomous loop** → `src/loop/` (driver, adapters, worktree, checker, merge, swarm, trigger) + `src/commands/loop.js`; the only interactive template it touches is `.agents/workflows/unattended-loop.md`. Design: `docs/roadmap/Autonomous-Loop-Backend.md`, `docs/roadmap/Loop-Robustness-Plan.md`.
 - **Deterministic enforcement** → `templates/.agents/hooks/` (`lib.sh` + `pre-commit` for the TDD + Eval *presence* gates, `pre-push` for Verify + Eval *run* gates), wired by `conductor install-hooks`. The ship-contract (Eval-Driven Law + `architecture-checklist`, judge-rubric calibration): `docs/roadmap/Eval-Driven-Law.md`.
 - **CLI** → `src/` (`cli.js` parser; `init`/`upgrade` in `src/commands/`; `update.js`/`backup.js`/`version.js` for the robust cross-version upgrade — `docs/roadmap/Robust-Upgrade-Migration.md`).
+- **Evidence freshness** → `src/evidence/` (`wtree.js` working-tree content fingerprint + `ledger.js`), surfaced as `conductor evidence run|check|list` and consumed by `hooks/pre-push`. Committing exactly the code that was tested keeps its evidence FRESH; an untracked new source file invalidates it.
+- **Measurement** → `src/context-bill.js` + `test/fixtures/context-budget.json` (the always-on/eager ratchet, ceilings in bytes) and `src/commands/review-log.js` (review findings + dispositions; a class dismissed >50% of the time is a *rubric* defect, not an author defect).
+- **The review gate** → `templates/.agents/skills/independent-review/` — `SKILL.md` is the caller's half, **`reviewer.md` is the reviewer's entire brief** (self-contained, ≤130 lines by test), `calibration.md` pins both drift directions. Rubric v2 is enforced in code by `src/loop/checker.js`.
+- **Untrusted input** → `src/loop/untrusted.js` (trust from authorship not transport; always-on envelope; tool allowlist, never a blocklist) + `conductor trust-verify` for the Stop hook's trust store.
+- **Agent-layer evals** → `test/evals/` (`CONDUCTOR_EVALS=1`). The only tests here that can fail because of *agent behaviour*; everything in `test/*.test.js` stubs that layer. Read `test/evals/README.md` before trusting a green eval — the sensitivity check exists because a green eval proves nothing on its own.
+- **This work's design + evidence** → `docs/roadmap/Review-Convergence-And-Harness-Alignment.md` (E1–E5, the peer-harness audit, what was descoped and why, and the measurement that is still outstanding).
 
 > **Version note:** `package.json` may lag what's on `master` — several PRs can land before a bump. Don't trust a version number as a statement of what's shipped; trust the roadmap status blocks + `git log`.
 
@@ -102,7 +108,7 @@ Stable pointers to where the big subsystems live:
 3. **Prove agent/loop/adapter behavior with a live run** (Operating Truth 1) — never from the stubbed suites.
 4. **After any change**, run the full local suite and — for loop work — confirm the interactive path is untouched:
    ```bash
-   npm run test:unit && npm test && npm run test:smoke && npm run test:hooks
+   npm run test:unit && npm test && npm run test:smoke && npm run test:hooks && npm run test:trust
    git diff --name-only master..HEAD -- templates/.agents/workflows/ | grep -v unattended-loop   # empty for loop work
    ```
    Full install flow: `node bin/conductor.js init /tmp/test --all && bash /tmp/test/.agents/tests/check-conductor.sh`.

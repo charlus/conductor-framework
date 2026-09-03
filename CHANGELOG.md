@@ -4,6 +4,48 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [Unreleased] — Review Convergence, Evidence Freshness & Untrusted-Input Hardening
+
+Five epics (E1–E5) from a source audit of two peer harnesses (**gstack** `1.79.0.0`, **agentctl** `main`) plus a survey of 2026 harness-engineering practice. Design doc with the full evidence: [`docs/roadmap/Review-Convergence-And-Harness-Alignment.md`](docs/roadmap/Review-Convergence-And-Harness-Alignment.md). No breaking changes.
+
+> **Not yet validated:** whether E1 actually shortened the review loop needs E2's ledger over ~10 real ships. The instrument is in place; the check has not been run.
+
+### Changed — the review gate now converges (E1)
+- **`skills/independent-review/reviewer.md`** (new, 116 lines, capped at 130 by test): ONE self-contained reviewer brief, handed over verbatim, replacing a chain of five skills. `BLOCKER` / `IMPORTANT` / `NIT`; a **BLOCKER needs a quoted line and confidence ≥ 7**, and an unquotable finding is downgraded rather than promoted. `APPROVE` means **zero blockers**, not zero findings. The reviewer judges the acceptance criteria (or `goal_description`) plus `architecture-checklist.md` as a checklist, reports the whole class with its complete instance list, and carries an explicit "Not a finding" exclusion list.
+- **`skills/independent-review/calibration.md`** (new): 7 graded cases pinning **both** drift directions — over-rejection (a false positive killed by the quote rule, criteria-met-but-more-could-be-built, a test-structure opinion) and under-rejection (a quotable defect with a one-line fix is still a BLOCKER, a reward-hacked test, an unsatisfied checklist item) — plus the `SCOPE:` case.
+- **One capped delta round**, briefed with round-1 findings *plus the author's dispositions* and the fix commits' diff only; then a single batched question to the human. **No follow-up backlog from review** — a proven in-scope defect is fixed now or written into the PR body under "Known gaps". An unreviewed fix round is never escalated.
+- **Proportionality:** Ship Phase 4 skips the subagent below 50 changed non-test lines *and* no risk path (auth, payments, migrations, API contracts, security, CI, hooks).
+- The unbounded phrasings are gone: "look for the reason this is **not** done", "if unsure → reject", "Reviewer found issues = not done. No exceptions", "zero warnings".
+- `personas/checker.md` and `workflows/loop-checker.md` adopt the same rubric (v2) and emit a `findings[]` verdict. **The driver's fail-safe on a missing or malformed verdict is unchanged.**
+
+### Added — evidence freshness, context budget, review ledger (E2)
+- **`conductor evidence run|check|list`** — verification evidence bound to a **working-tree content fingerprint**, so committing exactly the code that was tested keeps its evidence FRESH while an untracked new source file invalidates it. Transparency invariant: the child's exit code is always the wrapper's; every bookkeeping failure is a warning. `--expect-cmd` binds a label to the real suite; `--allow-paths` excuses release-file-only changes. Machine-local (`CONDUCTOR_HOME`) and per-branch.
+- **`pre-push` now trusts FRESH evidence** instead of re-running the suite on unchanged content. Fail-safe: no CLI, no ledger, any doubt runs the command — the ledger can only *skip a redundant run*, never satisfy the gate. Measured live: 2.3s → 0.15s on a content-identical push, and a source change still re-runs.
+- **`conductor context-bill`** + a CI **ratchet** — Progressive Disclosure is now a number (16,442 bytes ≈ 4.4k tokens always-on) with a committed ceiling. Two ledgers (ALWAYS-ON vs EAGER); CI fails on growth past the fixture **and on a new skill or workflow with no budget entry**. Ceilings in bytes, exact and machine-independent; a 24 KB hard cap sits above the ratchet.
+- **`conductor review-log append|summary`** — records each review finding with its disposition and reports rounds to APPROVE, dismissal rate per class, and blockers by category. A class dismissed >50% of the time (n≥3) is flagged a **rubric suspect**: fix `calibration.md`, not the author.
+
+### Added — the agent layer is now testable (E3)
+- **The rubric-v2 evidence bar enforced in `src/loop/checker.js`**, not just in prose. A malformed BLOCKER never becomes an approval (it stays a rejection); `approved:true` while listing a BLOCKER is self-contradicting and fails safe; `approved:true` with only IMPORTANT/NIT still approves. The bar buys a **diagnostic** — an evidenced rejection is now distinguishable from a Checker rejecting on vibes.
+- **`npm run eval:routing`** (`CONDUCTOR_EVALS=1`) — the first test here that says anything true about agent behaviour. Spawns a real `claude -p` and grades routing exactly. Two suites: `classifier` (the table is the artifact) and `descriptions` (**the table is removed**, so a regressed description can actually fail — gstack shipped this suite with the answer key in the fixture and found it could not fail). Negative controls graded. `eval:routing:sensitivity` mutates the fixture and **inverts the exit code**: a green eval proves nothing unless it can go red.
+
+### Security — untrusted trigger input can never gain authority (E4)
+- **Trust comes from authorship, not transport.** A third-party trigger source with no operator-level `author_association`, or any payload setting `"untrusted": true`, is untrusted and forced to the **L1 no-merge floor** via `clampAutonomy` (de-escalation only, so a lower operator ceiling still wins). An operator-configured transport (`cron`, CI, the CLI) keeps full trust.
+- **Trust envelope** on untrusted goal/context: always wraps, labels injection-matching lines `[INJECTION-PATTERN]`, folds fullwidth/zero-width evasion **for matching only** (emitted text is never rewritten), and defuses a forged copy of the banner with a ZWSP.
+- **Tool allowlist, never a blocklist** — `Read Edit Write Glob Grep TodoWrite`; no `Bash`, no `WebFetch`, no `WebSearch`. Every published bypass of this agent class defeated a blocklist.
+- **`conductor trust-verify`** — the Stop hook bypasses the permission system, so it now runs only the verification command the operator recorded (realpath + `sha256`, 0600 store, append-only grant log). Editing the command invalidates trust. Untrusted **fails open** with a note; `pre-push` still enforces the Iron Law where the operator typed `git push`. Stop-hook re-entry is bounded at 3 blocks, then releases with a loud `UNVERIFIED` warning.
+- Context: Feb 2026 turned one malicious Cline issue *title* into an npm supply-chain compromise; April 2026 disclosed the same shape in Claude Code's security-review action (CVSS 9.4), Gemini CLI Action and Copilot's coding agent.
+
+### Added — drift gate for `.agents/`, and a descope (E5)
+- **`test/template-integrity.test.js`** (60 assertions): registry ↔ disk both ways, non-empty descriptions, **path-level reachability** (excluding `registry.json` and `check-conductor.sh` — inventories, not routes), link validity, skill frontmatter, and host-path containment.
+- **Two real bugs it found:** `agentic-flow.md` shipped in every install and was documented but had **no classifier trigger**, so "design a flow" could never reach it; `loop-checker.md` and `unattended-loop.md` had **empty registry descriptions**. Both fixed.
+- **E5's per-host compiler was descoped on evidence.** gstack needs one because it hardcodes `~/.claude/skills/gstack`; Conductor installs `.agents/`, so it is host-neutral by construction — 5 legitimate Claude integration points and 3 "Task tool" mentions that already carry platform fallbacks. Both properties are now pinned by tests. **Model overlays are deferred, not dismissed** (no injection point yet).
+
+### Known gaps
+- The context bill counts only `SKILL.md` per skill directory, so `reviewer.md` and `calibration.md` are unbilled eager cost. Fix: count sibling `.md` files, re-capture.
+- Ship Phase 4 does not yet cite FRESH evidence instead of re-running; only `pre-push` consumes the ledger.
+
+---
+
 ## [6.2.0] — 2026-07-24 — Loop Robustness, Multi-Engine & the Eval-Driven Law
 
 Hardens the V6 autonomous loop from a working prototype into something trustworthy (borrowing proven patterns from the `agentctl` peer factory), brings real **multi-engine parity** (Claude Code + Antigravity `agy` + `codex`, each verified against the installed CLI), and adds the **Eval-Driven Law + ship-contract** — the "tests ≠ evals" discipline, enforced deterministically like TDD. No breaking changes; `conductor upgrade` lands every new skill and hook on existing installs (verified end-to-end, with a backup written first and all `conductor/` knowledge preserved).

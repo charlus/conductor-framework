@@ -18,6 +18,7 @@ import {
   extractHeadings,
   documentTitle,
   slugifyHeading,
+  stripInlineMarkdown,
 } from "../src/view/markdown.js";
 
 describe("escaping (the security contract)", () => {
@@ -171,5 +172,73 @@ describe("document metadata", () => {
 
   test("slugify strips punctuation and collapses spaces", () => {
     assert.equal(slugifyHeading("P1 — High Priority (Do Next)"), "p1-high-priority-do-next");
+  });
+});
+
+describe("regressions found on a real backlog (2026-09-08)", () => {
+  // A real `task-backlog.md` has task items whose bodies carry bold, inline
+  // code and underscore emphasis. Four separate failures showed up on it, and
+  // every one passed the original suite because those fixtures were tidy
+  // one-word items. The lesson is the same as the loop-state one: a fixture
+  // that does not look like the real thing proves nothing.
+
+  test("a task item's body is ONE element, so a flex li cannot shatter it", () => {
+    // `.prose li.task` is display:flex. Unwrapped inline content makes every
+    // <strong>, <code> and text node its own flex ITEM, each shrinking to a
+    // narrow column — the one-word-per-line layout in the screenshot.
+    const html = renderMarkdown("- [ ] **DB-1: fix it.** Add `pool_pre_ping` to `core/db.py`.\n");
+    const li = html.match(/<li class="task[^"]*">([\s\S]*?)<\/li>/);
+    assert.ok(li, "expected a task item");
+    const afterCheckbox = li[1].replace(/<input[^>]*>\s*/, "");
+    assert.match(
+      afterCheckbox,
+      /^<span class="task-body">/,
+      `body must be wrapped in a single element, got: ${afterCheckbox.slice(0, 80)}`
+    );
+  });
+
+  test("underscore emphasis renders", () => {
+    assert.ok(renderInline("_Why:_ observed in prod").includes("<em>Why:</em>"));
+    assert.ok(renderInline("__really__ bad").includes("<strong>really</strong>"));
+  });
+
+  test("but snake_case identifiers are left alone", () => {
+    // This matters more than the emphasis: real backlogs are full of them.
+    for (const id of ["pool_pre_ping", "user_tokens", "expires_at", "a_b_c_d"]) {
+      const out = renderInline(`the ${id} field`);
+      assert.ok(!out.includes("<em>"), `${id} was mangled into emphasis: ${out}`);
+      assert.ok(out.includes(id), `${id} did not survive: ${out}`);
+    }
+  });
+
+  test("the leading H1 can be dropped, so a title is not shown twice", () => {
+    const md = "# Backlog\n\nSmall stuff.\n";
+    assert.match(renderMarkdown(md), /<h1 /, "default keeps it");
+    const body = renderMarkdown(md, { skipFirstH1: true });
+    assert.ok(!body.includes("<h1"), body);
+    assert.ok(body.includes("<p>Small stuff.</p>"), "the rest survives");
+  });
+
+  test("skipFirstH1 drops only a LEADING h1, never a later one", () => {
+    const body = renderMarkdown("# One\n\n## Two\n\n# Three\n", { skipFirstH1: true });
+    assert.ok(!body.includes(">One<"), "leading h1 dropped");
+    assert.ok(body.includes(">Three<"), "a later h1 is content, not a title");
+  });
+
+  test("emphasis survives across an inline-code boundary", () => {
+    const out = renderInline("**bold** then `code` then _em_");
+    assert.ok(out.includes("<strong>bold</strong>"), out);
+    assert.ok(out.includes("<code>code</code>"), out);
+    assert.ok(out.includes("<em>em</em>"), out);
+  });
+
+  test("a plain-text form exists for surfaces that cannot render html", () => {
+    // The terminal digest showed `**DB-1: …**` literally. It needs the text,
+    // not the markup, and not `plainText`'s aggressive stripping.
+    assert.equal(
+      stripInlineMarkdown("**DB-1: fix it.** Add `pool_pre_ping` — _now_"),
+      "DB-1: fix it. Add pool_pre_ping — now"
+    );
+    assert.equal(stripInlineMarkdown("[label](http://x)"), "label");
   });
 });

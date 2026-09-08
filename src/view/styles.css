@@ -287,8 +287,9 @@ kbd {
   align-items: center;
   gap: 12px;
   padding: 10px 28px;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: saturate(1.4) blur(8px);
+  /* Opaque on purpose. A translucent bar let long documents scroll visibly
+   * underneath it, which reads as a rendering fault rather than as depth. */
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
 
@@ -583,6 +584,25 @@ kbd {
   border-radius: 4px;
 }
 
+/* Backlog entries can run to a paragraph. In a narrow dashboard column that
+ * buries everything below it, so clamp here — the full text is one click away
+ * in the document view, which is the right place to read it. */
+.col li .li-text {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.col li .li-text code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: var(--sunken);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+
 .col li.is-done {
   color: var(--faint);
   text-decoration: line-through;
@@ -591,6 +611,45 @@ kbd {
 .col li.is-done .box {
   background: var(--ok-soft);
   border-color: var(--ok);
+}
+
+.col-empty {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--faint);
+  font-style: italic;
+}
+
+.done-fold {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.done-fold summary {
+  cursor: pointer;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--faint);
+  font-weight: 650;
+}
+
+.done-fold summary:hover {
+  color: var(--fg);
+}
+
+.done-fold ul {
+  margin-top: 9px;
+}
+
+.row .t code,
+.result .rt code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: var(--sunken);
+  border-radius: 4px;
+  padding: 0 3px;
 }
 
 .cards {
@@ -846,6 +905,16 @@ kbd {
   margin: 0.42em 0 0;
   accent-color: var(--accent);
   flex: 0 0 auto;
+}
+
+/* The body is one flex item that takes the remaining width and wraps normally.
+ * Without a wrapper element every inline node (<strong>, <code>, each text
+ * node) became its own flex item and collapsed to a one-word column — see
+ * `renderList` in markdown.js. `min-width: 0` is what actually lets it wrap
+ * instead of overflowing. */
+.prose li.task .task-body {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .prose li.task-done {

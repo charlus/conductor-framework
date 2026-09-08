@@ -178,8 +178,32 @@ describe("buildState — the shared digest", () => {
 
   test("the work queue is the harvester's, not a second parser", () => {
     const s = state();
-    assert.deepEqual(s.queue, harvestWorkQueue({ inboxMd: INBOX, backlogMd: BACKLOG }));
+    // The invariant is same items, same order, same routing — NOT object
+    // identity. Display adds a rendered `titleHtml`, which is presentation and
+    // must not be mistaken for a second parse of the backlog.
+    const core = s.queue.map(({ titleHtml, ...rest }) => rest);
+    assert.deepEqual(core, harvestWorkQueue({ inboxMd: INBOX, backlogMd: BACKLOG }));
     assert.equal(s.queue[0].type, "bugfix", "bugs still come first");
+  });
+
+  test("every displayed title carries rendered html beside the raw text", () => {
+    // The page showed `**bold**` and backticks literally because the client
+    // escaped these strings and no renderer ever touched them.
+    const s = buildState({
+      root: "/repo",
+      projectName: "repo",
+      inboxMd: "- **urgent** thing\n",
+      backlogMd: "## P1 - High\n- [ ] **DB-1** fix `pool_pre_ping`\n",
+      docs: [],
+      now: 0,
+    });
+    assert.equal(s.inbox.items[0].titleHtml, "<strong>urgent</strong> thing");
+    const item = s.backlog.groups[0].items[0];
+    assert.ok(item.titleHtml.includes("<strong>DB-1</strong>"), item.titleHtml);
+    assert.ok(item.titleHtml.includes("<code>pool_pre_ping</code>"), item.titleHtml);
+    assert.ok(!item.titleHtml.includes("**"), "no raw markers survive");
+    assert.equal(item.title, "**DB-1** fix `pool_pre_ping`", "the raw text is kept too");
+    assert.ok(s.queue[0].titleHtml, "queue rows get one as well");
   });
 
   test("documents are grouped into sections and sorted by title", () => {
@@ -192,10 +216,17 @@ describe("buildState — the shared digest", () => {
 
   test("each document carries rendered html, headings and its backlinks", () => {
     const doc = state().docs.find((d) => d.relPath === "conductor/2-backlog/task-backlog.md");
-    assert.ok(doc.html.includes("<h1"), "html is rendered at generation time");
+    assert.ok(doc.html.includes("<h2"), "html is rendered at generation time");
     assert.ok(doc.headings.length > 0);
     assert.deepEqual(doc.backlinks, ["conductor/0-compass/north-star.md"]);
     assert.ok(!("raw" in doc), "raw markdown is not shipped to the page — html already is");
+  });
+
+  test("the document body does not repeat the title the page already shows", () => {
+    const doc = state().docs.find((d) => d.relPath === "conductor/0-compass/north-star.md");
+    assert.equal(doc.title, "North Star", "title came from the leading h1");
+    assert.ok(!doc.html.includes("<h1"), `the h1 must not also be in the body: ${doc.html}`);
+    assert.ok(doc.headings.some((h) => h.level === 1), "but the outline still knows about it");
   });
 
   test("an empty conductor/ still produces a usable state", () => {

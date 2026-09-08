@@ -102,6 +102,14 @@ export function renderInline(text) {
 
   s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   s = s.replace(/(^|[^*\w])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+
+  // Underscore emphasis, with the delimiter required to sit against a
+  // non-word character on BOTH sides. Without that guard the identifiers real
+  // backlogs are full of — `pool_pre_ping`, `user_tokens`, `expires_at` — get
+  // chewed into <em>, which is worse than not supporting `_` at all.
+  s = s.replace(/(^|[^\w_])__([^_\n]+)__(?=[^\w_]|$)/g, "$1<strong>$2</strong>");
+  s = s.replace(/(^|[^\w_])_([^_\n]+)_(?=[^\w_]|$)/g, "$1<em>$2</em>");
+
   s = s.replace(/~~([^~]+)~~/g, "<del>$1</del>");
 
   return s.replace(CODE_SLOT_RE, (_m, i) => `<code>${escapeHtml(codes[Number(i)])}</code>`);
@@ -160,7 +168,13 @@ function renderList(lines) {
         const done = task[1].toLowerCase() === "x";
         classes.push("task");
         if (done) classes.push("task-done");
-        body = `<input type="checkbox" ${done ? "checked " : ""}disabled> ${renderInline(task[2])}`;
+        // The body MUST be a single wrapper element. `li.task` is a flex
+        // container so the checkbox can sit beside the text; leave the body
+        // unwrapped and every <strong>, <code> and text node becomes its own
+        // flex item, each collapsing to a one-word column.
+        body =
+          `<input type="checkbox" ${done ? "checked " : ""}disabled>` +
+          `<span class="task-body">${renderInline(task[2])}</span>`;
       } else {
         body = renderInline(item.text);
       }
@@ -183,12 +197,16 @@ function renderList(lines) {
  * Render a markdown document to HTML.
  *
  * @param {string} md
+ * @param {{skipFirstH1?: boolean}} [opts] `skipFirstH1` drops a LEADING `# …`
+ *   when the caller is already displaying it as the document's title, so the
+ *   title is not printed twice. A later h1 is content and is always kept.
  * @returns {string} HTML fragment (no wrapper element)
  */
-export function renderMarkdown(md) {
+export function renderMarkdown(md, opts = {}) {
   const lines = stripFrontmatter(String(md ?? "")).split(/\r?\n/);
   const out = [];
   const seenIds = new Map();
+  let skipH1 = opts.skipFirstH1 === true;
   let i = 0;
 
   while (i < lines.length) {
@@ -225,6 +243,13 @@ export function renderMarkdown(md) {
     if (heading) {
       const level = heading[1].length;
       const text = heading[2].trim();
+      // The title is shown by the caller; consume this one and stop looking.
+      if (skipH1 && level === 1 && out.length === 0) {
+        skipH1 = false;
+        i += 1;
+        continue;
+      }
+      skipH1 = false;
       const id = uniqueId(slugifyHeading(text), seenIds);
       out.push(`<h${level} id="${id}">${renderInline(text)}</h${level}>`);
       i += 1;
@@ -350,6 +375,30 @@ export function documentTitle(md, filename) {
     if (m && m[1].trim()) return m[1].trim();
   }
   return titleFromFilename(filename);
+}
+
+/**
+ * Strip inline markup from a single line, keeping every word.
+ *
+ * For surfaces that cannot render HTML — the terminal digest, a page title —
+ * where `**DB-1: fix it.**` should read as `DB-1: fix it.` rather than showing
+ * its asterisks. Distinct from `plainText`, which is for the search index and
+ * strips punctuation aggressively enough to ruin a title.
+ */
+export function stripInlineMarkdown(text) {
+  return String(text ?? "")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/(^|[^*\w])\*([^*\n]+)\*/g, "$1$2")
+    // Same boundary guard as the renderer, so identifiers keep their
+    // underscores instead of being silently de-underscored.
+    .replace(/(^|[^\w_])__([^_\n]+)__(?=[^\w_]|$)/g, "$1$2")
+    .replace(/(^|[^\w_])_([^_\n]+)_(?=[^\w_]|$)/g, "$1$2")
+    .replace(/~~([^~]+)~~/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Plain text of a document, for the search index. */

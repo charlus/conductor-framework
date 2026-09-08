@@ -4,6 +4,26 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Fixed — the rendered view broke on a real backlog
+
+Four separate renderer failures, all found by pointing `conductor view` at a production `task-backlog.md` rather than the tidy fixtures the suite used. Every one of them passed the existing tests.
+
+- **Task items shattered into one-word columns.** `.prose li.task` is a flex container so the checkbox can sit beside the text, but the body was left unwrapped — so every `<strong>`, `<code>` and text node became its own flex *item* and collapsed to a narrow column. A real item ("**DB-1:** Add `pool_pre_ping` to `core/database.py`") rendered as a wall of stacked single words. The body is now one `<span class="task-body">`, pinned by a test asserting the wrapper.
+- **Underscore emphasis was shown literally.** `_Why:_` and `__bold__` were unsupported, so the markers printed. Now rendered — **with the delimiter required to sit against a non-word character on both sides**, because the alternative is worse: without that guard `pool_pre_ping`, `user_tokens` and `expires_at` get chewed into `<em>`. Both halves are tested.
+- **Every document printed its title twice** — once in the page header, once as the document's own leading `# Title`. `renderMarkdown` takes `skipFirstH1` now; a *later* h1 is content and is always kept, and the outline still records the dropped one so no TOC anchor dies.
+- **The dashboard columns showed raw markdown.** Backlog, queue and inbox lines were escaped and never rendered, so `**` and backticks appeared verbatim. Each displayed title now carries a `titleHtml` rendered at generation time, keeping the page free of a markdown parser. The queue is still the harvester's — same items, order and routing; the test asserts that invariant rather than object identity.
+
+Two display changes came out of the same screenshots:
+
+- **Done backlog items are collapsed** behind a `N done` fold instead of listed in full. A real backlog carries long DONE entries with post-mortems in them, and striking them through in place buried the open work the column exists to show. Long open items are clamped to three lines; the full text is one click away in the document view.
+- **The sticky topbar is opaque.** Translucent, it let long documents scroll visibly underneath, which reads as a fault rather than as depth.
+
+`conductor status` had the same raw-marker problem and gained `stripInlineMarkdown` — a title-safe strip, distinct from the search index's aggressive `plainText`.
+
+---
+
 ## [6.3.0] — 2026-09-08 — Review Convergence, Evidence Freshness, Untrusted-Input Hardening & Terminal-First Surfaces
 
 Six epics. E6 (human surfaces for a CLI-first workflow) is independent; E1–E5 came from a source audit of two peer harnesses (**gstack** `1.79.0.0`, **agentctl** `main`) plus a survey of 2026 harness-engineering practice. Design doc with the full evidence: [`docs/roadmap/Review-Convergence-And-Harness-Alignment.md`](docs/roadmap/Review-Convergence-And-Harness-Alignment.md). No breaking changes.

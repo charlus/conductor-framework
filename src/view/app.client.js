@@ -232,8 +232,9 @@
           (q + 1) +
           "</span>" +
           chip(item.type, item.type) +
+          // titleHtml is rendered and escaped at generation time.
           '<span class="t">' +
-          esc(item.title) +
+          item.titleHtml +
           '</span><span class="right">' +
           (item.priority ? chip(item.priority, item.priority.toLowerCase()) : "") +
           '<span class="chip">' +
@@ -250,25 +251,34 @@
         '</span></div><div class="cols">';
       for (var g = 0; g < S.backlog.groups.length; g++) {
         var group = S.backlog.groups[g];
-        var open = 0;
-        for (var gi = 0; gi < group.items.length; gi++) if (!group.items[gi].done) open++;
+        var openItems = [];
+        var doneItems = [];
+        for (var gi = 0; gi < group.items.length; gi++) {
+          (group.items[gi].done ? doneItems : openItems).push(group.items[gi]);
+        }
         out +=
           '<div class="col"><h3>' +
           esc(group.priority || "Unprioritised") +
           (group.label ? " · " + esc(group.label) : "") +
           '<span class="count">' +
-          open +
-          "</span></h3><ul>";
-        for (var it = 0; it < group.items.length; it++) {
-          var task = group.items[it];
+          openItems.length +
+          "</span></h3>";
+
+        out += openItems.length ? "<ul>" + taskItems(openItems) + "</ul>" : '<p class="col-empty">Nothing open</p>';
+
+        // Done items are history, not the answer to "what's next" — a real
+        // backlog carries long DONE entries with post-mortems in them, and
+        // listing those in full buried the open work. Collapsed, counted,
+        // one click away.
+        if (doneItems.length) {
           out +=
-            '<li class="' +
-            (task.done ? "is-done" : "") +
-            '"><span class="box"></span><span>' +
-            esc(task.title) +
-            "</span></li>";
+            "<details class=\"done-fold\"><summary>" +
+            doneItems.length +
+            " done</summary><ul>" +
+            taskItems(doneItems) +
+            "</ul></details>";
         }
-        out += "</ul></div>";
+        out += "</div>";
       }
       out += "</div></div>";
     }
@@ -279,7 +289,7 @@
         esc(S.inbox.relPath) +
         '</span></div><div class="rows">';
       for (var n = 0; n < S.inbox.items.length; n++) {
-        out += '<div class="row"><span class="ord">·</span><span class="t">' + esc(S.inbox.items[n].title) + "</span></div>";
+        out += '<div class="row"><span class="ord">·</span><span class="t">' + S.inbox.items[n].titleHtml + "</span></div>";
       }
       out += "</div></div>";
     }
@@ -315,6 +325,19 @@
       out += "</div></div>";
     }
 
+    return out;
+  }
+
+  function taskItems(items) {
+    var out = "";
+    for (var i = 0; i < items.length; i++) {
+      out +=
+        '<li class="' +
+        (items[i].done ? "is-done" : "") +
+        '"><span class="box"></span><span class="li-text">' +
+        items[i].titleHtml +
+        "</span></li>";
+    }
     return out;
   }
 

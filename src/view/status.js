@@ -12,6 +12,8 @@
 // Reads the SAME state object `conductor view` renders, on purpose. Two parsers
 // would eventually disagree and then neither surface would be trusted.
 
+import { stripInlineMarkdown } from "./markdown.js";
+
 const ANSI = {
   reset: "\u001b[0m",
   dim: "\u001b[2m",
@@ -39,8 +41,14 @@ function painter(enabled) {
   };
 }
 
+/**
+ * Fit a title to a column. Inline markup is stripped first: a real backlog line
+ * is `**DB-1: fix it.** Add \`pool_pre_ping\``, and a terminal cannot render
+ * that, so showing the markers is just noise in the one view meant to be
+ * scannable at a glance.
+ */
 function truncate(text, width) {
-  const s = String(text ?? "");
+  const s = stripInlineMarkdown(text);
   return s.length <= width ? s : `${s.slice(0, width - 1)}…`;
 }
 

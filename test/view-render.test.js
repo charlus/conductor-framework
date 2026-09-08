@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { buildState } from "../src/conductor-state.js";
 import { renderPage, VIEW_FILENAME } from "../src/view/render.js";
 import { renderStatus } from "../src/view/status.js";
+import { readFileSync } from "node:fs";
 
 const INBOX = "# Inbox\n\n---\n\n- rename the export button\n";
 const BACKLOG = `# Backlog
@@ -32,7 +33,9 @@ const state = (over = {}) =>
     projectName: "acme-app",
     inboxMd: INBOX,
     backlogMd: BACKLOG,
-    loopState: { status: "idle", beat: 7 },
+    // A realistic slice of the v2 schema — never an invented shape, which is
+    // exactly how the `loop.beat` bug survived its own test.
+    loopState: { phase: "build", status: "idle", iterations: { current: 3, max_allowed: 20 }, autonomy_level: "L1" },
     docs: [
       {
         relPath: "conductor/0-compass/north-star.md",
@@ -155,6 +158,50 @@ describe("the page carries what the human lost with the IDE", () => {
     assert.ok(empty.startsWith("<!doctype html>"));
     assert.ok(empty.includes('data-empty="true"'), "the page states it is empty");
     assert.ok(!renderPage(state()).includes('data-empty="true"'), "and a populated one does not");
+  });
+});
+
+describe("the loop line reads the REAL loop-state shape", () => {
+  // The bug this pins: an earlier version read a top-level `loop.beat`, which
+  // does not exist — the counter is `iterations.current`. It passed because the
+  // fixture was invented. So the fixture here is the SHIPPED template file: an
+  // invented shape can no longer satisfy this test, and a schema change breaks
+  // it loudly instead of silently blanking the line.
+  const seeded = JSON.parse(
+    readFileSync(
+      new URL("../templates/conductor/1-workbench/loop-state.json", import.meta.url),
+      "utf8"
+    )
+  );
+
+  const lineFor = (loopState) => {
+    const out = renderStatus(
+      buildState({ root: "/r", projectName: "r", docs: [], loopState, now: 0 }),
+      { color: false }
+    );
+    return out.split("\n").find((l) => l.includes("Loop")) ?? "";
+  };
+
+  test("the seeded state renders phase, status, beat and autonomy", () => {
+    const line = lineFor(seeded);
+    assert.match(line, /discovery/, "phase leads — it is what gates a run");
+    assert.match(line, /idle/, "status");
+    assert.match(line, /beat 0\/20/, "beat comes from iterations.current/max_allowed");
+    assert.match(line, /L1/, "autonomy level");
+  });
+
+  test("a mid-run state shows the real beat counter", () => {
+    const line = lineFor({ ...seeded, status: "building", iterations: { current: 7, max_allowed: 20 } });
+    assert.match(line, /beat 7\/20/, line);
+  });
+
+  test("an invented top-level `beat` is NOT what gets read", () => {
+    const line = lineFor({ status: "building", beat: 99 });
+    assert.ok(!line.includes("99"), `a bogus field must not render: ${line}`);
+  });
+
+  test("no loop state at all says so plainly", () => {
+    assert.match(lineFor(null), /not started/);
   });
 });
 

@@ -110,7 +110,7 @@ Then, per item, the fleet:
 2. **Works it in an isolated worktree** — running the routed workflow (`bugfix`/`task` → Build with reproduce-first TDD; `triage` → file-it brief).
 3. **Writes back to the source of truth** — on a green + Checker-approved ship, it ticks the backlog item `- [x]` (or removes the triaged inbox line), appends `0-compass/ship-log.md`, and opens a **PR** (never a direct push).
 
-Because the queue is **re-harvested every run**, a human editing `conductor/` in VS Code and the fleet draining it stay coherent — the folder is the truth, `loop-state.json` is just the run cache. For a real concurrent fleet, set `autonomy_level: "L3"`, `sandbox: "cli-native"`, and `concurrency: N` in the Spine (the swarm's safety gates require it); at `L1`/`concurrency: 1` it drains sequentially for review. Always `--dry-run` first to see the queue.
+Because the queue is **re-harvested every run**, a human editing `conductor/` — in an editor, from chat, or with `conductor inbox add` — and the fleet draining it stay coherent: the folder is the truth, `loop-state.json` is just the run cache. To see what the fleet would pick up next without starting it, run **`conductor status`**; it renders the same harvested queue the driver does, in the same order, and shows the loop's own phase and status. For a real concurrent fleet, set `autonomy_level: "L3"`, `sandbox: "cli-native"`, and `concurrency: N` in the Spine (the swarm's safety gates require it); at `L1`/`concurrency: 1` it drains sequentially for review. Always `--dry-run` first to see the queue.
 
 ## How it reads your project
 

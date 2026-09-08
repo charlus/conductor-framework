@@ -44,11 +44,28 @@ function truncate(text, width) {
   return s.length <= width ? s : `${s.slice(0, width - 1)}…`;
 }
 
+/**
+ * One line describing the loop, read from the REAL v2 `loop-state.json` shape.
+ *
+ * `phase` leads because it is the field that gates a run: the driver refuses to
+ * start in `discovery` (the Scoping Barrier), so someone checking status wants
+ * that before anything else. The beat counter lives at `iterations.current`,
+ * not a top-level `beat` — an earlier version of this function read the latter
+ * and never rendered, because its test fixture was invented rather than taken
+ * from the shipped file. The test now loads the template itself.
+ */
 function loopLine(loop) {
   if (!loop) return "not started";
-  const status = loop.status ?? "unknown";
-  const beat = Number.isFinite(Number(loop.beat)) ? ` · beat ${loop.beat}` : "";
-  return `${status}${beat}`;
+  const parts = [];
+  if (loop.phase) parts.push(loop.phase);
+  if (loop.status) parts.push(loop.status);
+  const current = loop.iterations?.current;
+  if (Number.isFinite(Number(current))) {
+    const max = loop.iterations?.max_allowed;
+    parts.push(`beat ${current}${Number.isFinite(Number(max)) ? `/${max}` : ""}`);
+  }
+  if (loop.autonomy_level) parts.push(loop.autonomy_level);
+  return parts.length ? parts.join(" · ") : "unknown";
 }
 
 /**

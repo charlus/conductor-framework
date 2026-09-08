@@ -4,7 +4,7 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
-## [Unreleased] — Review Convergence, Evidence Freshness, Untrusted-Input Hardening & Terminal-First Surfaces
+## [6.3.0] — 2026-09-08 — Review Convergence, Evidence Freshness, Untrusted-Input Hardening & Terminal-First Surfaces
 
 Six epics. E6 (human surfaces for a CLI-first workflow) is independent; E1–E5 came from a source audit of two peer harnesses (**gstack** `1.79.0.0`, **agentctl** `main`) plus a survey of 2026 harness-engineering practice. Design doc with the full evidence: [`docs/roadmap/Review-Convergence-And-Harness-Alignment.md`](docs/roadmap/Review-Convergence-And-Harness-Alignment.md). No breaking changes.
 
@@ -25,6 +25,20 @@ So `conductor/` stays one source of truth and gains renderers. Design and decisi
 - **`.agents/AGENTS.md`** routes "what's on our plate" to `conductor status` and puts the command first for capture — and the always-on bill went **down** 9 bytes doing it (16,442 → 16,433), with the ceiling ratcheted to match.
 
 **Deliberately not done:** flattening the pipe tables out of 17 `conductor/` templates. That was planned while raw markdown was the only way to read them; once `conductor view` renders them, a table is dense and scannable rather than the hardest thing on the page. The state files that *are* read raw — `inbox.md`, `task-backlog.md`, `scratchpad.md` — have no tables and are pinned table-free by test.
+
+### Fixed — `conductor status` read a loop field that does not exist
+
+The loop line read a top-level `loop.beat`, which is not in the v2 `loop-state.json` schema (the counter is `iterations.current`), so the beat number never rendered. It also omitted **`phase`** — the field that decides whether the loop can run at all, since the driver refuses to start in `discovery`. It now shows `phase · status · beat n/max · autonomy`.
+
+The bug survived its own test because the fixture was an invented shape rather than the shipped one. **The test now loads `templates/conductor/1-workbench/loop-state.json` itself**, so an invented shape can no longer satisfy it and a schema change fails loudly instead of silently blanking the line. A companion case asserts that a bogus top-level `beat` is *not* what gets read. Found while checking a documentation claim, which is the only reason it surfaced at all.
+
+### Changed — documentation caught up with the shipped surface
+
+- **`README.md`** gains a "Reading Your Project From a Terminal" section — `status`, `inbox`, `view`, why the page is one derived file, and the WSL URL caveat — plus a feature bullet. The commands existed but were invisible to anyone reading the repo.
+- **`templates/CLAUDE.md`** no longer claims every slash command is a workflow shim. It now distinguishes workflow shims from the three **CLI shims** (`/status`, `/inbox`, `/view`), which have no workflow behind them, and warns against hand-building the `file://` URL.
+- **`skills/context-engineering/SKILL.md`** — the reference `how-it-works.md` names for quick-capture *mechanics* — taught only the file-append path and so contradicted the classifier that routes to it. Now command-first, with a new "Reading State" directive. Rewritten to stay **under** its existing eager ceiling rather than raising it.
+- **`docs/Running-The-Loop.md`** dropped "a human editing `conductor/` in VS Code" — the exact assumption this release removes — and now points at `conductor status` for previewing the fleet's queue and the loop's phase.
+- Stale **V5** markers corrected to V6 in `how-it-works.md` and the self-test banner. `templates/CHANGELOG.md`'s footer is now version-agnostic, so it cannot drift again.
 
 ### Changed — the review gate now converges (E1)
 - **`skills/independent-review/reviewer.md`** (new, 116 lines, capped at 130 by test): ONE self-contained reviewer brief, handed over verbatim, replacing a chain of five skills. `BLOCKER` / `IMPORTANT` / `NIT`; a **BLOCKER needs a quoted line and confidence ≥ 7**, and an unquotable finding is downgraded rather than promoted. `APPROVE` means **zero blockers**, not zero findings. The reviewer judges the acceptance criteria (or `goal_description`) plus `architecture-checklist.md` as a checklist, reports the whole class with its complete instance list, and carries an explicit "Not a finding" exclusion list.

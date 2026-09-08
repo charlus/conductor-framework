@@ -19,7 +19,8 @@ When interacting with the `conductor/` directory, you must strictly follow these
    - `conductor/3-product-areas/` (Features, Epics)
    - `conductor/4-context/` (Technical, Design, Identity)
 3. **Task Updates**: When completing a task, immediately update `conductor/2-backlog/task-backlog.md` and log your victory in `conductor/0-compass/ship-log.md`.
-4. **Quick Capture**: On platforms with no file browser (Claude Code, Antigravity 2.0), this is the human's only way to reach `1-workbench/` directly. When the user says `Inbox: X` or `Add to inbox: X`, append `X` verbatim as a new bullet to `conductor/1-workbench/inbox.md`. When they say `Scratchpad: X`, append to `conductor/1-workbench/scratchpad.md`. No workflow, no clarifying questions, no judgment about where it "should" really go — that's what makes it fast. Confirm in one line (`"Added to inbox."`) and stop. If the message has multiple items (one per line, or semicolon-separated), add each as its own bullet.
+4. **Quick Capture**: Prefer `conductor inbox add "X"` or `/inbox`. Fallback when unavailable: on `Inbox: X` / `Add to inbox: X` append `X` verbatim as a bullet to `conductor/1-workbench/inbox.md`; on `Scratchpad: X`, to `scratchpad.md`. Multiple items (one per line, or semicolon-separated) each get their own bullet. No workflow, no questions, no judgment about where it "should" go — speed is the point. Confirm in one line and stop.
+5. **Reading State**: `conductor status` for the digest, `conductor view --open` for every document rendered. Never hand-summarise `conductor/` when a command already does it.
 
 ## Execution
 

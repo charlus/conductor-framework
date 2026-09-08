@@ -10,6 +10,9 @@ import { evidenceCommand } from "./commands/evidence.js";
 import { reviewLogCommand } from "./commands/review-log.js";
 import { contextBillCommand } from "./commands/context-bill.js";
 import { loopCommand } from "./commands/loop.js";
+import { statusCommand } from "./commands/status.js";
+import { inboxCommand } from "./commands/inbox.js";
+import { viewCommand } from "./commands/view.js";
 
 function helpText() {
   return [
@@ -20,6 +23,9 @@ function helpText() {
     "  for the full development lifecycle.",
     "",
     "  Usage:",
+    "    conductor status [target-directory] [--json] [--no-color]",
+    "    conductor inbox add <text> | conductor inbox list",
+    "    conductor view [target-directory] [--open] [--out <file>]",
     "    conductor init [target-directory] [options]",
     "    conductor upgrade [target-directory]",
     "    conductor add <skill-name> [--registry <url>]",
@@ -35,6 +41,9 @@ function helpText() {
     "                   [--platform <name>] [--dry-run] [--unsafe-no-sandbox]",
     "",
     "  Commands:",
+    "    status          One-screen digest of conductor/ — inbox, backlog, next up",
+    "    inbox           Capture a thought (`add`) or read the inbox (`list`)",
+    "    view            Render conductor/ into one self-contained HTML dashboard",
     "    init            Scaffold the Conductor framework in a new project",
     "    upgrade         Upgrade an existing project to the latest framework",
     "    add             Download a skill from the registry",
@@ -55,6 +64,9 @@ function helpText() {
     "    -h, --help        Show this help message",
     "",
     "  Examples:",
+    "    conductor status                            what is on our plate today",
+    "    conductor inbox add \"rename the export button\"",
+    "    conductor view --open                       the full rendered dashboard",
     "    npx conductor-framework init",
     "    npx conductor-framework init ./my-project",
     "    npx conductor-framework upgrade",
@@ -87,6 +99,12 @@ export async function runCli(args, io = process) {
   };
 
   switch (command) {
+    case "status":
+      return statusCommand(rest, context);
+    case "inbox":
+      return inboxCommand(rest, context);
+    case "view":
+      return viewCommand(rest, context);
     case "init":
       return initCommand(rest, context);
     case "upgrade":

@@ -4,11 +4,27 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
-## [Unreleased] — Review Convergence, Evidence Freshness & Untrusted-Input Hardening
+## [Unreleased] — Review Convergence, Evidence Freshness, Untrusted-Input Hardening & Terminal-First Surfaces
 
-Five epics (E1–E5) from a source audit of two peer harnesses (**gstack** `1.79.0.0`, **agentctl** `main`) plus a survey of 2026 harness-engineering practice. Design doc with the full evidence: [`docs/roadmap/Review-Convergence-And-Harness-Alignment.md`](docs/roadmap/Review-Convergence-And-Harness-Alignment.md). No breaking changes.
+Six epics. E6 (human surfaces for a CLI-first workflow) is independent; E1–E5 came from a source audit of two peer harnesses (**gstack** `1.79.0.0`, **agentctl** `main`) plus a survey of 2026 harness-engineering practice. Design doc with the full evidence: [`docs/roadmap/Review-Convergence-And-Harness-Alignment.md`](docs/roadmap/Review-Convergence-And-Harness-Alignment.md). No breaking changes.
 
-> **Not yet validated:** whether E1 actually shortened the review loop needs E2's ledger over ~10 real ships. The instrument is in place; the check has not been run.
+> **E1 outcome:** accepted by the maintainer as good enough on real ships (2026-09-08). E2's ledger remains available if a number is ever wanted.
+
+### Added — human surfaces for a terminal-first workflow (E6)
+
+The methodology's read path assumed an IDE: a file tree to browse, a rendered markdown preview to read, an editor to type into. Working through a CLI coding agent removes all three, and browsing `conductor/` becomes a chain of `ls`, `cd` and `vim`. The diagnosis was that **the files are not the problem** — they are what make the autonomous loop, the evidence ledger and PR review work — but the *human's* channel to them was gone. Note the asymmetry that made it obvious: `src/loop/harvester.js` already gave the loop a ranked, typed view of the same folder the human had to read with `cat`.
+
+So `conductor/` stays one source of truth and gains renderers. Design and decisions: [`docs/roadmap/Terminal-First-Human-Surfaces.md`](docs/roadmap/Terminal-First-Human-Surfaces.md).
+
+- **`src/conductor-state.js`** — ONE read of `conductor/`, shared by every surface, and it **calls the harvester** rather than re-parsing the backlog. Two parsers would eventually disagree about the same file, and then neither surface would be trusted. Pure except a thin IO wrapper, so the digest is testable with no repo on disk. Adds what only a whole-folder read can produce: **backlinks** (which documents reference this one) and staleness.
+- **`conductor status`** — the daily question in one screen: inbox depth, open tasks per priority, the queue in the order the loop would drain it, stale documents, loop state. Costs **zero tokens and zero context** — asking an agent to summarise state cost a full turn every time, for the question asked most often. `--json` for scripts, `--no-color` for pipes.
+- **`conductor inbox add "…"` / `list`** — quick capture as a command. `Inbox: X` existed as a row in the always-on classifier and did not fire reliably, which is the expected outcome for prose competing for attention; appending a line to a file is mechanical, so it becomes code. The chat convention stays as the fallback. Capture **refuses to scaffold `conductor/`** outside an install rather than littering an unrelated repo.
+- **`conductor view [--open]`** — renders every document into ONE self-contained HTML file (`conductor/.views/index.html`, gitignored): rendered tables, cross-document search, per-document outline, backlinks, light/dark, mobile. One file because the page is opened over `file://`, where the browser blocks runtime loading — so nav, search index and all rendered documents are stamped in at generation time — and because one file is one bookmark. `--open` shells to the platform opener (`wslview` on WSL, where `xdg-open` has nothing to open).
+- **`src/view/markdown.js`** — a dependency-free markdown renderer run at generation time, so the page ships no parser. Its contract is security: content in `conductor/` is written by the human, by agents, and through the inbox by whatever was pasted in, and the page runs from `file://`. Every character is escaped, raw HTML is shown as text and never passed through, and `javascript:`/`data:`/`vbscript:` URLs are neutralised. There is no trusted-markdown path.
+- **`/status`, `/inbox`, `/view`** slash commands generated alongside the workflow shims — the first CLI-backed shims, distinct from the workflow ones.
+- **`.agents/AGENTS.md`** routes "what's on our plate" to `conductor status` and puts the command first for capture — and the always-on bill went **down** 9 bytes doing it (16,442 → 16,433), with the ceiling ratcheted to match.
+
+**Deliberately not done:** flattening the pipe tables out of 17 `conductor/` templates. That was planned while raw markdown was the only way to read them; once `conductor view` renders them, a table is dense and scannable rather than the hardest thing on the page. The state files that *are* read raw — `inbox.md`, `task-backlog.md`, `scratchpad.md` — have no tables and are pinned table-free by test.
 
 ### Changed — the review gate now converges (E1)
 - **`skills/independent-review/reviewer.md`** (new, 116 lines, capped at 130 by test): ONE self-contained reviewer brief, handed over verbatim, replacing a chain of five skills. `BLOCKER` / `IMPORTANT` / `NIT`; a **BLOCKER needs a quoted line and confidence ≥ 7**, and an unquotable finding is downgraded rather than promoted. `APPROVE` means **zero blockers**, not zero findings. The reviewer judges the acceptance criteria (or `goal_description`) plus `architecture-checklist.md` as a checklist, reports the whole class with its complete instance list, and carries an explicit "Not a finding" exclusion list.

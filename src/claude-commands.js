@@ -61,7 +61,13 @@ const CLI_COMMANDS = [
     name: "view",
     description: "Render conductor/ into the single-file HTML dashboard and open it",
     body:
-      "Run `conductor view --open` in the project root and report the output path in one line.\n\n" +
+      "Run `conductor view --open` in the project root, then give the human the `file://` URL the\n" +
+      "command printed, **verbatim**.\n\n" +
+      "Do not build a link yourself and do not convert the path. The command already resolves it\n" +
+      "for the platform the human's BROWSER runs on, which is not always the platform you are\n" +
+      "running on — under WSL the page lives on the Linux filesystem but opens in a Windows\n" +
+      "browser, which cannot resolve `file:///home/...`. A hand-made link there looks right and\n" +
+      "silently does nothing.\n\n" +
       "The page is derived from `conductor/` and written to a gitignored folder — never commit it,\n" +
       "and never edit it. To change what it shows, change the markdown it is generated from.",
   },

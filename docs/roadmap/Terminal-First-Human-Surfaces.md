@@ -85,7 +85,20 @@ Consequences, all deliberate:
 - CSS and JS live in real sibling source files (`styles.css`, `app.client.js`) and are inlined at
   generation time — readable source, single artefact out.
 
-Cost, measured: **48 documents → 426 KB**, one file, no dependencies, no build step.
+Cost, measured: **48 documents → 429 KB**, one file, no dependencies, no build step.
+
+### 3.0 The link has to match the browser's platform, not the process's
+
+`conductor view` prints a clickable `file://` URL, and it resolves it for the platform the
+**browser** runs on. Under WSL those differ: the page sits on the Linux filesystem, but the
+browser is a Windows one and cannot resolve `file:///home/...`. The UNC host
+`wsl.localhost/<distro>` is what it can resolve — confirmed working by the maintainer.
+
+This is enforced in code (`clickableUrl` in `src/conductor-state.js`, six cases under test)
+rather than left to the agent, and the `/view` shim tells the agent to relay the printed URL
+**verbatim** instead of constructing one. A hand-made `file:///home/...` link on WSL looks
+correct and silently does nothing, which is worse than printing a bare path — the failure gives
+the human no signal at all.
 
 ### 3.1 What generation-time nav buys
 

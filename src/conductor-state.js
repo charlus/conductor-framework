@@ -272,6 +272,43 @@ export function ensureGitignoreEntry(contents, entry) {
 }
 
 /**
+ * A `file://` URL the human can click in their terminal, correct for the
+ * platform the BROWSER runs on — which is not always the platform this process
+ * runs on.
+ *
+ * WSL is why this function exists. The generated page sits on the Linux
+ * filesystem, but the browser that opens it is a Windows one, and Windows
+ * cannot resolve `file:///home/...`. It can resolve the UNC host
+ * `wsl.localhost/<distro>`. Emitting the wrong one hands over a link that
+ * silently does nothing, which is worse than printing a bare path.
+ *
+ * (On Windows 10 builds predating the `wsl.localhost` host the equivalent is
+ * `wsl$`. Not emitted here: the modern host is what current builds resolve, and
+ * offering two links to the same file is its own kind of confusion.)
+ *
+ * @param {string} absPath absolute path to the file
+ * @param {string} [platform] as `process.platform`
+ * @param {object} [env] as `process.env`
+ */
+export function clickableUrl(absPath, platform = process.platform, env = process.env) {
+  // encodeURI leaves `/` and the Windows drive colon alone but escapes spaces.
+  // It also leaves `#` and `?`, either of which would truncate the URL.
+  const encode = (p) => encodeURI(p).replace(/#/g, "%23").replace(/\?/g, "%3F");
+
+  if (platform === "win32") {
+    const forward = String(absPath).replace(/\\/g, "/").replace(/^\/+/, "");
+    return `file:///${encode(forward)}`;
+  }
+
+  const distro = env.WSL_DISTRO_NAME;
+  if (distro && platform === "linux") {
+    return `file://wsl.localhost/${encode(distro)}${encode(absPath)}`;
+  }
+
+  return `file://${encode(absPath)}`;
+}
+
+/**
  * The command that opens a local file in the platform's browser.
  * WSL is the case that matters here: `xdg-open` has nothing to open on a
  * distro with no desktop, while `wslview` hands the file to Windows.

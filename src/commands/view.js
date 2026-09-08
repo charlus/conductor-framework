@@ -14,7 +14,13 @@
 import { writeFile, mkdir, readFile, stat } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { join, resolve } from "node:path";
-import { collectState, ensureGitignoreEntry, openerFor, VIEWS_REL } from "../conductor-state.js";
+import {
+  collectState,
+  ensureGitignoreEntry,
+  openerFor,
+  clickableUrl,
+  VIEWS_REL,
+} from "../conductor-state.js";
 import { renderPage, VIEW_FILENAME } from "../view/render.js";
 
 function parseArgs(args) {
@@ -83,9 +89,16 @@ export async function viewCommand(args, context) {
 
   const { size } = await stat(outPath);
   const kb = (size / 1024).toFixed(0);
+
+  // Print a link the human's BROWSER can resolve, not just a path this process
+  // can. On WSL those are different, so print the native path as well — it is
+  // the one to hand to `cat` or an editor.
+  const url = clickableUrl(outPath);
+  const nativePath = `file://${outPath}`;
   context.stdout.write(
     `  ✅ ${state.digest.docCount} document${state.digest.docCount === 1 ? "" : "s"} rendered · ${kb} KB\n` +
-      `     ${outPath}\n`
+      `     ${url}\n` +
+      (url === nativePath ? "" : `     path: ${outPath}\n`)
   );
 
   if (opts.open) openInBrowser(outPath, context.stderr);

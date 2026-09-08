@@ -26,6 +26,7 @@ import {
   ensureGitignoreEntry,
   openerFor,
   captureInbox,
+  clickableUrl,
 } from "../src/conductor-state.js";
 import { harvestWorkQueue } from "../src/loop/harvester.js";
 
@@ -269,6 +270,45 @@ describe("derived views are never committed", () => {
   test("does not match a different entry by prefix", () => {
     const out = ensureGitignoreEntry("conductor/.views-old/\n", "conductor/.views/");
     assert.ok(out.includes("conductor/.views/"), out);
+  });
+});
+
+describe("the printed link matches the platform the browser runs on", () => {
+  // WSL is the case that forced this: the file lives on the Linux side, but the
+  // browser that opens it is on Windows, so a `file:///home/...` URL is not
+  // resolvable there. The UNC host is. Getting this wrong hands the human a
+  // link that silently does nothing.
+  test("WSL points the Windows browser at the UNC host", () => {
+    assert.equal(
+      clickableUrl("/home/charlus/x/index.html", "linux", { WSL_DISTRO_NAME: "Ubuntu-22.04" }),
+      "file://wsl.localhost/Ubuntu-22.04/home/charlus/x/index.html"
+    );
+  });
+
+  test("WSL with no distro name falls back rather than emitting a broken host", () => {
+    assert.equal(
+      clickableUrl("/home/c/i.html", "linux", { WSL_INTEROP: "/run/WSL/1" }),
+      "file:///home/c/i.html"
+    );
+  });
+
+  test("plain linux and macOS", () => {
+    assert.equal(clickableUrl("/home/c/i.html", "linux", {}), "file:///home/c/i.html");
+    assert.equal(clickableUrl("/Users/c/i.html", "darwin", {}), "file:///Users/c/i.html");
+  });
+
+  test("windows keeps the drive letter and flips the separators", () => {
+    assert.equal(
+      clickableUrl("C:\\Users\\c\\i.html", "win32", {}),
+      "file:///C:/Users/c/i.html"
+    );
+  });
+
+  test("characters that would break the URL are encoded", () => {
+    assert.equal(
+      clickableUrl("/home/my docs/a#b?c/i.html", "linux", {}),
+      "file:///home/my%20docs/a%23b%3Fc/i.html"
+    );
   });
 });
 

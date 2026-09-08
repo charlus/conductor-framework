@@ -54,6 +54,49 @@ async function ignoreViews(root, stdout) {
   return true;
 }
 
+/**
+ * Ask git whether a path is ignored. Returns the exit code, or `null` if git
+ * could not be run at all.
+ *
+ * Asking git rather than reimplementing `.gitignore` semantics: exit 0 means
+ * ignored, 1 means tracked-or-untracked but not ignored, 128 means not a repo.
+ */
+function gitCheckIgnore(path) {
+  return new Promise((resolve) => {
+    try {
+      const child = spawn("git", ["check-ignore", "--quiet", path], {
+        cwd: join(path, ".."),
+        stdio: "ignore",
+      });
+      child.on("error", () => resolve(null));
+      child.on("close", (code) => resolve(code));
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+/**
+ * Whether to warn that an `--out` page could be committed, given git's answer.
+ *
+ * Pure so the policy is testable without a repo: warn ONLY when the path is
+ * inside a git repo and not ignored. Outside a repo there is nothing to commit
+ * it to, and if git could not be run we do not know — either way, stay quiet
+ * rather than nag on a guess.
+ *
+ * @param {string} outPath
+ * @param {number|null} checkIgnoreExitCode from `git check-ignore --quiet`
+ * @returns {string|null}
+ */
+export function outPathWarning(outPath, checkIgnoreExitCode) {
+  if (checkIgnoreExitCode !== 1) return null;
+  return (
+    `  ⚠  ${outPath} is inside a git repository and is not ignored.\n` +
+    "     This page is derived from conductor/ — regenerated whole on every run, and noise in a\n" +
+    "     diff. Add it to .gitignore, or write it outside the repo, so it is never committed."
+  );
+}
+
 function openInBrowser(file, stderr) {
   const opener = openerFor();
   try {
@@ -85,7 +128,16 @@ export async function viewCommand(args, context) {
 
   await mkdir(join(outPath, ".."), { recursive: true });
   await writeFile(outPath, html, "utf8");
-  if (!opts.out) await ignoreViews(root, context.stdout);
+
+  if (opts.out) {
+    // `--out` is a deliberate override, so it does not get an ignore entry
+    // written for it — but it is the one path where a derived page can reach a
+    // commit, so say so when that is actually possible.
+    const warning = outPathWarning(outPath, await gitCheckIgnore(outPath));
+    if (warning) context.stderr.write(`${warning}\n`);
+  } else {
+    await ignoreViews(root, context.stdout);
+  }
 
   const { size } = await stat(outPath);
   const kb = (size / 1024).toFixed(0);

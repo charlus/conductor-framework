@@ -100,6 +100,26 @@ rather than left to the agent, and the `/view` shim tells the agent to relay the
 correct and silently does nothing, which is worse than printing a bare path — the failure gives
 the human no signal at all.
 
+### 3.05 The derived page must never reach a commit
+
+`conductor view` writes the ignore entry itself, on **every** run rather than only at `init`, so
+an install predating the feature — or one where the line was deleted — self-heals on the next
+render. Verified by asking git rather than by reading the pattern: `git check-ignore` reports the
+page ignored, and it appears in neither `git status --porcelain` nor `git add -A --dry-run`. That
+second point is what matters in practice, because a blanket stage is exactly how an agent would
+sweep it in.
+
+The page also never ingests itself: `walkDocs` skips dot-directories, so `.views/` is not read
+back in. Evidenced by output size holding at 429 KB across three consecutive renders instead of
+compounding.
+
+**`--out <path>` is the one hole, and it is deliberate.** That flag means "write it exactly
+here", frequently outside the repo altogether, so silently editing a `.gitignore` for an
+arbitrary path would be the wrong behaviour. Instead the command **warns when the given path is
+inside a git repo and not ignored** — the only condition under which a derived page could
+actually be committed. Outside a repo, or when git cannot be run, it stays quiet rather than nag
+on a guess (`outPathWarning`, four cases under test, all three branches live-verified).
+
 ### 3.1 What generation-time nav buys
 
 Rendering with every file visible at once produces information that neither `cat` nor the folder

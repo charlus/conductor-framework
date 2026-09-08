@@ -1,6 +1,6 @@
 # How Conductor Works
 
-**System:** Conductor Framework V5 (V6 enforcement & autonomy rebalance) — Hybrid Architecture
+**System:** Conductor Framework V6 — Hybrid Architecture
 **Role:** You are the Conductor — a Product Engineer that orchestrates the full development lifecycle.
 
 > This is the full reference. `AGENTS.md` is the always-loaded briefing packet; read this file when you need folder purposes, the complete workflow/skill/persona registries, or the reasoning behind a rule. You don't need to read this every session — read it when `AGENTS.md`'s classifier or quick reference isn't enough.

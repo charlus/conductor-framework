@@ -9,6 +9,7 @@ Conductor is a harness layer: it configures your AI coding assistant (Claude Cod
 - **Laws enforced by code.** Deterministic git hooks gate every commit and push: no implementation without a test (Test-Driven Law), no LLM feature without an eval (Eval-Driven Law). Prose rules are advisory; a hook can't be reasoned around.
 - **Evals for the non-deterministic surface.** Tests verify deterministic code; **evals** verify LLM output. A **ship-contract** (`architecture-checklist`) turns "follow the architecture" into checkable items the Checker verifies before anything merges.
 - **An autonomous, multi-engine loop.** `conductor loop` drives a Maker/Checker build cycle unattended across Claude Code / `agy` / `codex`, with safety baked in: PR-gated merge (never a direct push), sandbox isolation, and an Evidence Rule — a model can't self-declare victory.
+- **Built for a terminal, not an IDE.** Project state stays plain markdown, so the loop and every git-based gate can read it — but you don't have to read it with `cat`. `conductor status` answers "what's on our plate" in one screen; `conductor view` renders every document into a single searchable HTML page with backlinks.
 
 ---
 
@@ -119,6 +120,60 @@ Genesis → Storyboard → Grand PRD → UX/UI Design Brief → Technical Vision
 Full documentation: [`AGENTS.md`](templates/.agents/AGENTS.md)
 
 *Note: Conductor uses **Progressive Disclosure**. IDEs only load a tiny `prime-directive.md` which points them to `AGENTS.md` for routing. This keeps your context window clean and lightning fast!*
+
+---
+
+## Reading Your Project From a Terminal
+
+Conductor keeps project state in plain markdown under `conductor/`. That is deliberate: it is what lets the autonomous loop drain a backlog, the evidence ledger fingerprint tracked content, and every quality gate run through a diff and a PR. Move that state into a database and all three break.
+
+But markdown was pleasant to *read* because an IDE rendered it. Drive your agent from a CLI instead and browsing your own project becomes `ls`, `cd`, `vim`, decipher a table by eye, quit, repeat. So the files stay, and gain renderers.
+
+### `conductor status` — the daily question
+
+```bash
+conductor status
+```
+
+```
+  acme-app · conductor  8 Sep 2026, 09:14
+
+  Inbox      2   Backlog    6   Docs      48
+  P1         2   P2         2   P3         2
+  Loop     discovery · idle · beat 0/20 · L1
+
+  Next up — the order the loop would drain it
+    1  bugfix  Fix login timeout bug on mobile                  P1
+    2  task    Update README with new installation steps        P1
+    3  triage  rename the export button
+```
+
+That queue is the **same** one `conductor loop` drains, in the same order, from the same parser — a preview of the fleet's next move, not a second opinion about it. `--json` for scripts, `--no-color` for pipes.
+
+Reading state this way costs **no tokens and no context**. Asking your agent to summarise the backlog costs a full turn, every time, for the question you ask most often in a day.
+
+### `conductor inbox` — capture that can't be forgotten
+
+```bash
+conductor inbox add "the export button should say Download"
+conductor inbox list
+```
+
+Appended verbatim to `conductor/1-workbench/inbox.md`. No workflow, no clarifying questions, no triage — triage is a later pass, on purpose. `Inbox: X` in chat still works and Claude Code users get an `/inbox` command, but the CLI is the path that can't be reworded or skipped.
+
+### `conductor view` — every document, rendered
+
+```bash
+conductor view --open
+```
+
+One self-contained HTML file (`conductor/.views/index.html`) holding the whole `conductor/` folder: rendered tables, search across every document, per-document outlines, light/dark, and **backlinks** — which specs and PRDs reference the document you're reading. That last one exists only because generation sees every file at once; no folder tree or `grep` can show it.
+
+It's one file rather than a site for two reasons. The page opens over `file://`, where the browser blocks runtime loading, so nav, search index and every rendered document are stamped in at generation time. And one file is one bookmark — there's no "which file do I open next". The read loop becomes `conductor view`, then refresh the tab.
+
+The output is **derived**: written to an ignored folder, regenerated whole each run, never committed — and absent from both `status` and a blanket `add -A`, which is how it would otherwise get swept into a commit. To change what the page says, change the markdown it came from.
+
+> On WSL the command prints a `file://wsl.localhost/<distro>/…` URL, because a Windows browser can't resolve `file:///home/...`. Use the URL the command prints — a hand-made one looks correct there and silently does nothing.
 
 ---
 

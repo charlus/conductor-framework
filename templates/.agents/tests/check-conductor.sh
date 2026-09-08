@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# Conductor Framework V5 — Self-Test Suite
+# Conductor Framework V6 — Self-Test Suite
 # ============================================================
 # Validates that all framework files exist, have proper naming,
 # and the framework is structurally intact.
@@ -48,7 +48,7 @@ require_dir() {
 }
 
 echo "========================================"
-echo " Conductor Framework V5 — Self-Test"
+echo " Conductor Framework V6 — Self-Test"
 echo "========================================"
 echo ""
 

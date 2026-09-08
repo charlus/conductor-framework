@@ -25,9 +25,21 @@ Claude Code will automatically discover `.claude/loop.md`, initialize Conductor'
 
 ---
 
-## ⌨️ Workflow Slash Commands
+## ⌨️ Slash Commands
 
-Every Conductor workflow is available as a native Claude Code slash command. `init`/`upgrade` generate one shim per workflow into `.claude/commands/` (e.g. `/build`, `/carve`, `/spec-it`, `/ship`). Each shim simply loads and runs the matching `.agents/workflows/<name>.md`, so the workflow file stays the single source of truth. Do not hand-edit the shims — change the workflow and re-run `conductor upgrade` to regenerate them.
+`init`/`upgrade` generate `.claude/commands/` shims of two kinds. Do not hand-edit either — change the source and re-run `conductor upgrade` to regenerate them.
+
+**Workflow shims** — one per Conductor workflow (`/build`, `/carve`, `/spec-it`, `/ship`, …). Each loads and runs the matching `.agents/workflows/<name>.md`, so the workflow file stays the single source of truth.
+
+**CLI shims** — these front a `conductor` command rather than a workflow, because capture and status must not depend on the model remembering a prose rule:
+
+| Command | Runs | For |
+|---|---|---|
+| `/status` | `conductor status` | Inbox depth, backlog by priority, what's next, loop state — one screen |
+| `/inbox` | `conductor inbox add "…"` | Capture a thought verbatim. No workflow, no triage |
+| `/view` | `conductor view --open` | Every `conductor/` document rendered into one HTML page — tables, search, backlinks |
+
+`/view` prints a `file://` URL; use the one the command emits verbatim. It is resolved for the platform your **browser** runs on, which is not always the one the agent runs on — under WSL a hand-made `file:///home/...` link looks right and silently does nothing.
 <!-- conductor:managed:end -->
 
 <!-- Add your project-specific instructions below this line; they are preserved across `conductor upgrade`. -->

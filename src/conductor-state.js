@@ -20,7 +20,13 @@
 import { readFile, readdir, stat, writeFile, mkdir } from "node:fs/promises";
 import { join, dirname, basename, sep } from "node:path";
 import { harvestWorkQueue, parseInbox } from "./loop/harvester.js";
-import { renderMarkdown, extractHeadings, documentTitle, plainText } from "./view/markdown.js";
+import {
+  renderMarkdown,
+  renderInline,
+  extractHeadings,
+  documentTitle,
+  plainText,
+} from "./view/markdown.js";
 
 export const CONDUCTOR_DIR = "conductor";
 export const VIEWS_REL = "conductor/.views";
@@ -165,9 +171,22 @@ export function buildState({
   now = Date.now(),
   staleDays = 30,
 }) {
-  const inboxItems = parseInbox(inboxMd).map((it) => ({ title: it.title }));
-  const backlog = summariseBacklog(backlogMd);
-  const queue = harvestWorkQueue({ inboxMd, backlogMd });
+  // Every human-facing title carries a rendered `titleHtml` alongside the raw
+  // text. Backlog and inbox lines are full of `**bold**` and `` `code` `` — the
+  // page was showing those markers literally, because the client escaped the
+  // text and no renderer ever touched it. Rendering here keeps the page free of
+  // a markdown parser: it receives HTML, as it does for documents.
+  const withHtml = (item) => ({ ...item, titleHtml: renderInline(item.title) });
+
+  const inboxItems = parseInbox(inboxMd).map((it) => withHtml({ title: it.title }));
+  const backlogRaw = summariseBacklog(backlogMd);
+  const backlog = {
+    ...backlogRaw,
+    groups: backlogRaw.groups.map((g) => ({ ...g, items: g.items.map(withHtml) })),
+  };
+  // Still the harvester's queue — same items, same order, same routing — with a
+  // rendered title added for display. The parser is not duplicated.
+  const queue = harvestWorkQueue({ inboxMd, backlogMd }).map(withHtml);
   const backlinks = computeBacklinks(docs);
 
   const prepared = docs
@@ -183,7 +202,9 @@ export function buildState({
         folder: dirname(doc.relPath),
         mtimeMs: doc.mtimeMs ?? 0,
         ageDays: Math.max(0, Math.floor((now - (doc.mtimeMs ?? 0)) / DAY_MS)),
-        html: renderMarkdown(raw),
+        // The title is already shown by the page's document header, so the
+        // document's own leading `# Title` is dropped to avoid printing it twice.
+        html: renderMarkdown(raw, { skipFirstH1: true }),
         headings: extractHeadings(raw),
         words: text ? text.split(/\s+/).length : 0,
         text: text.slice(0, 4000),

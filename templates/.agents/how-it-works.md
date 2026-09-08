@@ -189,6 +189,8 @@ The convention:
 - **`Scratchpad: <thought>`** → same, into `conductor/1-workbench/scratchpad.md`
 - Multiple items in one message (one per line, or semicolon-separated) → each becomes its own bullet
 
+Prefer the CLI when it is available — `conductor inbox add "<thought>"`, or the generated `/inbox` slash command. A command cannot be forgotten or reworded the way a prose rule can; the chat convention above is the fallback for platforms without the CLI on PATH.
+
 **Rules, deliberately narrow:**
 1. No workflow triggers. No discussion. No clarifying questions.
 2. Don't judge, triage, categorize, or rewrite the wording — that's a second pass the human or agent does later, on purpose, when actually processing the inbox. Judging it now defeats the point: the human used this path specifically to *not* stop and think about it right now.
@@ -197,6 +199,24 @@ The convention:
 This is distinct from the Request Classifier's "small fix, bug, quick task" row, which *does* involve the agent's judgment (recognizing something is already well-scoped enough to go straight into `task-backlog.md`'s triaged, prioritized format). Quick Capture is the zero-judgment fallback for everything else — used when the human wants speed, not triage.
 
 Mechanics live in `.agents/skills/context-engineering/SKILL.md`.
+
+---
+
+## Human Surfaces (reading and writing `conductor/` from a terminal)
+
+`conductor/` is one source of truth with several renderers. The files stay markdown — that is what makes the autonomous loop, the evidence ledger and PR review work — and these commands are projections of them for a human working from a CLI, where the IDE's file tree and rendered preview are gone.
+
+| Command | What it is for |
+|---|---|
+| `conductor status` | The daily question, answered in one screen: inbox depth, open tasks per priority, the work queue in the order the loop would drain it, stale documents, loop state. Costs no tokens and no context — never ask an agent to summarise state instead. |
+| `conductor inbox add "…"` / `conductor inbox list` | Deterministic quick capture and read-back. |
+| `conductor view [--open]` | Renders every document in `conductor/` into ONE self-contained HTML file at `conductor/.views/index.html`: rendered tables, search across all documents, per-document outlines, and **backlinks** — which documents reference this one. Read loop: `conductor view`, then refresh the browser tab. |
+
+Three rules for `conductor view`:
+
+1. **The output is derived.** It is written to a gitignored folder and must never be committed or hand-edited. To change what it shows, change the markdown it is generated from.
+2. **It is one file on purpose.** The page is opened over `file://`, where the browser blocks runtime loading, so nav, search index and every rendered document are stamped in at generation time. One file is also one bookmark — there is no "which file do I open next".
+3. **The agent reads the markdown, not the HTML.** Nothing renders a prompt, so HTML in an instruction or state file is cost without benefit.
 
 ---
 

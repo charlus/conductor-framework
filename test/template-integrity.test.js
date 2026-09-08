@@ -234,3 +234,30 @@ describe("E5.5 — host integration points are the only host-specific references
     }
   });
 });
+
+describe("the state files stay readable raw", () => {
+  // `conductor view` renders documents, so a pipe table in a DOCUMENT is an
+  // asset there — dense and scannable. These three are different: they are the
+  // high-churn state files, read and edited straight in a terminal and diffed
+  // line-by-line in git. A table in one of them is unreadable with `cat` and
+  // noisy in a diff, so it stays out.
+  const STATE_FILES = [
+    "conductor/1-workbench/inbox.md",
+    "conductor/1-workbench/scratchpad.md",
+    "conductor/2-backlog/task-backlog.md",
+  ];
+
+  for (const rel of STATE_FILES) {
+    test(`${rel} has no pipe table`, () => {
+      const path = join(ROOT, "templates", rel);
+      assert.ok(existsSync(path), `${rel} is missing from templates/`);
+      const lines = read(path).split(/\r?\n/);
+      const offender = lines.findIndex((l) => /^\s*\|/.test(l));
+      assert.equal(
+        offender,
+        -1,
+        `${rel}:${offender + 1} starts a markdown table — these files are read raw in a terminal`,
+      );
+    });
+  }
+});

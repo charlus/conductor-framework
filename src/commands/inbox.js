@@ -1,0 +1,61 @@
+// src/commands/inbox.js
+//
+// `conductor inbox add "…"` — deterministic quick capture.
+//
+// WHY A COMMAND AND NOT A RULE. `Inbox: X` already existed as a row in the
+// always-on request classifier, and it did not fire reliably. That is the
+// expected outcome for a prose instruction competing with everything else in
+// context — the framework's own operating rule is to enforce with code wherever
+// the rule is mechanical. Appending a line to a file is as mechanical as it
+// gets, so it becomes a command that cannot be forgotten, reworded, or triaged.
+//
+// The prose rule stays as a fallback for platforms without the CLI on PATH.
+
+import { captureInbox, collectState, INBOX_REL } from "../conductor-state.js";
+
+const SUBCOMMANDS = new Set(["add", "list", "ls"]);
+
+export async function inboxCommand(args, context) {
+  const [first, ...rest] = args;
+  // Forgiving on purpose: `conductor inbox "a thought"` means add. Capture must
+  // never fail on syntax — that would defeat the point of it being fast.
+  const sub = SUBCOMMANDS.has(first) ? first : "add";
+  const payload = SUBCOMMANDS.has(first) ? rest : args;
+
+  if (sub === "list" || sub === "ls") {
+    const { ok, state } = await collectState(context.cwd);
+    if (!ok) {
+      context.stderr.write(`  No \`conductor/\` folder in ${context.cwd}\n`);
+      return 1;
+    }
+    if (!state.inbox.items.length) {
+      context.stdout.write(`  Inbox is empty (${INBOX_REL})\n`);
+      return 0;
+    }
+    context.stdout.write(
+      `\n  ${state.inbox.items.length} in the inbox — ${INBOX_REL}\n\n` +
+        state.inbox.items.map((it) => `   · ${it.title}`).join("\n") +
+        "\n\n"
+    );
+    return 0;
+  }
+
+  const text = payload.join(" ").trim();
+  if (!text) {
+    context.stderr.write(
+      '  Nothing to capture.\n  Usage:  conductor inbox add "the thought"\n          conductor inbox list\n'
+    );
+    return 1;
+  }
+
+  try {
+    const { relPath, created } = await captureInbox(context.cwd, text);
+    context.stdout.write(
+      `  ✅ ${created ? "Created " : ""}${relPath} · ${text.length > 60 ? `${text.slice(0, 59)}…` : text}\n`
+    );
+    return 0;
+  } catch (err) {
+    context.stderr.write(`  Could not write the inbox: ${err.message}\n`);
+    return 1;
+  }
+}

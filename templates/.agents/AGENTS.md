@@ -42,12 +42,13 @@ Classify what the user needs before acting:
 | "Loop", "Unattended", "Autonomous", "Loop-ready" | `workflows/unattended-loop.md` |
 | "CTO mode", "Architect mode", "PM mode", etc. | matching persona in `personas/` |
 | "How does this framework work?" | `personas/conductor-assistant.md` |
-| **"Inbox: X", "Add to inbox: X"** | **Append `X` verbatim to `conductor/1-workbench/inbox.md`. No workflow, no clarifying questions — confirm in one line and stop.** |
-| **"Scratchpad: X"** | **Append `X` verbatim to `conductor/1-workbench/scratchpad.md`. Same no-workflow, one-line-confirm rule.** |
+| **"Inbox: X", "Add to inbox: X"** | **`conductor inbox add "X"`, else append `X` verbatim to `conductor/1-workbench/inbox.md`. One-line confirm, stop.** |
+| **"Scratchpad: X"** | **Append `X` verbatim to `conductor/1-workbench/scratchpad.md`. Same rule.** |
+| **"What's on our plate", "status"** | **`conductor status`; show its output verbatim.** |
 | Small fix, bug, quick task (already well-scoped) | Add to `conductor/2-backlog/task-backlog.md` |
 | Not sure? | Default to `workflows/genesis.md` — it will help find the right scope |
 
-Inbox/Scratchpad capture exists because some platforms (Claude Code, Antigravity 2.0) have no file browser — chat is the only way the human can reach `conductor/1-workbench/` at all. Don't triage, judge, or improve the wording — that defeats the point of a zero-friction capture path. Triage happens later, when the human or agent processes the inbox on purpose.
+Capture and status are zero-judgment: no workflow, no questions, no rewording. Claude Code and Antigravity 2.0 have no file browser, so chat and the CLI are the human's only way into `conductor/`. Prefer the `conductor` commands: deterministic. Triage later, on purpose. Rendered docs: `conductor view --open`.
 
 Full classifier (with the "not sure what you need" decision guide) and everything else — folder purposes, workflow/skill/persona registries, adoption levels — lives in **`.agents/how-it-works.md`**. Read it when this table isn't enough.
 

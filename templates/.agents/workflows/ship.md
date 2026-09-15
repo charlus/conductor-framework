@@ -129,7 +129,7 @@ Route its model tier by stakes (`skills/model-routing/SKILL.md`).
 
 ### 4.3 — Read the verdict
 
-The reviewer returns findings (each with `file:line`, a quoted line, a confidence, and a class) and one line: `VERDICT: APPROVE` or `VERDICT: CHANGES REQUESTED`. **APPROVE means zero blockers** — IMPORTANT and NIT findings do not withhold it.
+The reviewer returns findings (each with `file:line`, a quoted line, a confidence, and a class) and one line: `VERDICT: APPROVE` or `VERDICT: CHANGES REQUESTED`. **APPROVE means zero blockers** — IMPORTANT and NIT findings do not withhold it. The report opens with `SCOPE: complete` or `SCOPE: partial — <gap>`; partial coverage never carries APPROVE. Output with no `VERDICT:` line (empty, truncated, refused, or an API failure) is not a round: re-spawn once, and if that also returns no verdict, stop and tell the human the gate did not run — never proceed as if it passed (`skills/independent-review/SKILL.md` §3b).
 
 The reviewer **only reports**. It does not push, merge, or edit code. Verification stays with you (`.agents/rules/verification-iron-law.md`) — a subagent's "it's fine" is never the proof.
 

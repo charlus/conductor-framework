@@ -47,6 +47,14 @@ Per the Grilling primitive (`.agents/skills/grilling/SKILL.md`), ask these one a
 2.  **"What was harder than expected?"** — Where did the plan not match reality?
 3.  **"What surprised us?"** — Unexpected issues, dependencies, or discoveries?
 4.  **"What would we do differently?"** — Process improvements for next time?
+5.  **"Where did the harness get in the way?"** — The four questions above are about the work. This one is about the environment the agent worked in, and it is the only question whose answer can change the framework. Read the evidence gathered in Phase 1 for each category, then propose before asking:
+    * **Missing guardrail** — something an agent did that a hook, test or CI check should have blocked, and did not.
+    * **Navigation pointer** — something the agent could not find, or found late, because nothing pointed at it.
+    * **Tool economy** — a manual step, repeated by a human or an agent, that could be a command.
+    * **No-op instruction** — a rule that was read and ignored, or read and did nothing.
+    * **Information access** — knowledge that lived in someone's head or a chat and was not written down where the next reader looks.
+
+    A **mechanical** standard (a naming rule, a required file, an ordering) becomes a hook, a lint or a CI check — never another paragraph an agent can skip. A **judgement** standard goes to the relevant workflow, skill or rubric. Either way, write the answer on the ship-log entry's `Framework lesson:` line (Ship Phase 5), which is the one place framework maintenance reads.
 
 For each answer, capture a concrete lesson — not vague feelings.
 

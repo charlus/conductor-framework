@@ -31,7 +31,9 @@ Run this gate **once, when a consequential artifact is complete and about to be 
 - **`skills/independent-review/calibration.md`** — when the artifact is consequential (a shippable diff, a loop beat). Skip for a cheap pass.
 - **The definition of done + the artifact.** The acceptance criteria (or `goal_description` for a loop beat) plus the review lens below, and the artifact itself — the specific file(s), or `git diff <merge-base>...HEAD` for a diff. Not the whole repo.
 
-**3. It returns findings and one verdict line.** `APPROVE` when there are zero blockers; otherwise `CHANGES REQUESTED`. A BLOCKER carries a quoted line and confidence ≥ 7, per the brief.
+**3. It returns findings and one verdict line.** `APPROVE` when there are zero blockers; otherwise `CHANGES REQUESTED`. A BLOCKER carries a quoted line and confidence ≥ 7, per the brief. The report opens with `SCOPE: complete` or `SCOPE: partial — <gap>`.
+
+**3b. A review that did not happen is not a round.** Output with no `VERDICT:` line — empty, truncated, a refusal, a tool or API failure — means the reviewer never reached a verdict. Re-spawn **once**. If the second run also returns no verdict, stop and tell the human the gate did not run, with the raw output. Never proceed as if it passed, and never count the failed spawn against the delta-round cap: the cap counts verdicts. `SCOPE: partial` together with `APPROVE` is self-contradicting; read it as `CHANGES REQUESTED` and either re-spawn on the unexamined part or record that part as unreviewed where the merger sees it. The autonomous loop enforces the same rule in code (`src/loop/checker.js` fails safe on a missing or malformed verdict); this is the interactive path's copy.
 
 **4. It only reports.** The reviewer does not save, merge, push, or edit — the accountable agent fixes and re-verifies (`.agents/rules/verification-iron-law.md`). A subagent's "it's fine" is never the proof.
 

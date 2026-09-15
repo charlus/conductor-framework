@@ -80,6 +80,14 @@ Find the root cause, not just symptoms.
 - [ ] (If no seam existed) architectural finding recorded
 ```
 
+## Redact Before You Show
+
+Debugging prints things: commands with their arguments, environment dumps, request and response bodies, logs, database rows, captured artefacts saved for the fix. Any of them can carry a secret, and in the autonomous loop nobody is watching the transcript.
+
+- **Redact before it leaves your context**, in the command you show, the output you quote, and the artefact you save: API tokens and keys, passwords, session cookies and auth headers, connection strings (`DATABASE_URL`, DSNs with credentials), private URLs with embedded tokens. Replace the value with `<REDACTED>`; keep the key name so the reader still understands the shape.
+- **Never paste a `.env` file** or the output of `env` / `printenv`. Name the variable you need and its presence or absence, not its value.
+- **If a secret has already been shown**, say so immediately and treat it as leaked: it goes in the handoff or the PR body as a rotation item, not silently onward. A secret seen once in a transcript is a secret in a log somewhere.
+
 ## Debugging Checklist
 
 ```markdown
@@ -89,6 +97,7 @@ Find the root cause, not just symptoms.
 - [ ] Understand expected behavior
 
 ## During Investigation
+- [ ] Redact tokens, keys, passwords, cookies, connection strings before showing or saving anything
 - [ ] Check recent changes (git log)
 - [ ] Check logs for errors
 - [ ] Add logging if needed

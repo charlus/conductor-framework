@@ -14,17 +14,22 @@ A chronological record of everything you've shipped. Your victory log.
 
 ## How to Use
 
-After shipping something, add a row:
+The Ship workflow appends one entry per shipment, newest last, **before** it creates the MR. The last three lines are the minimal retrospective: one line each, from what actually happened. `none` is an honest answer. An invented lesson is worse than none.
 
-| Date | Release Name | Type | Impact |
-|------|--------------|------|--------|
-| 2024-01-15 | Auth v1 | Feat | Users can now sign in |
-| 2024-01-18 | Login fix | Fix | Resolved mobile timeout |
+```markdown
+## [Date] — [Implementation Name]
+- **What:** [One sentence summary]
+- **Quality:** [tests added, independent review verdict]
+- **Platform:** [MR/PR link]
+- **Surprised:** [What did not match the spec, the docs, or the assumption we built on]
+- **Next time:** [What we would do differently, or `none`]
+- **Framework lesson:** [What Conductor's workflows, skills or hooks should change, or `none`]
+```
+
+`grep -h "Framework lesson" conductor/0-compass/ship-log.md` lists everything this project has to teach the framework. The full Retrospective workflow is still there for a project-level look back; this entry is the floor, not the ceiling.
 
 ---
 
 ## Your Ship Log
 
-| Date | Release Name | Type | Impact |
-|------|--------------|------|--------|
-| | | | |
+(Entries are appended below by the Ship workflow.)

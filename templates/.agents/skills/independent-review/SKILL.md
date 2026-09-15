@@ -48,7 +48,7 @@ Freeze a baseline before the first cycle: the original request, the artifact's i
 
 **No follow-up backlog from review.** A proven in-scope defect is fixed in this cycle or written into the PR body. Deferral lists rot and are never acted on — recording a gap where the merger reads it is honest; filing it into a backlog nobody re-reads is not.
 
-**Dismissing a finding is a valid outcome.** For each one you decide *"deliberate trade-off → dismiss with a one-line reason"* or *"I only told myself it was deliberate — the reviewer is right."* Record the disposition either way (E2's `conductor/1-workbench/review-log.jsonl` when present): a class dismissed most of the time is a rubric defect to fix in `calibration.md`, not an author defect.
+**Dismissing a finding is a valid outcome.** For each one you decide *"deliberate trade-off → dismiss with a one-line reason"* or *"I only told myself it was deliberate — the reviewer is right."* Record the disposition either way with `conductor review-log append '{…}'` — one line per finding into `conductor/1-workbench/review-log.jsonl` (Ship 4.4 shows the record): a class dismissed most of the time is a rubric defect to fix in `calibration.md`, not an author defect.
 
 ## The delta round — capped at one
 

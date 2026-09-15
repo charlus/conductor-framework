@@ -14,6 +14,13 @@
 > model overlays; the context bill's sibling-file blind spot.
 > **Not yet known:** whether E1 actually shortened the loop — that needs E2's ledger over ~10
 > real ships. Every claim below is either measured and cited, or labelled as a prediction.
+>
+> **2026-09-15 follow-up:** the ledger had zero rows in all five live projects because no
+> template ever told the agent to append to it — only `calibration.md` mentioned the file, as a
+> reader. Ship 4.4 and the review skill now name `conductor review-log append` per disposition
+> (`test/review-ledger-wiring.test.js`). The ~10-ship measurement starts from the next ship, not
+> from E1's landing date. Same day, the post-E1 fix history was read as a proxy: one "address the
+> gate" commit per slice, consistent with the one capped delta round E1 designed.
 
 ---
 

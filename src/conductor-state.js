@@ -19,6 +19,8 @@
 
 import { readFile, readdir, stat, writeFile, mkdir } from "node:fs/promises";
 import { join, dirname, basename, sep } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { harvestWorkQueue, parseInbox } from "./loop/harvester.js";
 import {
   renderMarkdown,
@@ -33,6 +35,8 @@ export const VIEWS_REL = "conductor/.views";
 export const INBOX_REL = "conductor/1-workbench/inbox.md";
 export const BACKLOG_REL = "conductor/2-backlog/task-backlog.md";
 export const LOOP_STATE_REL = "conductor/1-workbench/loop-state.json";
+export const SHIP_LOG_REL = "conductor/0-compass/ship-log.md";
+export const CONFIG_REL = "conductor.config.json";
 
 /** The lifecycle, in order. This is the nav, so the folder tree is never browsed. */
 export const SECTIONS = Object.freeze([
@@ -147,6 +151,35 @@ export function computeStale(docs, { now = Date.now(), days = 30 } = {}) {
 }
 
 /**
+ * Summarise the ship-log: how many dated entries, the LATEST date, its age.
+ *
+ * WHY. Measured 2026-09-15: every live project's ship-log had stopped in July
+ * while merges kept landing (103 in one project). The gap was found by hand —
+ * last `## YYYY-MM-DD` heading against `git log --merges --since` — and nobody
+ * runs that by hand twice. So the number lives in the digest and on the status
+ * screen, where the daily question is asked.
+ *
+ * Only `## YYYY-MM-DD …` headings count, which is the shape the Ship workflow
+ * writes. The old template's pipe-table preamble and the waiver lines the hooks
+ * append (`- ⚠️ 2026-08-02T… TDD waived`) are not entries. Entries need not be
+ * in order — one live log had 07-15 listed after 07-16 — so the latest date is
+ * a max, not the last match. Absence is `null`, never a fake zero.
+ *
+ * @param {string|undefined} md
+ * @param {{now?: number}} [opts]
+ * @returns {{entries: number, lastDate: string|null, ageDays: number|null}}
+ */
+export function summariseShipLog(md, { now = Date.now() } = {}) {
+  const text = String(md ?? "");
+  const dates = [...text.matchAll(/^## (\d{4}-\d{2}-\d{2})\b/gm)].map((m) => m[1]);
+  if (!dates.length) return { entries: 0, lastDate: null, ageDays: null };
+  const lastDate = dates.reduce((a, b) => (b > a ? b : a));
+  const [y, mo, d] = lastDate.split("-").map(Number);
+  const ageDays = Math.max(0, Math.floor((now - Date.UTC(y, mo - 1, d)) / DAY_MS));
+  return { entries: dates.length, lastDate, ageDays };
+}
+
+/**
  * Build the state object every surface renders from. Pure: give it the file
  * contents and it gives you the digest, the queue, the sections and the
  * rendered documents.
@@ -158,6 +191,9 @@ export function computeStale(docs, { now = Date.now(), days = 30 } = {}) {
  * @param {string} [input.backlogMd]
  * @param {object|null} [input.loopState]
  * @param {Array<{relPath:string, raw:string, mtimeMs:number}>} input.docs
+ * @param {string} [input.shipLogMd]
+ * @param {number|null} [input.mergesSinceShipLog] merges in THIS repo since the last entry; null = unknown
+ * @param {string|null} [input.verifyCommand] what pre-push will run; null/blank = the gate is off
  * @param {number} [input.now]
  * @param {number} [input.staleDays]
  */
@@ -168,6 +204,9 @@ export function buildState({
   backlogMd = "",
   loopState = null,
   docs = [],
+  shipLogMd = "",
+  mergesSinceShipLog = null,
+  verifyCommand = null,
   now = Date.now(),
   staleDays = 30,
 }) {
@@ -240,6 +279,14 @@ export function buildState({
       staleCount: stale.length,
       queueLength: queue.length,
       loop: loopState,
+      shipLog: {
+        ...summariseShipLog(shipLogMd, { now }),
+        mergesSince: Number.isFinite(mergesSinceShipLog) ? mergesSinceShipLog : null,
+      },
+      verify: (() => {
+        const cmd = typeof verifyCommand === "string" ? verifyCommand.trim() : "";
+        return { configured: cmd.length > 0, command: cmd || null };
+      })(),
     },
     inbox: { relPath: INBOX_REL, items: inboxItems },
     backlog: { relPath: BACKLOG_REL, ...backlog },
@@ -353,6 +400,47 @@ async function readIfPresent(path) {
   }
 }
 
+const execFileP = promisify(execFile);
+
+/** The verify command pre-push will run, or null. Same priority as lib.sh. */
+function resolveVerifyCommand(configRaw, pkgRaw) {
+  try {
+    const cfg = configRaw ? JSON.parse(configRaw) : null;
+    const v = typeof cfg?.verify === "string" ? cfg.verify.trim() : "";
+    if (v) return v;
+  } catch {
+    /* unreadable config → fall through to the package.json fallback */
+  }
+  try {
+    const pkg = pkgRaw ? JSON.parse(pkgRaw) : null;
+    if (pkg?.scripts?.test) return "npm test";
+  } catch {
+    /* unreadable package.json → no command */
+  }
+  return null;
+}
+
+/**
+ * Merges on the current branch of the repo at `root` since `date` (YYYY-MM-DD).
+ * Counted in THE REPO STATUS IS RUN IN and labelled as such by the renderer:
+ * a state-only wrapper repo reports its own merges, honestly, not the code's.
+ * `null` outside a git work tree or on any git error — never a fake zero.
+ */
+async function countMergesSince(root, date) {
+  try {
+    const { stdout: inside } = await execFileP("git", ["rev-parse", "--is-inside-work-tree"], { cwd: root });
+    if (inside.trim() !== "true") return null;
+    const { stdout } = await execFileP(
+      "git",
+      ["log", "--merges", `--since=${date}T00:00:00Z`, "--format=%H"],
+      { cwd: root, maxBuffer: 8 * 1024 * 1024 },
+    );
+    return stdout.split("\n").filter(Boolean).length;
+  } catch {
+    return null;
+  }
+}
+
 /** Every markdown file under `conductor/`, excluding the derived views. */
 async function walkDocs(root) {
   const base = join(root, CONDUCTOR_DIR);
@@ -392,11 +480,22 @@ async function walkDocs(root) {
  * useful message instead of an empty dashboard.
  */
 export async function collectState(root, { now = Date.now(), staleDays = 30 } = {}) {
-  const [inboxMd, backlogMd, loopRaw] = await Promise.all([
+  const [inboxMd, backlogMd, loopRaw, shipLogMd, configRaw, pkgRaw] = await Promise.all([
     readIfPresent(join(root, INBOX_REL)),
     readIfPresent(join(root, BACKLOG_REL)),
     readIfPresent(join(root, LOOP_STATE_REL)),
+    readIfPresent(join(root, SHIP_LOG_REL)),
+    readIfPresent(join(root, CONFIG_REL)),
+    readIfPresent(join(root, "package.json")),
   ]);
+
+  // What pre-push will actually run: `verify` from the config, else the hook's
+  // own fallback (`npm test` when package.json has a test script). Mirrors
+  // `hooks/lib.sh conductor_verify_cmd` so status and the gate never disagree.
+  const verifyCommand = resolveVerifyCommand(configRaw, pkgRaw);
+
+  const shipLog = summariseShipLog(shipLogMd, { now });
+  const mergesSinceShipLog = shipLog.lastDate ? await countMergesSince(root, shipLog.lastDate) : null;
 
   let loopState = null;
   if (loopRaw) {
@@ -419,6 +518,9 @@ export async function collectState(root, { now = Date.now(), staleDays = 30 } = 
       backlogMd: backlogMd ?? "",
       loopState,
       docs,
+      shipLogMd: shipLogMd ?? "",
+      mergesSinceShipLog,
+      verifyCommand,
       now,
       staleDays,
     }),

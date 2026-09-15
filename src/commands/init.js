@@ -10,6 +10,7 @@ import { selectiveCopy, syncSelections, readSelections } from "../selective-copy
 import { generateClaudeCommands } from "../claude-commands.js";
 import { installHooksCommand } from "./install-hooks.js";
 import { writeVersionStamp, packageVersion } from "../version.js";
+import { ensureVerifyCommand } from "../verify-config.js";
 
 function getTemplateDir() {
   return fileURLToPath(new URL("../../templates", import.meta.url));
@@ -185,6 +186,10 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
         }
       }
 
+      // The push gate needs a command to run (Verification Iron Law). Derive it
+      // from the project's files, or warn in words that name the fix.
+      await ensureVerifyCommand(targetDir, stdout);
+
       stdout.write(`\n🎼 Conductor Framework v${packageVersion()} initialized!\n`);
 
       // Deterministic enforcement (ADR-0001 D1): wire git hooks when in a repo.
@@ -203,7 +208,7 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
 
       stdout.write(
         "\nNext steps:\n" +
-          "  1. Update conductor.config.json with your registry URL\n" +
+          "  1. Check conductor.config.json: registry URL, and the \"verify\" command the push gate runs\n" +
           "  2. Run the self-test:  bash .agents/tests/check-conductor.sh\n" +
           '  3. Start building:     Tell your AI "Let\'s go"\n' +
           "\nRun the autonomous loop (no git clone needed):\n" +

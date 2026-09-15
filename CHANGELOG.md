@@ -6,6 +6,54 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Ship writes the log before it creates the MR, and the entry carries a minimal retrospective
+
+Measured on 2026-09-15 across the maintainer's four live projects: the last ship-log entries were dated 2026-07-16, 07-31 and 07-31, while 103, 8 and 18 merges landed on main after them, and retrospectives existed for 12 of 47 logged ships. The cause was the workflow's order, not the agent's diligence: the MR was created in Phase 5 and the ship-log, product-area update and archive move sat in Phase 6, after the visible deliverable, with the Retrospective an optional Next Step. An agent treats the MR as the finish line and stops.
+
+- **Phases 5 and 6 are swapped.** `Conductor Bookkeeping` (ship-log entry, product area, archive) is now Phase 5 and a precondition of `Git Flow & Platform Integration`. The only bookkeeping left after the MR is writing its URL back into the entry, because the URL cannot exist before it. The completion checklist follows the same order.
+- **The ship-log entry gains three lines:** `Surprised`, `Next time`, `Framework lesson`. One line each, from what actually happened, with `none` licensed explicitly so nothing is invented. A ship with no separate Retrospective still leaves a lesson behind, and `grep "Framework lesson"` across every project's ship-log is the route by which project lessons reach this repo — four retrospectives had asked for a Carve/Spec-It change that never landed because there was no such route.
+- **`templates/conductor/0-compass/ship-log.md`** now documents the same entry format the workflow writes. It used to prescribe a pipe table that no project used and that contradicted `ship.md`.
+- **`test/ship-tail.test.js`** pins the order (phases and checklist) and the fields. Structural on prose, and says so: whether the logs resume is measured the way the gap was found, by diffing the last entry date against merges on main.
+- `workflows/ship.md` grew 14,449 → 15,699 bytes for the three fields and the Phase 6 write-back step; the eager ceiling is re-captured in the same commit.
+
+### Added — Spec-It probes the live system before the spec exists (O4)
+
+Four retrospectives across two projects, 2026-03-13 to 2026-07-24, asked for the same step and none reached the framework: an API type code trusted from its label, a new ID format that missed three sibling endpoints, consumers authenticating differently than assumed while CI silently skipped the whole unit suite, and a source mapping that "was wrong and survived about 4 months in the specs". Carve and Spec-It had no step that turns a belief about the outside world into a fact.
+
+- **`workflows/spec-it.md` Phase 0 step 3, "Probe the live system"**: before Phase 1 writes the Feature Spec, name every external dependency (API contracts and their real codes, the auth path real consumers use, the CI command and what it skips, the test harness, the schema fields and endpoints assumed to exist) and check each read-only against the live system or its config.
+- **`5-templates/carve-workflow/feature-spec.md`** gains an **External Assumptions** section with `Verified:` (how) and `Assumed:` (what would prove it) lines, so a reader can tell a checked fact from a guess. A spec with neither is a guess dressed as a plan.
+- **`workflows/carve.md` Phase 3** cross-check asks whether the entities, fields and endpoints a slice relies on exist **today**, read from the source system, not the blueprint.
+- **`workflows/retrospective.md`** Process Updates no longer ends in "note it for future framework updates", which had no destination. It routes to the ship-log's `Framework lesson:` line.
+- `test/spec-probe.test.js` pins the step's position, the four assumption classes, the two markers, and the retro route.
+
+### Added — `conductor status` shows the ship-log's age and the push gate's state (O5)
+
+The two-month ship-log gap was found by hand, diffing the last dated heading against `git log --merges`. Nobody does that twice, and `status` exists so the daily question costs zero tokens.
+
+- **`digest.shipLog`** `{entries, lastDate, ageDays, mergesSince}` from `summariseShipLog` — only `## YYYY-MM-DD` headings count (the shape Ship writes), the latest date is a max because one live log listed 07-15 after 07-16, and absence is `null`, never a fake zero. Merges are counted in **the repo status is run in** and the line says so: a state-only wrapper repo reports its own merges, honestly, and the framework does not model the maintainer's layouts.
+- **`digest.verify`** `{configured, command}` — what `pre-push` will actually run, resolved with the same priority as `hooks/lib.sh` (`verify` in config, else `npm test` when `package.json` has a test script), so status and the gate never disagree.
+- Two new lines on the screen: `Ship-log  2026-07-31 · 46d ago · 20 merges in this repo since` (red when merges landed unlogged) and `Push gate NOT CONFIGURED: set "verify" in conductor.config.json (Iron Law off on push)`. Verified live against four projects, read-only.
+- `test/ship-log-status.test.js`: 14 tests, fixture in the real log shape (table preamble, out-of-order entries, hook-appended waiver line) and a real temp git repo with dated merges.
+
+### Added — the push gate is configured, or loud about not being (O6)
+
+Measured 2026-09-15: `conductor.config.json` carried a `verify` command in **one** of five live projects. Everywhere else `pre-push` printed "Skipping verify." and the Verification Iron Law was not running. The maintainer's reaction to the sibling eval message: "What should I do I don't understand".
+
+- **`suggestVerifyCommand(dir)`** in `src/detect.js` derives the command from the files present: `package.json` test script → `npm test` (lib.sh's own fallback, first so CLI and hook agree); `backend/` + `frontend/` test scripts → both, chained; pytest in `requirements*.txt`/`pyproject.toml`/`pytest.ini`/`conftest.py` → `poetry run pytest -q` under `[tool.poetry]`, `.venv/bin/python -m pytest -q` when a `.venv` exists, else `python -m pytest -q`; `go.mod` → `go test ./...`; `Cargo.toml` → `cargo test`. Nothing else is guessed: no match is `""`.
+- **`src/verify-config.js` `ensureVerifyCommand`**, called by **`init`** and **`upgrade`**: fills an empty `verify` when derivable and says so; never overwrites a set one; otherwise prints a warning that names the key, the file, two example values, and that pushes go through untested until it is set.
+- **`hooks/pre-push`** no-verify and no-eval messages now say the law is **NOT enforced** on this push and show the exact JSON to add, instead of "Skipping verify."
+- `test/verify-config.test.js`: 14 tests on real temp-dir files — suggester rules, init writing/warning/leaving-alone, upgrade warning, and the hook message asserted on what the shell prints.
+
+### Changed — Ship writes the review ledger it was built to read (O7)
+
+E2 shipped `conductor review-log append|summary` on 2026-09-03 so the gate's convergence could be a number. Measured 2026-09-15: zero rows in all five live projects, because `templates/` never told the agent to append — only `calibration.md` mentioned the file, as a reader.
+
+- **`workflows/ship.md` 4.4** records every disposition, dismissed ones included, with the exact `conductor review-log append '{…}'` record the CLI validates (severity, category, action; quote + confidence ≥ 7 for a BLOCKER), and says what `review-log summary` reports back.
+- **`skills/independent-review/SKILL.md`** disposition rule names the same command.
+- `test/review-ledger-wiring.test.js` pins both.
+
+Eager ceilings re-captured in the same commit: `ship.md` 16,487, `spec-it.md` 6,962, `carve.md` 10,466, `retrospective.md` 4,475, `skills/independent-review` 10,591 bytes.
+
 ### Fixed — the rendered view broke on a real backlog
 
 Four separate renderer failures, all found by pointing `conductor view` at a production `task-backlog.md` rather than the tidy fixtures the suite used. Every one of them passed the existing tests.

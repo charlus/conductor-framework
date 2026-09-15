@@ -70,6 +70,16 @@ Two display changes came out of the same screenshots:
 
 `conductor status` had the same raw-marker problem and gained `stripInlineMarkdown` — a title-safe strip, distinct from the search index's aggressive `plainText`.
 
+### Changed — three imports from the 2026-09-15 upstream re-scan, each tied to a recorded problem
+
+Seven upstreams were re-scanned (Test in Prod, obra/superpowers, AG Kit, Antigravity Superpowers, Pocock's skills, gstack, agentctl) with one filter: import only what answers a problem recorded in the maintainer's own projects. Three passed. Rejected with reasons in the scan: Superpowers' fix-loop escalation (E1's one capped round is accepted), AG Kit's lock file (the drift gate covers it), rollback and a PreToolUse shell hook (no recorded incident), and Pocock's round-by-round grilling (the maintainer prefers one question at a time; the Q1/F1 reference codes already make multi-answer replies easy).
+
+- **C1 — a review that did not happen can never read as a pass** (`skills/independent-review/reviewer.md`, `SKILL.md` §3b, `workflows/ship.md` 4.3). Evidence: autopportunity's ship-verification note of 2026-08-05, where the delta reviewer was killed by four consecutive API 529 errors and a fifth run passed "with a deliberately minimised scope". The reviewer's report now opens with `SCOPE: complete` or `SCOPE: partial — <gap>`, and partial never carries APPROVE. The caller treats output with no `VERDICT:` line — empty, truncated, refused, API failure — as a round that did not happen: re-spawn once, then stop and say the gate did not run, never proceed as if it passed, and never count the failed spawn against the delta cap. The loop's checker already did this in code; this is the interactive path's copy. From gstack 1.86/1.87. `test/review-completion.test.js`.
+- **C2 — the retrospective asks where the harness got in the way** (`workflows/retrospective.md` Phase 2, question 5). Evidence: twelve retros across four projects produced zero framework changes although four named a workflow gap; no question asked about the environment. Five categories — missing guardrail, navigation pointer, tool economy, no-op instruction, information access — and the rule that a mechanical standard becomes a hook, lint or CI check, never a paragraph, with the answer routed to the ship-log's `Framework lesson:` line. Categories from Pocock's in-progress `retro` skill; the mechanical-to-code rule is Operating Truth 3. `test/retro-harness-lens.test.js`.
+- **C3 — debugging output is redacted before it is shown or saved** (`skills/systematic-debugging/SKILL.md`, new "Redact Before You Show" section plus a checklist item). Evidence: the maintainer's own turn of 2026-09-08, "the key was in clear for you and me". The handoff skill had the rule; the skill that actually prints commands, env dumps and logs did not. Names the secret classes, the `<REDACTED>` marker, the never-paste-`.env` rule, and that a secret already shown is treated as leaked. From Pocock's `diagnosing-bugs` Redact section. `test/debugging-redaction.test.js`.
+
+Eager ceilings re-captured in the same commit for the grown files.
+
 ---
 
 ## [6.3.0] — 2026-09-08 — Review Convergence, Evidence Freshness, Untrusted-Input Hardening & Terminal-First Surfaces

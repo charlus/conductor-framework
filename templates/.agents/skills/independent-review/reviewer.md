@@ -35,6 +35,13 @@ Write findings in this shape, most severe first:
 
 Then one line: `VERDICT: APPROVE` or `VERDICT: CHANGES REQUESTED`.
 
+**Open the report with your coverage**, before any finding: `SCOPE: complete`, or
+`SCOPE: partial — <what you could not examine and why>` (a truncated diff, a file you
+could not read, a tool that failed, a brief you did not receive). A partial review
+never carries APPROVE: what you did not examine is unreviewed, and the verdict is
+`CHANGES REQUESTED` with the gap named. Say what you did not see rather than
+approving what you did.
+
 **The verdict is APPROVE when there are zero blockers.** IMPORTANT and NIT findings
 do not withhold it — they are handed to the author as fix-or-record, and the change
 ships either way.

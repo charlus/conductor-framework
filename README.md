@@ -314,15 +314,29 @@ bash .agents/tests/check-conductor.sh
 
 ## Credits & Acknowledgments
 
-Conductor was built by standing on the shoulders of giants. This framework incorporates ideas, patterns, and direct inspiration from:
+Conductor was built by standing on the shoulders of giants. Each entry names what we took, so the credit is checkable. Re-audited 2026-09-15.
 
-- **[Conductor Framework](https://www.testinprod.co/)** by Test in Prod — The original framework that started it all. Conductor is an evolution of their pioneering ASE methodology.
+**Frameworks whose mechanisms Conductor inherited or adapted**
 
-- **[Antigravity Kit](https://github.com/vudovn/antigravity-kit)** by vudovn — A comprehensive skill library (36 skills, 18 agents, 10 workflows) that contributed engineering skills, design patterns, and the multi-file skill architecture.
+- **[Conductor Framework V2](https://www.testinprod.co/)** by Test in Prod (Eric Before) — The folder-based product-planning system whose workflow names (Genesis, Storyboard, Grand PRD, Technical Vision, Carve, Spec-It, Agentic-Flow), personas, and numbered-folder layout Conductor inherited. Distributed as an email-gated zip; no public repository.
 
-- **[Antigravity Superpowers](https://github.com/skainguyen1412/antigravity-superpowers)** by skainguyen1412 — Contributed the self-test infrastructure, the npx install pattern, and rich debugging sub-docs.
+- **[Superpowers](https://github.com/obra/superpowers)** by Jesse Vincent, now maintained under Prime Radiant (MIT) — Systematic debugging and its sub-docs (root-cause tracing, defence in depth, condition-based waiting, `find-polluter`), test-driven development, verification before completion, subagent-driven development, git worktrees, and the brainstorm → plan → execute shape. Its eval suite is the one upstream that measures its own effect.
 
-- **[Superpowers](https://github.com/obra/superpowers)** by obra — The original inspiration for Antigravity Superpowers and many AI agent patterns in the ecosystem.
+- **[AG Kit](https://github.com/vudovn/antigravity-kit)** (formerly Antigravity Kit) by vudovn (MIT) — Engineering skills, design patterns, and the multi-file skill architecture. Now 47 skills, 20 agents, 13 workflows.
+
+- **[Antigravity Superpowers](https://github.com/skainguyen1412/antigravity-superpowers)** by skainguyen1412 — The self-test infrastructure (`check-conductor.sh` is adapted from `check-antigravity-profile.sh`) and the `npx` install pattern.
+
+- **[Skills for Real Engineers](https://github.com/mattpocock/skills)** by Matt Pocock (MIT) — The `grilling` interview primitive, synthesise-then-fill-gaps spec drafting (`to-spec`), TDD seams and anti-pattern tells, the Fowler smell baseline in code review, red-command-first debugging, the deep-module deletion test and ADR gate, merge-conflict discipline, and the `handoff` skill. What we took and where we deliberately differ: [`docs/roadmap/Pocock-Alignment-Backlog.md`](docs/roadmap/Pocock-Alignment-Backlog.md).
+
+- **[gstack](https://github.com/garrytan/gstack)** by Garry Tan (MIT) — The descriptions-suite routing eval with the routing table removed from the fixture, the working-tree content fingerprint and evidence ledger technique (`src/evidence/wtree.js` reimplements `gstack-wtree` in JavaScript), the context-bill ratchet, the review log, and confidence-gated review findings. We diverged on byte ceilings, a drift gate instead of a generator, and host neutrality: [`docs/roadmap/Review-Convergence-And-Harness-Alignment.md`](docs/roadmap/Review-Convergence-And-Harness-Alignment.md).
+
+- **agentctl** (Euranova internal agent orchestrator, private) — The diagnosis that review loops fail to converge when the reviewer's question is unbounded, the finding that round count tracks the size of the instruction corpus, and the architecture-checklist idea. We diverged on self-improvement: Conductor proposes rules, it never auto-appends them.
+
+- **The Ralph loop** by Geoff Huntley — `while :; do cat PROMPT.md | agent; done`, the pattern `conductor loop` hardens with a Maker/Checker split, worktree isolation, a PR-gated merge, and fail-safe verdicts.
+
+**Reading that shaped the design**
+
+- Martin Fowler, [Harness engineering](https://martinfowler.com/articles/harness-engineering.html), and the code-smell catalogue from *Refactoring*.
 
 We believe in building on each other's work. If you find value in Conductor, consider contributing back.
 

@@ -3,6 +3,10 @@
 // The working-tree CONTENT fingerprint (E2) — a git tree hash of the tree as it
 // is right now, staged or not, committed or not.
 //
+// SOURCE. The technique — hash the working tree's CONTENT, staged or not — is
+// gstack's `bin/gstack-wtree` (Garry Tan, MIT), reimplemented here in JavaScript
+// with the same three-property argument. Credited in README.md.
+//
 // WHY THIS SHAPE. Conductor's Evidence Rule verifies an exit code and then
 // trusts that result forever, because nothing can tell whether the code under
 // test still matches the code that WAS tested. A fingerprint fixes that, but

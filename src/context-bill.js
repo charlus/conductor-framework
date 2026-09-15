@@ -3,6 +3,10 @@
 // The context bill-of-materials (E2) — what Conductor actually costs an agent
 // before it has read a single line of the user's code.
 //
+// SOURCE. The idea of billing the framework's own context, and of a ratchet
+// that fails CI on growth, is gstack's `lib/context-bill.ts` (Garry Tan, MIT).
+// Our ceilings are bytes, theirs tokens; see README.md credits.
+//
 // WHY. Progressive Disclosure is one of Conductor's founding design decisions,
 // and until now it was a paragraph in AGENTS.md. Nothing measured it, so nothing
 // stopped it eroding: `templates/` is ~500 KB of markdown and any of it could

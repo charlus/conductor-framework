@@ -77,6 +77,30 @@ function loopLine(loop) {
 }
 
 /**
+ * One line for the ship-log. The merge count is labelled "in this repo" on
+ * purpose: status may be run in a state-only wrapper repo whose merges are not
+ * the code's, and an unlabelled number there would mislead.
+ */
+function shipLogLine(shipLog, c) {
+  if (!shipLog || !shipLog.lastDate) return c("no dated entry yet", "dim");
+  const parts = [shipLog.lastDate, `${shipLog.ageDays}d ago`];
+  let style = shipLog.ageDays >= 30 ? "yellow" : null;
+  if (Number.isFinite(shipLog.mergesSince)) {
+    const n = shipLog.mergesSince;
+    parts.push(`${n} merge${n === 1 ? "" : "s"} in this repo since`);
+    if (n > 0) style = "red";
+  }
+  const text = parts.join(" · ");
+  return style ? c(text, style) : text;
+}
+
+/** One line for the push gate: the command pre-push will run, or a loud gap. */
+function verifyLine(verify, c) {
+  if (verify?.configured) return verify.command;
+  return c('NOT CONFIGURED: set "verify" in conductor.config.json (Iron Law off on push)', "red");
+}
+
+/**
  * Render the digest.
  *
  * @param {object} state from buildState
@@ -109,6 +133,8 @@ export function renderStatus(state, { color = true, width = 78 } = {}) {
       `${stat("P2", p.P2 ?? 0, p.P2 ? "yellow" : null)}   ${stat("P3", p.P3 ?? 0)}`
   );
   lines.push(`  ${c("Loop".padEnd(9), "dim")}${loopLine(d.loop)}`);
+  lines.push(`  ${c("Ship-log".padEnd(10), "dim")}${shipLogLine(d.shipLog, c)}`);
+  lines.push(`  ${c("Push gate".padEnd(10), "dim")}${verifyLine(d.verify, c)}`);
 
   if (state.queue.length) {
     lines.push("");

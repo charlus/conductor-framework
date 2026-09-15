@@ -67,7 +67,7 @@ For each answer, capture a concrete lesson — not vague feelings.
 * **Product context:** Update `conductor/4-context/product/` if user insights were gained
 
 ### Process Updates
-* If a workflow improvement is identified → note it for future framework updates
+* If a workflow improvement is identified → write it on the ship-log entry's **`Framework lesson:`** line (Ship Phase 5). One grep across every project's `conductor/0-compass/ship-log.md` is how such lessons reach the framework; a note anywhere else has no reader.
 * If a new pattern emerged → consider creating a new skill or updating an existing one
 
 ---

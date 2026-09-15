@@ -169,6 +169,7 @@ For each proposed Implementation:
 2.  **Cross-Check:**
     * Do the Acceptance Criteria match the UX/UI Brief's interaction descriptions?
     * Does the tech direction match the Technical Vision?
+    * Do the entities, fields and endpoints this slice relies on **exist today**? Read the source system — the schema, the API, the code — not the blueprint. A slice built on a field that does not exist yet is two slices, and the missing one comes first.
 
 3.  **Confirm:** Agree on this Implementation's details before moving to the next.
 

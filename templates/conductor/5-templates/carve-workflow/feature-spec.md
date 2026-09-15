@@ -98,3 +98,12 @@
 
 **Unlocks (what this enables):**
 - [Implementation or feature that depends on this]
+
+---
+
+## External Assumptions
+
+*Everything this spec believes about the outside world, checked before it was written (Spec-It Phase 0). One line each.*
+
+- **Verified:** [fact] — [how: the call made, the query run, or the config file read]
+- **Assumed:** [belief] — [what would prove it, and when that check happens]

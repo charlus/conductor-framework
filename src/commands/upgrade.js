@@ -6,6 +6,7 @@ import { planUpdate, executeUpdate } from "../update.js";
 import { renameRecursive, updateChecksumsKeys, renameNumberedFolders } from "../kebab.js";
 import { generateClaudeCommands } from "../claude-commands.js";
 import { installHooksCommand } from "./install-hooks.js";
+import { ensureVerifyCommand } from "../verify-config.js";
 import { normalizeState } from "../loop/driver.js";
 import { packageVersion, readVersionStamp, writeVersionStamp, detectShape } from "../version.js";
 import { createBackup, restoreBackup, ensureGitignore } from "../backup.js";
@@ -253,6 +254,10 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       }
       throw stepError;
     }
+
+    // An upgraded install with no verify command is one where the Iron Law is
+    // still off. Derive it if the files allow, otherwise say so — never silently.
+    await ensureVerifyCommand(targetDir, stdout);
 
     stdout.write("\n🎼 Upgrade complete!\n");
     if (backup) stdout.write(`   Old instructions backed up in ${backup.backupRoot.replace(targetDir + "/", "")} (git-ignored).\n`);

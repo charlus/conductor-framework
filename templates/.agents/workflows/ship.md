@@ -137,6 +137,12 @@ The reviewer **only reports**. It does not push, merge, or edit code. Verificati
 
 Per the gate skill: fix every **BLOCKER** — the whole class the reviewer named, including its `also:` list, verified with the reviewer's own detection method. **IMPORTANT** items are fixed if cheap and in scope, otherwise recorded under **Known gaps** in the PR body. **NIT** is your discretion. A **`SCOPE:`** finding goes to the human. No follow-up backlog from review.
 
+**Record every disposition in the ledger**, one line per finding, dismissed ones included — a class dismissed most of the time is a rubric defect, and only the ledger can show it:
+```bash
+conductor review-log append '{"round":1,"severity":"BLOCKER","category":"error-handling","file":"src/x.py","line":42,"quote":"return data or {}","confidence":8,"action":"fixed","reason":"empty dict hid the upstream failure"}'
+```
+`severity` is `BLOCKER|IMPORTANT|NIT|SCOPE`; `action` is `fixed|dismissed|known-gap|deferred`; a BLOCKER needs its `quote` and `confidence` ≥ 7 or the CLI refuses it, exactly as the rubric does. `conductor review-log summary` then reports rounds to APPROVE, dismissal rate per class and blockers by category — without these lines the review's cost has no number.
+
 Then re-review **once**: a fresh reviewer, given round-1 findings *plus your disposition of each*, and `git diff` of the **fix commits only**. Its only job is whether the named classes are closed and whether the fix introduced a new blocker.
 
 - Delta round returns `APPROVE` → Phase 5.
@@ -145,7 +151,34 @@ Then re-review **once**: a fresh reviewer, given round-1 findings *plus your dis
 - Other brakes (stop and surface): the fix has grown the diff past ~2× its frozen scope, or the best fix needs a canonical-contract change first.
 
 
-## Phase 5: Git Flow & Platform Integration
+## Phase 5: Conductor Bookkeeping
+
+**Goal:** Record the shipment and clean up the workspace **before** the MR exists. Everything placed after the MR gets dropped (measured: two months of unlogged ships), so bookkeeping is a precondition of Phase 6, not a follow-up.
+
+**Announce:** *"Logging the shipment and archiving."*
+
+1.  **Update Ship-Log:**
+    Add an entry to `conductor/0-compass/ship-log.md`. The last three fields are the minimal retrospective — one line each, from what actually happened in this ship. Write `none` when there is nothing to say; never invent one.
+    ```markdown
+    ## [Date] — [Implementation Name]
+    - **What:** [One sentence summary]
+    - **Quality:** Empathy audit passed, [X] regression tests added, independent review [APPROVE / skipped by proportionality]
+    - **Platform:** branch `[name]` — MR/PR link added in Phase 6
+    - **Surprised:** [What did not match the spec, the docs, or the assumption we built on]
+    - **Next time:** [What we would do differently on the next ship, or `none`]
+    - **Framework lesson:** [What Conductor's workflows, skills or hooks should change, or `none`]
+    ```
+    The `Framework lesson` line is how a project teaches the framework: one grep across every ship-log finds them all.
+
+2.  **Update Product Area:**
+    * Update `conductor/3-product-areas/[area]/[area]-features.md` or `[area]-technical.md` with the newly shipped capabilities.
+
+3.  **Archive:**
+    * Move the completed Implementation folder from `conductor/1-workbench/` to `conductor/6-archive/completed-implementations/`.
+
+---
+
+## Phase 6: Git Flow & Platform Integration
 
 **Goal:** Commit, push, and create the merge/pull request following standard Git Flow based on available tools.
 
@@ -156,7 +189,7 @@ Then re-review **once**: a fresh reviewer, given round-1 findings *plus your dis
     * Check if `gh` (GitHub CLI) or `glab` (GitLab CLI) is installed and authenticated (`gh auth status` or `glab auth status`).
     * If neither is available, fallback to standard Git operations and instruct the user to create the PR/MR manually via the web UI.
 2.  **Commit:**
-    * Stage all changes (refactors, tests, CI updates).
+    * Stage all changes (refactors, tests, CI updates, and the `conductor/` bookkeeping from Phase 5 when it lives in this repo).
     * Commit using Conventional Commits (e.g., `chore: empathy audit and regression tests for [feature]`).
 3.  **Push:**
     * Push the branch to the remote repository.
@@ -166,31 +199,9 @@ Then re-review **once**: a fresh reviewer, given round-1 findings *plus your dis
     * If `gh` is available and authenticated: Use `gh pr create`.
     * If no CLI tool is available, provide the URL to the user to open the PR/MR manually.
     * Link to related issues in the description. Summarize the independent-review verdict in the PR/MR body (what was reviewed, that it was approved by a fresh-context reviewer).
-5.  **Release Notes (Optional):**
+5.  **Close the ship-log entry:** replace the `MR/PR link added in Phase 6` placeholder in the Phase 5 entry with the MR/PR URL. This is the only bookkeeping that can happen after the MR, because the URL does not exist before it.
+6.  **Release Notes (Optional):**
     * If this marks a significant milestone, generate release notes or update `CHANGELOG.md`.
-
----
-
-## Phase 6: Conductor Cleanup
-
-**Goal:** Record the shipment and clean up the workspace.
-
-**Announce:** *"Logging the shipment and archiving."*
-
-1.  **Update Ship-Log:**
-    Add an entry to `conductor/0-compass/ship-log.md`:
-    ```markdown
-    ## [Date] — [Implementation Name]
-    - **What:** [One sentence summary]
-    - **Quality:** Empathy audit passed, [X] regression tests added, independent review approved
-    - **Platform:** MR/PR created
-    ```
-
-2.  **Update Product Area:**
-    * Update `conductor/3-product-areas/[area]/[area]-features.md` or `[area]-technical.md` with the newly shipped capabilities.
-
-3.  **Archive:**
-    * Move the completed Implementation folder from `conductor/1-workbench/` to `conductor/6-archive/completed-implementations/`.
 
 ---
 
@@ -201,10 +212,11 @@ Before claiming this workflow is done:
 - [ ] Regression tests written and passing
 - [ ] CI pipeline definition verified/updated
 - [ ] Independent fresh-context reviewer returned APPROVE (all findings addressed)
-- [ ] Changes committed and pushed
-- [ ] MR/PR created (via CLI or manually), with the review verdict summarized
-- [ ] Ship-Log and Product Area updated
+- [ ] Ship-Log entry written, with its three retrospective lines (`none` is an answer, silence is not)
+- [ ] Product Area updated
 - [ ] Implementation archived
+- [ ] Changes committed and pushed
+- [ ] MR/PR created (via CLI or manually), with the review verdict summarized, and its link written back into the Ship-Log entry
 
 ---
 

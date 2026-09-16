@@ -161,13 +161,24 @@ Then re-review **once**: a fresh reviewer, given round-1 findings *plus your dis
     Add an entry to `conductor/0-compass/ship-log.md`. The last three fields are the minimal retrospective — one line each, from what actually happened in this ship. Write `none` when there is nothing to say; never invent one.
     ```markdown
     ## [Date] — [Implementation Name]
-    - **What:** [One sentence summary]
+
+    **For you**
+    - **Impact:** [What a user can now do, or stops suffering. Not what you built.]
+    - **Cost:** [What this adds to what the product costs to run, or `none`]
+    - **Risk:** [What could still bite, and what is not covered, or `none`]
+    - **Decide:** [The one thing only the human can answer, or `none`]
+
+    **For the record**
     - **Quality:** Empathy audit passed, [X] regression tests added, independent review [APPROVE / skipped by proportionality]
     - **Platform:** branch `[name]` — MR/PR link added in Phase 6
     - **Surprised:** [What did not match the spec, the docs, or the assumption we built on]
     - **Next time:** [What we would do differently on the next ship, or `none`]
     - **Framework lesson:** [What Conductor's workflows, skills or hooks should change, or `none`]
     ```
+    **Two blocks, one reading order.** *For you* is the four lines the human reads; *For the record* is what the project and the framework grep later. Write `none` rather than inventing a line, and never move an engineering detail up into *For you* — `Impact` is what changed for a user, not what you changed in the code.
+
+    **`Decide` is a queue, not a note.** Anything other than `none` surfaces at the top of `conductor status` under *Waiting on you*, and stays there until the entry is edited. Put one question there, answerable in a line, or write `none`.
+
     The `Framework lesson` line is how a project teaches the framework: one grep across every ship-log finds them all.
 
 2.  **Update Product Area:**
@@ -198,7 +209,29 @@ Then re-review **once**: a fresh reviewer, given round-1 findings *plus your dis
     * If `glab` is available and authenticated: Use `glab mr create`.
     * If `gh` is available and authenticated: Use `gh pr create`.
     * If no CLI tool is available, provide the URL to the user to open the PR/MR manually.
-    * Link to related issues in the description. Summarize the independent-review verdict in the PR/MR body (what was reviewed, that it was approved by a fresh-context reviewer).
+    * Link to related issues in the description.
+    * **The body is a report to the human, not a changelog.** They may read it on another machine, hours later, with no session context — for an unattended ship it is the *only* channel. Five sections, in this order:
+
+    ```markdown
+    [One or two sentences: what now works, and what it changes for a user.]
+
+    ## What changes for you
+    [The product-level difference. Before and after, in their terms, not the diff's.]
+
+    ## Decisions I took alone
+    [Each reversible, invisible call worth naming, one line each: what and why.
+     If one turned out to be a real trade-off, say which one you would revisit.]
+
+    ## Evidence
+    [What was run and what it returned — exit codes, test counts, the review
+     verdict. Anything not verified by an actual run is labelled `not verified`.]
+
+    ## What I need from you
+    [The decision or the merge. `Nothing blocking` is a valid and common answer.]
+    ```
+
+    * Summarise the independent-review verdict inside **Evidence** (what was reviewed, that a fresh-context reviewer approved it).
+    * If the ship-log's `Decide` line is not `none`, that question goes in **What I need from you** verbatim, so the two surfaces never disagree.
 5.  **Close the ship-log entry:** replace the `MR/PR link added in Phase 6` placeholder in the Phase 5 entry with the MR/PR URL. This is the only bookkeeping that can happen after the MR, because the URL does not exist before it.
 6.  **Release Notes (Optional):**
     * If this marks a significant milestone, generate release notes or update `CHANGELOG.md`.

@@ -141,6 +141,19 @@ export function renderStatus(state, { color = true, width = 78 } = {}) {
   lines.push(`  ${c("Ship-log".padEnd(10), "dim")}${shipLogLine(d.shipLog, c)}`);
   lines.push(`  ${c("Push gate".padEnd(10), "dim")}${verifyLine(d.verify, c)}`);
 
+  // Leads everything below the digest: across several products this is the
+  // only line that cannot be answered by anyone else. Absent when empty — an
+  // empty heading trains the eye to skip the section that matters most.
+  const waiting = d.shipLog?.openDecisions ?? [];
+  if (waiting.length) {
+    lines.push("");
+    lines.push(`  ${c("Waiting on you", "bold")} ${c("— raised by a ship, still unanswered", "dim")}`);
+    for (const w of waiting.slice(0, MAX_QUEUE_ROWS)) {
+      lines.push(`   ${c(w.date, "dim")}  ${c(w.title, "cyan")}`);
+      lines.push(`            ${w.question}`);
+    }
+  }
+
   if (state.queue.length) {
     lines.push("");
     lines.push(`  ${c("Next up", "bold")} ${c("— the order the loop would drain it", "dim")}`);

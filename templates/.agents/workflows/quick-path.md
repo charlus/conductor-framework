@@ -68,6 +68,8 @@ After the questions, present a scope summary:
 - **Estimated size:** [Small / Medium / Large]
 ```
 
+**Brief check (before the confirm):** run Grilling's C1–C4 against this project's `conductor/` docs and current behaviour. State any hit in two sentences with the source, or say **"Brief check: none found."** It does not block — the human answers in one line and you continue. Carry the result into `feature-spec.md`.
+
 **Confirm:** *"Is this scope correct?"*
 
 ---

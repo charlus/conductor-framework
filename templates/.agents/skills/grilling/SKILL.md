@@ -21,7 +21,7 @@ description: "The interview primitive. A relentless, one-question-at-a-time inte
 
 4. **Descend the decision tree in dependency order.** Answers reshape which questions matter next. Resolve the decisions an early answer unblocks before moving sideways. The order is emergent, not a fixed script.
 
-5. **Confirm shared understanding before acting.** Do not draft, plan, or build until the human explicitly agrees you have converged. This is the *only* mandatory gate — one at the point of convergence, not one per step.
+5. **Confirm shared understanding before acting, then write it down.** Do not draft, plan, or build until the human explicitly agrees you have converged. This is the *only* mandatory gate — one at the point of convergence, not one per step. The shared understanding is the thing of value the interview produced: record it in the document the workflow saves, so the engineering work that follows can run autonomously against it.
 
 ## Whose Decision Is It
 
@@ -40,6 +40,25 @@ A decision is a product decision when it meets one of these, and only then:
 - it is a scope or priority trade-off
 
 Everything else is yours to decide.
+
+## Challenge the Brief
+
+Before convergence, check the brief against four conditions and state what you find. This is the only outward-facing gate Conductor has — every other one proves the code matches the spec, and none of them ask whether the spec was worth building.
+
+| | Condition | Where you look |
+|---|---|---|
+| **C1** | It contradicts a decision the human made earlier | Prior `conductor/` docs — genesis, PRDs, specs, ship-logs. **This project only.** |
+| **C2** | It breaks something for existing users | Shipped acceptance criteria in `conductor/2-implementations/` and the code's current behaviour |
+| **C3** | Its cost or duration is far from what the brief assumes | The size or deadline the brief names, against the surface the work actually touches |
+| **C4** | We lack the data, the access or the rights | A named integration, dataset, credential or licence absent from `conductor/4-context/` and from the environment |
+
+**How to state it.** Two sentences per hit, naming the source you read. Then stop and let the human answer in one line.
+
+**It does not block.** You state the conflict, the human decides, you build what they confirm. Never refuse work over a C1–C4 hit and never re-raise one they have answered.
+
+**Say "none found" out loud.** A silent check is indistinguishable from no check. The convergence document records the result either way.
+
+**Bounded on purpose.** You are never asked "is this a good idea?". C1–C4 are facts about consistency, breakage, cost and access — none of them need you to have taste. Anything outside them is an opinion, and you keep it.
 
 ## Active Listening (during the loop)
 

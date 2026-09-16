@@ -6,6 +6,19 @@
 
 ---
 
+## Brief check
+
+*Checked before building. `None found.` is a valid and expected answer — say it explicitly. Not a veto: state it, the human answers, work continues.*
+
+- **C1 contradicts an earlier decision:** [what, and which doc says otherwise — or `None found.`]
+- **C2 breaks existing users:** [what breaks, and which shipped criterion — or `None found.`]
+- **C3 cost or duration mismatch:** [what the brief assumes vs. the surface this touches — or `None found.`]
+- **C4 missing data, access or rights:** [what is missing — or `None found.`]
+
+**Shared understanding:** [One paragraph, in the human's own terms, of what you both agreed this delivers. The engineering work runs autonomously against this, so it is the paragraph that matters most in the document.]
+
+---
+
 ## Summary
 
 [One paragraph describing what this implementation delivers and why it matters. What can the user do after this is built?]

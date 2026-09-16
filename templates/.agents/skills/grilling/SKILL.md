@@ -17,11 +17,29 @@ description: "The interview primitive. A relentless, one-question-at-a-time inte
 
 2. **Recommend an answer to every question.** Never ask an open question you could take a position on. Pose the question, then give *your* recommended answer and why. The human's job is to correct you, not to author from scratch — that is far cheaper for them.
 
-3. **Look it up; don't ask it.** If a *fact* can be found by exploring the environment — filesystem, existing `conductor/` docs, codebase, tools — find it yourself. Only *decisions* belong to the human. Never make the human tell you something you could have discovered.
+3. **Look it up; don't ask it.** If a *fact* can be found by exploring the environment — filesystem, existing `conductor/` docs, codebase, tools — find it yourself. Never make the human tell you something you could have discovered.
 
 4. **Descend the decision tree in dependency order.** Answers reshape which questions matter next. Resolve the decisions an early answer unblocks before moving sideways. The order is emergent, not a fixed script.
 
 5. **Confirm shared understanding before acting.** Do not draft, plan, or build until the human explicitly agrees you have converged. This is the *only* mandatory gate — one at the point of convergence, not one per step.
+
+## Whose Decision Is It
+
+Not every decision is the human's. You are their engineering team, and a team decides.
+
+- **Facts** — look them up. Never ask.
+- **Engineering decisions** — libraries, patterns, file layout, test seams, refactors, naming, error handling, tooling. **Decide it yourself**, then report it in **one line**: "chose X because Y." Do not offer options and do not ask permission.
+- **Product decisions** — the human's. Ask, following the Five Laws.
+
+A decision is a product decision when it meets one of these, and only then:
+
+- it changes what a user sees or does
+- it changes what the product costs to run
+- it cannot be undone cheaply: data model, auth model, vendor, public API
+- it contradicts something the human decided earlier
+- it is a scope or priority trade-off
+
+Everything else is yours to decide.
 
 ## Active Listening (during the loop)
 
@@ -32,5 +50,5 @@ description: "The interview primitive. A relentless, one-question-at-a-time inte
 ## What this is *not*
 
 - Not a script of announcements and per-phase gates. Keep ceremony minimal — the human feels an interview, not a form.
-- Not a place to make decisions *for* the human. You recommend; they decide.
+- Not a place to make *product* decisions for the human. You recommend; they decide. Engineering decisions are yours — see *Whose Decision Is It*.
 - Not the agenda. The calling workflow owns which topics to cover and which files to write.

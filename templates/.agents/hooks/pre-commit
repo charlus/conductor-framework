@@ -3,10 +3,11 @@
 #   TDD:  implementation change with no accompanying test change is rejected.
 #   Eval: LLM-feature code (calls a provider) with no accompanying eval is rejected.
 #   Brief: a feature-spec with no "Brief check" section is rejected (A5 / D1).
+#   Report: a ship-log whose newest entry has no "For you" block is rejected (A4).
 # The two gates are INDEPENDENT — waiving one never skips the other. LLM-feature
 # code needs BOTH a test (deterministic glue) and an eval (non-deterministic output).
 # Escape hatches (logged, never silent): CONDUCTOR_NO_TEST / CONDUCTOR_NO_EVAL /
-# CONDUCTOR_NO_BRIEF, each ="reason".
+# CONDUCTOR_NO_BRIEF / CONDUCTOR_NO_REPORT, each ="reason".
 # Disable everything: CONDUCTOR_HOOKS=off.
 set -uo pipefail
 
@@ -23,6 +24,7 @@ staged="$(git diff --cached --name-only --diff-filter=ACM)"
 impl=0; tests=0; impl_files=""
 llm=0;  evals=0; llm_files=""
 brief=0; brief_files=""
+report=0; report_files=""
 while IFS= read -r f; do
   [ -z "$f" ] && continue
   if conductor_is_test_file "$f"; then
@@ -30,6 +32,10 @@ while IFS= read -r f; do
   elif conductor_is_impl_file "$f"; then
     impl=1
     impl_files="$impl_files\n    - $f"
+  fi
+  if conductor_is_ship_log "$f" && ! conductor_newest_entry_has_for_you "$ROOT/$f"; then
+    report=1
+    report_files="$report_files\n    - $f"
   fi
   if conductor_is_brief_doc "$f" && ! conductor_has_brief_check "$ROOT/$f"; then
     brief=1
@@ -115,6 +121,34 @@ if [ "$brief" = "1" ]; then
     echo "  It is not a veto — state it, let the human answer, keep building."
     echo "    • carried over from a pre-A5 spec? record the reason:"
     echo "      CONDUCTOR_NO_BRIEF=\"why\" git commit …"
+    echo ""
+    blocked=1
+  fi
+fi
+
+# ---- The report shape: what the human actually reads ----------------------
+if [ "$report" = "1" ]; then
+  if [ -n "${CONDUCTOR_NO_REPORT:-}" ]; then
+    conductor_log_waiver "$ROOT" "Report" "$CONDUCTOR_NO_REPORT"
+    echo "⚠️  Conductor report shape WAIVED: $CONDUCTOR_NO_REPORT"
+    echo "    (logged to conductor/0-compass/ship-log.md)"
+  else
+    echo ""
+    echo "🛑 Conductor report shape — commit blocked."
+    echo ""
+    echo "  This ship-log's newest entry has no '**For you**' block:"
+    echo -e "$report_files"
+    echo ""
+    echo "  The human may read this on another machine, hours later, with no"
+    echo "  session context. Four lines, before the record:"
+    echo "    - **Impact:** what a user can now do, or stops suffering"
+    echo "    - **Cost:**   what this adds to running the product, or none"
+    echo "    - **Risk:**   what could still bite, or none"
+    echo "    - **Decide:** the one thing only they can answer, or none"
+    echo ""
+    echo "  'none' is a valid answer to all four. An invented line is not."
+    echo "    • editing an old entry, not shipping? record the reason:"
+    echo "      CONDUCTOR_NO_REPORT=\"why\" git commit …"
     echo ""
     blocked=1
   fi

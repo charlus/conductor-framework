@@ -57,6 +57,30 @@ conductor_has_brief_check() {
   grep -Eiq '^#{1,6}[[:space:]]*Brief check' "$f"
 }
 
+# True (0) if the path is the project's ship-log.
+conductor_is_ship_log() {
+  printf '%s\n' "$1" | grep -Eiq '(^|/)ship-log\.md$'
+}
+
+# True (0) if the ship-log's NEWEST entry carries the `**For you**` block.
+# Newest = the greatest `## YYYY-MM-DD` heading, not the last one in the file:
+# one live log had 07-15 written after 07-16. Presence, not quality — a hook
+# cannot judge whether an Impact line is any good.
+# A log with no dated entry at all passes: there is nothing to report yet.
+conductor_newest_entry_has_for_you() {
+  local f="$1"
+  [ -f "$f" ] || return 0
+  local newest
+  newest="$(grep -Eo '^## [0-9]{4}-[0-9]{2}-[0-9]{2}' "$f" | sort | tail -1)"
+  [ -z "$newest" ] && return 0
+  awk -v head="$newest" '
+    index($0, head) == 1 { inentry = 1; next }
+    inentry && /^## [0-9]{4}-[0-9]{2}-[0-9]{2}/ { inentry = 0 }
+    inentry && /^[[:space:]]*\*\*For you\*\*/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+  ' "$f"
+}
+
 # Echo the project's verification command.
 # Priority: conductor.config.json "verify" → package.json "test" script → empty.
 conductor_verify_cmd() {

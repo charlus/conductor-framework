@@ -97,6 +97,9 @@ describe("buildState — the digest carries ship-log and push-gate facts", () =>
       lastDate: "2026-07-16",
       ageDays: 61,
       mergesSince: 103,
+      // A4: the real-shaped fixture predates the two-block entry, so it has no
+      // `Decide` line and nothing is waiting on the human.
+      openDecisions: [],
     });
   });
 
@@ -117,7 +120,7 @@ describe("buildState — the digest carries ship-log and push-gate facts", () =>
 
   test("defaults are honest nulls when nothing was read", () => {
     const s = buildState(base);
-    assert.deepEqual(s.digest.shipLog, { entries: 0, lastDate: null, ageDays: null, mergesSince: null });
+    assert.deepEqual(s.digest.shipLog, { entries: 0, lastDate: null, ageDays: null, mergesSince: null, openDecisions: [] });
     assert.deepEqual(s.digest.verify, { state: "unset", configured: false, command: null });
   });
 });
@@ -224,7 +227,7 @@ describe("collectState — the IO half reads the real files and counts real merg
   test("no ship-log file at all → nulls, and status still renders", async () => {
     const root = await scaffold(null, null);
     const { state } = await collectState(root, { now: Date.UTC(2026, 8, 15) });
-    assert.deepEqual(state.digest.shipLog, { entries: 0, lastDate: null, ageDays: null, mergesSince: null });
+    assert.deepEqual(state.digest.shipLog, { entries: 0, lastDate: null, ageDays: null, mergesSince: null, openDecisions: [] });
     assert.match(renderStatus(state, { color: false }), /Ship-log\s+no dated entry/i);
   });
 });

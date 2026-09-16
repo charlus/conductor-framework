@@ -181,6 +181,41 @@ export function summariseShipLog(md, { now = Date.now() } = {}) {
 }
 
 /**
+ * Pull the decisions a ship-log still has waiting on the human.
+ *
+ * WHY. `status` answered "what is on our plate" with counts and freshness.
+ * Across 4-6 products the question that actually costs the maintainer time is
+ * "what is waiting on me", and the answer existed nowhere — it was buried in
+ * prose inside whichever ship-log entry raised it, or in a PR body.
+ *
+ * Reads the `- Decide:` line of each entry's `**For you**` block. `none`,
+ * `None.`, an empty value and a missing field all mean closed, so an entry
+ * with nothing to ask costs the reader nothing. Entries predating the
+ * two-block shape have no `Decide` line and are simply skipped, never guessed
+ * at. Newest first, by the entry's own date.
+ *
+ * @param {string|undefined} md
+ * @returns {Array<{date: string, title: string, question: string}>}
+ */
+export function openDecisions(md) {
+  const text = String(md ?? "");
+  const out = [];
+  // Split on entry headings, keeping the heading with its body.
+  const parts = text.split(/^## (?=\d{4}-\d{2}-\d{2}\b)/m).slice(1);
+  for (const part of parts) {
+    const head = part.slice(0, part.indexOf("\n") === -1 ? part.length : part.indexOf("\n"));
+    const date = head.slice(0, 10);
+    const title = head.slice(10).replace(/^[\s—\-–:]+/, "").trim();
+    const m = part.match(/^[-*]\s*(?:\*\*)?Decide(?:\*\*)?\s*:\s*(?:\*\*)?\s*(.*?)\s*(?:\*\*)?$/mi);
+    if (!m) continue;
+    const question = m[1].trim();
+    if (!question || /^none\.?$/i.test(question)) continue;
+    out.push({ date, title, question });
+  }
+  return out.sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
+/**
  * Build the state object every surface renders from. Pure: give it the file
  * contents and it gives you the digest, the queue, the sections and the
  * rendered documents.
@@ -282,6 +317,7 @@ export function buildState({
       loop: loopState,
       shipLog: {
         ...summariseShipLog(shipLogMd, { now }),
+        openDecisions: openDecisions(shipLogMd),
         mergesSince: Number.isFinite(mergesSinceShipLog) ? mergesSinceShipLog : null,
       },
       // Three states, not two: a gate that is ON, a gate the project has

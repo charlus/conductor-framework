@@ -58,6 +58,17 @@ const CLI_COMMANDS = [
       "With no arguments, run `conductor inbox list` instead and show the output.",
   },
   {
+    name: "verify",
+    description: "Show or set the command `git push` must pass (the push gate)",
+    body:
+      "Run `conductor verify` in the project root and show its output verbatim.\n\n" +
+      "If the human named a command, run `conductor verify --set \"<that command>\"` instead — it\n" +
+      "runs the command once and only writes it if it passes.\n" +
+      "If the gate is OFF and this repo genuinely has nothing to run (a docs or state repo), say so\n" +
+      "and offer `conductor verify --none`. Do not pick either for the human: which command proves\n" +
+      "this project works is their call, and a wrong one blocks every push.",
+  },
+  {
     name: "view",
     description: "Render conductor/ into the single-file HTML dashboard and open it",
     body:

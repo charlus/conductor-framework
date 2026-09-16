@@ -136,10 +136,17 @@ export async function trustVerifyCommand(argv, context) {
   }
 
   const { cmd, from } = await resolveDeclaredVerify(root);
+  if (cmd === "none") {
+    stderr.write(
+      "conductor trust-verify: this repo declares it has nothing to verify.\n" +
+        '  There is no command to trust. Give it one:  conductor verify --set "<command>"\n',
+    );
+    return 1;
+  }
   if (!cmd) {
     stderr.write(
       "conductor trust-verify: this repo declares no verification command.\n" +
-        '  Set "verify" in conductor.config.json (or add a package.json "test" script) first.\n',
+        '  Set one first:  conductor verify --set "<command>"\n',
     );
     return 1;
   }

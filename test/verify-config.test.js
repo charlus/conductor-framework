@@ -133,9 +133,12 @@ describe("init — writes the verify command, or warns in words that name the ke
     assert.equal(code, 0, out);
     const cfg = JSON.parse(readFileSync(join(d, "conductor.config.json"), "utf8"));
     assert.equal(cfg.verify, "");
-    assert.match(out, /no verify command/i);
-    assert.match(out, /"verify"/, "the warning must name the config key");
-    assert.match(out, /conductor\.config\.json/);
+    // Naming the key and the file was the FIRST fix, and it was measured
+    // unactionable (2026-09-16). The warning now hands over the two commands
+    // that end the decision, one way or the other.
+    assert.match(out, /Push gate OFF/i);
+    assert.match(out, /conductor verify --set /);
+    assert.match(out, /conductor verify --none/);
     assert.match(out, /Iron Law/, "and say what is NOT enforced until it is set");
   });
 
@@ -162,21 +165,20 @@ describe("upgrade — an install with no verify command is warned, not silently 
     const code = await upgradeCommand([d], { cwd: tmpdir(), stdout, stderr });
     const out = stdout.text + stderr.text;
     assert.equal(code, 0, out);
-    assert.match(out, /no verify command/i);
-    assert.match(out, /"verify"/);
+    assert.match(out, /Push gate OFF/i);
+    assert.match(out, /conductor verify --set /);
   });
 });
 
-describe("pre-push — the message tells the reader exactly what to add", () => {
-  test("names the key, the file, an example value, and what is not enforced", () => {
-    const raw = PRE_PUSH.split("\n").find((l) => /no verification command/i.test(l)) ?? "";
-    assert.ok(raw, "pre-push lost its no-verify message");
+describe("pre-push — the message tells the reader exactly what to run", () => {
+  test("says the gate is off, gives the command that sets it, and an example value", () => {
+    const branch = PRE_PUSH.split(/elif \[ -z "\$cmd" \]; then/)[1]?.split("elif")[0] ?? "";
+    assert.ok(branch, "pre-push lost its no-verify message");
     // Assert on what the shell prints, not on the source's backslash-escaped quotes.
-    const line = raw.replace(/\\(["`])/g, "$1");
-    assert.match(line, /"verify"/);
-    assert.match(line, /conductor\.config\.json/);
-    assert.match(line, /npm test|pytest/, "give a concrete example value");
-    assert.match(line, /NOT enforced|not enforced/i, "say plainly that the Iron Law is off");
-    assert.doesNotMatch(line, /Skipping verify\.$/, "'Skipping verify.' alone told the maintainer nothing");
+    const shown = branch.replace(/\\(["`])/g, "$1");
+    assert.match(shown, /conductor verify --set /, "the fix must be runnable from the message");
+    assert.match(shown, /npm test|pytest/, "give a concrete example value");
+    assert.match(shown, /OFF/, "say plainly that the gate is not enforcing");
+    assert.doesNotMatch(shown, /Skipping verify\.$/, "'Skipping verify.' alone told the maintainer nothing");
   });
 });

@@ -51,10 +51,10 @@ Per the Grilling primitive: ask one at a time, each with your recommended answer
     * If unclear: propose criteria and iterate
 
 3.  **"Any constraints?"**
-    * Tech stack preferences/requirements
-    * Existing patterns to follow
     * Files/folders that should or shouldn't be touched
     * Time constraints
+    * Anything this must not break for existing users
+    * **Do not ask about tech stack or existing patterns** — read them from the codebase (Grilling's *Whose Decision Is It*). Report what you found and what you chose, one line each.
 
 ### Scope Summary
 

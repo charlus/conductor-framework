@@ -85,7 +85,7 @@ You are the Conductor wearing the **Code Archaeologist hat** (`.agents/personas/
 
 2.  **Rank and write.** Save the ranked list to `conductor/1-workbench/deepening-report.md` (plain markdown — the `conductor/` dashboard is already the human's browsable report surface; do **not** generate a separate HTML deck). Strong first, Speculative last with an explicit "not yet" note.
 
-3.  **Grilling loop.** Run `.agents/skills/grilling/SKILL.md` over the candidates the human is interested in — explore the decision tree, surface the trade-off, resist deepening for its own sake. When a candidate collapses complexity but adds no cleverness, take it; when candidates tie, the simpler one wins.
+3.  **Decide, don't grill.** Which modules to deepen is an **engineering decision** — yours (Grilling's *Whose Decision Is It*). Work the decision tree yourself, surface the trade-off in your own notes, and resist deepening for its own sake. Report the accepted candidates one line each. Escalate to the human only a candidate that changes what a user sees, changes what the system costs to run, or cannot be undone cheaply — a data-model or public-API reshape, not an internal refactor. When a candidate collapses complexity but adds no cleverness, take it; when candidates tie, the simpler one wins.
 
 4.  **Capture language & decisions.** If exploration surfaced a concept the domain model doesn't name, invoke `.agents/skills/domain-modeling/SKILL.md` and update `conductor/4-context/meta/domain-model.md`. If the human *rejects* a candidate for a load-bearing reason, offer to record it as an ADR (only if it passes the **ADR 3-test gate** — hard to reverse ∧ surprising ∧ a real trade-off) so it isn't re-suggested next run.
 

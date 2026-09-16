@@ -6,6 +6,50 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+---
+
+## [6.4.0] — 2026-09-16 — Product-Owner Reporting, the Brief Check, the Ship Tail & Terminal Surfaces
+
+### Added — the interview asks product questions, the agent decides engineering (A3)
+
+Stated by the maintainer on 2026-09-16: Conductor exists to supply engineering rigour to a Product Owner's ambition, and the agent plays the engineering team he no longer has. He runs 4 to 6 products, wrote code for the first 5 to 7 of his 17 years in IT, and has no time to reconstruct an agent's reasoning. Grilling's Law 3 split the world in two — facts the agent looks up, and *decisions*, which all belonged to the human — and that binary is why an interview ever asked him for a tech stack, a test seam or a refactor candidate. A team decides those and reports them.
+
+- **`skills/grilling/SKILL.md` gains *Whose Decision Is It***, a three-way split replacing the two-way one: **facts** (look them up), **engineering decisions** (libraries, patterns, file layout, test seams, refactors, naming, error handling, tooling — decide it, then report it in one line, never offer options), **product decisions** (ask). A decision is the human's only when it changes what a user sees or does, changes what the product costs to run, cannot be undone cheaply (data model, auth model, vendor, public API), contradicts an earlier decision, or is a scope or priority trade-off. Everything else is the agent's.
+- **`skills/collaborative-drafting/SKILL.md`** defers to the same split: never draft two options for a library, a pattern, a schema shape or a test seam and ask which one.
+- **`workflows/quick-path.md`** drops *tech stack preferences* and *existing patterns to follow* from its constraints question and reads them from the codebase instead. What stays is the human's: files not to touch, time, what must not break.
+- **`workflows/spec-it.md`** takes sign-off on what an implementation **delivers** — scope, acceptance criteria, sequence — while the plan's engineering decisions are stated one line each and escalated only against the triggers above.
+- **`workflows/deepen.md`** decides its own refactor candidates rather than grilling the human on them. An internal refactor is reversible and invisible, so it fails every escalation trigger; a data-model or public-API reshape does not, and still escalates.
+- `test/product-only-grilling.test.js`: 7 tests, red before the change.
+
+### Added — the brief is challenged before the code is written (A5)
+
+Every gate the framework owns is inward: the Test-Driven Law, the Eval-Driven Law, the evidence ledger, `independent-review`, the loop's Checker. All of them prove the code does what the spec says, and none of them ask whether the spec was worth building. A PO with a team gets challenged for free by people who will live with the decision; a PO running several products against an agent fleet gets none of that, so a contradiction between a March brief and a September brief simply gets implemented twice.
+
+Design, decisions and what was descoped: `docs/roadmap/Outward-Rigour.md`.
+
+- **Four bounded conditions in `skills/grilling/SKILL.md`**, checked before convergence: **C1** the brief contradicts a decision the human made earlier (prior `conductor/` docs, **this project only**), **C2** it breaks something for existing users (shipped acceptance criteria and current behaviour), **C3** its cost or duration is far from what the brief assumes, **C4** we lack the data, the access or the rights. Two sentences per hit, naming the source read.
+- **Bounded on purpose.** The agent is never asked "is this a good idea?" — C1–C4 are facts about consistency, breakage, cost and access, and need no taste. An unbounded question is precisely what stopped the review gate converging before rubric v2, and that failure is not repeated here.
+- **It does not block.** The agent states, the human answers in a line, work continues. A C1–C4 hit is never a refusal and is never re-raised once answered. `none found` is said out loud, because a silent check is indistinguishable from no check.
+- **The shared understanding is now an artifact.** Grilling's Law 5 records the convergence in the document the workflow saves, so the engineering work that follows can run against it unattended. The maintainer's framing: the common understanding is the thing of value the interview produced.
+- **`5-templates/carve-workflow/feature-spec.md`** gains a `## Brief check` section (C1–C4, each `None found.`-able) and a **Shared understanding** paragraph.
+- **Presence is enforced, not requested.** `hooks/lib.sh` gains `conductor_is_brief_doc` and `conductor_has_brief_check`; `hooks/pre-commit` rejects a staged `feature-spec.md` with no `## Brief check` section, waiver `CONDUCTOR_NO_BRIEF="reason"`, logged to the ship-log like the other two laws. **Presence, not quality** — a shell hook cannot judge whether a challenge is a good one, which is the same call the Eval-Driven Law made.
+- `test/outward-rigour.test.js` (11 tests) + `test/hooks-brief-gate.sh` (5 behaviour cases against the real hook in a temp repo), wired as `npm run test:hooks:brief`.
+- **Known gap:** C1–C4 ship **unmeasured**. `review-log` has the right shape (`category` takes `C1`–`C4`, and `summary` already flags a class dismissed more than half the time), but its own ~10-ship review measurement started on 2026-09-15 and mixing rows in would corrupt it. Until a separate ledger exists, a detector that fires too often or too rarely will be found by the reader, not by data.
+
+### Changed — the ship-log, the PR body and `conductor status` report to a Product Owner (A4)
+
+The maintainer reads the loop asynchronously, often on another machine hours later: a ship-log entry, a PR body, and `conductor status`. All three were engineering-shaped. The ship-log's six fields were quality, platform and a three-line retrospective; the PR body had no shape beyond "link issues, summarise the review"; and `status` answered "what is on our plate" with counts and freshness. Across several products nothing anywhere answered **"what is waiting on me"**.
+
+- **The ship-log entry is restructured, not extended.** **For you** — `Impact` (what a user can now do, not what was built), `Cost`, `Risk`, `Decide` — then **For the record**, carrying quality, platform and the `Surprised` / `Next time` / `Framework lesson` lines unchanged. Same entry length, one reading order, and an engineering detail never moves up into *For you*.
+- **`Decide` is a queue, not a note.** A value other than `none` surfaces under **Waiting on you** at the top of `conductor status`, above the work queue, and stays until the entry is edited.
+- **`openDecisions()` in `src/conductor-state.js`** reads it into `digest.shipLog.openDecisions`. `none`, `None.`, an empty value and a missing field all mean closed, so an entry with nothing to ask costs the reader nothing; entries predating the two-block shape are skipped, never guessed at.
+- **`src/view/status.js`** renders the section newest-first and **omits it entirely when empty** — an empty heading trains the eye to skip the section that matters most.
+- **The MR/PR body gains a stated shape** in `workflows/ship.md` Phase 6, because for an unattended ship it is the only channel to the human: a one-or-two-sentence answer, *What changes for you*, *Decisions I took alone*, *Evidence* (exit codes and counts, with anything unrun labelled `not verified`), *What I need from you*. If the ship-log's `Decide` is not `none`, the same question goes in verbatim so the two surfaces cannot disagree.
+- **A fourth pre-commit gate.** `conductor_is_ship_log` + `conductor_newest_entry_has_for_you` reject a staged ship-log whose newest entry has no `**For you**` block. Newest is by **date, not file position**, because one live log had 07-15 written after 07-16. Waiver `CONDUCTOR_NO_REPORT="reason"`, logged.
+- `test/po-report-shape.test.js` (11 tests) + `test/hooks-report-gate.sh` (6 behaviour cases), wired as `npm run test:hooks:report`.
+
+**Two bugs the green suite did not catch**, both found by running the real thing rather than a test, and both the pattern already recorded for this repo: the report gate left `$report` unbound, so under `set -u` **every commit in every installed project would have failed**, and the unit test was green because it only greps `lib.sh` for function names; and the `Decide` parser handled `- Decide: none` while the template writes `- **Decide:** none`, so every closed decision rendered as open. The fixtures now mirror what Ship actually writes.
+
 ### Changed — Ship writes the log before it creates the MR, and the entry carries a minimal retrospective
 
 Measured on 2026-09-15 across the maintainer's four live projects: the last ship-log entries were dated 2026-07-16, 07-31 and 07-31, while 103, 8 and 18 merges landed on main after them, and retrospectives existed for 12 of 47 logged ships. The cause was the workflow's order, not the agent's diligence: the MR was created in Phase 5 and the ship-log, product-area update and archive move sat in Phase 6, after the visible deliverable, with the Retrospective an optional Next Step. An agent treats the MR as the finish line and stops.
@@ -79,6 +123,17 @@ Seven upstreams were re-scanned (Test in Prod, obra/superpowers, AG Kit, Antigra
 - **C3 — debugging output is redacted before it is shown or saved** (`skills/systematic-debugging/SKILL.md`, new "Redact Before You Show" section plus a checklist item). Evidence: the maintainer's own turn of 2026-09-08, "the key was in clear for you and me". The handoff skill had the rule; the skill that actually prints commands, env dumps and logs did not. Names the secret classes, the `<REDACTED>` marker, the never-paste-`.env` rule, and that a secret already shown is treated as leaked. From Pocock's `diagnosing-bugs` Redact section. `test/debugging-redaction.test.js`.
 
 Eager ceilings re-captured in the same commit for the grown files.
+
+### Note — upgrading
+
+`upgrade` replaces `.agents/`, so the two new pre-commit gates become active in every project that upgrades. A commit that used to pass can now be rejected:
+
+- staging a `feature-spec.md` without a `## Brief check` section → `CONDUCTOR_NO_BRIEF="reason"`;
+- staging a `ship-log.md` whose newest entry has no `**For you**` block → `CONDUCTOR_NO_REPORT="reason"`.
+
+Both waivers are logged to the ship-log, never silent, and `CONDUCTOR_HOOKS=off` disables everything as before. Existing specs and old ship-log entries are untouched until you next stage them.
+
+**Context bill.** Always-on is unchanged at 16,433 bytes — every one of these changes is eager, paid only when the workflow or skill is invoked. `skills/grilling` grew 2,855 → 5,536 bytes across A3 and A5 and is now the single source of truth for both the decision split and the brief check; `workflows/ship.md` 16,868 → 18,808; `spec-it.md` 6,962 → 7,851; `quick-path.md` 5,005 → 5,491; `genesis.md` 7,125 → 7,364; `deepen.md` 11,931 → 12,225; `skills/collaborative-drafting` 3,264 → 3,547. Ceilings re-captured in the same commits as the growth.
 
 ---
 

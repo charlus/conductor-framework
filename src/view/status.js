@@ -94,10 +94,15 @@ function shipLogLine(shipLog, c) {
   return style ? c(text, style) : text;
 }
 
-/** One line for the push gate: the command pre-push will run, or a loud gap. */
+/**
+ * One line for the push gate: the command pre-push will run, a declared OFF, or
+ * a loud gap that carries its own fix. The gap used to name a config key, which
+ * left the reader to work out where that key lived and what a valid value was.
+ */
 function verifyLine(verify, c) {
   if (verify?.configured) return verify.command;
-  return c('NOT CONFIGURED: set "verify" in conductor.config.json (Iron Law off on push)', "red");
+  if (verify?.state === "none") return c("off by choice — this project declares nothing to verify", "dim");
+  return c('OFF — pushes run no test · fix: conductor verify --set "<cmd>"', "red");
 }
 
 /**

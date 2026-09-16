@@ -22,6 +22,7 @@ import { join, dirname, basename, sep } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { harvestWorkQueue, parseInbox } from "./loop/harvester.js";
+import { gateStateFrom, NONE } from "./verify-config.js";
 import {
   renderMarkdown,
   renderInline,
@@ -283,9 +284,14 @@ export function buildState({
         ...summariseShipLog(shipLogMd, { now }),
         mergesSince: Number.isFinite(mergesSinceShipLog) ? mergesSinceShipLog : null,
       },
+      // Three states, not two: a gate that is ON, a gate the project has
+      // DECLARED it does not need, and a gate nobody has decided about. Only
+      // the last one deserves a warning — warning at a docs repo forever is
+      // how a safety message gets trained out of the reader.
       verify: (() => {
         const cmd = typeof verifyCommand === "string" ? verifyCommand.trim() : "";
-        return { configured: cmd.length > 0, command: cmd || null };
+        const state = !cmd ? "unset" : cmd.toLowerCase() === NONE ? NONE : "set";
+        return { state, configured: state === "set", command: state === "set" ? cmd : null };
       })(),
     },
     inbox: { relPath: INBOX_REL, items: inboxItems },
@@ -402,22 +408,15 @@ async function readIfPresent(path) {
 
 const execFileP = promisify(execFile);
 
-/** The verify command pre-push will run, or null. Same priority as lib.sh. */
+/**
+ * What pre-push will run, or the declared `none`, or null. One resolver, shared
+ * with the CLI and mirroring lib.sh, so `status` can never disagree with the
+ * hook about whether this repo is gated.
+ */
 function resolveVerifyCommand(configRaw, pkgRaw) {
-  try {
-    const cfg = configRaw ? JSON.parse(configRaw) : null;
-    const v = typeof cfg?.verify === "string" ? cfg.verify.trim() : "";
-    if (v) return v;
-  } catch {
-    /* unreadable config → fall through to the package.json fallback */
-  }
-  try {
-    const pkg = pkgRaw ? JSON.parse(pkgRaw) : null;
-    if (pkg?.scripts?.test) return "npm test";
-  } catch {
-    /* unreadable package.json → no command */
-  }
-  return null;
+  const gate = gateStateFrom(configRaw, pkgRaw);
+  if (gate.state === NONE) return NONE;
+  return gate.command;
 }
 
 /**

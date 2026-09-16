@@ -102,9 +102,15 @@ describe("buildState — the digest carries ship-log and push-gate facts", () =>
 
   test("digest.verify says whether the push gate has a command", () => {
     const off = buildState({ ...base, verifyCommand: null });
-    assert.deepEqual(off.digest.verify, { configured: false, command: null });
+    assert.deepEqual(off.digest.verify, { state: "unset", configured: false, command: null });
     const on = buildState({ ...base, verifyCommand: "npm test" });
-    assert.deepEqual(on.digest.verify, { configured: true, command: "npm test" });
+    assert.deepEqual(on.digest.verify, { state: "set", configured: true, command: "npm test" });
+    const declared = buildState({ ...base, verifyCommand: "none" });
+    assert.deepEqual(
+      declared.digest.verify,
+      { state: "none", configured: false, command: null },
+      "a declared OFF is its own state — never a command to run, never a warning",
+    );
     const blank = buildState({ ...base, verifyCommand: "   " });
     assert.equal(blank.digest.verify.configured, false, "whitespace is not a command");
   });
@@ -112,7 +118,7 @@ describe("buildState — the digest carries ship-log and push-gate facts", () =>
   test("defaults are honest nulls when nothing was read", () => {
     const s = buildState(base);
     assert.deepEqual(s.digest.shipLog, { entries: 0, lastDate: null, ageDays: null, mergesSince: null });
-    assert.deepEqual(s.digest.verify, { configured: false, command: null });
+    assert.deepEqual(s.digest.verify, { state: "unset", configured: false, command: null });
   });
 });
 
@@ -134,9 +140,10 @@ describe("renderStatus — the screen shows both lines", () => {
     const out = plain(s);
     assert.match(out, /Ship-log\s+no dated entry/i);
     assert.match(out, /Push gate/);
-    assert.match(out, /not configured/i);
-    assert.match(out, /"verify"/, "the fix must name the config key");
-    assert.match(out, /conductor\.config\.json/);
+    assert.match(out, /OFF/, "the line must say the gate is off, in one word");
+    // Naming the key was not enough: measured 2026-09-16, the reader could not
+    // act on it. The line now carries the command that fixes it.
+    assert.match(out, /conductor verify --set /, "the fix must be a command, not a key to find");
   });
 
   test("a configured verify command is shown verbatim", () => {
@@ -196,7 +203,7 @@ describe("collectState — the IO half reads the real files and counts real merg
     assert.ok(ok);
     assert.equal(state.digest.shipLog.lastDate, "2026-07-16");
     assert.equal(state.digest.shipLog.mergesSince, 3);
-    assert.deepEqual(state.digest.verify, { configured: true, command: "npm test" });
+    assert.deepEqual(state.digest.verify, { state: "set", configured: true, command: "npm test" });
   });
 
   test("merges BEFORE the last entry are not counted", async () => {
@@ -204,7 +211,7 @@ describe("collectState — the IO half reads the real files and counts real merg
     repoWithMerges(root, 2, "2026-07-10T00:00:00Z");
     const { state } = await collectState(root, { now: Date.UTC(2026, 8, 15) });
     assert.equal(state.digest.shipLog.mergesSince, 0);
-    assert.deepEqual(state.digest.verify, { configured: false, command: null }, "no config file → not configured");
+    assert.deepEqual(state.digest.verify, { state: "unset", configured: false, command: null }, "no config file → not configured");
   });
 
   test("outside a git repo the count is null, never a fake zero", async () => {

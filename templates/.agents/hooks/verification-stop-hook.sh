@@ -57,6 +57,8 @@ done <<< "$changed"
 
 cmd="$(conductor_verify_cmd "$ROOT")"
 [ -z "$cmd" ] && exit 0
+# `conductor verify --none`: a declared OFF is not a command. Never eval it.
+[ "$cmd" = "none" ] && exit 0
 
 if ! conductor_verify_trusted "$ROOT" "$cmd"; then
   echo "Conductor: verification command not trusted for this repo, so the stop gate is inactive."

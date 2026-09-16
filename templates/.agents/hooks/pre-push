@@ -15,8 +15,15 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 
 # ---- Verification Iron Law ------------------------------------------------
 cmd="$(conductor_verify_cmd "$ROOT")"
-if [ -z "$cmd" ]; then
-  echo "ℹ️  Conductor: no verification command configured — the Verification Iron Law is NOT enforced on this push. Add \"verify\" to conductor.config.json (e.g. \"verify\": \"npm test\" or \"python -m pytest -q\"); \`conductor status\` shows the current push-gate state."
+if [ "$cmd" = "none" ]; then
+  # A DECLARED off (`conductor verify --none`). Silent on purpose: a docs or
+  # state repo has nothing to run, and a warning it can never clear is how a
+  # safety message gets trained out of the reader.
+  :
+elif [ -z "$cmd" ]; then
+  echo "ℹ️  Conductor: push gate OFF — no verification command, so this push proves nothing."
+  echo "    Set it:        conductor verify --set \"npm test\"    (the command that proves this project works)"
+  echo "    Or declare it: conductor verify --none               (nothing to verify in this repo)"
 elif [ -n "${CONDUCTOR_SKIP_VERIFY:-}" ]; then
   conductor_log_waiver "$ROOT" "VERIFY" "$CONDUCTOR_SKIP_VERIFY"
   echo "⚠️  Conductor Verification Iron Law WAIVED: $CONDUCTOR_SKIP_VERIFY"

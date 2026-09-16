@@ -208,7 +208,7 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
 
       stdout.write(
         "\nNext steps:\n" +
-          "  1. Check conductor.config.json: registry URL, and the \"verify\" command the push gate runs\n" +
+          "  1. Set the push gate:  conductor verify      (what `git push` must pass here)\n" +
           "  2. Run the self-test:  bash .agents/tests/check-conductor.sh\n" +
           '  3. Start building:     Tell your AI "Let\'s go"\n' +
           "\nRun the autonomous loop (no git clone needed):\n" +

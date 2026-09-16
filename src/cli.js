@@ -6,6 +6,7 @@ import { listCommand } from "./commands/list.js";
 import { searchCommand } from "./commands/search.js";
 import { installHooksCommand } from "./commands/install-hooks.js";
 import { trustVerifyCommand } from "./commands/trust-verify.js";
+import { verifyCommand } from "./commands/verify.js";
 import { evidenceCommand } from "./commands/evidence.js";
 import { reviewLogCommand } from "./commands/review-log.js";
 import { contextBillCommand } from "./commands/context-bill.js";
@@ -32,6 +33,7 @@ function helpText() {
     "    conductor remove <skill-name> [--force]",
     "    conductor list [--remote] [--tier <tier>]",
     "    conductor search <query> [--tag <tag>]",
+    "    conductor verify [--set <cmd> | --detect | --none] [--no-run]",
     "    conductor install-hooks [--uninstall]",
     "    conductor trust-verify [--revoke] [--list]",
     "    conductor evidence <run|check|list> …",
@@ -50,6 +52,7 @@ function helpText() {
     "    remove          Remove an installed skill",
     "    list            List installed skills (or --remote for registry)",
     "    search          Search the registry for skills",
+    "    verify          Show or set the command `git push` must pass (the push gate)",
     "    install-hooks   Enable deterministic TDD/verification git hooks",
     "    trust-verify    Record operator consent for this repo's verify command",
     "    evidence        Record/grade verification evidence against the working tree",
@@ -67,6 +70,8 @@ function helpText() {
     "    conductor status                            what is on our plate today",
     "    conductor inbox add \"rename the export button\"",
     "    conductor view --open                       the full rendered dashboard",
+    "    conductor verify                            what does `git push` run here?",
+    "    conductor verify --set \"npm test\"           set it (runs it once first)",
     "    npx conductor-framework init",
     "    npx conductor-framework init ./my-project",
     "    npx conductor-framework upgrade",
@@ -119,6 +124,8 @@ export async function runCli(args, io = process) {
       return searchCommand(rest, context);
     case "install-hooks":
       return installHooksCommand(rest, context);
+    case "verify":
+      return verifyCommand(rest, context);
     case "trust-verify":
       return trustVerifyCommand(rest, context);
     case "evidence":

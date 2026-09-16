@@ -25,17 +25,30 @@ If you already use a custom `core.hooksPath`, install-hooks won't override it �
 
 ## Configuring verification
 
-`pre-push` (and the optional Stop hook) run your **verification command**, resolved in this order:
+`pre-push` (and the optional Stop hook) run your **verification command**. One command reads and sets it:
+
+```bash
+conductor verify                          # what does `git push` run here, and how do I change it?
+conductor verify --set "npm test"         # runs it once; only writes it if it passes
+conductor verify --detect                 # derive it from the files that are here
+conductor verify --none                   # this repo has nothing to verify (docs, state, wrapper)
+```
+
+It is resolved in this order:
 
 1. `"verify"` in `conductor.config.json` — e.g. `"verify": "npm test && npm run lint"`
 2. `npm test`, if `package.json` defines a `test` script
 3. nothing → the push hook prints a notice and allows the push
 
-Set it explicitly for real enforcement:
+`--set` runs the command before writing it because a gate that cannot pass is worse than no gate: it
+blocks every push and teaches you to reach for `CONDUCTOR_SKIP_VERIFY`. Use `--no-run` to write one
+that cannot pass here (CI-only, for instance).
 
-```json
-{ "verify": "npm test" }
-```
+**A repo with nothing to verify** — a state repo, a docs repo, a wrapper whose code lives elsewhere —
+should say so with `conductor verify --none`, which records `"verify": "none"`. The hook then stays
+silent instead of warning at every push. An unconfigured gate and a declared-off gate look the same to
+`git`, but only one of them is a decision, and a warning that can never be cleared is how a safety
+message gets ignored.
 
 ## Configuring evals (Eval-Driven Law run-gate)
 

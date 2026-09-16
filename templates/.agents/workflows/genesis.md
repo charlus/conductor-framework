@@ -48,7 +48,8 @@ Everything about *how* to interview lives in the Grilling primitive. This file o
 1.  **Open:** "Tell me what's broken. Rant to me — what annoys you or your users? Don't hold back."
 2.  **Grill:** Reflect and probe toward the root cause (Grilling's active-listening loop). Surface adjacent problems and blind spots one at a time, each with your read on whether it's in scope — not as a batch.
 3.  **Define the Orbit:** Propose the Sun and Satellites: "I see [X] as the core conflict, with [A, B, C] orbiting it. Agree?"
-4.  **Draft & approve:** Present `problem-solar-system.md` (template structure). **STOP** for explicit approval, then write it.
+4.  **Brief check (Grilling's C1–C4):** against this project's existing `conductor/` docs only. State any hit in two sentences with its source, or say **"Brief check: none found."** It does not block — the human answers, you continue.
+5.  **Draft & approve:** Present `problem-solar-system.md` (template structure). **STOP** for explicit approval, then write it.
 
 ---
 

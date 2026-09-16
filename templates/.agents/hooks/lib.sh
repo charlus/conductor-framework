@@ -41,6 +41,22 @@ conductor_is_llm_feature_file() {
   grep -Eiq '(openai|@anthropic-ai|anthropic|langchain|langgraph|llama[-_]?index|google\.generativeai|@google/(genai|generative-ai)|generativeai|vertexai|bedrock-runtime|mistralai|cohere|ollama|huggingface|replicate|litellm)' "$f"
 }
 
+# True (0) if the path is a brief document — the artifact that records the
+# shared understanding reached at convergence, and the first place work starts.
+# Quick-Path and Spec-It both converge on `feature-spec.md`.
+conductor_is_brief_doc() {
+  printf '%s\n' "$1" | grep -Eiq '(^|/)feature-spec\.md$'
+}
+
+# True (0) if a brief document CONTAINS the brief-check section. Presence, not
+# quality — the same call as the Eval-Driven Law's presence gate. A generic hook
+# cannot judge whether a challenge is a good one; the Checker does that.
+conductor_has_brief_check() {
+  local f="$1"
+  [ -f "$f" ] || return 1
+  grep -Eiq '^#{1,6}[[:space:]]*Brief check' "$f"
+}
+
 # Echo the project's verification command.
 # Priority: conductor.config.json "verify" → package.json "test" script → empty.
 conductor_verify_cmd() {

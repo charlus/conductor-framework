@@ -41,7 +41,8 @@ Principles: **Feature Spec first** (lock the "what" before planning the "how") �
 
 1. **Draft the full spec** from loaded context: Summary · **User Stories, each with its own Acceptance Criteria attached directly beneath it** (not a separate section) · UI/UX Details (reference specific screens) · Edge Cases · Out of Scope · Dependencies.
 2. **Present & iterate:** brief summary (3–5 bullets, with justification) first, then the full document. Invite correction; revise until the user signs off.
-3. **Converge & save:** one confirmation ("Feature Spec locked?"), then immediately write `implementations/[NN-Name]/feature-spec.md`.
+3. **Brief check (Grilling's C1–C4):** before converging, check the brief against the four conditions using this project's `conductor/` docs and current behaviour. State any hit in two sentences with the source, or say **"Brief check: none found."** Non-blocking — the human answers in one line, you continue.
+4. **Converge & save:** one confirmation ("Feature Spec locked?"), then immediately write `implementations/[NN-Name]/feature-spec.md`, including the **Brief check** section and the **shared understanding** paragraph. A `feature-spec.md` with no Brief check section is rejected by the pre-commit hook.
 
 ---
 

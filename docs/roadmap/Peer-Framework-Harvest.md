@@ -2,10 +2,10 @@
 
 > **Status:** all five "do now" items shipped 2026-09-22 — F9/F11/F12
 > (`943fee5`), F7 (`8587ab4`), F3 (`09234ce`), F1 (`dea93a2`, measured) —
-> plus **F4 slice 1** (`3309702`) and **F15** (`bceb57c`). **F8 is blocked and
-> deliberately unbuilt** (`docs/roadmap/Swarm-Collision-Admission.md`).
-> Remaining: F4 slice 2 (annotations, surviving an interrupted wait) and F10.
-> F2, F5, F6, F13, F14 are parked or dropped with a reason.
+> plus **F4** (slices 1 and 2, `3309702` + `21bdaf7`) and **F15** (`bceb57c`).
+> **The harvest is complete.** F8 and F10 are deliberately unbuilt with
+> reasoning; F6 is dropped; F2, F5, F13, F14 are parked. Nothing is
+> outstanding — the next move on this line of work is measurement, not code.
 >
 > **Source:** a source audit of **ECC** (`github.com/affaan-m/ecc`, `ecc-universal`
 > 2.2.1, read at `bf70150`, 2026-09-22) — 68 agents, 292 skills, 94 command shims,
@@ -104,6 +104,7 @@ conditions*, plus the self-modification red line, enforced nowhere.
 | F1 | Fact gate (pre-action) | `hooks/pretooluse-fact-gate.sh` | `test/hooks-fact-gate.sh` (18) **+ a measured eval**, `test/evals/fact-gate-eval.mjs` |
 | F4 | Review canvas, slice 1 | `src/review/`, `src/commands/review.js` | `test/review-canvas.test.js` (17) + an end-to-end run |
 | F15 | Survey an inherited codebase | `src/survey.js`, `src/commands/survey.js`, `workflows/survey.md` | `test/survey.test.js` (26) + runs against two real repos |
+| F4b | Anchored annotations + durable feedback | `src/review/store.js`, `canvas.js`, `server.js` | `test/review-canvas.test.js` (29) + a SIGKILL-and-replay run |
 
 Three design decisions worth keeping:
 

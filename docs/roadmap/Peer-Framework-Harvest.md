@@ -2,10 +2,10 @@
 
 > **Status:** all five "do now" items shipped 2026-09-22 — F9/F11/F12
 > (`943fee5`), F7 (`8587ab4`), F3 (`09234ce`), F1 (`dea93a2`, measured) —
-> plus **F4 slice 1** (`3309702`). **F8 is blocked and deliberately unbuilt**
-> (`docs/roadmap/Swarm-Collision-Admission.md`). Remaining: F4 slice 2
-> (annotations, surviving an interrupted wait), F10, F15. F2, F5, F6, F13,
-> F14 are parked or dropped with a reason.
+> plus **F4 slice 1** (`3309702`) and **F15** (`bceb57c`). **F8 is blocked and
+> deliberately unbuilt** (`docs/roadmap/Swarm-Collision-Admission.md`).
+> Remaining: F4 slice 2 (annotations, surviving an interrupted wait) and F10.
+> F2, F5, F6, F13, F14 are parked or dropped with a reason.
 >
 > **Source:** a source audit of **ECC** (`github.com/affaan-m/ecc`, `ecc-universal`
 > 2.2.1, read at `bf70150`, 2026-09-22) — 68 agents, 292 skills, 94 command shims,
@@ -103,6 +103,7 @@ conditions*, plus the self-modification red line, enforced nowhere.
 | F3 | Hook-registry drift | `test/hooks-registry-drift.test.js` | 7 checks across files, README and install-hooks |
 | F1 | Fact gate (pre-action) | `hooks/pretooluse-fact-gate.sh` | `test/hooks-fact-gate.sh` (18) **+ a measured eval**, `test/evals/fact-gate-eval.mjs` |
 | F4 | Review canvas, slice 1 | `src/review/`, `src/commands/review.js` | `test/review-canvas.test.js` (17) + an end-to-end run |
+| F15 | Survey an inherited codebase | `src/survey.js`, `src/commands/survey.js`, `workflows/survey.md` | `test/survey.test.js` (26) + runs against two real repos |
 
 Three design decisions worth keeping:
 
@@ -167,6 +168,27 @@ could wedge the session. Both PreToolUse hooks now bound themselves with
 have made the failure mode "the session stalls" rather than "the gate stepped
 aside".
 
+### F15, and the four bugs only a real repo found
+
+`conductor survey` collects the facts; `workflows/survey.md` interviews the
+human for the why. Every defect in it was found by running it against a real
+codebase, never by a test:
+
+1. ECC keeps 320 tests in a central `tests/` tree, so grouping by path prefix
+   called every source area untested.
+2. Our own `test/loop-driver.test.js` → `src/loop/driver.js` naming defeated
+   exact stem matching, so `src/loop` looked untested.
+3. A stale worktree under `.claude/worktrees/` doubled every count and let the
+   copy shadow the original.
+4. The directory-name fallback was passed an iterator, so it worked for the
+   first test file and nothing after it. The unit test had one file.
+
+The fix that matters: coverage is attributed by what a test **imports**,
+falling back to naming only when imports resolve nothing. This repo has both
+`src/commands/evidence.js` and `src/evidence/`, which no name-based rule can
+separate. That is the third time today a tidy fixture hid a real bug —
+see [[tidy-fixtures-hide-bugs]].
+
 ### What F7 and F3 turned out to be
 
 F7 shipped narrower than the roadmap entry and deliberately so. The worktree
@@ -202,7 +224,7 @@ observe the first beat — right, and not small), in
 |---|---|---|
 | F4 slice 2 | Element-anchored annotations, and feedback that survives an interrupted wait | Slice 1 ships the verdict loop; pointing at a paragraph is the next increment |
 | F10 | PreCompact handoff snapshot into `1-workbench/` | Today `handoff` relies on the agent remembering to run it. Interactive-path change — needs care. |
-| F15 | Brownfield spec extraction: flat Requirement/Invariant blocks, `id` anchored to the enforcement point so it survives renames, optional test anchors | We have no spec-from-code path. `deepen` is deep modules; `trace-documentation` is backlog links. |
+
 
 **Parked or dropped.**
 

@@ -1,9 +1,9 @@
 # Peer-Framework Harvest (ECC) — F1–F15
 
-> **Status:** F9, F11, F12 shipped 2026-09-22 (`943fee5`); F7 (`8587ab4`) and
-> F3 (`09234ce`) the same day. **F1 is next** and needs its own eval first.
-> F4, F8, F10, F15 need a design pass. F2, F5, F6, F13, F14 are parked or
-> dropped with a reason.
+> **Status:** all five "do now" items shipped 2026-09-22 — F9/F11/F12
+> (`943fee5`), F7 (`8587ab4`), F3 (`09234ce`), F1 (`dea93a2`, measured).
+> **Next: F8 or F4**, both needing a design pass, plus F10 and F15.
+> F2, F5, F6, F13, F14 are parked or dropped with a reason.
 >
 > **Source:** a source audit of **ECC** (`github.com/affaan-m/ecc`, `ecc-universal`
 > 2.2.1, read at `bf70150`, 2026-09-22) — 68 agents, 292 skills, 94 command shims,
@@ -99,6 +99,7 @@ conditions*, plus the self-modification red line, enforced nowhere.
 | F11 | Hook-bypass blocker | `hooks/pretooluse-no-bypass.sh` | `test/hooks-no-bypass.sh` N1–N7, A1–A7, E1–E5 |
 | F7 | Merge-conflict prediction | `src/loop/conflict.js`, `swarm.js`, `loop.js` | `test/loop-conflict.test.js` (16), `test/conflict-predict-real.sh` (8, real git), `loop-swarm.test.js` F7 (6) |
 | F3 | Hook-registry drift | `test/hooks-registry-drift.test.js` | 7 checks across files, README and install-hooks |
+| F1 | Fact gate (pre-action) | `hooks/pretooluse-fact-gate.sh` | `test/hooks-fact-gate.sh` (18) **+ a measured eval**, `test/evals/fact-gate-eval.mjs` |
 
 Three design decisions worth keeping:
 
@@ -123,19 +124,45 @@ recurring pattern. Detection, not prevention.
 
 ## 4. The rest of the backlog
 
-**Next.**
+### F1, and the only measured claim in this document
 
-| ID | What | Lands in | Effort |
-|---|---|---|---|
-| F1 | GateGuard's three-stage pre-action gate: DENY the first Edit/Write/Bash per target → FORCE a named fact list → ALLOW on retry | new PreToolUse hook | M |
+The fact gate shipped with an eval rather than an assertion, because ECC's
+evidence for its GateGuard is two tasks scored out of ten by a judge. Measured
+against `claude` 2.1.278, n=4 per arm, on a fixture whose target file is
+imported by three files that each transform its value:
 
-Two notes for F1 when it starts. Import ECC's **denial dampening**: emit the
-full fact block only for the first three denials per session, then a condensed
-line carrying the denial ordinal, because textually identical denials push the
-model into a repetition loop (their code says this was measured). And gate it
-with our own eval in `test/evals/` before it ships — adopting their mechanism on
-their two-task evidence would be inheriting exactly the standard this framework
-exists to reject.
+| Arm | Named the files its change affects |
+|---|---|
+| gated | 4/4 (100%) |
+| control (`CONDUCTOR_FACT_GATE=off`) | 0/4 (0%) |
+| sensitivity: two identical ungated arms | +25pp — the noise floor |
+
+The effect is four times the noise. **n=4 is small**: the direction is
+established, the magnitude is approximate. Re-run before quoting a number.
+
+Three adaptations away from GateGuard, each deliberate: the edit gate asks for
+the **failing test**, which puts red-before-green at the moment of action
+instead of only at commit; the write gate asks **what already does this**,
+turning F13's reuse-before-build from prose into code; and **routine Bash is
+not gated**, because our loop runs many commands a beat and there is no
+investigation to buy there. Denial dampening is imported as-is — identical
+repeated denials push a model into a repetition loop.
+
+**The eval's first version was worthless twice over,** and both traps are
+cheap to repeat. It scored the gate against its own denied edit, so a gated run
+always looked like it had edited before searching — the gate appeared to make
+things 33pp *worse*. And the metric sat at the ceiling, with the control
+already at 3/3, so no effect could show in either direction. Neither was
+visible until a real run produced a result that made no sense. Full write-up in
+`test/evals/README.md`.
+
+**A hang found on the way.** The test that was only meant to check an
+unwritable state dir found that `mkdirSync(recursive)` never returns for a path
+under `/proc` on this kernel — so a hook sitting in front of every tool call
+could wedge the session. Both PreToolUse hooks now bound themselves with
+`timeout` and fail open on expiry. Relying on the harness's own timeout would
+have made the failure mode "the session stalls" rather than "the gate stepped
+aside".
 
 ### What F7 and F3 turned out to be
 

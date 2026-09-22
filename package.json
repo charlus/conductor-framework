@@ -24,7 +24,9 @@
     "test:e2e": "bash test/e2e-loop-real.sh",
     "test:init": "node bin/conductor.js init /tmp/conductor-test-install --all && bash /tmp/conductor-test-install/.agents/tests/check-conductor.sh && rm -rf /tmp/conductor-test-install",
     "test:hooks:brief": "bash test/hooks-brief-gate.sh",
-    "test:hooks:report": "bash test/hooks-report-gate.sh"
+    "test:hooks:report": "bash test/hooks-report-gate.sh",
+    "test:hooks:boundary": "bash test/hooks-boundary-gate.sh",
+    "test:hooks:bypass": "bash test/hooks-no-bypass.sh"
   },
   "keywords": [
     "conductor",

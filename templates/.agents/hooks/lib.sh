@@ -119,6 +119,113 @@ conductor_has_eval_files() {
   git -C "$root" ls-files 2>/dev/null | grep -Eiq '(\.|_)(eval|evals)\.|(^|/)evals?/'
 }
 
+# ---------------------------------------------------------------------------
+# The Goodhart boundary (F9).
+#
+# "All tests pass" is a gameable done-criterion, and the Test-Driven Law only
+# proves a test CHANGE exists. It cannot tell a new test from a deleted one:
+# `--diff-filter=ACM` never sees a deletion, and staging `.skip(` counts as a
+# change. So the two cheapest moves an unattended agent has — delete the
+# failing test, skip the failing test — both satisfied the gate. A third,
+# gutting the assertions, satisfied it too.
+#
+# A done-criterion needs a boundary beside it: what the change must NOT do.
+# These three helpers are that boundary, and they are deliberately syntactic —
+# a hook cannot judge whether removing a test was right, only that it happened.
+
+# Test-disabling markers, across the languages conductor_is_test_file covers.
+# Only ever matched against ADDED lines inside files that are already tests.
+CONDUCTOR_SKIP_MARKER_RE='\.(skip|only|todo|failing)\(|\bx(it|test|describe)\(|@pytest\.mark\.skip|@unittest\.skip|\bpytest\.skip\(|#\[ignore\]|\bt\.Skip(Now)?\(|@Ignore\b|@Disabled\b'
+
+# What counts as an assertion — the thing a test actually proves.
+CONDUCTOR_ASSERT_RE='expect\(|\bassert|\.should\b|\bEXPECT_|\bASSERT_|XCTAssert|\bt\.(is|deepEqual|truthy|throws)\(|\.to\.(be|equal|deep)'
+
+# Echo staged test files DELETED outright, one per line. Rename detection is
+# on, so moving or renaming a test file is not read as removing one.
+conductor_deleted_test_files() {
+  local root="$1" f
+  git -C "$root" diff --cached --name-only --find-renames --diff-filter=D 2>/dev/null |
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      conductor_is_test_file "$f" && printf '%s\n' "$f"
+    done
+}
+
+# Echo "file:marker" for each staged test file that ADDS a disabling marker.
+conductor_added_skip_markers() {
+  local root="$1" f hit
+  shift
+  for f in "$@"; do
+    [ -z "$f" ] && continue
+    hit="$(git -C "$root" diff --cached -U0 -- "$f" 2>/dev/null |
+      grep -E '^\+' | grep -Ev '^\+\+\+' |
+      grep -Eo "$CONDUCTOR_SKIP_MARKER_RE" | head -1)"
+    [ -n "$hit" ] && printf '%s: %s\n' "$f" "$hit"
+  done
+}
+
+# Echo the NET change in assertion count across the given staged test files.
+# Negative means this commit removed more proof than it added. Summed across
+# files on purpose: moving assertions between test files nets to zero.
+conductor_assertion_delta() {
+  local root="$1" f d added=0 removed=0 a r
+  shift
+  for f in "$@"; do
+    [ -z "$f" ] && continue
+    d="$(git -C "$root" diff --cached -U0 -- "$f" 2>/dev/null)"
+    a="$(printf '%s\n' "$d" | grep -E '^\+' | grep -Ev '^\+\+\+' | grep -Ec "$CONDUCTOR_ASSERT_RE")"
+    r="$(printf '%s\n' "$d" | grep -E '^-' | grep -Ev '^---' | grep -Ec "$CONDUCTOR_ASSERT_RE")"
+    added=$((added + a))
+    removed=$((removed + r))
+  done
+  printf '%s' "$((added - removed))"
+}
+
+# ---------------------------------------------------------------------------
+# Protected paths (F12).
+#
+# "Build may not edit the acceptance conditions" is the one rule every
+# plan/build/judge loop rests on, and we enforced it nowhere: a maker beat
+# could edit the hooks that gate it, the rules that bind it, the sandbox that
+# contains it, or the reviewer brief that judges it. The more a loop can
+# rewrite its own constraints, the stricter the human review it needs — so
+# this surface is frozen behind a logged, deliberate waiver.
+#
+# Scoped to the ENFORCEMENT surface only. Workflows, skills and project
+# knowledge stay freely editable; freezing those would make the gate a tax.
+conductor_is_protected_path() {
+  printf '%s\n' "$1" |
+    grep -Eq '^\.agents/(hooks|rules|sandbox)/|^\.agents/skills/independent-review/'
+}
+
+# True (0) once the enforcement surface is COMMITTED. Until then the commit in
+# hand is the install itself (`conductor init` stages .agents/ wholesale), and
+# blocking it would mean a fresh project cannot make its first commit. You
+# cannot weaken a gate that does not exist yet; from the next commit on, every
+# touch of these paths — add, modify, delete — is a change to the rules.
+conductor_enforcement_installed() {
+  git -C "$1" cat-file -e HEAD:.agents/hooks/pre-commit 2>/dev/null
+}
+
+# Echo staged changes to protected paths, whatever their status. Deletions and
+# renames matter as much as edits here: removing pre-commit disables the gate
+# just as surely as rewriting it, and only a full name-status scan sees that.
+conductor_protected_changes() {
+  local root="$1" line status path
+  conductor_enforcement_installed "$root" || return 0
+  git -C "$root" diff --cached --name-status --find-renames 2>/dev/null |
+    while IFS=$'\t' read -r status path dest; do
+      [ -z "${path:-}" ] && continue
+      # A rename reports old and new; either side landing in a protected path
+      # is a change to the enforcement surface.
+      for candidate in "$path" "${dest:-}"; do
+        [ -z "$candidate" ] && continue
+        conductor_is_protected_path "$candidate" &&
+          printf '%s (%s)\n' "$candidate" "$(printf '%s' "$status" | cut -c1)"
+      done
+    done
+}
+
 # Append a waiver line to the ship-log so bypasses are auditable, never silent.
 conductor_log_waiver() {
   local root="$1" kind="$2" reason="$3"

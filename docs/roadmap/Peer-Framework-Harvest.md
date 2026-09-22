@@ -1,9 +1,11 @@
 # Peer-Framework Harvest (ECC) — F1–F15
 
 > **Status:** all five "do now" items shipped 2026-09-22 — F9/F11/F12
-> (`943fee5`), F7 (`8587ab4`), F3 (`09234ce`), F1 (`dea93a2`, measured).
-> **Next: F8 or F4**, both needing a design pass, plus F10 and F15.
-> F2, F5, F6, F13, F14 are parked or dropped with a reason.
+> (`943fee5`), F7 (`8587ab4`), F3 (`09234ce`), F1 (`dea93a2`, measured) —
+> plus **F4 slice 1** (`3309702`). **F8 is blocked and deliberately unbuilt**
+> (`docs/roadmap/Swarm-Collision-Admission.md`). Remaining: F4 slice 2
+> (annotations, surviving an interrupted wait), F10, F15. F2, F5, F6, F13,
+> F14 are parked or dropped with a reason.
 >
 > **Source:** a source audit of **ECC** (`github.com/affaan-m/ecc`, `ecc-universal`
 > 2.2.1, read at `bf70150`, 2026-09-22) — 68 agents, 292 skills, 94 command shims,
@@ -100,6 +102,7 @@ conditions*, plus the self-modification red line, enforced nowhere.
 | F7 | Merge-conflict prediction | `src/loop/conflict.js`, `swarm.js`, `loop.js` | `test/loop-conflict.test.js` (16), `test/conflict-predict-real.sh` (8, real git), `loop-swarm.test.js` F7 (6) |
 | F3 | Hook-registry drift | `test/hooks-registry-drift.test.js` | 7 checks across files, README and install-hooks |
 | F1 | Fact gate (pre-action) | `hooks/pretooluse-fact-gate.sh` | `test/hooks-fact-gate.sh` (18) **+ a measured eval**, `test/evals/fact-gate-eval.mjs` |
+| F4 | Review canvas, slice 1 | `src/review/`, `src/commands/review.js` | `test/review-canvas.test.js` (17) + an end-to-end run |
 
 Three design decisions worth keeping:
 
@@ -179,12 +182,25 @@ legitimate edit gets regenerated without being read. It found real drift on its
 first run: `CONDUCTOR_NO_BRIEF` and `CONDUCTOR_NO_REPORT` had been implemented
 and undocumented since they shipped.
 
-**Design pass first.**
+### F8 is blocked, and that is the finding
+
+ECC computes proximity for agents that are **already running**, so their
+working sets are observable. Our swarm chooses concurrency **before** anything
+is edited, and a task carries no file scope — `normalizeTask` has none and
+neither `carve` nor the harvester produces one. The metric has no input, and
+building it anyway would produce exactly what this document criticises ECC for:
+a well-engineered library with no consumer.
+
+F7 already took the detectable half at merge time. Full reasoning, and the two
+ways to unblock it (declare the scope — wrong, it trusts a self-report; or
+observe the first beat — right, and not small), in
+`docs/roadmap/Swarm-Collision-Admission.md`.
+
+**Still open.**
 
 | ID | What | Why it waits |
 |---|---|---|
-| F8 | Agent-proximity admission control: may these two swarm workers run concurrently at all? Three channels (line-range overlap via Szymkiewicz–Simpson, import-graph coupling decaying with graph distance, tree proximity) combined with a noisy-OR, then hold/steer right-of-way | The only genuine invention in ECC, and MIT. Needs adapting to our dispatch shape, not copying. Roadmap doc before code. |
-| F4 | Plan Canvas: the human annotates a plan in a browser by pointing at an element, returns `approve`/`request-changes` as JSON to a blocked CLI call | Highest PO value, biggest job. We already render HTML in `src/view/`; this is the missing return path. |
+| F4 slice 2 | Element-anchored annotations, and feedback that survives an interrupted wait | Slice 1 ships the verdict loop; pointing at a paragraph is the next increment |
 | F10 | PreCompact handoff snapshot into `1-workbench/` | Today `handoff` relies on the agent remembering to run it. Interactive-path change — needs care. |
 | F15 | Brownfield spec extraction: flat Requirement/Invariant blocks, `id` anchored to the enforcement point so it survives renames, optional test anchors | We have no spec-from-code path. `deepen` is deep modules; `trace-documentation` is backlog links. |
 

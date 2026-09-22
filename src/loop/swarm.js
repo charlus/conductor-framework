@@ -16,6 +16,7 @@
 // so the whole scheduler is unit-testable with stubs — no processes spawned.
 
 import { hashString, computeStallHash, preflight, describeHalt } from "./driver.js";
+import { orderMergeQueue } from "./conflict.js";
 
 export const MAX_TASK_STALLS = 3;
 
@@ -209,6 +210,7 @@ export async function runSwarm(state, deps) {
     runVerify,
     runChecker = null,
     merge = null,
+    predictConflict = null, // ({task}) → {conflicted, files[], method}
     gitHead,
     assignWorktree = async () => null, // ({task}) → {path,branch}
     now,
@@ -291,16 +293,53 @@ export async function runSwarm(state, deps) {
     );
     state.iterations.current = budget.beats;
 
-    // Serialized, PR-gated merge queue (deterministic order = wave order).
     for (const { task, outcome } of results) {
       if (outcome !== "passed") {
         task.status = "failed";
         await audit(`task ${task.id}: failed (${outcome})`);
-        continue;
       }
+    }
+
+    // Serialized, PR-gated merge queue. A collision used to be discovered only
+    // HERE — after the worker had burned a beat, passed verify and passed the
+    // Checker — and it reached the human as "merge failed: unknown". F7 asks
+    // `git merge-tree` the same question against the object store first, so the
+    // clean branches in the wave still land and the colliding one is escalated
+    // with the exact file list instead of a doomed PR.
+    //
+    // Strictly additive: no predictor, a thrown predictor, or a "unknown"
+    // verdict all leave the queue exactly as it was (wave order, merge
+    // attempted). Prediction is an optimisation — the PR-gated merge is still
+    // the gate.
+    const passed = results.filter((r) => r.outcome === "passed");
+    for (const r of passed) {
+      if (!predictConflict) continue;
+      try {
+        r.prediction = await predictConflict({ task: r.task });
+      } catch (error) {
+        await audit(`task ${r.task.id}: conflict prediction failed (${error?.message ?? "error"}) — merging anyway`);
+        r.prediction = null;
+      }
+    }
+
+    for (const { task, prediction } of orderMergeQueue(passed)) {
       if (!merge) {
         task.status = "failed";
         await writeInbox(state, `task ${task.id} passed but no merge capability`);
+        continue;
+      }
+      if (prediction?.conflicted) {
+        // Do NOT open the PR: an unmergeable PR raised unattended is noise the
+        // human has to untangle. The branch and its worktree are preserved
+        // (teardown never drops unmerged work), so nothing is lost.
+        const files = prediction.files?.length ? prediction.files.join(", ") : "(files not reported)";
+        task.status = "passed";
+        terminal = "awaiting_review";
+        await writeInbox(
+          state,
+          `task ${task.id} would conflict on merge — ${files}. Branch ${task.worktree?.branch ?? "(unknown)"} kept, no PR opened.`
+        );
+        await audit(`task ${task.id}: predicted merge conflict (${files}) → awaiting_review`);
         continue;
       }
       const m = await merge({ task });

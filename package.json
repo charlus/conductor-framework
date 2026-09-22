@@ -26,7 +26,8 @@
     "test:hooks:brief": "bash test/hooks-brief-gate.sh",
     "test:hooks:report": "bash test/hooks-report-gate.sh",
     "test:hooks:boundary": "bash test/hooks-boundary-gate.sh",
-    "test:hooks:bypass": "bash test/hooks-no-bypass.sh"
+    "test:hooks:bypass": "bash test/hooks-no-bypass.sh",
+    "test:conflict": "bash test/conflict-predict-real.sh"
   },
   "keywords": [
     "conductor",

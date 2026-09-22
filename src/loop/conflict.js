@@ -1,0 +1,167 @@
+// src/loop/conflict.js
+//
+// Merge-conflict PREDICTION for the swarm's merge queue (F7).
+//
+// WHY THIS EXISTS. The swarm dispatched a wave of Makers in parallel worktrees,
+// then merged them one by one. A collision was only discovered at merge time —
+// after the worker had burned a full beat, passed verify and passed the
+// Checker — and it surfaced as "PR-gated merge failed: unknown", which tells
+// the human nothing about what collided. `git merge-tree` answers the same
+// question against the object store, touching no working tree, so the queue can
+// land the clean branches first and escalate the colliding one with the exact
+// file list.
+//
+// NOT A SAFETY GATE. The PR-gated merge is still the real gate; this only
+// reorders the queue and improves the escalation message. So it FAILS OPEN: an
+// old git, a missing merge base, any doubt at all → `method: "unknown"` and
+// `conflicted: false`, and the merge is attempted exactly as before. A false
+// "conflicted" would strand work that merges fine, which is the worse error.
+//
+// TWO FORMS, because git changed the command:
+//   git >= 2.38  `merge-tree --write-tree --name-only` — exit 1 means conflict.
+//   git <  2.38  `merge-tree <base> <ours> <theirs>`   — ALWAYS exits 0; the
+//                only signal is a conflict marker in the diff body. Reading the
+//                exit code on this form reports every conflict as clean.
+//
+// All git IO is injected as `git(argsArray) -> {ok, stdout, stderr, exitCode}`.
+
+/** Conflict markers git writes into a merged hunk. */
+const MARKER = "<<<<<<<";
+
+/** `  our    100644 <sha> path/to/file` → the path. */
+const BLOB_LINE = /^\s+(?:base|our|their|result)\s+\d+\s+[0-9a-f]+\s+(.+)$/;
+
+/**
+ * Parse legacy `git merge-tree <base> <ours> <theirs>` output.
+ *
+ * The body is a sequence of sections — `changed in both`, `merged`,
+ * `added in both`, … — each followed by indented blob lines and a diff hunk.
+ * A section is a conflict only when its hunk carries a marker: two branches
+ * editing the same file on different lines produce `changed in both` and merge
+ * perfectly well, so the header alone would over-report badly.
+ *
+ * @returns {{conflicted: boolean, files: string[]}}
+ */
+export function parseLegacyMergeTree(stdout) {
+  const files = [];
+  let path = null;
+  let sawMarker = false;
+
+  const flush = () => {
+    if (sawMarker && path && !files.includes(path)) files.push(path);
+    sawMarker = false;
+  };
+
+  for (const line of String(stdout ?? "").split("\n")) {
+    // An unindented word starts a new section.
+    if (/^[a-z]/.test(line)) {
+      flush();
+      path = null;
+      continue;
+    }
+    const blob = line.match(BLOB_LINE);
+    if (blob) {
+      // base/our/their all name the same path; last one wins, they agree.
+      path = blob[1].trim();
+      continue;
+    }
+    if (line.includes(MARKER)) sawMarker = true;
+  }
+  flush();
+
+  return { conflicted: files.length > 0, files };
+}
+
+/**
+ * Parse modern `git merge-tree --write-tree --name-only` output.
+ * Exit 1 is the conflict signal; stdout is the tree oid, then the conflicted
+ * paths, then (unless suppressed) messages after a blank line.
+ *
+ * NOT exercised against a real git here — this machine runs 2.34.1, which has
+ * no `--write-tree`. Shape taken from the documented contract.
+ *
+ * @returns {{conflicted: boolean, files: string[]}}
+ */
+export function parseModernMergeTree(stdout, exitCode) {
+  if (exitCode === 0) return { conflicted: false, files: [] };
+  const lines = String(stdout ?? "").split("\n");
+  const files = [];
+  for (const line of lines.slice(1)) {
+    if (line.trim() === "") break; // blank line ends the path list
+    files.push(line.trim());
+  }
+  return { conflicted: true, files };
+}
+
+/** True when git rejected the flags rather than answering the question. */
+function unsupportedForm(res) {
+  const text = `${res?.stderr ?? ""}${res?.stdout ?? ""}`;
+  return res?.exitCode === 129 || /usage: git merge-tree|unknown option/i.test(text);
+}
+
+/**
+ * Would merging `branch` into `base` conflict, and where?
+ *
+ * @returns {Promise<{conflicted:boolean, files:string[], method:"merge-tree"|"merge-tree-legacy"|"unknown"}>}
+ *   `method: "unknown"` means we could not tell — never that it is clean.
+ */
+export async function predictConflicts({ git, base, branch }) {
+  const unknown = { conflicted: false, files: [], method: "unknown" };
+  if (!git || !base || !branch) return unknown;
+
+  // Modern form first; --no-messages keeps stdout to oid + paths.
+  try {
+    const modern = await git([
+      "merge-tree", "--write-tree", "--name-only", "--no-messages", base, branch,
+    ]);
+    if (!unsupportedForm(modern)) {
+      // exitCode 0 = clean, 1 = conflict. Anything else is a real failure
+      // (bad ref, corrupt object) and must not be read as a verdict.
+      //
+      // And exit 1 alone is not enough: a git that failed for its own reasons
+      // — no such ref, no git at all — also exits non-zero with nothing on
+      // stdout, and reading that as "conflict" would strand work that merges
+      // fine. A genuine verdict always writes the resulting tree oid first, so
+      // require it before believing either answer.
+      const hasVerdict = String(modern.stdout ?? "").trim() !== "";
+      if (hasVerdict && (modern.exitCode === 0 || modern.exitCode === 1)) {
+        return { ...parseModernMergeTree(modern.stdout, modern.exitCode), method: "merge-tree" };
+      }
+      return unknown;
+    }
+  } catch {
+    // fall through to the legacy form
+  }
+
+  try {
+    const mb = await git(["merge-base", base, branch]);
+    const mergeBase = mb?.ok ? String(mb.stdout ?? "").trim() : "";
+    if (!mergeBase) return unknown; // unrelated histories → we cannot predict
+
+    const legacy = await git(["merge-tree", mergeBase, base, branch]);
+    if (!legacy?.ok) return unknown;
+    return { ...parseLegacyMergeTree(legacy.stdout), method: "merge-tree-legacy" };
+  } catch {
+    return unknown;
+  }
+}
+
+/**
+ * Order a wave's merge results so predicted-clean branches land first.
+ *
+ * Pure and STABLE: the driver forbids randomness, so the same wave must always
+ * merge in the same order or a resumed run diverges from the one it resumes.
+ * An unknown prediction sorts with the clean group — we do not demote work on
+ * a guess.
+ *
+ * @param {Array<{task:object, prediction?:{conflicted?:boolean}}>} results
+ * @returns a new array; the input is not mutated.
+ */
+export function orderMergeQueue(results) {
+  const list = [...(results ?? [])];
+  const conflicting = (r) => (r?.prediction?.conflicted === true ? 1 : 0);
+  return list
+    .map((r, i) => [r, i])
+    .sort((a, b) => conflicting(a[0]) - conflicting(b[0]) || a[1] - b[1])
+    .map(([r]) => r);
+}

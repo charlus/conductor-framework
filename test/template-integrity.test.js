@@ -190,6 +190,7 @@ describe("E5.5 — host integration points are the only host-specific references
     // methodology. Its own header states the reach limit and names the
     // after-the-fact fallback the other engines get.
     "hooks/pretooluse-no-bypass.sh",
+    "hooks/pretooluse-fact-gate.sh",
     "sandbox/README.md",
     "how-it-works.md",
     "tests/check-conductor.sh",

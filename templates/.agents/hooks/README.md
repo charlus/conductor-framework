@@ -13,6 +13,7 @@
 | `pre-push` | **Verification Iron Law** | `git push` | the configured verification command exits non-zero |
 | `verification-stop-hook.sh` | Verification Iron Law (interactive) | Claude Code `Stop` | **opt-in** — code changed since HEAD and verify is red |
 | `pretooluse-no-bypass.sh` | every gate above | Claude Code `PreToolUse` | **opt-in** — a Bash call tries to skip the git hooks (`--no-verify`, `-n`, `-c core.hooksPath=`) |
+| `pretooluse-fact-gate.sh` | investigate before you write | Claude Code `PreToolUse` | **opt-in** — the first edit/creation of a file, and every destructive command, until the facts are stated (off: `CONDUCTOR_FACT_GATE=off`) |
 | `lib.sh` | — | sourced by the others | shared helpers |
 
 ### Why the boundary gate exists
@@ -112,6 +113,55 @@ CONDUCTOR_HOOKS=off git commit …                         # disable all Conduct
 ```
 
 Every named reason is appended to `conductor/0-compass/ship-log.md`, so a bypass stays auditable. The rule is not *never bypass* — it is *every bypass is logged*. Prefer these over `git commit --no-verify`, which silently skips **every** hook and leaves no trail.
+
+## Optional: the fact gate (Claude Code)
+
+Every other gate here fires **after** the work: the Test-Driven Law and the
+Goodhart boundary at commit, the Verification Iron Law at push, the Checker
+after the beat. All of them catch a bad change once it exists. None of them
+stop a model writing one from a guess.
+
+Self-evaluation does not close that gap — ask a model "are you sure?" and the
+answer is always yes. Asking *"which files import this one"* does, because it
+cannot be answered without running a search, and running the search puts the
+answer in the context. The investigation is the point; the question only
+forces it.
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Edit|Write|Bash", "hooks": [ { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.agents/hooks/pretooluse-fact-gate.sh" } ] }
+    ]
+  }
+}
+```
+
+It denies the **first** edit or creation of each file, and **every** destructive
+command, naming the facts to state; the retry is allowed. Three questions per
+gate:
+
+| Gate | Asks for |
+|---|---|
+| Edit | every file that imports this one (searched, not recalled); the failing test this makes pass; the instruction verbatim |
+| Write | what will call the new file; what you searched to confirm nothing already does this; the instruction verbatim |
+| Destructive Bash | exactly what it destroys; a one-line rollback; the instruction verbatim |
+
+**What it does not do:** verify any of it. A `PreToolUse` hook sees the tool
+call, not the reasoning. It buys a pause and a prompt at the moment of action —
+do not read it as proof. `Read`, `Grep` and `Glob` are never gated; they are the
+investigation being demanded. Routine `Bash` is not gated either — ECC's
+GateGuard denies it once per session, but our loop runs many commands a beat and
+there is no investigation to buy there, only a wasted turn.
+
+After three denials in a session the message condenses to a single line carrying
+its ordinal. Identical repeated denials are what push a model into a repetition
+loop, so the gate keeps denying but stops repeating itself.
+
+Turn it off with `CONDUCTOR_FACT_GATE=off`, or everything with
+`CONDUCTOR_HOOKS=off`. Both `PreToolUse` hooks bound themselves with `timeout`
+(`CONDUCTOR_HOOK_TIMEOUT`, default 5s) and fail **open** on expiry: a hook in
+front of every tool call must never be able to wedge the session.
 
 ## Optional: blocking the unlogged bypass (Claude Code)
 

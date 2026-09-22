@@ -32,6 +32,25 @@ set -uo pipefail
 [ "${CONDUCTOR_HOOKS:-on}" = "off" ] && exit 0
 command -v node >/dev/null 2>&1 || exit 0
 
+# A PreToolUse hook sits in front of every tool call, so it must be bounded.
+# Anything slow here is a bug whatever the cause — and at least one real one
+# is not ours: on some kernels `mkdirSync(..., {recursive:true})` against a
+# pathological path (a CONDUCTOR_HOME under /proc, say) never returns. The
+# harness has its own timeout, but relying on it means the failure mode is
+# "the session stalls" rather than "the gate stepped aside". Bound it here and
+# fail OPEN on expiry.
+run_bounded() {
+  local rc
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "${CONDUCTOR_HOOK_TIMEOUT:-5}" node -e "$1"
+    rc=$?
+    [ "$rc" = "124" ] && exit 0   # timed out → allow, never wedge the session
+    exit "$rc"
+  fi
+  node -e "$1"
+  exit $?
+}
+
 read -r -d '' CONDUCTOR_BYPASS_GUARD_JS <<'NODE'
 const read = () => { try { return require("fs").readFileSync(0, "utf8"); } catch { return ""; } };
 
@@ -137,5 +156,4 @@ process.stderr.write(
 process.exit(2);
 NODE
 
-node -e "$CONDUCTOR_BYPASS_GUARD_JS"
-exit $?
+run_bounded "$CONDUCTOR_BYPASS_GUARD_JS"

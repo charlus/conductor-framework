@@ -15,6 +15,7 @@ const EXECUTABLE_HOOKS = [
   // Opt-in Claude Code PreToolUse hook. Not wired by core.hooksPath (that is
   // git's), but it still needs the bit set for settings.json to invoke it.
   "pretooluse-no-bypass.sh",
+  "pretooluse-fact-gate.sh",
   "lib.sh",
 ];
 

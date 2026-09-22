@@ -102,6 +102,8 @@ Determinism can over-block legitimate config/doc work, so every gate has a logge
 ```bash
 CONDUCTOR_NO_TEST="config-only change"  git commit …     # TDD gate (pre-commit)
 CONDUCTOR_NO_EVAL="stub, no eval surface" git commit …   # Eval presence gate (pre-commit)
+CONDUCTOR_NO_BRIEF="pre-A5 spec" git commit …            # brief check (pre-commit)
+CONDUCTOR_NO_REPORT="editing an old entry" git commit …  # report shape (pre-commit)
 CONDUCTOR_NO_BOUNDARY="feature removed" git commit …     # Goodhart boundary (pre-commit)
 CONDUCTOR_NO_PROTECTED="conductor upgrade" git commit …  # protected paths (pre-commit)
 CONDUCTOR_SKIP_VERIFY="hotfix, tests offline" git push … # verify gate (pre-push)

@@ -32,7 +32,7 @@ set -uo pipefail
 [ "${CONDUCTOR_HOOKS:-on}" = "off" ] && exit 0
 command -v node >/dev/null 2>&1 || exit 0
 
-read -r -d '' CONDUCTOR_NO_BYPASS_JS <<'NODE'
+read -r -d '' CONDUCTOR_BYPASS_GUARD_JS <<'NODE'
 const read = () => { try { return require("fs").readFileSync(0, "utf8"); } catch { return ""; } };
 
 // Git commands whose hooks a flag can skip, and what each gate's logged
@@ -137,5 +137,5 @@ process.stderr.write(
 process.exit(2);
 NODE
 
-node -e "$CONDUCTOR_NO_BYPASS_JS"
+node -e "$CONDUCTOR_BYPASS_GUARD_JS"
 exit $?

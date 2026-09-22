@@ -30,6 +30,7 @@ Classify what the user needs before acting:
 |---|---|
 | A question ("what is", "how does", "explain") | Answer directly — no workflow needed |
 | "I have an idea", "New app", "New feature area" | `workflows/genesis.md` |
+| "I inherited this codebase", "Onboard this existing product", "What is this thing" | `workflows/survey.md` |
 | "Grand PRD", "Create PRD" | `workflows/grand-prd.md` |
 | "Carve", "Break it down" | `workflows/carve.md` |
 | "Deepen", "Improve codebase architecture", "Find shallow modules" | `workflows/deepen.md` |

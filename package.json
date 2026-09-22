@@ -30,7 +30,8 @@
     "test:conflict": "bash test/conflict-predict-real.sh",
     "test:hooks:factgate": "bash test/hooks-fact-gate.sh",
     "eval:factgate": "node test/evals/fact-gate-eval.mjs",
-    "eval:factgate:sensitivity": "node test/evals/fact-gate-eval.mjs --sensitivity"
+    "eval:factgate:sensitivity": "node test/evals/fact-gate-eval.mjs --sensitivity",
+    "test:survey": "node --test test/survey.test.js"
   },
   "keywords": [
     "conductor",

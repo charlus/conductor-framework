@@ -1,7 +1,8 @@
 # Peer-Framework Harvest (ECC) — F1–F15
 
-> **Status:** F9, F11, F12 shipped 2026-09-22 (`943fee5`). F1, F7, F3 are next.
-> F4, F8, F10, F15 need a design pass first. F2, F5, F6, F13, F14 are parked or
+> **Status:** F9, F11, F12 shipped 2026-09-22 (`943fee5`); F7 (`8587ab4`) and
+> F3 (`09234ce`) the same day. **F1 is next** and needs its own eval first.
+> F4, F8, F10, F15 need a design pass. F2, F5, F6, F13, F14 are parked or
 > dropped with a reason.
 >
 > **Source:** a source audit of **ECC** (`github.com/affaan-m/ecc`, `ecc-universal`
@@ -96,6 +97,8 @@ conditions*, plus the self-modification red line, enforced nowhere.
 | F9 | Goodhart boundary | `hooks/lib.sh`, `hooks/pre-commit` | `test/hooks-boundary-gate.sh` G1–G9 |
 | F12 | Protected paths | `hooks/lib.sh`, `hooks/pre-commit` | `test/hooks-boundary-gate.sh` P1–P7 |
 | F11 | Hook-bypass blocker | `hooks/pretooluse-no-bypass.sh` | `test/hooks-no-bypass.sh` N1–N7, A1–A7, E1–E5 |
+| F7 | Merge-conflict prediction | `src/loop/conflict.js`, `swarm.js`, `loop.js` | `test/loop-conflict.test.js` (16), `test/conflict-predict-real.sh` (8, real git), `loop-swarm.test.js` F7 (6) |
+| F3 | Hook-registry drift | `test/hooks-registry-drift.test.js` | 7 checks across files, README and install-hooks |
 
 Three design decisions worth keeping:
 
@@ -120,13 +123,11 @@ recurring pattern. Detection, not prevention.
 
 ## 4. The rest of the backlog
 
-**Next, in order.** Each lands inside code that already exists.
+**Next.**
 
 | ID | What | Lands in | Effort |
 |---|---|---|---|
 | F1 | GateGuard's three-stage pre-action gate: DENY the first Edit/Write/Bash per target → FORCE a named fact list → ALLOW on retry | new PreToolUse hook | M |
-| F7 | Worktree lifecycle: classify each tree (dirty/merge-ready/conflict/merged/stale/idle), predict conflicts with `git merge-tree` without touching the tree, refuse to clean anything dirty or unmerged | `src/loop/swarm.js`, `worktree.js` | S |
-| F3 | Hook metadata sidecar: stable IDs, each fingerprinting its matcher and command; CI fails on drift or a reorder that swaps IDs | `templates/.agents/hooks/`, CI | S |
 
 Two notes for F1 when it starts. Import ECC's **denial dampening**: emit the
 full fact block only for the first three denials per session, then a condensed
@@ -135,6 +136,21 @@ model into a repetition loop (their code says this was measured). And gate it
 with our own eval in `test/evals/` before it ships — adopting their mechanism on
 their two-task evidence would be inheriting exactly the standard this framework
 exists to reject.
+
+### What F7 and F3 turned out to be
+
+F7 shipped narrower than the roadmap entry and deliberately so. The worktree
+*classifier* and *cleanup plan* were dropped: nothing in the loop would have
+called them, and shipping a library with no consumer is the exact ECC failure
+this document criticises. What shipped is the part with a caller — prediction
+wired into the swarm's merge queue, so clean branches land while the colliding
+one is escalated by name. The classifier can follow when something needs it.
+
+F3 shipped as an *agreement* test rather than ECC's fingerprinted sidecar. We
+have no `hooks.json` to mirror, and a content checksum that fails on every
+legitimate edit gets regenerated without being read. It found real drift on its
+first run: `CONDUCTOR_NO_BRIEF` and `CONDUCTOR_NO_REPORT` had been implemented
+and undocumented since they shipped.
 
 **Design pass first.**
 

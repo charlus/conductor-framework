@@ -16,6 +16,10 @@
 //   2  changes requested
 //   1  no verdict (timed out, unreadable artifact, interrupted)
 //
+// Feedback is queued to disk before each response, so an interrupted wait
+// costs a re-run rather than the human's words — including a verdict they
+// gave to a process that had already died.
+//
 // The agent should run this as a BACKGROUND call and read the JSON when it
 // exits. A foreground call works too, until the harness time-limits it.
 
@@ -79,6 +83,11 @@ export async function reviewCommand(args, { cwd, stdout, stderr }) {
   // record. The primary consumer here is an agent parsing stdout, and mixing
   // prose into it would make the result unparseable exactly when it matters.
   stderr.write(`\n  Review: ${title}\n  ${server.url}\n\n`);
+  if (server.feedback.length) {
+    // Silently replaying would look like the page remembering something the
+    // human does not remember saying.
+    stderr.write(`  Picked up ${server.feedback.length} note(s) from an earlier, interrupted review.\n`);
+  }
   stderr.write("  Waiting for your verdict — Approve or Request changes.\n");
   stderr.write(`  The page is live only while this command runs (timeout ${opts.timeoutMin}m).\n\n`);
   if (opts.open) openBrowser(server.url);

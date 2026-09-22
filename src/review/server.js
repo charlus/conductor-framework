@@ -12,13 +12,15 @@
 // artifact, one wait, ephemeral port. The agent runs it as a background Bash
 // call and reads the JSON when it exits.
 //
-// The cost of that choice, stated plainly: if the waiting process dies, queued
-// feedback dies with it and the human's click is lost. That is the first thing
-// slice 2 should fix, and it is why the human is told the page is live only
-// while the command runs.
+// Slice 2 removed the sharp edge that choice had. Every record is appended to
+// a per-artifact queue (./store.js) before the response is sent, and a re-run
+// replays it — so an interrupted wait costs the human a re-run, not their
+// words. The page is still live only while the command runs; what changed is
+// that clicking into a dead server is no longer silently lost.
 
 import { createServer } from "node:http";
 import { isLoopbackRequest, normalizeFeedback, summariseFeedback, renderReviewPage } from "./canvas.js";
+import { loadPending, appendPending, clearPending } from "./store.js";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -58,9 +60,12 @@ function send(res, status, type, body) {
  *
  * @returns {Promise<{url:string, port:number, feedback:Array, waitForVerdict:()=>Promise<object>, close:()=>Promise<void>}>}
  */
-export async function createReviewServer({ markdown, title, artifactPath, host = "127.0.0.1", port = 0 }) {
+export async function createReviewServer({
+  markdown, title, artifactPath, host = "127.0.0.1", port = 0, home = undefined, replay = true,
+}) {
   const page = renderReviewPage({ markdown, title, artifactPath });
-  const feedback = [];
+  // Anything said while an earlier wait was dying is still the human's input.
+  const feedback = replay ? await loadPending(artifactPath, home) : [];
   let resolveVerdict;
   const verdictReached = new Promise((resolve) => {
     resolveVerdict = resolve;
@@ -99,15 +104,33 @@ export async function createReviewServer({ markdown, title, artifactPath, host =
         return;
       }
       feedback.push(record);
+      // Durable BEFORE the response: a crash between the two would otherwise
+      // lose exactly the record the human just watched succeed.
+      await appendPending(artifactPath, record, home);
       const summary = summariseFeedback(feedback);
       send(res, 200, "application/json", JSON.stringify(summary));
       // A comment is not a decision: only a verdict ends the agent's wait.
-      if (summary.done) resolveVerdict(summary);
+      if (summary.done) {
+        // The verdict is about to reach the agent, so the queue has done its
+        // job. Clearing here — not on close — means an abandoned review keeps
+        // its queue for the next run.
+        await clearPending(artifactPath, home);
+        resolveVerdict(summary);
+      }
       return;
     }
 
     send(res, 404, "text/plain; charset=utf-8", "not found");
   });
+
+  // A replayed queue can already contain the verdict: the human decided, and
+  // the process died before the agent read it. Honour it rather than asking
+  // them to click twice.
+  const replayed = summariseFeedback(feedback);
+  if (replayed.done) {
+    await clearPending(artifactPath, home);
+    resolveVerdict(replayed);
+  }
 
   await new Promise((resolve, reject) => {
     server.once("error", reject);

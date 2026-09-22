@@ -16,12 +16,16 @@ import { test, describe } from "node:test";
 import { request as httpRequest } from "node:http";
 import assert from "node:assert/strict";
 
+import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   renderReviewPage,
   normalizeFeedback,
   isLoopbackRequest,
   summariseFeedback,
 } from "../src/review/canvas.js";
+import { loadPending, appendPending, clearPending, pendingPathFor } from "../src/review/store.js";
 import { createReviewServer } from "../src/review/server.js";
 
 const MD = "# Plan\n\n## Phase 1\n\nDo the thing.\n\n## Phase 2\n\nDo the other thing.\n";
@@ -47,6 +51,15 @@ describe("F4 — the review page", () => {
     const html = renderReviewPage({ markdown: MD, title: "Plan", artifactPath: "/p/plan.md" });
     assert.ok(!/<script[^>]+src=/.test(html), "no external <script src>");
     assert.ok(!/<link[^>]+stylesheet/.test(html), "no external stylesheet");
+  });
+
+  test("the document is pointable, not just readable", () => {
+    const html = renderReviewPage({ markdown: MD, title: "Plan", artifactPath: "/p/plan.md" });
+    // The affordance that makes this a canvas rather than a comment box.
+    assert.match(html, /data-anchorable/);
+    assert.match(html, /kind: "annotation"/);
+    // Anchoring an inline element yields a selector the agent cannot act on.
+    assert.match(html, /h1,h2,h3,h4,h5,h6,p,li,pre,blockquote,tr/);
   });
 
   test("escapes the artifact path rather than interpolating it raw", () => {
@@ -86,9 +99,106 @@ describe("F4 — feedback records", () => {
   });
 
   test("an unknown kind is rejected", () => {
-    assert.equal(normalizeFeedback({ kind: "annotation", text: "later" }), null);
+    assert.equal(normalizeFeedback({ kind: "nonsense", text: "later" }), null);
     assert.equal(normalizeFeedback(null), null);
     assert.equal(normalizeFeedback("approve"), null);
+  });
+
+  test("an annotation carries what the human pointed at", () => {
+    // The whole reason for a canvas rather than a chat box: "move THIS" is
+    // pointed at, not described. Without the anchor it is just a comment.
+    const f = normalizeFeedback({
+      kind: "annotation",
+      text: "Split this into two phases",
+      anchor: { selector: "h2:nth-of-type(3)", tag: "h2", snippet: "Phase 2: Migration" },
+    });
+    assert.equal(f.kind, "annotation");
+    assert.equal(f.text, "Split this into two phases");
+    assert.equal(f.anchor.snippet, "Phase 2: Migration");
+    assert.equal(f.anchor.tag, "h2");
+  });
+
+  test("an annotation with no anchor degrades to a comment, not to nothing", () => {
+    const f = normalizeFeedback({ kind: "annotation", text: "generally unclear" });
+    assert.equal(f.kind, "comment", "losing the text because the anchor failed is worse");
+    assert.equal(f.text, "generally unclear");
+  });
+
+  test("an annotation's anchor fields are bounded and stringified", () => {
+    // The anchor comes from a browser and is written into conductor/. A
+    // 2MB snippet or a nested object would land in the knowledge base.
+    const f = normalizeFeedback({
+      kind: "annotation",
+      text: "x",
+      anchor: { selector: "p", tag: "p", snippet: "y".repeat(5000), extra: { evil: true } },
+    });
+    assert.ok(f.anchor.snippet.length <= 400);
+    assert.equal(f.anchor.extra, undefined, "unknown anchor fields are dropped");
+  });
+
+  test("an annotation is not a verdict", () => {
+    const s = summariseFeedback([
+      { kind: "annotation", text: "move this", anchor: { snippet: "Phase 2" } },
+    ]);
+    assert.equal(s.done, false);
+  });
+});
+
+describe("F4 — feedback survives an interrupted wait", () => {
+  // Slice 1's stated cost: the server lived inside the waiting process, so if
+  // that process died the human's click died with it — and from their side,
+  // clicking simply appeared to do nothing.
+  let home;
+
+  test("pending feedback round-trips through the store", async () => {
+    home = await mkdtemp(join(tmpdir(), "conductor-review-"));
+    const artifact = "/p/plan.md";
+    assert.deepEqual(await loadPending(artifact, home), []);
+
+    await appendPending(artifact, { kind: "comment", text: "first", at: "t1" }, home);
+    await appendPending(artifact, { kind: "comment", text: "second", at: "t2" }, home);
+
+    const back = await loadPending(artifact, home);
+    assert.equal(back.length, 2);
+    assert.equal(back[0].text, "first");
+    assert.equal(back[1].text, "second");
+    await rm(home, { recursive: true, force: true });
+  });
+
+  test("each artifact has its own queue", async () => {
+    home = await mkdtemp(join(tmpdir(), "conductor-review-"));
+    await appendPending("/p/a.md", { kind: "comment", text: "for a", at: "t" }, home);
+    await appendPending("/p/b.md", { kind: "comment", text: "for b", at: "t" }, home);
+    assert.equal((await loadPending("/p/a.md", home))[0].text, "for a");
+    assert.equal((await loadPending("/p/b.md", home))[0].text, "for b");
+    assert.notEqual(pendingPathFor("/p/a.md", home), pendingPathFor("/p/b.md", home));
+    await rm(home, { recursive: true, force: true });
+  });
+
+  test("a resolved review clears its queue", async () => {
+    home = await mkdtemp(join(tmpdir(), "conductor-review-"));
+    await appendPending("/p/a.md", { kind: "comment", text: "x", at: "t" }, home);
+    await clearPending("/p/a.md", home);
+    assert.deepEqual(await loadPending("/p/a.md", home), []);
+    await rm(home, { recursive: true, force: true });
+  });
+
+  test("a corrupt queue file reads as empty, it does not throw", async () => {
+    // The store sits in front of a blocking CLI call. A half-written line
+    // must not be the thing that stops the human being able to approve.
+    home = await mkdtemp(join(tmpdir(), "conductor-review-"));
+    await appendPending("/p/a.md", { kind: "comment", text: "good", at: "t" }, home);
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(pendingPathFor("/p/a.md", home), '{"kind":"comment"\nnot json\n', "utf8");
+    assert.deepEqual(await loadPending("/p/a.md", home), []);
+    await rm(home, { recursive: true, force: true });
+  });
+
+  test("an unwritable store does not take the review down", async () => {
+    // Persistence is a safety net, not the mechanism. Losing it costs the
+    // queue; throwing here would cost the review.
+    await appendPending("/p/a.md", { kind: "comment", text: "x", at: "t" }, "/dev/null/nope");
+    assert.deepEqual(await loadPending("/p/a.md", "/dev/null/nope"), []);
   });
 
   test("the summary tells the agent what to do next", () => {
@@ -192,6 +302,61 @@ describe("F4 — the server resolves when the human decides", () => {
       assert.equal(good2, 200, "the guard must still let the real browser in");
     } finally {
       await server.close();
+    }
+  });
+
+  test("a wait that died replays what the human already said", async () => {
+    const home = await mkdtemp(join(tmpdir(), "conductor-review-"));
+    const artifact = "/p/replay.md";
+    try {
+      // First wait: the human comments, then the process dies.
+      const first = await createReviewServer({ markdown: MD, title: "P", artifactPath: artifact, home });
+      await post(first.url, { kind: "comment", text: "why two phases?" });
+      await first.close();
+
+      // Second wait: their words are still there.
+      const second = await createReviewServer({ markdown: MD, title: "P", artifactPath: artifact, home });
+      try {
+        assert.equal(second.feedback.length, 1);
+        assert.equal(second.feedback[0].text, "why two phases?");
+      } finally {
+        await second.close();
+      }
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a verdict given to a dead wait is honoured, not asked for twice", async () => {
+    const home = await mkdtemp(join(tmpdir(), "conductor-review-"));
+    const artifact = "/p/verdict.md";
+    try {
+      const first = await createReviewServer({ markdown: MD, title: "P", artifactPath: artifact, home });
+      await post(first.url, { kind: "verdict", verdict: "approve" });
+      await first.close();
+
+      const second = await createReviewServer({ markdown: MD, title: "P", artifactPath: artifact, home });
+      try {
+        // Must already be settled — the human decided, the agent just missed it.
+        const result = await Promise.race([
+          second.waitForVerdict(),
+          delay(150).then(() => "never-settled"),
+        ]);
+        assert.notEqual(result, "never-settled");
+        assert.equal(result.status, "approved");
+      } finally {
+        await second.close();
+      }
+
+      // And the queue is spent, so a third run starts clean.
+      const third = await createReviewServer({ markdown: MD, title: "P", artifactPath: artifact, home });
+      try {
+        assert.deepEqual(third.feedback, []);
+      } finally {
+        await third.close();
+      }
+    } finally {
+      await rm(home, { recursive: true, force: true });
     }
   });
 

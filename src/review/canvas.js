@@ -32,13 +32,36 @@ export function normalizeFeedback(raw) {
     return { kind: "verdict", verdict: raw.verdict, at };
   }
 
-  if (raw.kind === "comment") {
+  if (raw.kind === "comment" || raw.kind === "annotation") {
     const text = String(raw.text ?? "").trim();
     if (!text) return null;
+    const anchor = normalizeAnchor(raw.anchor);
+    // An annotation whose anchor did not survive is still the human's words.
+    // Dropping the text because the pointer failed loses the feedback itself.
+    if (raw.kind === "annotation" && anchor) return { kind: "annotation", text, anchor, at };
     return { kind: "comment", text, at };
   }
 
   return null;
+}
+
+const MAX_ANCHOR_CHARS = 400;
+
+/**
+ * The element the human pointed at, bounded and flattened.
+ *
+ * This arrives from a browser and ends up quoted into `conductor/`, so only
+ * the three fields we use survive, each a bounded string. An unbounded
+ * snippet or a nested object would land in the knowledge base verbatim.
+ */
+function normalizeAnchor(anchor) {
+  if (!anchor || typeof anchor !== "object") return null;
+  const str = (v) => (v === undefined || v === null ? "" : String(v).slice(0, MAX_ANCHOR_CHARS));
+  const selector = str(anchor.selector);
+  const snippet = str(anchor.snippet);
+  const tag = str(anchor.tag).toLowerCase().slice(0, 16);
+  if (!selector && !snippet) return null;
+  return { selector, tag, snippet };
 }
 
 /**
@@ -139,6 +162,17 @@ button:disabled { opacity: .5; cursor: default; }
 .thread { max-width: 860px; margin: 0 auto 8px; font-size: 13.5px; color: var(--muted); }
 .thread div { padding: 2px 0; }
 .done { text-align: center; padding: 14px; font-weight: 600; color: var(--accent); }
+article [data-anchorable] { cursor: pointer; border-radius: 4px;
+  transition: background .12s, box-shadow .12s; }
+article [data-anchorable]:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+article [data-anchorable].picked { background: color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent); }
+.anchored { max-width: 860px; margin: 0 auto 6px; font-size: 13px; color: var(--muted);
+  display: none; align-items: center; gap: 8px; }
+.anchored.on { display: flex; }
+.anchored b { font-weight: 600; color: var(--fg); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.anchored button { padding: 2px 8px; font-size: 12px; }
 </style>
 </head><body>
 <div class="wrap">
@@ -147,8 +181,12 @@ button:disabled { opacity: .5; cursor: default; }
 </div>
 <div class="panel">
   <div class="thread" id="thread"></div>
+  <div class="anchored" id="anchored">
+    <span>on</span><b id="anchor-snippet"></b>
+    <button id="anchor-clear" type="button">clear</button>
+  </div>
   <div class="panel-inner" id="controls">
-    <textarea id="text" placeholder="A comment — or leave it blank and just decide."></textarea>
+    <textarea id="text" placeholder="Click any paragraph to point at it, or just type and decide."></textarea>
     <button id="comment">Comment</button>
     <button id="changes" class="changes" data-verdict="request-changes">Request changes</button>
     <button id="approve" class="primary" data-verdict="approve">Approve</button>
@@ -159,12 +197,66 @@ button:disabled { opacity: .5; cursor: default; }
   var thread = document.getElementById("thread");
   var text = document.getElementById("text");
   var controls = document.getElementById("controls");
+  var doc = document.getElementById("doc");
+  var anchoredBar = document.getElementById("anchored");
+  var anchorSnippet = document.getElementById("anchor-snippet");
+  var picked = null;
+
+  // Pointing at a paragraph is the entire reason this is a page and not a
+  // chat box. Only block-level content is anchorable — anchoring an inline
+  // <em> gives the agent a selector it cannot act on.
+  var ANCHORABLE = "h1,h2,h3,h4,h5,h6,p,li,pre,blockquote,tr";
+  Array.prototype.forEach.call(doc.querySelectorAll(ANCHORABLE), function (el) {
+    el.setAttribute("data-anchorable", "");
+  });
+
+  function selectorFor(el) {
+    var parts = [];
+    var node = el;
+    while (node && node !== doc) {
+      var tag = node.tagName.toLowerCase();
+      var i = 1;
+      var sib = node;
+      while ((sib = sib.previousElementSibling)) {
+        if (sib.tagName === node.tagName) i++;
+      }
+      parts.unshift(tag + ":nth-of-type(" + i + ")");
+      node = node.parentElement;
+    }
+    return parts.join(" > ");
+  }
+
+  function setAnchor(el) {
+    if (picked) picked.classList.remove("picked");
+    picked = el;
+    if (!el) {
+      anchoredBar.classList.remove("on");
+      return;
+    }
+    el.classList.add("picked");
+    anchorSnippet.textContent = (el.textContent || "").trim().slice(0, 120);
+    anchoredBar.classList.add("on");
+    text.focus();
+  }
+
+  doc.addEventListener("click", function (e) {
+    var el = e.target.closest("[data-anchorable]");
+    if (!el || !doc.contains(el)) return;
+    setAnchor(el === picked ? null : el);
+  });
+  document.getElementById("anchor-clear").addEventListener("click", function () {
+    setAnchor(null);
+  });
 
   function draw(items) {
     thread.innerHTML = "";
     items.forEach(function (f) {
       var d = document.createElement("div");
-      d.textContent = f.kind === "verdict" ? "\\u2713 " + f.verdict : "\\u201c" + f.text + "\\u201d";
+      if (f.kind === "verdict") d.textContent = "\u2713 " + f.verdict;
+      else if (f.kind === "annotation") {
+        d.textContent = "\u21b3 " + (f.anchor && f.anchor.snippet ? f.anchor.snippet : "") +
+          " \u2014 \u201c" + f.text + "\u201d";
+      } else d.textContent = "\u201c" + f.text + "\u201d";
       thread.appendChild(d);
     });
   }
@@ -177,25 +269,43 @@ button:disabled { opacity: .5; cursor: default; }
     }).then(function (r) { return r.json(); }).then(function (s) {
       draw(s.feedback || []);
       if (s.done) {
-        controls.innerHTML = '<div class="done">Sent \\u2014 ' + s.status +
+        controls.innerHTML = '<div class="done">Sent \u2014 ' + s.status +
           ". You can close this tab.</div>";
+        anchoredBar.classList.remove("on");
       }
       return s;
     });
+  }
+
+  function sendText(t) {
+    if (picked) {
+      var payload = {
+        kind: "annotation",
+        text: t,
+        anchor: {
+          selector: selectorFor(picked),
+          tag: picked.tagName.toLowerCase(),
+          snippet: (picked.textContent || "").trim().slice(0, 300)
+        }
+      };
+      setAnchor(null);
+      return send(payload);
+    }
+    return send({ kind: "comment", text: t });
   }
 
   document.getElementById("comment").addEventListener("click", function () {
     var t = text.value.trim();
     if (!t) return;
     text.value = "";
-    send({ kind: "comment", text: t });
+    sendText(t);
   });
 
   ["approve", "changes"].forEach(function (id) {
     document.getElementById(id).addEventListener("click", function () {
       var t = text.value.trim();
       var verdict = this.getAttribute("data-verdict");
-      var chain = t ? send({ kind: "comment", text: t }) : Promise.resolve();
+      var chain = t ? sendText(t) : Promise.resolve();
       text.value = "";
       chain.then(function () { return send({ kind: "verdict", verdict: verdict }); });
     });

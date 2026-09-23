@@ -109,21 +109,73 @@ describe("F3 — every gate's waiver is implemented and documented", () => {
   });
 
   test("every waiver is logged to the ship-log, never silent", () => {
-    // The whole contract is "bypass is allowed, silence is not". A waiver that
-    // skips conductor_log_waiver would be an unauditable hole.
-    const preCommit = read(join(HOOKS, "pre-commit"));
-    // Anchor on the guard itself — `if [ -n "${CONDUCTOR_NO_X:-}" ]; then` —
-    // and require the log call in the branch it opens. Splitting on section
-    // comments instead reads the file header, which lists every waiver in
-    // prose and has no code in it.
-    const guards = [...preCommit.matchAll(/if \[ -n "\$\{(CONDUCTOR_NO_[A-Z]+):-\}" \]; then\n([\s\S]{0,400}?)\n  else/g)];
-    assert.ok(guards.length >= 4, `expected at least 4 waived gates in pre-commit, found ${guards.length}`);
-    for (const [, name, body] of guards) {
-      assert.match(
-        body,
-        /conductor_log_waiver/,
-        `the ${name} gate accepts a waiver without logging it to the ship-log`,
-      );
+    // The whole contract is "bypass is allowed, silence is not".
+    //
+    // The first version of this check read pre-commit only, recognised one
+    // guard shape by regex, and asserted a COUNT of at least four. The
+    // independent review (blocker B5) broke it twice: stripping every log
+    // call from pre-push passed, and adding an unlogged
+    // `[ -n "${CONDUCTOR_NO_LINT:-}" ] && exit 0` passed. A test that
+    // counts the shapes it recognises cannot see the shape it does not.
+    //
+    // So this is exhaustive over every gate source, and strict: every
+    // $-expansion of a waiver variable must be one of exactly two things —
+    //   (a) a guard `if|elif [ -n "${X:-}" ]; then` whose branch logs, or
+    //   (b) the waiver's value being logged or echoed back.
+    // Anything else fails as an unrecognised form, rather than being skipped.
+    const SOURCES = [
+      "pre-commit",
+      "pre-push",
+      "verification-stop-hook.sh",
+      "pretooluse-no-bypass.sh",
+      "pretooluse-fact-gate.sh",
+    ];
+    const EXPANSION = /\$\{?(CONDUCTOR_(?:NO|SKIP)_[A-Z_]+)/;
+    const GUARD = /^(\s*)(?:if|elif) \[ -n "\$\{(CONDUCTOR_(?:NO|SKIP)_[A-Z_]+):-\}" \]; then\s*$/;
+    const REPORTING = /^\s*(?:conductor_log_waiver(?:_fallback)?|echo)\b/;
+    const LOGS = /\bconductor_log_waiver(?:_fallback)?\b/;
+
+    const problems = [];
+    let guards = 0;
+    for (const file of SOURCES) {
+      const lines = read(join(HOOKS, file)).split("\n");
+      lines.forEach((line, n) => {
+        if (/^\s*#/.test(line)) return;          // a comment is not code
+        const exp = line.match(EXPANSION);
+        if (!exp) return;
+        const guard = line.match(GUARD);
+        if (guard) {
+          guards += 1;
+          const indent = guard[1].length;
+          const body = [];
+          for (let k = n + 1; k < lines.length; k++) {
+            const m = lines[k].match(/^(\s*)(else|elif|fi)\b/);
+            if (m && m[1].length === indent) break;
+            body.push(lines[k]);
+          }
+          if (!body.some((b) => LOGS.test(b))) {
+            problems.push(`${file}:${n + 1} — ${guard[2]} is accepted without writing to the ship-log`);
+          }
+          return;
+        }
+        if (REPORTING.test(line)) return;
+        problems.push(`${file}:${n + 1} — ${exp[1]} is used in a form this check does not recognise: ${line.trim()}`);
+      });
     }
+
+    assert.ok(guards > 0, "found no waiver guards at all — the scan itself is broken");
+    assert.deepEqual(problems, [], `\n  ${problems.join("\n  ")}`);
+  });
+
+  test("every documented waiver has at least one logged guard", () => {
+    // The mirror of the above: a waiver the README promises must actually be
+    // honoured somewhere, by a guard of the recognised shape.
+    const code = ["pre-commit", "pre-push", "verification-stop-hook.sh"]
+      .map((f) => read(join(HOOKS, f)))
+      .join("\n");
+    const missing = envVars(README).filter(
+      (v) => !new RegExp(`(?:if|elif) \\[ -n "\\$\\{${v}:-\\}" \\]; then`).test(code),
+    );
+    assert.deepEqual(missing, [], `documented but never guarded: ${missing.join(", ")}`);
   });
 });

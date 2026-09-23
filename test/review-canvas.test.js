@@ -245,6 +245,19 @@ describe("F4 — the server only answers the local browser", () => {
     assert.equal(ok(undefined), false);
   });
 
+  test("rejects a DIFFERENT loopback port — the review blocker", () => {
+    // Independent review, blocker B4: any page served from another localhost
+    // port (a dev server, anything) could POST {verdict:"approve"} and end
+    // the agent's wait with an approval nobody gave. Loopback is not the
+    // boundary; the ORIGIN of this page is.
+    const ok = (origin) =>
+      isLoopbackRequest({ headers: { host: "127.0.0.1:44761", origin } });
+    assert.equal(ok("http://localhost:3000"), false, "another localhost port");
+    assert.equal(ok("http://127.0.0.1:3000"), false, "same IP, another port");
+    assert.equal(ok("http://localhost:44761"), false, "a different host spelling is a different origin");
+    assert.equal(ok("http://127.0.0.1:44761"), true, "this page itself");
+  });
+
   test("rejects a cross-origin request even from loopback", () => {
     assert.equal(
       isLoopbackRequest({ headers: { host: "127.0.0.1:8321", origin: "https://evil.example.com" } }),
@@ -360,6 +373,81 @@ describe("F4 — the server resolves when the human decides", () => {
     }
   });
 
+  test("the reviewer's exact attack is refused end to end", async () => {
+    // Reproduces B4 against a live server: a cross-origin text/plain POST —
+    // a "simple request", so no CORS preflight ever fires — carrying an
+    // approval. It must not end the wait.
+    const home = await mkdtemp(join(tmpdir(), "conductor-review-"));
+    const server = await createReviewServer({ markdown: MD, title: "P", artifactPath: "/p/atk.md", home });
+    try {
+      const status = await rawPost(server.port, {
+        host: `127.0.0.1:${server.port}`,
+        origin: "http://localhost:3000",
+        "content-type": "text/plain",
+      }, JSON.stringify({ kind: "verdict", verdict: "approve" }));
+      assert.equal(status, 403);
+      const settled = await Promise.race([server.waitForVerdict(), delay(80).then(() => "waiting")]);
+      assert.equal(settled, "waiting", "a forged approval ended the wait");
+    } finally {
+      await server.close();
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a POST that is not application/json is refused, even same-origin", async () => {
+    // Defence in depth: a cross-site page can only send JSON after a CORS
+    // preflight, which this server never grants. Requiring JSON means a
+    // no-preflight simple request cannot reach the handler at all.
+    const home = await mkdtemp(join(tmpdir(), "conductor-review-"));
+    const server = await createReviewServer({ markdown: MD, title: "P", artifactPath: "/p/ct.md", home });
+    try {
+      const status = await rawPost(server.port, {
+        host: `127.0.0.1:${server.port}`,
+        "content-type": "text/plain",
+      }, JSON.stringify({ kind: "verdict", verdict: "approve" }));
+      assert.equal(status, 415);
+    } finally {
+      await server.close();
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a verdict for an OLDER version of the document is not replayed", async () => {
+    // Review IMPORTANT: the queue was keyed by path, so an approval given to
+    // v1 was honoured after the agent rewrote the document into v2 — an
+    // approval of text the human never saw.
+    const home = await mkdtemp(join(tmpdir(), "conductor-review-"));
+    const artifact = "/p/versions.md";
+    try {
+      const v1 = await createReviewServer({ markdown: "# v1\n", title: "P", artifactPath: artifact, home });
+      await post(v1.url, { kind: "comment", text: "keep this note" });
+      await post(v1.url, { kind: "verdict", verdict: "approve" });
+      await v1.close();
+
+      // Replay the queue by hand, as a crashed wait would have left it:
+      // re-append both records (v1 cleared the queue on resolving).
+      const { appendPending: ap } = await import("../src/review/store.js");
+      const { contentHash } = await import("../src/review/canvas.js");
+      const h1 = contentHash("# v1\n");
+      await ap(artifact, { kind: "comment", text: "keep this note", at: "t", doc: h1 }, home);
+      await ap(artifact, { kind: "verdict", verdict: "approve", at: "t", doc: h1 }, home);
+
+      const v2 = await createReviewServer({ markdown: "# v2 — rewritten\n", title: "P", artifactPath: artifact, home });
+      try {
+        const settled = await Promise.race([v2.waitForVerdict(), delay(120).then(() => "waiting")]);
+        assert.equal(settled, "waiting", "a v1 approval approved v2");
+        assert.ok(
+          v2.feedback.some((f) => f.text === "keep this note"),
+          "comments from the earlier version are still the human's words",
+        );
+      } finally {
+        await v2.close();
+      }
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   test("a malformed body is refused without taking the server down", async () => {
     const server = await createReviewServer({
       markdown: MD,
@@ -379,6 +467,21 @@ describe("F4 — the server resolves when the human decides", () => {
     }
   });
 });
+
+/** POST /api/feedback with arbitrary headers. Returns the status code. */
+function rawPost(port, headers, body) {
+  return new Promise((resolve, reject) => {
+    const req = httpRequest(
+      { host: "127.0.0.1", port, path: "/api/feedback", method: "POST", headers },
+      (res) => {
+        res.resume();
+        res.on("end", () => resolve(res.statusCode));
+      },
+    );
+    req.on("error", reject);
+    req.end(body);
+  });
+}
 
 /** GET / with an arbitrary Host header. Returns the status code. */
 function rawGet(port, host) {

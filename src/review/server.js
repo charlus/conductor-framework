@@ -19,7 +19,7 @@
 // that clicking into a dead server is no longer silently lost.
 
 import { createServer } from "node:http";
-import { isLoopbackRequest, normalizeFeedback, summariseFeedback, renderReviewPage } from "./canvas.js";
+import { isLoopbackRequest, normalizeFeedback, summariseFeedback, renderReviewPage, contentHash } from "./canvas.js";
 import { loadPending, appendPending, clearPending } from "./store.js";
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -64,8 +64,14 @@ export async function createReviewServer({
   markdown, title, artifactPath, host = "127.0.0.1", port = 0, home = undefined, replay = true,
 }) {
   const page = renderReviewPage({ markdown, title, artifactPath });
-  // Anything said while an earlier wait was dying is still the human's input.
-  const feedback = replay ? await loadPending(artifactPath, home) : [];
+  const doc = contentHash(markdown);
+  // Anything said while an earlier wait was dying is still the human's input
+  // — but a VERDICT only counts for the text it was given on. Comments and
+  // annotations from an earlier version are kept (they are still the human's
+  // words, and the agent needs them); a verdict for different text is dropped,
+  // or an approval of v1 would approve a v2 nobody read.
+  const queued = replay ? await loadPending(artifactPath, home) : [];
+  const feedback = queued.filter((f) => f?.kind !== "verdict" || f?.doc === doc);
   let resolveVerdict;
   const verdictReached = new Promise((resolve) => {
     resolveVerdict = resolve;
@@ -91,6 +97,14 @@ export async function createReviewServer({
     }
 
     if (req.method === "POST" && url.pathname === "/api/feedback") {
+      // Only JSON. A cross-site page can send JSON only after a CORS
+      // preflight, which this server never grants — so this closes the
+      // no-preflight "simple request" route independently of the Origin check.
+      const type = String(req.headers["content-type"] ?? "").split(";")[0].trim().toLowerCase();
+      if (type !== "application/json") {
+        send(res, 415, "application/json", JSON.stringify({ error: "application/json required" }));
+        return;
+      }
       let record;
       try {
         record = normalizeFeedback(JSON.parse(await readBody(req)));
@@ -103,6 +117,9 @@ export async function createReviewServer({
         send(res, 400, "application/json", JSON.stringify({ error: "not a feedback record" }));
         return;
       }
+      // Stamp the document version, so a replay can tell which text a verdict
+      // was given on.
+      record.doc = doc;
       feedback.push(record);
       // Durable BEFORE the response: a crash between the two would otherwise
       // lose exactly the record the human just watched succeed.

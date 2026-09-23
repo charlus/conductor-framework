@@ -15,6 +15,7 @@
 // Everything here is pure so the page and the rules are testable without a
 // browser or a socket. The server lives in ./server.js.
 
+import { createHash } from "node:crypto";
 import { renderMarkdown, escapeHtml } from "../view/markdown.js";
 
 export const VERDICTS = Object.freeze(["approve", "request-changes"]);
@@ -80,12 +81,22 @@ export function summariseFeedback(feedback = []) {
 }
 
 /**
- * Is this request really from the human's own browser?
+ * Is this request really from the human's own browser, on THIS page?
  *
- * A page on 127.0.0.1 is reachable by any site the human has open, through DNS
- * rebinding, unless Host is checked — and this particular page can approve
- * work. Host must be a loopback literal, and any Origin present must match a
- * loopback origin too.
+ * Two checks, and the second is the one the first version got wrong.
+ *
+ * Host must be a loopback literal — a page on 127.0.0.1 is reachable by any
+ * site the human has open through DNS rebinding unless Host is checked.
+ *
+ * And a present Origin must be THIS page's origin: the same host AND port the
+ * browser was sent to. The first version accepted any loopback Origin, so a
+ * page served from another localhost port — a dev server, anything — could
+ * POST an approval and end the agent's wait (independent review, blocker B4).
+ * Loopback is not the boundary; the origin of this page is.
+ *
+ * A missing Origin is allowed: browsers always send one on a cross-origin
+ * POST, so its absence means a non-browser client on this machine (curl, the
+ * agent), which already has everything this server could give it.
  */
 export function isLoopbackRequest(req) {
   const host = req?.headers?.host;
@@ -97,15 +108,28 @@ export function isLoopbackRequest(req) {
 
   const origin = req?.headers?.origin;
   if (origin) {
-    let originHost;
+    let url;
     try {
-      originHost = new URL(origin).hostname;
+      url = new URL(origin);
     } catch {
       return false;
     }
-    if (!["127.0.0.1", "localhost", "::1"].includes(originHost)) return false;
+    // Same-origin: scheme http, and host:port byte-equal to the Host header.
+    if (url.protocol !== "http:") return false;
+    if (url.host !== host) return false;
   }
   return true;
+}
+
+/**
+ * A short fingerprint of the document under review.
+ *
+ * Feedback is replayed across interrupted waits, and a VERDICT is only valid
+ * for the text the human actually read. Without this, an approval given to v1
+ * was honoured after the agent rewrote the document into v2.
+ */
+export function contentHash(markdown) {
+  return createHash("sha256").update(String(markdown ?? "")).digest("hex").slice(0, 16);
 }
 
 /**

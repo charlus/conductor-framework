@@ -140,45 +140,82 @@ CONDUCTOR_SKIP_MARKER_RE='\.(skip|only|todo|failing)\(|\bx(it|test|describe)\(|@
 # What counts as an assertion — the thing a test actually proves.
 CONDUCTOR_ASSERT_RE='expect\(|\bassert|\.should\b|\bEXPECT_|\bASSERT_|XCTAssert|\bt\.(is|deepEqual|truthy|throws)\(|\.to\.(be|equal|deep)'
 
+# True (0) for a test file that is CODE. conductor_is_test_file counts any path
+# under test/, which is right for the TDD gate (a fixture change is a test
+# change) and wrong for deletions: removing test/fixtures/data.json or
+# test/README.md is not removing a test.
+conductor_is_test_code_file() {
+  conductor_is_test_file "$1" || return 1
+  printf '%s\n' "$1" | grep -Eiq '\.(js|jsx|ts|tsx|mjs|cjs|py|go|rs|java|rb|php|c|h|cc|cpp|hpp|cs|swift|kt|kts|scala|ex|exs|dart|m|mm|vue|svelte)$'
+}
+
 # Echo staged test files DELETED outright, one per line. Rename detection is
-# on, so moving or renaming a test file is not read as removing one.
+# forced on with -M, so moving or renaming a test file is not read as removing
+# one whatever the user's diff.renames setting.
 conductor_deleted_test_files() {
   local root="$1" f
-  git -C "$root" diff --cached --name-only --find-renames --diff-filter=D 2>/dev/null |
+  git -C "$root" diff --cached --name-only -M --diff-filter=D 2>/dev/null |
     while IFS= read -r f; do
       [ -z "$f" ] && continue
-      conductor_is_test_file "$f" && printf '%s\n' "$f"
+      conductor_is_test_code_file "$f" && printf '%s\n' "$f"
     done
 }
 
-# Echo "file:marker" for each staged test file that ADDS a disabling marker.
-conductor_added_skip_markers() {
-  local root="$1" f hit
-  shift
-  for f in "$@"; do
-    [ -z "$f" ] && continue
-    hit="$(git -C "$root" diff --cached -U0 -- "$f" 2>/dev/null |
-      grep -E '^\+' | grep -Ev '^\+\+\+' |
-      grep -Eo "$CONDUCTOR_SKIP_MARKER_RE" | head -1)"
-    [ -n "$hit" ] && printf '%s: %s\n' "$f" "$hit"
-  done
+# Echo the staged test paths the boundary checks must diff, one per line:
+# every added, copied or modified test file, and for a RENAME both the old and
+# the new path. Two reasons, both from the independent review (B6):
+#   - status R is not in --diff-filter=ACM, so a test that was renamed AND
+#     disabled in one commit never reached the checks at all;
+#   - diffing only the new path of a rename shows the whole file as added, so
+#     with diff.renames=false a pure rename read as new .skip( lines.
+# Passing both paths with an explicit -M pairs them, whatever the config, and
+# leaves only the lines that really changed.
+conductor_staged_test_paths() {
+  local root="$1" st a b
+  git -C "$root" diff --cached --name-status -M --diff-filter=ACMR 2>/dev/null |
+    while IFS=$'\t' read -r st a b; do
+      [ -z "${a:-}" ] && continue
+      case "$st" in
+        R*) conductor_is_test_file "$b" && printf '%s\n%s\n' "$a" "$b" ;;
+        *)  conductor_is_test_file "$a" && printf '%s\n' "$a" ;;
+      esac
+    done
 }
 
-# Echo the NET change in assertion count across the given staged test files.
-# Negative means this commit removed more proof than it added. Summed across
-# files on purpose: moving assertions between test files nets to zero.
-conductor_assertion_delta() {
-  local root="$1" f d added=0 removed=0 a r
+# Echo "file: marker" for each staged test file that ADDS a disabling marker.
+# Arguments are the paths from conductor_staged_test_paths.
+conductor_added_skip_markers() {
+  local root="$1" f line hit seen=""
   shift
-  for f in "$@"; do
-    [ -z "$f" ] && continue
-    d="$(git -C "$root" diff --cached -U0 -- "$f" 2>/dev/null)"
-    a="$(printf '%s\n' "$d" | grep -E '^\+' | grep -Ev '^\+\+\+' | grep -Ec "$CONDUCTOR_ASSERT_RE")"
-    r="$(printf '%s\n' "$d" | grep -E '^-' | grep -Ev '^---' | grep -Ec "$CONDUCTOR_ASSERT_RE")"
-    added=$((added + a))
-    removed=$((removed + r))
-  done
-  printf '%s' "$((added - removed))"
+  [ "$#" -eq 0 ] && return 0
+  # awk only labels each ADDED line with its file (from the +++ header); the
+  # matching stays in grep -E, whose \b awk does not share.
+  git -C "$root" diff --cached -M -U0 -- "$@" 2>/dev/null |
+    awk '/^\+\+\+ /{f=substr($0,5); sub(/^b\//,"",f); next}
+         /^---/{next}
+         /^\+/{print f "\t" substr($0,2)}' |
+    while IFS=$'\t' read -r f line; do
+      case " $seen " in *" $f "*) continue ;; esac
+      hit="$(printf '%s\n' "$line" | grep -Eo "$CONDUCTOR_SKIP_MARKER_RE" | head -1)"
+      if [ -n "$hit" ]; then
+        printf '%s: %s\n' "$f" "$hit"
+        seen="$seen $f"
+      fi
+    done
+}
+
+# Echo the NET change in assertion count across the given staged test paths.
+# Negative means this commit removed more proof than it added. Summed across
+# files on purpose: moving assertions between test files nets to zero. One
+# rename-paired diff, so a renamed file contributes only its real line changes.
+conductor_assertion_delta() {
+  local root="$1" d a r
+  shift
+  if [ "$#" -eq 0 ]; then printf '0'; return 0; fi
+  d="$(git -C "$root" diff --cached -M -U0 -- "$@" 2>/dev/null)"
+  a="$(printf '%s\n' "$d" | grep -E '^\+' | grep -Ev '^\+\+\+' | grep -Ec "$CONDUCTOR_ASSERT_RE")"
+  r="$(printf '%s\n' "$d" | grep -E '^-' | grep -Ev '^---' | grep -Ec "$CONDUCTOR_ASSERT_RE")"
+  printf '%s' "$((a - r))"
 }
 
 # ---------------------------------------------------------------------------

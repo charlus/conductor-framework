@@ -13,10 +13,75 @@ set -uo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [ -z "$ROOT" ] && exit 0
-# shellcheck source=/dev/null
-. "$ROOT/.agents/hooks/lib.sh"
-
 [ "${CONDUCTOR_HOOKS:-on}" = "off" ] && exit 0
+
+# ---- Load the shared library from a copy the change cannot rewrite ----------
+# Both hooks source lib.sh, which makes it the single point that switches every
+# gate off. The first version sourced the WORKING-TREE copy, so (independent
+# review, blocker B1) deleting or moving lib.sh left every conductor_* call
+# "command not found" and the commit went through with all gates dark — and a
+# commit that rewrote lib.sh to neuter the checks disabled them for itself.
+#
+# So: load the working-tree lib.sh for any NEW helpers, then the COMMITTED copy
+# at the trusted ref on top of it. Every helper that already existed is now the
+# committed, trusted version; the change being judged cannot rewrite them.
+#
+# The limit, stated rather than implied: this protects the LIBRARY. It cannot
+# protect the hook ENTRY SCRIPT — git executes pre-commit and pre-push from the
+# working tree, so a change that rewrites them runs the rewritten version.
+# Deleting pre-commit is caught at pre-push below; rewriting both entry scripts
+# defeats every client-side hook, and the backstop for that is the PR gate and
+# the loop's Checker, not this file.
+conductor_load_lib() {
+  local ref="$1" tmp
+  # shellcheck source=/dev/null
+  [ -f "$ROOT/.agents/hooks/lib.sh" ] && . "$ROOT/.agents/hooks/lib.sh" 2>/dev/null
+  if [ -n "$ref" ] && git -C "$ROOT" cat-file -e "$ref:.agents/hooks/lib.sh" 2>/dev/null; then
+    tmp="$(mktemp 2>/dev/null)" || return 1
+    if ! git -C "$ROOT" show "$ref:.agents/hooks/lib.sh" > "$tmp" 2>/dev/null; then
+      rm -f "$tmp"
+      return 1
+    fi
+    # shellcheck source=/dev/null
+    . "$tmp"
+    rm -f "$tmp"
+  fi
+  return 0
+}
+
+# Minimal ship-log writer for the one path where lib.sh could not be loaded,
+# so even that waiver is recorded rather than silent.
+conductor_log_waiver_fallback() {
+  local log="$ROOT/conductor/0-compass/ship-log.md"
+  [ -f "$log" ] || return 0
+  printf -- '- [%s] Hook waiver (%s): %s\n' "$(date '+%Y-%m-%d %H:%M')" "$1" "$2" >> "$log"
+}
+
+TRUSTED_REF=""
+git -C "$ROOT" rev-parse --verify -q HEAD >/dev/null 2>&1 && TRUSTED_REF="HEAD"
+
+if ! conductor_load_lib "$TRUSTED_REF" || ! type conductor_protected_changes >/dev/null 2>&1; then
+  # Enforcement is installed but its library cannot be loaded: fail CLOSED.
+  # Failing open here is exactly the hole — it is what made a deleted lib.sh
+  # disable every gate at once.
+  if [ -n "$TRUSTED_REF" ] && git -C "$ROOT" cat-file -e "HEAD:.agents/hooks/lib.sh" 2>/dev/null; then
+    if [ -n "${CONDUCTOR_NO_PROTECTED:-}" ]; then
+      conductor_log_waiver_fallback "Protected" "$CONDUCTOR_NO_PROTECTED"
+      echo "⚠️  Conductor enforcement library unavailable — WAIVED: $CONDUCTOR_NO_PROTECTED"
+      exit 0
+    fi
+    echo ""
+    echo "🛑 Conductor — the enforcement library could not be loaded; commit blocked."
+    echo ""
+    echo "  .agents/hooks/lib.sh is committed but cannot be read, so no gate could"
+    echo "  run. Letting this through would pass the commit with every gate off."
+    echo "  If you are deliberately removing Conductor, say so:"
+    echo "    CONDUCTOR_NO_PROTECTED=\"why\" git commit …"
+    echo ""
+    exit 1
+  fi
+  exit 0   # nothing installed yet: no gate exists to weaken
+fi
 
 # Nothing staged at all is the only early exit. The gates below must still see
 # a commit that ONLY removes files: it stages nothing under ACM, and that is
@@ -32,12 +97,18 @@ impl=0; tests=0; impl_files=""
 llm=0;  evals=0; llm_files=""
 brief=0; brief_files=""
 report=0; report_files=""
+# Rename-aware (review B6): R entries are included, with BOTH paths, so a
+# renamed-and-disabled test is seen and a pure rename diffs as no change.
 staged_tests=()
+while IFS= read -r f; do
+  [ -n "$f" ] && staged_tests+=("$f")
+done <<< "$(conductor_staged_test_paths "$ROOT")"
+[ "${#staged_tests[@]}" -gt 0 ] && tests=1
+
 while IFS= read -r f; do
   [ -z "$f" ] && continue
   if conductor_is_test_file "$f"; then
     tests=1
-    staged_tests+=("$f")
   elif conductor_is_impl_file "$f"; then
     impl=1
     impl_files="$impl_files\n    - $f"

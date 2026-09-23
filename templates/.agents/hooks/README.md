@@ -44,6 +44,25 @@ A `conductor upgrade` legitimately rewrites these paths. Commit it with
 `CONDUCTOR_NO_PROTECTED="conductor upgrade"` so the change to your enforcement
 surface is a visible decision rather than a silent one.
 
+**The gates judge a change with the copy already committed.** Both hooks load
+`lib.sh` from the last commit (at push, from what the remote already has), on
+top of the working-tree copy. So deleting, moving or rewriting `lib.sh` cannot
+switch the gates off for the commit that does it. And if the committed library
+cannot be loaded at all, the hook fails **closed** — it used to fail open,
+which let one deleted file disable every gate at once.
+
+**Deleting `pre-commit` is caught at the push.** git runs `pre-commit` from the
+working tree, so a commit that deletes it runs no commit gate at all.
+`pre-push` refuses a range that removes a hook unless the push carries
+`CONDUCTOR_NO_PROTECTED="why"`.
+
+**What no local hook can stop.** git executes `pre-commit` and `pre-push`
+themselves from the working tree, so a change that rewrites *both entry
+scripts* runs the rewritten versions. That is a property of client-side hooks,
+not a gap in these ones. The backstop is server-side — the PR gate and branch
+protection — and, for `conductor loop`, the independent Checker, which reviews
+the diff that reached the branch rather than trusting the hooks that ran on it.
+
 ## Enabling the git hooks
 
 Automatic during `conductor init` / `conductor upgrade` when the target is a git repo (they point `core.hooksPath` at this directory). To (re)install or repair manually:

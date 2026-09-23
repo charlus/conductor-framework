@@ -40,6 +40,9 @@ import { add } from "../src/add.js";
 test("adds", () => { expect(add(1, 2)).toBe(3); });
 test("adds negatives", () => { expect(add(-1, -2)).toBe(-3); });
 test("adds zero", () => { expect(add(0, 0)).toBe(0); });
+test("adds large", () => { expect(add(1e6, 1e6)).toBe(2e6); });
+test("adds floats", () => { expect(add(0.5, 0.25)).toBe(0.75); });
+test("adds mixed", () => { expect(add(-3, 5)).toBe(2); });
 EOF
   git -C "$d" add -A >/dev/null 2>&1
   CONDUCTOR_HOOKS=off git -C "$d" commit -q -m "baseline" >/dev/null 2>&1
@@ -135,6 +138,64 @@ if git -C "$D" commit -q -m "refactor: rename test file" >/dev/null 2>&1; then
   ok "G7: renaming a test file is not read as a deletion"
 else
   no "G7: a test-file rename was blocked"
+fi
+rm -rf "$D"
+
+# ---- G10: rename + add .skip → BLOCKED (review blocker B6) -----------------
+# A renamed file has status R, which --diff-filter=ACM never lists, so a test
+# could be renamed AND disabled in one commit and the gate never saw it.
+D="$(seeded_repo)"
+git -C "$D" mv test/add.test.js test/sum.test.js
+sed -i 's/^test("adds zero"/test.skip("adds zero"/' "$D/test/sum.test.js"
+git -C "$D" add -A >/dev/null 2>&1
+if git -C "$D" commit -q -m "rename and skip" >/dev/null 2>&1; then
+  no "G10: a renamed test with an added .skip( committed"
+else
+  ok "G10: rename + .skip( is BLOCKED"
+fi
+rm -rf "$D"
+
+# ---- G11: rename + drop an assertion → BLOCKED ------------------------------
+D="$(seeded_repo)"
+git -C "$D" mv test/add.test.js test/sum.test.js
+sed -i '/adds mixed/d' "$D/test/sum.test.js"
+git -C "$D" add -A >/dev/null 2>&1
+if git -C "$D" commit -q -m "rename and gut" >/dev/null 2>&1; then
+  no "G11: a renamed test that lost an assertion committed"
+else
+  ok "G11: rename + assertion loss is BLOCKED"
+fi
+rm -rf "$D"
+
+# ---- G12: a pure rename is allowed even with diff.renames=false -------------
+# The gate must not depend on the user's rename config: with renames off, the
+# new path was diffed as a whole-file add, so existing content read as new.
+D="$(seeded_repo)"
+sed -i 's/^test("adds zero"/test.skip("adds zero"/' "$D/test/add.test.js"
+git -C "$D" add -A >/dev/null 2>&1
+CONDUCTOR_NO_BOUNDARY="pre-existing skip" git -C "$D" commit -q -m "a skip that already exists" >/dev/null 2>&1
+git -C "$D" config diff.renames false
+git -C "$D" mv test/add.test.js test/sum.test.js
+if git -C "$D" commit -q -m "pure rename" >/dev/null 2>&1; then
+  ok "G12: a pure rename passes whatever diff.renames says"
+else
+  no "G12: a pure rename was falsely blocked under diff.renames=false"
+fi
+rm -rf "$D"
+
+# ---- G13: deleting a non-code file under test/ is not a test deletion -------
+# Review IMPORTANT: every file under test/ counted, so removing a fixture or a
+# README was reported as "test file DELETED".
+D="$(seeded_repo)"
+printf '{"a":1}\n' > "$D/test/data.json"
+printf '# fixtures\n' > "$D/test/README.md"
+git -C "$D" add -A >/dev/null 2>&1
+CONDUCTOR_HOOKS=off git -C "$D" commit -q -m "fixtures" >/dev/null 2>&1
+git -C "$D" rm -q test/data.json test/README.md
+if git -C "$D" commit -q -m "drop fixtures" >/dev/null 2>&1; then
+  ok "G13: removing a fixture or README under test/ is allowed"
+else
+  no "G13: a non-code file under test/ was treated as a deleted test"
 fi
 rm -rf "$D"
 
@@ -243,6 +304,92 @@ else
   no "P4c: a fresh conductor install cannot make its first commit"
 fi
 rm -rf "$D"
+
+# ---- P8: deleting lib.sh must not switch every gate off (review blocker B1) -
+# Both hooks source lib.sh. With it gone, every conductor_* call was "command
+# not found", nothing set `blocked`, and the commit went through — with every
+# gate disabled at once.
+D="$(seeded_repo)"
+git -C "$D" rm -q .agents/hooks/lib.sh
+if git -C "$D" commit -q -m "drop the lib" >/dev/null 2>&1; then
+  no "P8: deleting lib.sh committed — every gate went dark"
+else
+  ok "P8: deleting lib.sh is BLOCKED"
+fi
+rm -rf "$D"
+
+# ---- P9: …and the gates it carries still run in that commit ---------------
+D="$(seeded_repo)"
+git -C "$D" rm -q .agents/hooks/lib.sh test/add.test.js
+if git -C "$D" commit -q -m "drop lib and a test" >/dev/null 2>&1; then
+  no "P9: removing lib.sh smuggled a test deletion through"
+else
+  ok "P9: lib.sh removal cannot carry a test deletion with it"
+fi
+rm -rf "$D"
+
+# ---- P10: moving lib.sh out is the same as deleting it --------------------
+D="$(seeded_repo)"
+git -C "$D" mv .agents/hooks/lib.sh src/lib.sh
+if git -C "$D" commit -q -m "move the lib" >/dev/null 2>&1; then
+  no "P10: moving lib.sh out of .agents/hooks committed"
+else
+  ok "P10: moving lib.sh out is BLOCKED"
+fi
+rm -rf "$D"
+
+# ---- P11: NEUTERING lib.sh in place is the same class ---------------------
+# Not in the review, same class: the hook sourced the WORKING-TREE lib.sh, so
+# a commit that rewrote the protection check to a no-op disabled that check
+# for the very commit making the change. Enforcement must come from the copy
+# already committed, not the one being changed.
+D="$(seeded_repo)"
+cat >> "$D/.agents/hooks/lib.sh" <<'EOF'
+conductor_protected_changes() { :; }
+conductor_deleted_test_files() { :; }
+EOF
+git -C "$D" rm -q test/add.test.js
+git -C "$D" add -A >/dev/null 2>&1
+if git -C "$D" commit -q -m "neuter the lib" >/dev/null 2>&1; then
+  no "P11: a neutered lib.sh disabled its own check in the same commit"
+else
+  ok "P11: neutering lib.sh does not disable the gates for that commit"
+fi
+rm -rf "$D"
+
+# ---- P12: deleting pre-commit is caught at the push boundary --------------
+# git runs pre-commit from the working tree: once it is deleted, nothing runs
+# at commit. The first place left to catch it is pre-push.
+D="$(seeded_repo)"
+B="$(mktemp -d)"; git init -q --bare "$B"
+git -C "$D" remote add origin "$B"
+CONDUCTOR_HOOKS=off git -C "$D" push -q origin HEAD:main >/dev/null 2>&1
+git -C "$D" rm -q .agents/hooks/pre-commit
+git -C "$D" commit -q -m "no more commit gate" >/dev/null 2>&1
+if git -C "$D" push -q origin HEAD:main >/dev/null 2>&1; then
+  no "P12: a push that deletes pre-commit went through"
+else
+  ok "P12: deleting pre-commit is BLOCKED at push"
+fi
+rm -rf "$D" "$B"
+
+# ---- P13: …and a deliberate removal can be waived, and is logged ----------
+D="$(seeded_repo)"
+B="$(mktemp -d)"; git init -q --bare "$B"
+git -C "$D" remote add origin "$B"
+CONDUCTOR_HOOKS=off git -C "$D" push -q origin HEAD:main >/dev/null 2>&1
+git -C "$D" rm -q .agents/hooks/pre-commit
+git -C "$D" commit -q -m "remove conductor" >/dev/null 2>&1
+if CONDUCTOR_NO_PROTECTED="uninstalling conductor" git -C "$D" push -q origin HEAD:main >/dev/null 2>&1; then
+  if grep -qi "protected" "$D/conductor/0-compass/ship-log.md"; then
+    ok "P13: a waived removal pushes AND is logged"
+  else
+    no "P13: waived push went through but was not logged"
+  fi
+else
+  no "P13: CONDUCTOR_NO_PROTECTED did not allow the push"
+fi
+rm -rf "$D" "$B"
 
 # ---- P5: ordinary .agents/ content is NOT protected -----------------------
 # Only the enforcement surface is frozen. Skills and workflows stay editable.

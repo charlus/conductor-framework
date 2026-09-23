@@ -25,10 +25,9 @@ const EXCLUDED = [
   /(^|\/)node_modules\//, /(^|\/)vendor\//, /(^|\/)\.git\//, /(^|\/)dist\//,
   /(^|\/)build\//, /(^|\/)target\//, /(^|\/)coverage\//, /(^|\/)__pycache__\//,
   /(^|\/)\.venv\//, /(^|\/)venv\//, /(^|\/)\.next\//, /(^|\/)\.conductor-backup\//,
-  // A git worktree is a second full checkout. Walking into one doubles every
-  // file and lets the copy shadow the original — found on this repo's own
-  // .claude/worktrees, where the copy claimed src/view's tests.
-  /(^|\/)\.worktrees\//, /(^|\/)worktrees\//,
+  // No worktree rule here on purpose. A worktree is detected by the `.git` at
+  // its root, in the walker — excluding by folder name both missed a worktree
+  // at an arbitrary path and would drop a real `src/worktrees/` module.
 ];
 
 const TEST_PATTERNS = [
@@ -284,6 +283,7 @@ export function renderSurvey(facts) {
   const {
     root = "", fileCount = 0, languages = [], areas = [], entryPoints = [],
     routes = [], envKeys = [], dependencies = { runtime: [], dev: [] },
+    nestedCheckouts = [],
   } = facts ?? {};
 
   const untested = areas.filter((a) => a.tests === 0);
@@ -323,6 +323,14 @@ export function renderSurvey(facts) {
       ],
       "none found",
     ),
+    ...(nestedCheckouts.length
+      ? [
+          `> Skipped ${nestedCheckouts.length} separate checkout${nestedCheckouts.length === 1 ? "" : "s"} ` +
+            `(a worktree, submodule or nested repo — its own \`.git\`): ` +
+            nestedCheckouts.map((n) => `\`${n}\``).join(", ") + ".",
+          "",
+        ]
+      : []),
     "> Coverage is attributed by name: a test is credited to the source file it",
     "> appears to be named after. Conventions vary, so treat an area marked",
     "> untested as a place to check rather than a proven gap.",

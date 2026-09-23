@@ -150,6 +150,44 @@ else
   no "S9: no rollback demanded before a destructive command"
 fi
 
+# ---- S9b: the same destructive command may be retried after the facts -----
+# Review IMPORTANT: the denial said "the retry is allowed" and then denied
+# every retry, so the agent retried into a permanent wall — the repetition
+# loop the dampening exists to prevent. Deny, state the facts, allow the retry:
+# keyed on the exact command, so a DIFFERENT destructive command is still new.
+S="$(new_session)"
+C1="$(call "$S" Bash "$(bash_cmd 'rm -rf build/')")"
+C2="$(call "$S" Bash "$(bash_cmd 'rm -rf build/')")"
+C3="$(call "$S" Bash "$(bash_cmd 'rm -rf dist/')")"
+if [ "$C1" = "2" ] && [ "$C2" = "0" ] && [ "$C3" = "2" ]; then
+  ok "S9b: identical retry allowed, a different destructive command still gated"
+else
+  no "S9b: expected 2/0/2, got $C1/$C2/$C3"
+fi
+
+# ---- S9c: the Bash denial never offers Edit-shaped facts ------------------
+S="$(new_session)"
+export CONDUCTOR_FACT_GATE_FULL_DENIALS=0
+OUT="$(call_out "$S" Bash "$(bash_cmd 'git reset --hard HEAD~1')")"
+unset CONDUCTOR_FACT_GATE_FULL_DENIALS
+if printf '%s' "$OUT" | grep -qi "importer\|failing test"; then
+  no "S9c: the condensed Bash denial asks for importers / a failing test"
+else
+  ok "S9c: the condensed Bash denial names Bash facts, not Edit facts"
+fi
+
+echo ""
+echo "Fact gate — the destructive list (review IMPORTANT):"
+
+for c in 'git push -f origin main' 'git checkout -- .' 'git restore .' 'find . -delete' 'git stash drop' 'git stash clear' 'cd x && rm -rf y'; do
+  S="$(new_session)"; C="$(call "$S" Bash "$(bash_cmd "$c")")"
+  if [ "$C" = "2" ]; then ok "D+: gated — $c"; else no "D+: MISSED destructive — $c (exit $C)"; fi
+done
+for c in 'git clean -nd' 'git clean --dry-run -fd' 'git rm -r src' 'git push --force-with-lease' 'git restore --staged src/a.js' 'git checkout main'; do
+  S="$(new_session)"; C="$(call "$S" Bash "$(bash_cmd "$c")")"
+  if [ "$C" = "0" ]; then ok "D-: not gated — $c"; else no "D-: FALSE positive — $c (exit $C)"; fi
+done
+
 echo ""
 echo "Fact gate — the envelope:"
 
@@ -222,6 +260,25 @@ if [ "$C" = "0" ] && [ "$ELAPSED" -lt 8 ]; then
   ok "S14b: a hanging hook is bounded (${ELAPSED}s) and fails open"
 else
   no "S14b: hook not bounded (exit $C after ${ELAPSED}s)"
+fi
+
+# ---- S14c: bounded even where coreutils `timeout` is absent (stock macOS) ---
+# Review IMPORTANT: run_bounded fell back to an UNBOUNDED node when `timeout`
+# was missing. Simulated here with a PATH that has no timeout/gtimeout, and a
+# node that never returns.
+FAKE="$(mktemp -d)"
+printf '#!/bin/sh\n/bin/sleep 30\n' > "$FAKE/node"; chmod +x "$FAKE/node"
+ln -s "$(command -v perl)" "$FAKE/perl"
+S="$(new_session)"
+START=$(date +%s)
+C="$(printf '{"session_id":"%s","tool_name":"Edit","tool_input":%s}' "$S" "$(edit /r/m.js)" \
+  | PATH="$FAKE" CONDUCTOR_HOOK_TIMEOUT=2 /bin/bash "$HOOK" >/dev/null 2>&1; printf '%s' "$?")"
+ELAPSED=$(( $(date +%s) - START ))
+rm -rf "$FAKE"
+if [ "$C" = "0" ] && [ "$ELAPSED" -lt 8 ]; then
+  ok "S14c: with no timeout binary, perl bounds it (${ELAPSED}s) and it fails open"
+else
+  no "S14c: unbounded without coreutils timeout (exit $C after ${ELAPSED}s)"
 fi
 
 # ---- S15: the master switch ------------------------------------------------

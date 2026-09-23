@@ -116,6 +116,17 @@ code="$(printf '{"tool_name":"Bash","tool_input":{"command":"git commit --no-ver
   | CONDUCTOR_HOOKS=off bash "$HOOK" >/dev/null 2>&1; printf '%s' "$?")"
 if [ "$code" = "0" ]; then ok "E5: CONDUCTOR_HOOKS=off disables the hook"; else no "E5: hook still fired with CONDUCTOR_HOOKS=off (exit $code)"; fi
 
+# E6: bounded without coreutils `timeout` (stock macOS) — same run_bounded.
+FAKE="$(mktemp -d)"
+printf '#!/bin/sh\n/bin/sleep 30\n' > "$FAKE/node"; chmod +x "$FAKE/node"
+ln -s "$(command -v perl)" "$FAKE/perl"
+START=$(date +%s)
+code="$(printf '{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m x"}}' \
+  | PATH="$FAKE" CONDUCTOR_HOOK_TIMEOUT=2 /bin/bash "$HOOK" >/dev/null 2>&1; printf '%s' "$?")"
+ELAPSED=$(( $(date +%s) - START ))
+rm -rf "$FAKE"
+if [ "$code" = "0" ] && [ "$ELAPSED" -lt 8 ]; then ok "E6: bounded without a timeout binary (${ELAPSED}s)"; else no "E6: unbounded without coreutils timeout (exit $code after ${ELAPSED}s)"; fi
+
 echo ""
 echo "  Passed: $pass"
 echo "  Failed: $fail"

@@ -47,15 +47,26 @@ command -v node >/dev/null 2>&1 || exit 0
 # "the session stalls" rather than "the gate stepped aside". Bound it here and
 # fail OPEN on expiry.
 run_bounded() {
-  local rc
+  local rc t="${CONDUCTOR_HOOK_TIMEOUT:-5}"
+  # coreutils `timeout`, Homebrew's `gtimeout`, then perl's alarm — which ships
+  # with stock macOS, where the first two usually do not. The first version
+  # fell back to an UNBOUNDED node when `timeout` was missing (review finding),
+  # which on a Mac meant no bound at all.
   if command -v timeout >/dev/null 2>&1; then
-    timeout "${CONDUCTOR_HOOK_TIMEOUT:-5}" node -e "$1"
-    rc=$?
-    [ "$rc" = "124" ] && exit 0   # timed out → allow, never wedge the session
-    exit "$rc"
+    timeout "$t" node -e "$1"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "$t" node -e "$1"
+  elif command -v perl >/dev/null 2>&1; then
+    perl -e 'alarm shift; exec @ARGV' "$t" node -e "$1"
+  else
+    node -e "$1"   # nothing to bound it with; the harness timeout is all that is left
+    exit $?
   fi
-  node -e "$1"
-  exit $?
+  rc=$?
+  # 124 = `timeout` expired; 142 = killed by SIGALRM (128+14) from perl.
+  # Either way: allow, never wedge the session.
+  { [ "$rc" = "124" ] || [ "$rc" = "142" ]; } && exit 0
+  exit "$rc"
 }
 
 read -r -d '' CONDUCTOR_BYPASS_GUARD_JS <<'NODE'

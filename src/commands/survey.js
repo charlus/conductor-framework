@@ -34,22 +34,36 @@ function parseArgs(args) {
   return opts;
 }
 
-/** Every file under root, relative, with excluded trees pruned as we go. */
-async function walk(root, dir = root, acc = []) {
+/**
+ * Every file under root, relative, with excluded trees pruned as we go.
+ *
+ * A subdirectory with its own `.git` — a FILE for a linked worktree or a
+ * submodule, a directory for a nested repository — is a different checkout,
+ * not this codebase, and is skipped and recorded in `nested`. Detected rather
+ * than guessed: the first version excluded worktrees by folder NAME, so the
+ * reviewer's worktree at `review-copy/` was walked and reported as its own
+ * untested area. The root's own `.git` is never counted.
+ */
+async function walk(root, dir = root, acc = [], nested = []) {
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
   } catch {
-    return acc;
+    return { files: acc, nested };
+  }
+  if (dir !== root && entries.some((e) => e.name === ".git")) {
+    nested.push(relative(root, dir).split(sep).join("/"));
+    return { files: acc, nested };
   }
   for (const e of entries) {
     const full = join(dir, e.name);
     const rel = relative(root, full).split(sep).join("/");
+    if (e.name === ".git") continue;
     if (classifyFile(rel).kind === "excluded") continue;
-    if (e.isDirectory()) await walk(root, full, acc);
+    if (e.isDirectory()) await walk(root, full, acc, nested);
     else if (e.isFile()) acc.push(rel);
   }
-  return acc;
+  return { files: acc, nested };
 }
 
 async function readIfSmall(path) {
@@ -79,7 +93,7 @@ export async function surveyCommand(args, { cwd, stdout, stderr }) {
   const opts = parseArgs(args);
   const root = resolve(cwd, opts.dir || ".");
 
-  const files = await walk(root);
+  const { files, nested } = await walk(root);
   if (files.length === 0) {
     stderr.write(`Nothing to survey under ${root}\n`);
     return 1;
@@ -129,6 +143,7 @@ export async function surveyCommand(args, { cwd, stdout, stderr }) {
     envKeys: extractEnvKeys(envText),
     dependencies: dependenciesFrom(pkgText),
     routesSampled: sampled,
+    nestedCheckouts: nested.sort(),
   };
 
   if (opts.json) {

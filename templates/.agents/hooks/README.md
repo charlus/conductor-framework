@@ -13,7 +13,7 @@
 | `pre-push` | **Verification Iron Law** | `git push` | the configured verification command exits non-zero |
 | `verification-stop-hook.sh` | Verification Iron Law (interactive) | Claude Code `Stop` | **opt-in** — code changed since HEAD and verify is red |
 | `pretooluse-no-bypass.sh` | every gate above | Claude Code `PreToolUse` | **opt-in** — a Bash call tries to skip the git hooks (`--no-verify`, `-n`, `-c core.hooksPath=`) |
-| `pretooluse-fact-gate.sh` | investigate before you write | Claude Code `PreToolUse` | **opt-in** — the first edit/creation of a file, and every destructive command, until the facts are stated (off: `CONDUCTOR_FACT_GATE=off`) |
+| `pretooluse-fact-gate.sh` | investigate before you write | Claude Code `PreToolUse` | **opt-in** — the first edit/creation of a file, and the first run of each destructive command, until the facts are stated (off: `CONDUCTOR_FACT_GATE=off`) |
 | `lib.sh` | — | sourced by the others | shared helpers |
 
 ### Why the boundary gate exists
@@ -156,9 +156,10 @@ forces it.
 }
 ```
 
-It denies the **first** edit or creation of each file, and **every** destructive
-command, naming the facts to state; the retry is allowed. Three questions per
-gate:
+It denies the **first** edit or creation of each file, and the **first run of
+each** destructive command, naming the facts to state; the identical retry is
+then allowed. A *different* destructive command is gated on its own — each one
+destroys something different. Three questions per gate:
 
 | Gate | Asks for |
 |---|---|

@@ -13,6 +13,10 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { surveyCommand } from "../src/commands/survey.js";
 import {
   classifyFile,
   coverageByArea,
@@ -55,11 +59,8 @@ describe("F15 — file classification", () => {
       ".git/config",
       "coverage/lcov.info",
       "__pycache__/x.pyc",
-      // A git worktree is a second full checkout of the same repo. Walking
-      // into it doubles every file and lets the copy shadow the original —
-      // which is exactly what happened on this repo's own .claude/worktrees.
-      ".claude/worktrees/some-branch/src/view/markdown.js",
-      "some/nested/.worktrees/x/src/a.js",
+      // Worktrees are NOT here: they are detected by the `.git` at their root,
+      // in the walker, not excluded by name — see the nested-checkout tests.
     ]) {
       assert.equal(classifyFile(p).kind, "excluded", `${p} should be excluded`);
     }
@@ -325,5 +326,80 @@ describe("F15 — the report", () => {
   test("is honest that it is facts, not understanding", () => {
     const md = renderSurvey(facts);
     assert.match(md, /what it is for|why|interview|human/i);
+  });
+});
+
+describe("F15 — nested checkouts are detected, not guessed from a name", () => {
+  // Review IMPORTANT: worktrees were excluded by DIRECTORY NAME. A worktree at
+  // an arbitrary path — `review-copy/` in the reviewer's run — was walked and
+  // reported as its own untested area. A linked worktree or submodule is
+  // identified by a `.git` FILE at its root; a nested repository by a `.git`
+  // directory. Either way it is a different checkout, not this codebase.
+  async function run(dir) {
+    let out = "";
+    const stdout = { write: (t) => { out += t; } };
+    const stderr = { write: () => {} };
+    const code = await surveyCommand(["--json"], { cwd: dir, stdout, stderr });
+    return { code, facts: JSON.parse(out) };
+  }
+
+  test("a linked worktree at any path is skipped, and the skip is reported", async () => {
+    const root = await mkdtemp(join(tmpdir(), "conductor-survey-"));
+    try {
+      await mkdir(join(root, "src"), { recursive: true });
+      await writeFile(join(root, "src/app.js"), "export const x = 1;\n");
+      await mkdir(join(root, "review-copy/src"), { recursive: true });
+      await writeFile(join(root, "review-copy/.git"), "gitdir: /elsewhere/.git/worktrees/review-copy\n");
+      await writeFile(join(root, "review-copy/src/app.js"), "export const x = 1;\n");
+      await mkdir(join(root, "vendored/lib"), { recursive: true });
+      await mkdir(join(root, "vendored/.git"), { recursive: true });
+      await writeFile(join(root, "vendored/lib/v.js"), "export const v = 1;\n");
+
+      const { code, facts } = await run(root);
+      assert.equal(code, 0);
+      assert.ok(!facts.areas.some((a) => a.area.startsWith("review-copy")), "worktree was walked");
+      assert.ok(!facts.areas.some((a) => a.area.startsWith("vendored")), "nested repo was walked");
+      assert.deepEqual(facts.nestedCheckouts.sort(), ["review-copy", "vendored"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("a real module NAMED worktrees is not excluded", async () => {
+    // The name rule this replaced would have dropped it: a git client's own
+    // src/worktrees/ is source, and has no .git of its own.
+    const root = await mkdtemp(join(tmpdir(), "conductor-survey-"));
+    try {
+      await mkdir(join(root, "src/worktrees"), { recursive: true });
+      await writeFile(join(root, "src/worktrees/list.js"), "export const l = [];\n");
+      const { facts } = await run(root);
+      assert.ok(facts.areas.some((a) => a.area === "src/worktrees"), "a real module was dropped by name");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("the root's own .git is not mistaken for a nested checkout", async () => {
+    const root = await mkdtemp(join(tmpdir(), "conductor-survey-"));
+    try {
+      await mkdir(join(root, ".git"), { recursive: true });
+      await mkdir(join(root, "src"), { recursive: true });
+      await writeFile(join(root, "src/app.js"), "export const x = 1;\n");
+      const { facts } = await run(root);
+      assert.equal(facts.fileCount, 1);
+      assert.deepEqual(facts.nestedCheckouts, []);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("the report tells the reader what was left out", () => {
+    const md = renderSurvey({
+      root: "/p", fileCount: 1, languages: [], areas: [], entryPoints: [],
+      routes: [], envKeys: [], dependencies: { runtime: [], dev: [] },
+      nestedCheckouts: ["review-copy"],
+    });
+    assert.match(md, /review-copy/);
+    assert.match(md, /separate checkout/i);
   });
 });

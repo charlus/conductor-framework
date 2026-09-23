@@ -52,6 +52,23 @@ blocked "N6: a bypass later in a chain"         'npm test && git commit --no-ver
 blocked "N7: CONDUCTOR_HOOKS=off on a commit"   'CONDUCTOR_HOOKS=off git commit -m "x"'
 
 echo ""
+echo "Hook-bypass blocker — the independent review's counterexamples (B2):"
+
+# The first version split on whitespace and blanked quoted spans. git and the
+# shell do neither, so each of these reached git as a real bypass and passed.
+blocked "R1: grouped short flags, -nm"             'git commit -nm x'
+blocked "R2: grouped short flags, -anm"            'git commit -anm x'
+blocked "R3: -an then a separate -m"               'git commit -an -m x'
+blocked "R4: the '\'' quoting idiom"                "git commit -m 'it'\\''s' --no-verify"
+blocked "R5: env prefix"                           'env CONDUCTOR_HOOKS=off git commit -m x'
+blocked "R6: command prefix"                       'command git commit --no-verify'
+blocked "R7: sh -c wrapper"                        'sh -c "git commit --no-verify"'
+blocked "R8: bash -c with single quotes"           "bash -c 'git commit -n -m x'"
+blocked "R9: a QUOTED flag is still a flag to git"  'git commit "--no-verify" -m x'
+blocked "R10: sudo with an option"                 'sudo -u bob git commit --no-verify'
+blocked "R11: inside \$(…)"                        'echo $(git commit --no-verify -m x)'
+
+echo ""
 echo "Hook-bypass blocker — allowed commands:"
 
 allowed "A1: an ordinary commit"                'git commit -m "feat: thing"'
@@ -61,6 +78,12 @@ allowed "A4: -n on a command that is not commit" 'git clean -n'
 allowed "A5: --no-verify inside a quoted string" 'git commit -m "document --no-verify here"'
 allowed "A6: a non-git command"                 'npm run build --no-verify-ssl'
 allowed "A7: reading the hook config"           'git config --get core.hooksPath'
+allowed "A8: -am is add+message, not -n"          'git commit -am "x"'
+allowed "A9: -n as the VALUE of -m"               'git commit -m -n'
+allowed "A10: a mention inside echo"              'echo "git commit --no-verify"'
+allowed "A11: sh -c running something harmless"   'sh -c "echo hi"'
+allowed "A12: git -C before the subcommand"       'git -C . commit -m x'
+allowed "A13: --message= with a dash value"       'git commit --message=-n'
 
 echo ""
 echo "Hook-bypass blocker — envelope:"

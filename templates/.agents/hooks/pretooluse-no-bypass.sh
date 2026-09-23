@@ -26,6 +26,13 @@
 #   "PreToolUse": [ { "matcher": "Bash", "hooks": [ { "type": "command",
 #     "command": "$CLAUDE_PROJECT_DIR/.agents/hooks/pretooluse-no-bypass.sh" } ] } ]
 #
+# WHAT IT IS NOT. A guard against the ordinary, lazy bypass — not a sandbox.
+# It parses the command the way the shell would, including grouped short
+# flags, quoting, wrapper programs and `sh -c` strings. It cannot see a git
+# alias (`git config alias.c "commit -n"` then `git c`), a script file that
+# runs git, or a hook path set in git config beforehand. Those are exactly
+# what the PR gate and the loop's Checker exist for.
+#
 # Disable with CONDUCTOR_HOOKS=off, like every other Conductor hook.
 set -uo pipefail
 
@@ -72,61 +79,166 @@ const isNoVerify = (t) => t.length >= "--no-v".length && "--no-verify".startsWit
 // mistake an option's VALUE for the subcommand.
 const TAKES_VALUE = new Set(["-c", "-C", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"]);
 
-// Blank out quoted spans so a command that merely MENTIONS --no-verify in a
-// message or a doc string is not read as using it.
-function stripQuoted(s) {
-  let out = "", quote = null;
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (quote) { if (c === quote) { quote = null; out += c; } else out += " "; continue; }
-    if (c === "'" || c === '"') { quote = c; out += c; continue; }
-    out += c;
+// Split a command line into segments of argv, the way the shell does:
+// single quotes are literal, double quotes and bare words honour backslash
+// escapes, and ; && || | & ( ) ` and newlines separate commands.
+//
+// The first version split on whitespace and BLANKED quoted spans instead. The
+// independent review (blocker B2) showed that is not how git receives its
+// arguments: `-nm` reached git as one token carrying -n, `'it'\''s'` confused
+// the blanking so a later --no-verify vanished, and a quoted "--no-verify" is
+// still a flag once the shell strips the quotes. Tokenising like the shell
+// fixes all three and makes a genuine mention (an -m message) safe by
+// understanding it, not by hiding it.
+function tokenize(cmd) {
+  const segs = [];
+  let cur = [];
+  let tok = null;
+  const pushTok = () => { if (tok !== null) { cur.push(tok); tok = null; } };
+  const pushSeg = () => { pushTok(); if (cur.length) segs.push(cur); cur = []; };
+  for (let i = 0; i < cmd.length; ) {
+    const c = cmd[i];
+    if (c === "'") {
+      tok = tok ?? "";
+      i++;
+      while (i < cmd.length && cmd[i] !== "'") tok += cmd[i++];
+      i++;
+      continue;
+    }
+    if (c === '"') {
+      tok = tok ?? "";
+      i++;
+      while (i < cmd.length && cmd[i] !== '"') {
+        if (cmd[i] === "\\" && i + 1 < cmd.length && '"\\$`\n'.includes(cmd[i + 1])) {
+          tok += cmd[i + 1];
+          i += 2;
+        } else tok += cmd[i++];
+      }
+      i++;
+      continue;
+    }
+    if (c === "\\") {
+      if (i + 1 < cmd.length) tok = (tok ?? "") + cmd[i + 1];
+      i += 2;
+      continue;
+    }
+    if (c === " " || c === "\t") { pushTok(); i++; continue; }
+    if (c === "&" && cmd[i + 1] === "&") { pushSeg(); i += 2; continue; }
+    if (c === "|" && cmd[i + 1] === "|") { pushSeg(); i += 2; continue; }
+    if ("\n;|&()`".includes(c)) { pushSeg(); i++; continue; }
+    // `$(` opens a command substitution: what follows is its own command.
+    if (c === "$" && cmd[i + 1] === "(") { pushSeg(); i += 2; continue; }
+    tok = (tok ?? "") + c;
+    i++;
   }
-  return out;
+  pushSeg();
+  return segs;
 }
 
-const segments = (s) => s.split(/\|\||&&|[;\n|]/g);
+// Programs that run their argument list as another command.
+const WRAPPERS = new Set(["env", "command", "sudo", "doas", "exec", "nohup", "nice", "time", "builtin"]);
+// …and the wrapper options that consume a value, so it is not read as the program.
+const WRAPPER_VALUE_OPT = {
+  sudo: /^-[ugCDhprtTU]$/, doas: /^-[uC]$/, env: /^-[uCS]$/, nice: /^-n$/,
+};
+const SHELLS = /^(sh|bash|zsh|dash|ksh|ash)$/;
 
-function verdict(command) {
-  for (const raw of segments(stripQuoted(command))) {
-    const tokens = raw.trim().split(/\s+/).filter(Boolean);
-    if (!tokens.length) continue;
+// commit options that take a value, so the NEXT token is data, not a flag.
+// `git commit -m -n` commits with the message "-n"; reading that -n as
+// --no-verify was a false positive.
+const COMMIT_VALUE_SHORT = new Set(["m", "F", "C", "c", "t"]);
+const COMMIT_VALUE_LONG = /^--(message|file|reuse-message|reedit-message|fixup|squash|template|author|date|cleanup|trailer|pathspec-from-file)$/;
 
-    // Leading VAR=value assignments belong to the segment, not to argv.
-    let i = 0;
-    let hooksOff = false;
-    while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) {
-      const [name, ...rest] = tokens[i].split("=");
+function checkSegment(argv, depth) {
+  let i = 0;
+  let hooksOff = false;
+  const takeAssignments = () => {
+    while (i < argv.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(argv[i])) {
+      const [name, ...rest] = argv[i].split("=");
       if (name === "CONDUCTOR_HOOKS" && /^(off|0|false)$/i.test(rest.join("="))) hooksOff = true;
       i++;
     }
-    if (i >= tokens.length) continue;
-    if (tokens[i].split("/").pop() !== "git") continue;
+  };
+
+  takeAssignments();
+  for (let guard = 0; i < argv.length && guard < 8; guard++) {
+    const w = argv[i].split("/").pop();
+    if (!WRAPPERS.has(w)) break;
     i++;
+    while (i < argv.length && argv[i].startsWith("-")) {
+      const opt = argv[i++];
+      if (WRAPPER_VALUE_OPT[w] && WRAPPER_VALUE_OPT[w].test(opt)) i++;
+    }
+    takeAssignments(); // env VAR=value …
+  }
+  if (i >= argv.length) return null;
 
-    // Pre-subcommand options, where -c core.hooksPath=… hides.
-    let hooksPath = false, sub = null;
-    while (i < tokens.length) {
-      const t = tokens[i];
-      if (t === "-c" && i + 1 < tokens.length) {
-        if (/^core\.hookspath=/i.test(tokens[i + 1])) hooksPath = true;
-        i += 2; continue;
+  const prog = argv[i].split("/").pop();
+
+  // A shell running a string is a command inside a command: judge the string.
+  if (SHELLS.test(prog)) {
+    for (let j = i + 1; j < argv.length; j++) {
+      if (/^-[A-Za-z]*c[A-Za-z]*$/.test(argv[j]) && j + 1 < argv.length) {
+        return depth < 4 ? verdict(argv[j + 1], depth + 1) : null;
       }
-      if (/^-c./.test(t) && /^-ccore\.hookspath=/i.test(t)) { hooksPath = true; i++; continue; }
-      if (TAKES_VALUE.has(t)) { i += 2; continue; }
-      if (t.startsWith("-")) { i++; continue; }
-      sub = t; i++; break;
     }
-    if (hooksPath) return { sub: sub || "commit", how: "-c core.hooksPath= overrides where git looks for hooks" };
-    if (!sub || !(sub in GATED)) continue;
+    return null;
+  }
+  if (prog === "eval") return depth < 4 ? verdict(argv.slice(i + 1).join(" "), depth + 1) : null;
+  if (prog !== "git") return null;
+  i++;
 
-    for (const t of tokens.slice(i)) {
-      if (t === "--") break;
-      if (isNoVerify(t)) return { sub, how: `${t} skips the ${sub} hooks` };
-      // -n is --no-verify on commit; on push it means --dry-run, which is safe.
-      if (t === "-n" && sub === "commit") return { sub, how: "-n is the shorthand for --no-verify on commit" };
+  // Pre-subcommand options, where -c core.hooksPath=… hides.
+  let hooksPath = false;
+  let sub = null;
+  while (i < argv.length) {
+    const t = argv[i];
+    if (t === "-c" && i + 1 < argv.length) {
+      if (/^core\.hookspath=/i.test(argv[i + 1])) hooksPath = true;
+      i += 2;
+      continue;
     }
-    if (hooksOff) return { sub, how: "CONDUCTOR_HOOKS=off disables every gate and writes no ship-log line" };
+    if (/^-ccore\.hookspath=/i.test(t) || /^--config-env=core\.hookspath=/i.test(t)) {
+      hooksPath = true;
+      i++;
+      continue;
+    }
+    if (TAKES_VALUE.has(t)) { i += 2; continue; }
+    if (t.startsWith("-")) { i++; continue; }
+    sub = t;
+    i++;
+    break;
+  }
+  if (hooksPath) return { sub: sub || "commit", how: "-c core.hooksPath= overrides where git looks for hooks" };
+  if (!sub || !(sub in GATED)) return null;
+
+  for (let j = i; j < argv.length; j++) {
+    const t = argv[j];
+    if (t === "--") break;
+    if (isNoVerify(t)) return { sub, how: `${t} skips the ${sub} hooks` };
+    if (sub !== "commit") continue;
+    if (COMMIT_VALUE_LONG.test(t)) { j++; continue; }
+    if (/^-[A-Za-z]/.test(t)) {
+      // A short-option cluster: -anm is -a -n -m. Walk it the way git does.
+      for (let k = 1; k < t.length; k++) {
+        const ch = t[k];
+        if (ch === "n") return { sub, how: `${t} contains -n, the shorthand for --no-verify on commit` };
+        if (COMMIT_VALUE_SHORT.has(ch)) {
+          if (k === t.length - 1) j++; // the value is the next token
+          break;                        // …or the rest of this one
+        }
+        if (ch === "u" || ch === "S") break; // optional attached value
+      }
+    }
+  }
+  if (hooksOff) return { sub, how: "CONDUCTOR_HOOKS=off disables every gate and writes no ship-log line" };
+  return null;
+}
+
+function verdict(command, depth = 0) {
+  for (const argv of tokenize(String(command))) {
+    const hit = checkSegment(argv, depth);
+    if (hit) return hit;
   }
   return null;
 }

@@ -58,6 +58,24 @@ git -C "$D" checkout -q "$BASE_BRANCH"
 git -C "$D" checkout -q -b feat-far
 printf 'line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nFAR\nline10\n' > "$D/f.txt"
 git -C "$D" commit -qam far
+
+# Review blocker: a branch ADDING a file whose content contains marker text.
+# git merges it cleanly; a marker-string match called it a conflict.
+git -C "$D" checkout -q "$BASE_BRANCH"
+git -C "$D" checkout -q -b feat-marker
+printf 'const M = "<<<<<<<";\n<<<<<<< .our\n' > "$D/fixture.js"
+git -C "$D" add -A
+git -C "$D" commit -qm marker
+
+# Review IMPORTANT: modify/delete. Real conflict, and it writes no markers.
+git -C "$D" checkout -q "$BASE_BRANCH"
+git -C "$D" checkout -q -b feat-mod-g
+printf 'changed by one side\n' > "$D/g.txt"
+git -C "$D" commit -qam mod-g
+git -C "$D" checkout -q "$BASE_BRANCH"
+git -C "$D" checkout -q -b feat-del-g
+git -C "$D" rm -q g.txt
+git -C "$D" commit -qm del-g
 git -C "$D" checkout -q "$BASE_BRANCH"
 
 # Ask the real module, with a real git runner.
@@ -120,7 +138,7 @@ actual_conflict() {
   rm -rf "$c"
 }
 
-for pair in "feat-a feat-b" "feat-a feat-clean" "feat-a feat-far"; do
+for pair in "feat-a feat-b" "feat-a feat-clean" "feat-a feat-far" "feat-a feat-marker" "feat-mod-g feat-del-g"; do
   set -- $pair
   PRED="$(predict "$1" "$2" | grep -o '"conflicted":[a-z]*' | cut -d: -f2)"
   ACTUAL="$(actual_conflict "$1" "$2")"
@@ -131,6 +149,22 @@ for pair in "feat-a feat-b" "feat-a feat-clean" "feat-a feat-far"; do
     no "C4: predicted $EXPECT but git actually said $ACTUAL for $1 + $2"
   fi
 done
+
+# ---- C7: marker TEXT in content is not a conflict (review blocker) --------
+OUT="$(predict feat-a feat-marker)"
+if printf '%s' "$OUT" | grep -q '"conflicted":false'; then
+  ok "C7: a file containing marker text merges clean and is not flagged"
+else
+  no "C7: marker text in content produced a FALSE conflict — got: $OUT"
+fi
+
+# ---- C8: modify/delete is a real conflict with no markers -----------------
+OUT="$(predict feat-mod-g feat-del-g)"
+if printf '%s' "$OUT" | grep -q '"conflicted":true' && printf '%s' "$OUT" | grep -q 'g.txt'; then
+  ok "C8: a modify/delete conflict is predicted, naming g.txt"
+else
+  no "C8: modify/delete conflict NOT predicted — got: $OUT"
+fi
 
 # ---- C5: report which form ran, so a green run is not mistaken for both ---
 METHOD="$(predict feat-a feat-b | grep -o '"method":"[^"]*"' | cut -d'"' -f4)"

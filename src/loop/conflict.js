@@ -25,47 +25,79 @@
 //
 // All git IO is injected as `git(argsArray) -> {ok, stdout, stderr, exitCode}`.
 
-/** Conflict markers git writes into a merged hunk. */
-const MARKER = "<<<<<<<";
+/**
+ * The exact line legacy merge-tree writes to open a conflicted hunk. Matched as
+ * a WHOLE line, and only inside a section that can conflict. The first version
+ * matched the marker string anywhere, so any branch that merely contained the
+ * text — a fixture, a test, this very file — was reported as a collision, and
+ * the swarm withheld a merge that git performs cleanly.
+ */
+const CONFLICT_OPEN = /^[+ ]<<<<<<< \.our$/;
 
-/** `  our    100644 <sha> path/to/file` → the path. */
-const BLOB_LINE = /^\s+(?:base|our|their|result)\s+\d+\s+[0-9a-f]+\s+(.+)$/;
+/** Sections where both sides edited the same content and markers mean conflict. */
+const TEXT_CONFLICT_SECTIONS = new Set(["changed in both", "added in both"]);
+
+/** Sections where one side deleted the file; conflict iff the other side changed it. */
+const DELETE_SECTIONS = new Set(["removed in remote", "removed in local"]);
+
+/** `  our    100644 <sha> path/to/file` → role, sha, path. */
+const BLOB_LINE = /^\s+(base|our|their|result)\s+\d+\s+([0-9a-f]+)\s+(.+)$/;
 
 /**
  * Parse legacy `git merge-tree <base> <ours> <theirs>` output.
  *
- * The body is a sequence of sections — `changed in both`, `merged`,
- * `added in both`, … — each followed by indented blob lines and a diff hunk.
- * A section is a conflict only when its hunk carries a marker: two branches
- * editing the same file on different lines produce `changed in both` and merge
- * perfectly well, so the header alone would over-report badly.
+ * Legacy merge-tree exits 0 whatever happens, so the body is the only signal,
+ * and it takes two readings — verified against real git 2.34.1 output:
+ *
+ *   TEXT CONFLICT   a `changed in both` / `added in both` section whose hunk has
+ *                   a line that is exactly `+<<<<<<< .our`. Two branches editing
+ *                   the same file on distant lines produce `changed in both` too,
+ *                   and merge fine — the header alone would over-report.
+ *   MODIFY/DELETE   a `removed in remote` / `removed in local` section where the
+ *                   surviving side's blob differs from base. No markers are ever
+ *                   written for this one, which is why a marker-only reading
+ *                   missed it.
+ *
+ * Every other section — `added in remote`, `merged`, … — cannot conflict, even
+ * when its content happens to contain marker text.
  *
  * @returns {{conflicted: boolean, files: string[]}}
  */
 export function parseLegacyMergeTree(stdout) {
   const files = [];
+  let section = null;
   let path = null;
+  let blobs = {};
   let sawMarker = false;
 
   const flush = () => {
-    if (sawMarker && path && !files.includes(path)) files.push(path);
-    sawMarker = false;
+    if (!section || !path) return;
+    let conflicted = false;
+    if (TEXT_CONFLICT_SECTIONS.has(section)) conflicted = sawMarker;
+    else if (DELETE_SECTIONS.has(section)) {
+      const survivor = blobs.our ?? blobs.their;
+      conflicted = Boolean(blobs.base && survivor && survivor !== blobs.base);
+    }
+    if (conflicted && !files.includes(path)) files.push(path);
   };
 
   for (const line of String(stdout ?? "").split("\n")) {
     // An unindented word starts a new section.
     if (/^[a-z]/.test(line)) {
       flush();
+      section = line.trim();
       path = null;
+      blobs = {};
+      sawMarker = false;
       continue;
     }
     const blob = line.match(BLOB_LINE);
     if (blob) {
-      // base/our/their all name the same path; last one wins, they agree.
-      path = blob[1].trim();
+      blobs[blob[1]] = blob[2];
+      path = blob[3].trim();
       continue;
     }
-    if (line.includes(MARKER)) sawMarker = true;
+    if (CONFLICT_OPEN.test(line)) sawMarker = true;
   }
   flush();
 

@@ -60,6 +60,81 @@ const LEGACY_BOTH_CHANGED_NO_CONFLICT = `changed in both
 +theirs
 `;
 
+// Verbatim from git 2.34.1, captured for the review fix. A branch that ADDS a
+// file whose content contains conflict-marker text: the real merge is clean.
+// Matching the marker string anywhere reported it as a conflict — including
+// on this repo's own conflict.js, which contains "<<<<<<<".
+const LEGACY_MARKER_AS_CONTENT = `added in remote
+  their  100644 0621969f2c97c67bd064b25dd9077ebbfad89326 m.txt
+@@ -0,0 +1 @@
++x = "<<<<<<< .our"
+`;
+
+// The nastier variant: the added file's line IS exactly a marker. Only the
+// section header says it is content — "added in remote" cannot conflict.
+const LEGACY_EXACT_MARKER_AS_CONTENT = `added in remote
+  their  100644 0621969f2c97c67bd064b25dd9077ebbfad89326 fixture.txt
+@@ -0,0 +1,3 @@
++<<<<<<< .our
++a
++>>>>>>> .their
+`;
+
+// Real modify/delete conflict: one side edited g.txt, the other deleted it.
+// No markers at all — the only signal is that the surviving side differs
+// from base. git merge reports CONFLICT (modify/delete).
+const LEGACY_MODIFY_DELETE = `removed in remote
+  base   100644 2fa992c0b8b5c6acd2bdd4fa31de29d29799bdd5 g.txt
+  our    100644 fc6faa77870a5cfa6eaadfd55d02dd3e6a82271c g.txt
+@@ -1,3 +0,0 @@
+-l1
+-MOD
+-l3
+`;
+
+// A clean deletion: the other side never touched the file (same sha as base).
+const LEGACY_CLEAN_DELETE = `removed in remote
+  base   100644 2fa992c0b8b5c6acd2bdd4fa31de29d29799bdd5 g.txt
+  our    100644 2fa992c0b8b5c6acd2bdd4fa31de29d29799bdd5 g.txt
+@@ -1,3 +0,0 @@
+-l1
+-l2
+-l3
+`;
+
+const LEGACY_ADD_ADD = `added in both
+  our    100644 f70f10e4db19068f79bc43844b49f3eece45c4e8 n.txt
+  their  100644 223b7836fb19fdf64ba2d3cd6173c6a283141f78 n.txt
+@@ -1 +1,5 @@
++<<<<<<< .our
+ A
++=======
++B
++>>>>>>> .their
+`;
+
+describe("F7 — no false 'conflicted' (review blocker)", () => {
+  test("marker TEXT inside an added file is content, not a conflict", () => {
+    assert.deepEqual(parseLegacyMergeTree(LEGACY_MARKER_AS_CONTENT), { conflicted: false, files: [] });
+  });
+
+  test("an exact marker line in an 'added in remote' file is still content", () => {
+    assert.deepEqual(parseLegacyMergeTree(LEGACY_EXACT_MARKER_AS_CONTENT), { conflicted: false, files: [] });
+  });
+
+  test("a real add/add conflict is still detected", () => {
+    assert.deepEqual(parseLegacyMergeTree(LEGACY_ADD_ADD), { conflicted: true, files: ["n.txt"] });
+  });
+
+  test("a modify/delete conflict is detected though it carries no markers", () => {
+    assert.deepEqual(parseLegacyMergeTree(LEGACY_MODIFY_DELETE), { conflicted: true, files: ["g.txt"] });
+  });
+
+  test("a clean deletion is not a conflict", () => {
+    assert.deepEqual(parseLegacyMergeTree(LEGACY_CLEAN_DELETE), { conflicted: false, files: [] });
+  });
+});
+
 describe("F7 — legacy merge-tree parsing (git < 2.38)", () => {
   test("a conflict is detected, and names the colliding file", () => {
     const r = parseLegacyMergeTree(LEGACY_CONFLICT);

@@ -6,6 +6,10 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Claude Code can find Conductor's skills
+
+- **`init` and `upgrade` now generate `.claude/skills/<name>/SKILL.md`** for every skill in `.agents/skills/`. Claude Code finds skills only there. Before, a skill that no workflow loads by path, for example `handoff`, was reachable in Claude Code only by an `@` file reference. Each shim redirects to the real file, the same as the `.claude/commands/` shims. A user's own `.claude/skills/<name>/` is never overwritten. Stale generated shims are removed. Verified live: a headless Claude Code session in a fresh install lists `handoff`.
+
 ### Changed — one planning workflow per session, and plain Genesis terms
 
 Running Genesis through to Spec-It in one conversation leaves Carve and Spec-It with the largest and noisiest context of the chain. Every workflow already reads its inputs from `conductor/`, but nothing told the human to start fresh, and a fresh session could not know which Project to read: Carve, Technical Vision and Build named no project at all.

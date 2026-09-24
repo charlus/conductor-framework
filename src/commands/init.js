@@ -7,7 +7,7 @@ import { detectTechStack } from "../detect.js";
 import { resolveRegistry, fetchRegistryIndex, readLocalSkills } from "../registry.js";
 import { runInteractiveSetup } from "../prompt.js";
 import { selectiveCopy, syncSelections, readSelections } from "../selective-copy.js";
-import { generateClaudeCommands } from "../claude-commands.js";
+import { generateClaudeCommands, generateClaudeSkills } from "../claude-commands.js";
 import { installHooksCommand } from "./install-hooks.js";
 import { writeVersionStamp, packageVersion } from "../version.js";
 import { ensureVerifyCommand } from "../verify-config.js";
@@ -162,6 +162,7 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
 
     // Claude Code slash-command bridge (ADR-0001 D5): shim per installed workflow.
     await generateClaudeCommands(targetDir, { stdout });
+    await generateClaudeSkills(targetDir, { stdout });
 
     // Copy conductor/ (project state folders)
     if (!parsed.agentOnly) {

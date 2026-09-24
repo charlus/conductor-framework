@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { planUpdate, executeUpdate } from "../update.js";
 import { renameRecursive, updateChecksumsKeys, renameNumberedFolders } from "../kebab.js";
-import { generateClaudeCommands } from "../claude-commands.js";
+import { generateClaudeCommands, generateClaudeSkills } from "../claude-commands.js";
 import { installHooksCommand } from "./install-hooks.js";
 import { ensureVerifyCommand } from "../verify-config.js";
 import { normalizeState } from "../loop/driver.js";
@@ -340,6 +340,7 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       stdout.write("\nStep 7: Claude Code slash commands...\n");
       const { written } = await generateClaudeCommands(targetDir, { stdout });
       if (written === 0) stdout.write("  ⏭️  No workflows found; skipped .claude/commands/\n");
+      await generateClaudeSkills(targetDir, { stdout });
 
       // ---- Step 8: Enforcement hooks ----
       stdout.write("\nStep 8: Enforcement hooks...\n");

@@ -16,25 +16,24 @@ ZERO="0000000000000000000000000000000000000000"
 
 # ---- Load the shared library from a copy the change cannot rewrite ----------
 # Both hooks source lib.sh, which makes it the single point that switches every
-# gate off. The first version sourced the WORKING-TREE copy, so (independent
-# review, blocker B1) deleting or moving lib.sh left every conductor_* call
-# "command not found" and the commit went through with all gates dark — and a
-# commit that rewrote lib.sh to neuter the checks disabled them for itself.
+# gate off. Two versions of this got it wrong, both found by independent review:
+#   1. sourcing the WORKING-TREE copy: deleting, moving or rewriting lib.sh
+#      disabled every gate for the very commit doing it (round 1, B1);
+#   2. sourcing the working-tree copy FIRST and the committed copy on top: any
+#      top-level statement still ran — one `exit 0` switched everything off,
+#      and `readonly -f` stopped the trusted copy redefining a helper (delta).
+# So: once a lib.sh is COMMITTED, only the committed copy is sourced. The
+# working-tree copy is never executed. It is used only when nothing has been
+# committed yet — a fresh install, where there is no gate to weaken.
 #
-# So: load the working-tree lib.sh for any NEW helpers, then the COMMITTED copy
-# at the trusted ref on top of it. Every helper that already existed is now the
-# committed, trusted version; the change being judged cannot rewrite them.
-#
-# The limit, stated rather than implied: this protects the LIBRARY. It cannot
-# protect the hook ENTRY SCRIPT — git executes pre-commit and pre-push from the
-# working tree, so a change that rewrites them runs the rewritten version.
-# Deleting pre-commit is caught at pre-push below; rewriting both entry scripts
-# defeats every client-side hook, and the backstop for that is the PR gate and
-# the loop's Checker, not this file.
+# The limit, stated rather than implied: this protects the LIBRARY. git runs the
+# hook ENTRY SCRIPTS (pre-commit, pre-push) from the working tree, so a change
+# that rewrites both runs the rewritten versions. Removing or disabling
+# pre-commit is caught at pre-push below; rewriting both entry scripts defeats
+# every client-side hook, and the backstop for that is the PR gate and the
+# loop's Checker, not this file.
 conductor_load_lib() {
   local ref="$1" tmp
-  # shellcheck source=/dev/null
-  [ -f "$ROOT/.agents/hooks/lib.sh" ] && . "$ROOT/.agents/hooks/lib.sh" 2>/dev/null
   if [ -n "$ref" ] && git -C "$ROOT" cat-file -e "$ref:.agents/hooks/lib.sh" 2>/dev/null; then
     tmp="$(mktemp 2>/dev/null)" || return 1
     if ! git -C "$ROOT" show "$ref:.agents/hooks/lib.sh" > "$tmp" 2>/dev/null; then
@@ -44,8 +43,22 @@ conductor_load_lib() {
     # shellcheck source=/dev/null
     . "$tmp"
     rm -f "$tmp"
+    return 0
   fi
-  return 0
+  [ -f "$ROOT/.agents/hooks/lib.sh" ] || return 1
+  # shellcheck source=/dev/null
+  . "$ROOT/.agents/hooks/lib.sh"
+}
+
+# Every helper `$1` needs, or the names that are missing. A committed lib.sh
+# older than this hook (mid-upgrade) lacks the newer helpers; running on with
+# them undefined would silently skip their gates, so a gap fails closed instead.
+conductor_missing_helpers() {
+  local fn missing=""
+  for fn in $1; do
+    type "$fn" >/dev/null 2>&1 || missing="$missing $fn"
+  done
+  printf '%s' "${missing# }"
 }
 
 # Minimal ship-log writer for the one path where lib.sh could not be loaded,
@@ -65,9 +78,21 @@ while read -r _lref _lsha _rref rsha; do
     break
   fi
 done <<< "$PUSH_LINES"
+# A brand-new branch has no remote sha: trust its merge-base with anything a
+# remote already has, and HEAD only when there is no remote history at all.
+if [ -z "$TRUSTED_REF" ]; then
+  for r in $(git -C "$ROOT" for-each-ref --format='%(objectname)' refs/remotes 2>/dev/null); do
+    mb="$(git -C "$ROOT" merge-base HEAD "$r" 2>/dev/null)" && [ -n "$mb" ] && { TRUSTED_REF="$mb"; break; }
+  done
+fi
 [ -z "$TRUSTED_REF" ] && git -C "$ROOT" rev-parse --verify -q HEAD >/dev/null 2>&1 && TRUSTED_REF="HEAD"
 
-if ! conductor_load_lib "$TRUSTED_REF" || ! type conductor_verify_cmd >/dev/null 2>&1; then
+REQUIRED="conductor_verify_cmd conductor_eval_cmd conductor_has_eval_files conductor_log_waiver"
+lib_ok=1
+conductor_load_lib "$TRUSTED_REF" || lib_ok=0
+missing="$(conductor_missing_helpers "$REQUIRED")"
+
+if [ "$lib_ok" = "0" ] || [ -n "$missing" ]; then
   # Nothing loadable. If the remote had Conductor, this push is removing it.
   if [ -n "$TRUSTED_REF" ] && git -C "$ROOT" cat-file -e "$TRUSTED_REF:.agents/hooks/lib.sh" 2>/dev/null; then
     if [ -n "${CONDUCTOR_NO_PROTECTED:-}" ]; then
@@ -75,8 +100,8 @@ if ! conductor_load_lib "$TRUSTED_REF" || ! type conductor_verify_cmd >/dev/null
       echo "⚠️  Conductor enforcement library unavailable — WAIVED: $CONDUCTOR_NO_PROTECTED"
       exit 0
     fi
-    echo "🛑 Conductor — the enforcement library could not be loaded; push blocked."
-    echo "   If you are deliberately removing Conductor: CONDUCTOR_NO_PROTECTED=\"why\" git push …"
+    echo "🛑 Conductor — the committed enforcement library cannot run this hook; push blocked."
+    echo "   If you are deliberately removing or upgrading Conductor: CONDUCTOR_NO_PROTECTED=\"why\" git push …"
     exit 1
   fi
   exit 0
@@ -88,16 +113,25 @@ fi
 # boundary left that can see it: refuse to push a range that deletes a hook
 # entry script unless the removal is stated.
 removed_hooks=""
+# Read the RAW diff so a rename and a mode change are visible, not only a
+# deletion: `git mv pre-commit pre-commit.disabled` is status R, and
+# `chmod -x pre-commit` is a mode change git obeys by silently skipping the
+# hook. Both disable it as surely as deleting it (delta review, B1).
+hook_changes() {
+  git -C "$ROOT" diff --raw -M "$1" "$2" -- .agents/hooks/ 2>/dev/null | awk -F'\t' '
+    { split($1, m, " "); nm = m[2]; st = substr(m[5], 1, 1); p = $2; q = $3
+      if (st == "D") print p " (deleted)"
+      else if (st == "R") print p " (renamed to " q ")"
+      else if (p ~ /\/pre-(commit|push)$/ && (st == "T" || nm != "100755")) print p " (no longer executable)" }'
+}
 while read -r _lref lsha _rref rsha; do
   [ -z "${lsha:-}" ] || [ "$lsha" = "$ZERO" ] && continue
-  if [ -n "${rsha:-}" ] && [ "$rsha" != "$ZERO" ]; then
-    range_files="$(git -C "$ROOT" diff --name-only -M --diff-filter=D "$rsha" "$lsha" -- .agents/hooks/ 2>/dev/null)"
-  else
-    range_files="$(git -C "$ROOT" log --format= --name-only -M --diff-filter=D "$lsha" --not --remotes -- .agents/hooks/ 2>/dev/null)"
-  fi
+  from="$rsha"
+  [ -z "${from:-}" ] || [ "$from" = "$ZERO" ] && from="$TRUSTED_REF"
+  [ -z "$from" ] && continue
   while IFS= read -r f; do
     [ -n "$f" ] && removed_hooks="$removed_hooks\n    - $f"
-  done <<< "$range_files"
+  done <<< "$(hook_changes "$from" "$lsha")"
 done <<< "$PUSH_LINES"
 
 if [ -n "$removed_hooks" ]; then
@@ -107,7 +141,7 @@ if [ -n "$removed_hooks" ]; then
     echo "    (logged to conductor/0-compass/ship-log.md)"
   else
     echo ""
-    echo "🛑 Conductor — this push removes an enforcement hook; push blocked."
+    echo "🛑 Conductor — this push removes or disables an enforcement hook; push blocked."
     echo -e "$removed_hooks"
     echo ""
     echo "  A deleted pre-commit runs no commit gate at all, so the commit that"

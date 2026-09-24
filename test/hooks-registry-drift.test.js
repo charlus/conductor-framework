@@ -108,41 +108,40 @@ describe("F3 — every gate's waiver is implemented and documented", () => {
     );
   });
 
-  test("every waiver is logged to the ship-log, never silent", () => {
-    // The whole contract is "bypass is allowed, silence is not".
+  test("every waiver reference has a recognised, logged shape", () => {
+    // What this does NOT prove: that a waiver is logged at runtime. Reading
+    // code cannot — an `exit 0` before the log call, or the call left only in
+    // a comment, passed both earlier versions of this check (independent
+    // review, B5 and again in the delta round). The runtime guarantee is the
+    // behaviour matrix in test/hooks-waiver-logging.sh, which trips every gate
+    // and asserts the reason reaches the ship-log.
     //
-    // The first version of this check read pre-commit only, recognised one
-    // guard shape by regex, and asserted a COUNT of at least four. The
-    // independent review (blocker B5) broke it twice: stripping every log
-    // call from pre-push passed, and adding an unlogged
-    // `[ -n "${CONDUCTOR_NO_LINT:-}" ] && exit 0` passed. A test that
-    // counts the shapes it recognises cannot see the shape it does not.
+    // What this DOES prove, cheaply and first: no waiver variable is read in
+    // a shape nobody has checked. Every reference, in code that is not a
+    // comment, must be either
+    //   (a) a guard `if|elif [ -n "${X:-}" ]; then` whose branch calls the
+    //       log writer in CODE (not in a comment), or
+    //   (b) the waiver's value or name being logged or echoed back.
+    // A bare reference such as `printenv CONDUCTOR_SKIP_EVAL && exit 0` is
+    // neither, and fails.
     //
-    // So this is exhaustive over every gate source, and strict: every
-    // $-expansion of a waiver variable must be one of exactly two things —
-    //   (a) a guard `if|elif [ -n "${X:-}" ]; then` whose branch logs, or
-    //   (b) the waiver's value being logged or echoed back.
-    // Anything else fails as an unrecognised form, rather than being skipped.
-    const SOURCES = [
-      "pre-commit",
-      "pre-push",
-      "verification-stop-hook.sh",
-      "pretooluse-no-bypass.sh",
-      "pretooluse-fact-gate.sh",
-    ];
-    const EXPANSION = /\$\{?(CONDUCTOR_(?:NO|SKIP)_[A-Z_]+)/;
+    // The two PreToolUse hooks are not scanned: they accept no waivers, and
+    // their mentions are message strings inside an embedded node script.
+    const SOURCES = ["pre-commit", "pre-push", "verification-stop-hook.sh"];
+    const REFERENCE = /\b(CONDUCTOR_(?:NO|SKIP)_[A-Z_]+)\b/;
     const GUARD = /^(\s*)(?:if|elif) \[ -n "\$\{(CONDUCTOR_(?:NO|SKIP)_[A-Z_]+):-\}" \]; then\s*$/;
     const REPORTING = /^\s*(?:conductor_log_waiver(?:_fallback)?|echo)\b/;
-    const LOGS = /\bconductor_log_waiver(?:_fallback)?\b/;
+    const LOGS = /^\s*conductor_log_waiver(?:_fallback)?\b/;
+    const isComment = (l) => /^\s*#/.test(l);
 
     const problems = [];
     let guards = 0;
     for (const file of SOURCES) {
       const lines = read(join(HOOKS, file)).split("\n");
       lines.forEach((line, n) => {
-        if (/^\s*#/.test(line)) return;          // a comment is not code
-        const exp = line.match(EXPANSION);
-        if (!exp) return;
+        if (isComment(line)) return;
+        const ref = line.match(REFERENCE);
+        if (!ref) return;
         const guard = line.match(GUARD);
         if (guard) {
           guards += 1;
@@ -153,13 +152,14 @@ describe("F3 — every gate's waiver is implemented and documented", () => {
             if (m && m[1].length === indent) break;
             body.push(lines[k]);
           }
-          if (!body.some((b) => LOGS.test(b))) {
-            problems.push(`${file}:${n + 1} — ${guard[2]} is accepted without writing to the ship-log`);
+          // Code only: a log call that survives in a comment logs nothing.
+          if (!body.filter((b) => !isComment(b)).some((b) => LOGS.test(b))) {
+            problems.push(`${file}:${n + 1} — ${guard[2]} is accepted without a log call in code`);
           }
           return;
         }
         if (REPORTING.test(line)) return;
-        problems.push(`${file}:${n + 1} — ${exp[1]} is used in a form this check does not recognise: ${line.trim()}`);
+        problems.push(`${file}:${n + 1} — ${ref[1]} is read in a shape this check does not recognise: ${line.trim()}`);
       });
     }
 

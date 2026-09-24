@@ -31,7 +31,8 @@
     "test:hooks:factgate": "bash test/hooks-fact-gate.sh",
     "eval:factgate": "node test/evals/fact-gate-eval.mjs",
     "eval:factgate:sensitivity": "node test/evals/fact-gate-eval.mjs --sensitivity",
-    "test:survey": "node --test test/survey.test.js"
+    "test:survey": "node --test test/survey.test.js",
+    "test:hooks:waivers": "bash test/hooks-waiver-logging.sh"
   },
   "keywords": [
     "conductor",

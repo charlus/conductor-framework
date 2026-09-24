@@ -149,15 +149,22 @@ conductor_is_test_code_file() {
   printf '%s\n' "$1" | grep -Eiq '\.(js|jsx|ts|tsx|mjs|cjs|py|go|rs|java|rb|php|c|h|cc|cpp|hpp|cs|swift|kt|kts|scala|ex|exs|dart|m|mm|vue|svelte)$'
 }
 
-# Echo staged test files DELETED outright, one per line. Rename detection is
-# forced on with -M, so moving or renaming a test file is not read as removing
-# one whatever the user's diff.renames setting.
+# Echo staged test files that stop being tests, one per line: deleted outright,
+# or RENAMED to a path that is no longer test code (`add.test.js.bak`,
+# `docs/add.test.js.txt`). To the suite the second is the same as the first —
+# the test simply stops running — and the delta review found it walked straight
+# past a deletion-only check. Rename detection is forced on with -M, so an
+# ordinary rename between test paths is not read as removing a test.
 conductor_deleted_test_files() {
-  local root="$1" f
-  git -C "$root" diff --cached --name-only -M --diff-filter=D 2>/dev/null |
-    while IFS= read -r f; do
-      [ -z "$f" ] && continue
-      conductor_is_test_code_file "$f" && printf '%s\n' "$f"
+  local root="$1" st a b
+  git -C "$root" diff --cached --name-status -M --diff-filter=DR 2>/dev/null |
+    while IFS=$'\t' read -r st a b; do
+      [ -z "${a:-}" ] && continue
+      case "$st" in
+        D*) conductor_is_test_code_file "$a" && printf '%s\n' "$a" ;;
+        R*) conductor_is_test_code_file "$a" && ! conductor_is_test_code_file "$b" &&
+              printf '%s (renamed to %s, which is not a test)\n' "$a" "$b" ;;
+      esac
     done
 }
 

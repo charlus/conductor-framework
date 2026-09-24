@@ -199,6 +199,20 @@ else
 fi
 rm -rf "$D"
 
+# ---- G14: renaming a test to a NON-test path is a deletion (delta B6) -------
+# The test simply stops running: to the suite, it is gone.
+for target in "test/add.test.js.bak" "docs/add.test.js.txt" "src/add.fixture.js"; do
+  D="$(seeded_repo)"
+  mkdir -p "$D/$(dirname "$target")"
+  git -C "$D" mv test/add.test.js "$target"
+  if git -C "$D" commit -q -m "retire the test" >/dev/null 2>&1; then
+    no "G14: renaming a test to $target committed — the test stopped running"
+  else
+    ok "G14: renaming a test to $target is BLOCKED"
+  fi
+  rm -rf "$D"
+done
+
 # ---- G8: waiver → COMMITS and is logged -----------------------------------
 D="$(seeded_repo)"
 git -C "$D" rm -q "test/add.test.js" >/dev/null 2>&1
@@ -388,6 +402,64 @@ if CONDUCTOR_NO_PROTECTED="uninstalling conductor" git -C "$D" push -q origin HE
   fi
 else
   no "P13: CONDUCTOR_NO_PROTECTED did not allow the push"
+fi
+rm -rf "$D" "$B"
+
+# ---- P14: code at the TOP of a working-tree lib.sh must not run (delta B1) ---
+# The first fix sourced the working-tree lib.sh before the committed copy, so
+# any top-level statement in it ran: one `exit 0` switched every gate off, and
+# `readonly -f` stopped the trusted copy from redefining a helper. Once a lib
+# is committed, the working-tree copy must not execute at all.
+D="$(seeded_repo)"
+sed -i '1a exit 0' "$D/.agents/hooks/lib.sh"
+git -C "$D" rm -q test/add.test.js
+if git -C "$D" commit -q -m "exit-0 lib + test deletion" >/dev/null 2>&1; then
+  no "P14: an 'exit 0' in the working-tree lib.sh switched the gates off"
+else
+  ok "P14: top-level code in the working-tree lib.sh does not run"
+fi
+rm -rf "$D"
+
+D="$(seeded_repo)"
+printf '\nconductor_deleted_test_files(){ :; }; readonly -f conductor_deleted_test_files\n' >> "$D/.agents/hooks/lib.sh"
+git -C "$D" rm -q test/add.test.js
+if git -C "$D" commit -q -m "readonly override" >/dev/null 2>&1; then
+  no "P14b: a readonly override in the working-tree lib.sh disabled a gate"
+else
+  ok "P14b: a readonly override cannot pin a neutered helper"
+fi
+rm -rf "$D"
+
+# ---- P15: renaming pre-commit away is a removal (delta B1) ----------------
+push_repo() {
+  local d b; d="$(seeded_repo)"; b="$(mktemp -d)"; git init -q --bare "$b"
+  git -C "$d" remote add origin "$b"
+  CONDUCTOR_HOOKS=off git -C "$d" push -q origin HEAD:main >/dev/null 2>&1
+  printf '%s %s' "$d" "$b"
+}
+read -r D B <<< "$(push_repo)"
+git -C "$D" mv .agents/hooks/pre-commit .agents/hooks/pre-commit.disabled
+git -C "$D" rm -q test/add.test.js
+git -C "$D" commit -q -m "disable by rename" >/dev/null 2>&1
+if git -C "$D" push -q origin HEAD:main >/dev/null 2>&1; then
+  no "P15: a push that RENAMES pre-commit away went through"
+else
+  ok "P15: renaming pre-commit away is BLOCKED at push"
+fi
+rm -rf "$D" "$B"
+
+# ---- P16: removing pre-commit's execute bit is a removal (delta B1) -------
+# git silently skips a hook that is not executable, so chmod -x disables it
+# as surely as deleting it.
+read -r D B <<< "$(push_repo)"
+chmod -x "$D/.agents/hooks/pre-commit"
+git -C "$D" add -A >/dev/null 2>&1
+git -C "$D" rm -q test/add.test.js
+git -C "$D" commit -q -m "disable by chmod" >/dev/null 2>&1
+if git -C "$D" push -q origin HEAD:main >/dev/null 2>&1; then
+  no "P16: a push that makes pre-commit non-executable went through"
+else
+  ok "P16: chmod -x on pre-commit is BLOCKED at push"
 fi
 rm -rf "$D" "$B"
 

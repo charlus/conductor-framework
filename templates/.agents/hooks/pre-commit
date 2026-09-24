@@ -17,25 +17,24 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 
 # ---- Load the shared library from a copy the change cannot rewrite ----------
 # Both hooks source lib.sh, which makes it the single point that switches every
-# gate off. The first version sourced the WORKING-TREE copy, so (independent
-# review, blocker B1) deleting or moving lib.sh left every conductor_* call
-# "command not found" and the commit went through with all gates dark — and a
-# commit that rewrote lib.sh to neuter the checks disabled them for itself.
+# gate off. Two versions of this got it wrong, both found by independent review:
+#   1. sourcing the WORKING-TREE copy: deleting, moving or rewriting lib.sh
+#      disabled every gate for the very commit doing it (round 1, B1);
+#   2. sourcing the working-tree copy FIRST and the committed copy on top: any
+#      top-level statement still ran — one `exit 0` switched everything off,
+#      and `readonly -f` stopped the trusted copy redefining a helper (delta).
+# So: once a lib.sh is COMMITTED, only the committed copy is sourced. The
+# working-tree copy is never executed. It is used only when nothing has been
+# committed yet — a fresh install, where there is no gate to weaken.
 #
-# So: load the working-tree lib.sh for any NEW helpers, then the COMMITTED copy
-# at the trusted ref on top of it. Every helper that already existed is now the
-# committed, trusted version; the change being judged cannot rewrite them.
-#
-# The limit, stated rather than implied: this protects the LIBRARY. It cannot
-# protect the hook ENTRY SCRIPT — git executes pre-commit and pre-push from the
-# working tree, so a change that rewrites them runs the rewritten version.
-# Deleting pre-commit is caught at pre-push below; rewriting both entry scripts
-# defeats every client-side hook, and the backstop for that is the PR gate and
-# the loop's Checker, not this file.
+# The limit, stated rather than implied: this protects the LIBRARY. git runs the
+# hook ENTRY SCRIPTS (pre-commit, pre-push) from the working tree, so a change
+# that rewrites both runs the rewritten versions. Removing or disabling
+# pre-commit is caught at pre-push below; rewriting both entry scripts defeats
+# every client-side hook, and the backstop for that is the PR gate and the
+# loop's Checker, not this file.
 conductor_load_lib() {
   local ref="$1" tmp
-  # shellcheck source=/dev/null
-  [ -f "$ROOT/.agents/hooks/lib.sh" ] && . "$ROOT/.agents/hooks/lib.sh" 2>/dev/null
   if [ -n "$ref" ] && git -C "$ROOT" cat-file -e "$ref:.agents/hooks/lib.sh" 2>/dev/null; then
     tmp="$(mktemp 2>/dev/null)" || return 1
     if ! git -C "$ROOT" show "$ref:.agents/hooks/lib.sh" > "$tmp" 2>/dev/null; then
@@ -45,8 +44,22 @@ conductor_load_lib() {
     # shellcheck source=/dev/null
     . "$tmp"
     rm -f "$tmp"
+    return 0
   fi
-  return 0
+  [ -f "$ROOT/.agents/hooks/lib.sh" ] || return 1
+  # shellcheck source=/dev/null
+  . "$ROOT/.agents/hooks/lib.sh"
+}
+
+# Every helper `$1` needs, or the names that are missing. A committed lib.sh
+# older than this hook (mid-upgrade) lacks the newer helpers; running on with
+# them undefined would silently skip their gates, so a gap fails closed instead.
+conductor_missing_helpers() {
+  local fn missing=""
+  for fn in $1; do
+    type "$fn" >/dev/null 2>&1 || missing="$missing $fn"
+  done
+  printf '%s' "${missing# }"
 }
 
 # Minimal ship-log writer for the one path where lib.sh could not be loaded,
@@ -60,10 +73,15 @@ conductor_log_waiver_fallback() {
 TRUSTED_REF=""
 git -C "$ROOT" rev-parse --verify -q HEAD >/dev/null 2>&1 && TRUSTED_REF="HEAD"
 
-if ! conductor_load_lib "$TRUSTED_REF" || ! type conductor_protected_changes >/dev/null 2>&1; then
-  # Enforcement is installed but its library cannot be loaded: fail CLOSED.
-  # Failing open here is exactly the hole — it is what made a deleted lib.sh
-  # disable every gate at once.
+REQUIRED="conductor_is_test_file conductor_is_impl_file conductor_is_eval_file conductor_is_llm_feature_file conductor_is_brief_doc conductor_has_brief_check conductor_is_ship_log conductor_newest_entry_has_for_you conductor_deleted_test_files conductor_staged_test_paths conductor_added_skip_markers conductor_assertion_delta conductor_protected_changes conductor_log_waiver"
+lib_ok=1
+conductor_load_lib "$TRUSTED_REF" || lib_ok=0
+missing="$(conductor_missing_helpers "$REQUIRED")"
+
+if [ "$lib_ok" = "0" ] || [ -n "$missing" ]; then
+  # Enforcement is installed but its library is unavailable or incomplete: fail
+  # CLOSED. Failing open here is exactly the hole — it is what let one deleted
+  # file disable every gate at once.
   if [ -n "$TRUSTED_REF" ] && git -C "$ROOT" cat-file -e "HEAD:.agents/hooks/lib.sh" 2>/dev/null; then
     if [ -n "${CONDUCTOR_NO_PROTECTED:-}" ]; then
       conductor_log_waiver_fallback "Protected" "$CONDUCTOR_NO_PROTECTED"
@@ -71,12 +89,17 @@ if ! conductor_load_lib "$TRUSTED_REF" || ! type conductor_protected_changes >/d
       exit 0
     fi
     echo ""
-    echo "🛑 Conductor — the enforcement library could not be loaded; commit blocked."
+    echo "🛑 Conductor — the committed enforcement library cannot run this hook; commit blocked."
     echo ""
-    echo "  .agents/hooks/lib.sh is committed but cannot be read, so no gate could"
-    echo "  run. Letting this through would pass the commit with every gate off."
-    echo "  If you are deliberately removing Conductor, say so:"
-    echo "    CONDUCTOR_NO_PROTECTED=\"why\" git commit …"
+    if [ -n "$missing" ]; then
+      echo "  The committed .agents/hooks/lib.sh is missing:$([ -n "$missing" ] && printf ' %s' "$missing")"
+      echo "  That is normal for the one commit that upgrades Conductor itself:"
+      echo "    CONDUCTOR_NO_PROTECTED=\"conductor upgrade\" git commit …"
+    else
+      echo "  .agents/hooks/lib.sh is committed but cannot be read, so no gate could run."
+      echo "  If you are deliberately removing Conductor, say so:"
+      echo "    CONDUCTOR_NO_PROTECTED=\"why\" git commit …"
+    fi
     echo ""
     exit 1
   fi

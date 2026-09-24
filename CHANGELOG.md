@@ -6,6 +6,52 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the gates cannot be satisfied by removing the proof (F9, F12, F11)
+
+A source audit of ECC (`github.com/affaan-m/ecc`) ran its loop-failure taxonomy against our own envelope and found three holes. All three are closed. Design and review record: `docs/roadmap/Peer-Framework-Harvest.md`.
+
+- **Goodhart boundary** (`hooks/pre-commit`). The Test-Driven Law proved a test *changed*, so deleting a failing test, skipping it, or gutting its assertions all passed. The commit is now blocked when a test file is deleted or renamed to a non-test path, a skip marker is added (`.skip`, `.only`, `@pytest.mark.skip`, `#[ignore]`, `t.Skip`, `@Disabled`…), or the staged tests net-lose assertions. Waiver `CONDUCTOR_NO_BOUNDARY="reason"`, logged. It is independent of `CONDUCTOR_NO_TEST`.
+- **Protected paths** (`hooks/pre-commit`, `hooks/pre-push`). Edits to `.agents/hooks/`, `.agents/rules/`, `.agents/sandbox/` and the reviewer brief are blocked: the thing being built does not edit what judges it. Waiver `CONDUCTOR_NO_PROTECTED="reason"`, logged. The gate arms only once `pre-commit` is committed, so a fresh install's first commit passes.
+- **The gates judge a change with the committed library.** Both hooks load `lib.sh` from the last commit, so deleting, moving or rewriting it cannot switch the gates off for that commit. A missing helper now fails **closed**. `pre-push` refuses a range that deletes, renames, un-chmods or edits `pre-commit`, except the exact official file, pinned by SHA-256.
+- **Hook-bypass blocker** (`hooks/pretooluse-no-bypass.sh`, Claude Code `PreToolUse`, opt-in). Denies Bash calls that skip the git hooks: `--no-verify`, `commit -n`, `-c core.hooksPath=`, `GIT_CONFIG_*`, and the same through `env`, `sh -c`, `$'…'` quoting and grouped flags. It stops the ordinary bypass. It does not stop a determined one, and the README says so.
+- **Every waiver is logged** to `conductor/0-compass/ship-log.md`, including the fail-closed fallback, checked by an 11-case behaviour matrix.
+
+### Added — investigate before you write (F1)
+
+- **Fact gate** (`hooks/pretooluse-fact-gate.sh`, Claude Code `PreToolUse`, opt-in). The first edit of a file asks for the failing test, the first creation asks what already does this, and the first run of each destructive command asks for the facts. Routine Bash is not gated. Identical repeated denials are dampened. Off: `CONDUCTOR_FACT_GATE=off`.
+- **Measured, not asserted.** `test/evals/fact-gate-eval.mjs`: gated runs named the affected files 4/4, the control 0/4, against a +25pp noise floor from two identical ungated arms. n=4, so the direction holds and the magnitude is approximate.
+- Both `PreToolUse` hooks bound themselves with `timeout` (then `gtimeout`, then a `perl` alarm) and fail open. A path under `/proc` made `mkdirSync` hang, which would have stalled the session.
+
+### Added — the swarm predicts merge conflicts before it opens a PR (F7)
+
+- `src/loop/conflict.js` asks `git merge-tree` whether each branch merges cleanly. The swarm's merge queue lands clean branches first and escalates the colliding one by name, with no doomed PR. It fails open: a prediction error never blocks a merge.
+- Proven against real git by `test/conflict-predict-real.sh`, which compares each prediction with a real merge. Only the legacy `merge-tree` form (git < 2.38) was run here. The modern form is not verified.
+- **Not built:** agent-proximity admission control (F8). Its input, a file scope per task, does not exist. See `docs/roadmap/Swarm-Collision-Admission.md`.
+
+### Added — `conductor review`: the human approves a document in the browser (F4)
+
+- `conductor review <file.md>` renders the document on a loopback page and blocks until the human presses **Approve** or **Request changes**. Exit `0` approved, `2` changes requested, `1` no verdict. Stdout is JSON only, so an agent can run it in the background and read the verdict.
+- Comments anchor to the text the human selected. Feedback is queued to disk before each response, so a killed process loses nothing and a verdict is valid only for the exact content it was given on.
+- The server accepts same-origin JSON only. A page on another port could previously approve a review.
+
+### Added — `conductor survey` and the Survey workflow: onboard an inherited codebase (F15)
+
+- `conductor survey [dir]` collects facts only: file and language counts, test coverage by area (untested first), entry points, HTTP routes, configuration keys and dependencies. Coverage is attributed by what a test imports, then by name.
+- `workflows/survey.md` interviews the human for what the code cannot say: who uses it, what must not break, what the last team was in the middle of. It writes `conductor/3-product-areas/` and marks every unestablished claim `TBD`. Trigger: "I inherited this codebase".
+- Four defects were found only by running it against real repos, never by a test.
+
+### Changed — `conductor upgrade` commits itself
+
+- An upgrade rewrites protected paths, which the new gate blocks. So `upgrade` now commits exactly the framework files it wrote, with the waiver logged, and never includes your own work. The push then needs nothing. With uncommitted edits in those files, a merge in progress, or `--no-commit`, it prints the one command to run instead.
+
+### Added — drift test for the hook registry (F3)
+
+- `test/hooks-registry-drift.test.js` checks that every hook on disk is in the hooks README, made executable by `install-hooks`, and matches the pinned official `pre-commit` fingerprint.
+
+### Review record
+
+Three independent review rounds on PR #33 found 18 blockers, all fixed. Two commits are author-verified only: `cbbd024` (the final round's findings, by decision) and `d224e38` (the self-committing upgrade, requested after review closed). Not verified: both `PreToolUse` hooks in a live session since their last fixes, the `perl` fallback on macOS, the modern `merge-tree` path, and conflict prediction in a real swarm run.
+
 ---
 
 ## [6.4.0] — 2026-09-16 — Product-Owner Reporting, the Brief Check, the Ship Tail & Terminal Surfaces

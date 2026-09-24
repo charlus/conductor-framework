@@ -112,7 +112,7 @@ Tests verify the **deterministic** parts; **evals** verify the **non-determinist
 
 ### The ship-contract (deterministic + semantic)
 A change ships only if it satisfies the project's **ship-contract**, which has two complementary halves:
-- **Deterministic half** — facts a command decides, enforced by git hooks/CI: the **Test-Driven Law** (a test exists), the **Eval-Driven Law** (an eval exists and passes for LLM features), and any architecture-checklist item that carries a `check:` shell command.
+- **Deterministic half** — facts a command decides, enforced by git hooks/CI: the **Test-Driven Law** (a test exists), the **Eval-Driven Law** (an eval exists and passes for LLM features), the **Goodhart boundary** (no test deleted, skipped or stripped of assertions), **protected paths** (`.agents/hooks/`, `.agents/rules/`, `.agents/sandbox/` and the reviewer brief are not edited by the change they judge), and any architecture-checklist item that carries a `check:` shell command. Each gate has one logged waiver (`CONDUCTOR_NO_BOUNDARY`, `CONDUCTOR_NO_PROTECTED`, …) and never a silent one. Two opt-in Claude Code `PreToolUse` hooks act earlier: `pretooluse-no-bypass.sh` denies commands that skip the git hooks, and `pretooluse-fact-gate.sh` asks for the facts before a first edit or a destructive command. Details: `.agents/hooks/README.md`.
 - **Semantic half** — judgments only a reader can make, enforced by the **Checker** (`workflows/loop-checker.md`) and `independent-review`: does the diff honor the intended architecture and boundaries in spirit.
 
 The bridge between them is `conductor/0-compass/architecture-checklist.md` (`skills/architecture-checklist/`): `technical-vision`/`carve` distill each enforceable architecture decision into a checkable item — deterministic (a `check:`) where grep-able, semantic otherwise — and the Checker verifies the diff against every item, citing any it fails. This turns "follow the architecture" from a vibe into a contract, the same way the hooks turned the two Laws from prose into code.
@@ -156,6 +156,7 @@ task-backlog.md → Do it → ship-log.md
 | "Storyboard", "Shape the experience" | Experience Design | → `workflows/storyboard.md` |
 | "Grand PRD", "Create PRD" | Blueprint | → `workflows/grand-prd.md` → `ux-ui-design-brief.md` → `technical-vision.md` |
 | "Carve", "Break it down" | Slicing | → `workflows/carve.md` |
+| "I inherited this codebase", "Onboard this existing product", "What is this thing" | Brownfield Onboarding | → `workflows/survey.md` (facts from `conductor survey`, the why from the human) |
 | "Deepen", "Improve codebase architecture", "Find shallow modules", "Reshape for agents" | Brownfield Architecture | → `workflows/deepen.md` (Code Archaeologist; the brownfield counterpart to `technical-vision`) |
 | "Spec it", "Write the spec" | Specification | → `workflows/spec-it.md` |
 | "Build it", "Let's code" | Execution | → `workflows/build.md` |
@@ -210,6 +211,8 @@ Mechanics live in `.agents/skills/context-engineering/SKILL.md`.
 |---|---|
 | `conductor status` | The daily question, answered in one screen: inbox depth, open tasks per priority, the work queue in the order the loop would drain it, stale documents, loop state. Costs no tokens and no context — never ask an agent to summarise state instead. |
 | `conductor inbox add "…"` / `conductor inbox list` | Deterministic quick capture and read-back. |
+| `conductor review <file.md>` | Hands one document to the human for sign-off: rendered in the browser, text-anchored comments, **Approve** / **Request changes**. Exit `0` approved, `2` changes requested, `1` no verdict; stdout is JSON. Run it in the background and read the JSON when it exits. |
+| `conductor survey [dir] [--out <file>]` | Facts about an existing codebase: languages, coverage by area (untested first), entry points, routes, config keys, dependencies. Used by `workflows/survey.md`. An area marked untested is a place to check, not a proven gap. |
 | `conductor view [--open]` | Renders every document in `conductor/` into ONE self-contained HTML file at `conductor/.views/index.html`: rendered tables, search across all documents, per-document outlines, and **backlinks** — which documents reference this one. Read loop: `conductor view`, then refresh the browser tab. |
 
 Three rules for `conductor view`:
@@ -248,6 +251,7 @@ Three rules for `conductor view`:
 ### Brownfield & Maintenance
 | Workflow | Trigger | Produces | Next |
 |---|---|---|---|
+| **Survey** | "I inherited this codebase", "Onboard this existing product" | `conductor survey` facts, then `3-product-areas/`, `4-context/technical/` and `0-compass/` from an interview; unestablished claims marked `TBD` | Grand PRD / Deepen |
 | **Deepen** | "Deepen", "Improve codebase architecture", "Find shallow modules" | Ranked deepening report; characterization-test-first + Strangler-Fig plan for reshaping shallow/scattered modules into deep ones | Carve / Build |
 
 > **Deepen** is the brownfield counterpart to **Technical Vision**: Technical Vision designs deep modules *before* code exists; Deepen finds and safely reshapes shallow ones *after*. It's driven by the **Code Archaeologist** persona and pins behavior with a characterization test before any structure moves.

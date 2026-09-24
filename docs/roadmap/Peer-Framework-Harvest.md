@@ -1,7 +1,7 @@
 # Peer-Framework Harvest (ECC) — F1–F15
 
-> **Status:** complete and in PR #33 (branch `feat/goodhart-boundary-and-bypass-gates`,
-> head `d224e38`), awaiting the maintainer's merge. Shipped: F9/F11/F12, F7, F3, F1
+> **Status:** merged, PR #33 (`a6bdea1`, 2026-09-24); CHANGELOG, README and
+> `how-it-works.md` updated in the follow-up. Shipped: F9/F11/F12, F7, F3, F1
 > (measured), F4 (both slices), F15. F8 and F10 deliberately unbuilt; F6 dropped;
 > F2, F5, F13, F14 parked. Three independent review rounds found 18 blockers, all
 > fixed. Two commits are author-verified only: `cbbd024` (decision D3) and `d224e38`

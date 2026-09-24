@@ -38,6 +38,9 @@ Claude Code will automatically discover `.claude/loop.md`, initialize Conductor'
 | `/status` | `conductor status` | Inbox depth, backlog by priority, what's next, loop state — one screen |
 | `/inbox` | `conductor inbox add "…"` | Capture a thought verbatim. No workflow, no triage |
 | `/view` | `conductor view --open` | Every `conductor/` document rendered into one HTML page — tables, search, backlinks |
+| `/verify` | `conductor verify` | Show or set the command `git push` must pass (the push gate) |
+
+**Skill shims:** `init`/`upgrade` also generate one `.claude/skills/<name>/SKILL.md` per skill in `.agents/skills/`, so Claude Code can find and load each skill by its description (`/handoff`, for example). Each shim redirects to the real `.agents/skills/<name>/SKILL.md`. A skill of your own in `.claude/skills/` is never overwritten, and shims for removed skills are deleted. Do not hand-edit the shims.
 
 `/view` prints a `file://` URL; use the one the command emits verbatim. It is resolved for the platform your **browser** runs on, which is not always the one the agent runs on — under WSL a hand-made `file:///home/...` link looks right and silently does nothing.
 <!-- conductor:managed:end -->

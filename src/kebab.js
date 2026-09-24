@@ -89,6 +89,96 @@ export async function renameNumberedFolders(conductorDir, stdout) {
   }
 }
 
+// Names the workflows write inside a Project folder. They are not in the
+// scaffolded conductor/ tree, but the workflows read them by exact path.
+const WORKFLOW_OUTPUT_NAMES = [
+  "genesis", "storyboard", "blueprint", "implementations",
+  "problem-solar-system.md", "world-transformation.md", "functional-animator.md",
+  "main-character.md", "storyboard.md", "grand-prd.md", "ux-ui-design-brief.md",
+  "technical-vision.md", "implementation-overview.md", "feature-spec.md",
+  "implementation-plan.md", "task-tracker.md", "project-documentation.md", "trace.md",
+];
+
+// `[ProjectName]-documentation/` and `[area]-epics.md` etc.: only the
+// framework suffix is lowercased; the user's part keeps its name.
+const FRAMEWORK_SUFFIXES = [
+  [/-Documentation$/, "-documentation"],
+  [/-Epics\.md$/, "-epics.md"],
+  [/-Features\.md$/, "-features.md"],
+  [/-Technical\.md$/, "-technical.md"],
+];
+
+async function segmentsOf(dir, out = new Set()) {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    out.add(entry.name);
+    if (entry.isDirectory()) await segmentsOf(join(dir, entry.name), out);
+  }
+  return out;
+}
+
+/** A case-only rename in two steps, so it also works on case-insensitive filesystems. */
+async function renameCaseSafe(src, dst) {
+  if (src.toLowerCase() === dst.toLowerCase()) {
+    const tmp = `${src}.conductor-rename-${process.pid}`;
+    await rename(src, tmp);
+    await rename(tmp, dst);
+  } else {
+    await rename(src, dst);
+  }
+}
+
+async function entryExactlyExists(dir, name) {
+  return (await readdir(dir)).includes(name);
+}
+
+/**
+ * Kebab-rename the FRAMEWORK names at every level of `conductor/` — the ones the
+ * workflows and the CLI read by exact path (`2-backlog/project-backlog/`,
+ * `1-workbench/inbox.md`, `<project>/blueprint/grand-prd.md`, …). A V4 install
+ * has them in Title-Case, and on a case-sensitive filesystem nothing finds them.
+ *
+ * A name is renamed only when its kebab form is a framework name: a segment of
+ * the shipped `templates/conductor/` tree, a name a workflow writes, or a
+ * framework suffix. Every other name — `Nexus`, `01-Foundation-Auth`,
+ * `API-Discovery.md` — is the user's and is left exactly as it is.
+ * `5-templates/` is skipped: it is refreshed wholesale elsewhere.
+ */
+export async function renameFrameworkNames(conductorDir, templateConductorDir, stdout) {
+  if (!(await exists(conductorDir))) return 0;
+  const known = await segmentsOf(templateConductorDir);
+  for (const n of WORKFLOW_OUTPUT_NAMES) known.add(n);
+
+  const target = (entry) => {
+    const parsed = parse(entry);
+    const kebab = toKebabCase(parsed.name) + parsed.ext.toLowerCase();
+    if (kebab !== entry && known.has(kebab)) return kebab;
+    for (const [re, lower] of FRAMEWORK_SUFFIXES) if (re.test(entry)) return entry.replace(re, lower);
+    return entry;
+  };
+
+  let renamed = 0;
+  async function walk(dir, depth) {
+    for (const entry of await readdir(dir)) {
+      if (entry.startsWith(".") || (depth === 0 && entry === "5-templates")) continue;
+      let path = join(dir, entry);
+      const next = target(entry);
+      if (next !== entry) {
+        if (await entryExactlyExists(dir, next)) {
+          if (stdout) stdout.write(`  ⚠️  Skipped rename (target exists): ${join(dir, entry)}\n`);
+        } else {
+          await renameCaseSafe(path, join(dir, next));
+          path = join(dir, next);
+          renamed += 1;
+          if (stdout) stdout.write(`  📝 Renamed: ${entry} -> ${next}\n`);
+        }
+      }
+      if ((await stat(path)).isDirectory()) await walk(path, depth + 1);
+    }
+  }
+  await walk(conductorDir, 0);
+  return renamed;
+}
+
 export function kebabCasePath(filePath) {
   return filePath.split('/').map(part => {
     if (IGNORED_FILES.has(part)) return part;

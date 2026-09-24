@@ -244,3 +244,126 @@ test("the printed command works as printed", async () => {
   execFileSync("bash", ["-c", cmd], { cwd: dir, env: process.env });
   assert.equal(g(dir, "status", "--porcelain", "--", ".agents"), "", "the printed command left files uncommitted");
 });
+
+// ---------------------------------------------------------------------------
+// 6.5.0 upgrade safety — each test reproduces a failure seen when upgrading a
+// COPY of a real install (2026-09-24), not an invented shape.
+// ---------------------------------------------------------------------------
+
+test("R1: the upgrade commit includes the .claude/skills shims it generated, and never the user's own skill", async () => {
+  const dir = await makeGitInstall();
+  // An install from before the skill bridge: no .claude/skills at all.
+  g(dir, "rm", "-r", "-q", ".claude/skills");
+  g(dir, "commit", "-q", "-m", "an install that predates .claude/skills");
+  mkdirSync(join(dir, ".claude", "skills", "my-own"), { recursive: true });
+  writeFileSync(join(dir, ".claude", "skills", "my-own", "SKILL.md"), "---\nname: my-own\ndescription: mine\n---\n");
+
+  const { code, stdout } = await runUpgrade(dir);
+  assert.equal(code, 0, stdout);
+  assert.match(g(dir, "log", "-1", "--format=%s"), /^chore: upgrade Conductor/);
+  assert.equal(g(dir, "status", "--porcelain", "--", ".claude/skills/handoff"), "", "generated shim left uncommitted");
+  assert.match(g(dir, "status", "--porcelain", "--", ".claude/skills/my-own"), /^\?\? /, "the user's own skill was swept into the upgrade commit");
+});
+
+test("R3: a V4 .conductor/ install gets its framework names kebab-cased at every level, and keeps the user's names", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "cond-v4-deep-"));
+  const C = join(dir, ".conductor");
+  // Names taken from a real V4 install's tree.
+  const files = {
+    "0-Compass/North-Star.md": "north star\n",
+    "1-Workbench/Inbox.md": "- an inbox item\n",
+    "2-Backlog/Task-Backlog.md": "tasks\n",
+    "2-Backlog/Project-Backlog/Nexus/Genesis/Problem-Solar-System.md": "problem\n",
+    "2-Backlog/Project-Backlog/Nexus/Blueprint/Grand-PRD.md": "prd\n",
+    "2-Backlog/Project-Backlog/Nexus/Blueprint/UX-UI-Design-Brief.md": "ux\n",
+    "2-Backlog/Project-Backlog/Nexus/Implementations/01-Foundation-Auth/Feature-Spec.md": "spec\n",
+    "2-Backlog/Project-Backlog/Nexus/Implementations/01-Foundation-Auth/Task-Tracker.md": "tracker\n",
+    "2-Backlog/Project-Backlog/Nexus/Nexus-Documentation/Project-Documentation.md": "docs\n",
+    "3-Product-Areas/Nexus/Nexus-Features.md": "features\n",
+    "4-Context/Meta/Glossary.md": "glossary\n",
+    "4-Context/Technical/API-Discovery.md": "user file\n",
+    "4-Context/Design/DESIGN.md": "user file\n",
+    "6-Archive/Completed-Implementations/03-AI-Follow-Up-Routing/Feature-Spec.md": "archived\n",
+  };
+  for (const [rel, body] of Object.entries(files)) {
+    mkdirSync(join(C, rel, ".."), { recursive: true });
+    writeFileSync(join(C, rel), body);
+  }
+  mkdirSync(join(dir, ".agents", "workflows"), { recursive: true });
+  copyFileSync(join(TEMPLATES, ".agents", "AGENTS.md"), join(dir, ".agents", "AGENTS.md"));
+
+  const { code, stdout } = await runUpgrade(dir);
+  assert.equal(code, 0, stdout);
+
+  const K = join(dir, "conductor");
+  const expected = {
+    "0-compass/north-star.md": "north star\n",
+    "1-workbench/inbox.md": "- an inbox item\n",
+    "2-backlog/task-backlog.md": "tasks\n",
+    "2-backlog/project-backlog/Nexus/genesis/problem-solar-system.md": "problem\n",
+    "2-backlog/project-backlog/Nexus/blueprint/grand-prd.md": "prd\n",
+    "2-backlog/project-backlog/Nexus/blueprint/ux-ui-design-brief.md": "ux\n",
+    "2-backlog/project-backlog/Nexus/implementations/01-Foundation-Auth/feature-spec.md": "spec\n",
+    "2-backlog/project-backlog/Nexus/implementations/01-Foundation-Auth/task-tracker.md": "tracker\n",
+    "2-backlog/project-backlog/Nexus/Nexus-documentation/project-documentation.md": "docs\n",
+    "3-product-areas/Nexus/Nexus-features.md": "features\n",
+    "4-context/meta/glossary.md": "glossary\n",
+    // Not framework names: left exactly as the user named them.
+    "4-context/technical/API-Discovery.md": "user file\n",
+    "4-context/design/DESIGN.md": "user file\n",
+    "6-archive/completed-implementations/03-AI-Follow-Up-Routing/feature-spec.md": "archived\n",
+  };
+  for (const [rel, body] of Object.entries(expected)) {
+    assert.ok(existsSync(join(K, rel)), `missing after upgrade: conductor/${rel}`);
+    assert.equal(readFileSync(join(K, rel), "utf8"), body, `content changed: ${rel}`);
+  }
+  assert.ok(!readdirSync(join(K, "2-backlog")).includes("Project-Backlog"), "Title-Case framework folder left behind");
+});
+
+test("R3b: an install with no checksums loses the framework files Conductor retired, and keeps its own", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "cond-v4-retired-"));
+  mkdirSync(join(dir, ".conductor", "0-Compass"), { recursive: true });
+  writeFileSync(join(dir, ".conductor", "0-Compass", "North-Star.md"), "n\n");
+  const A = join(dir, ".agents");
+  // Paths a real V4 install still held: a retired always-on rule and a retired skill.
+  mkdirSync(join(A, "rules"), { recursive: true });
+  writeFileSync(join(A, "rules", "Conductor-System.md"), "V4 rule pointing at .conductor/2-Backlog/\n");
+  mkdirSync(join(A, "skills", "Clean-Code"), { recursive: true });
+  writeFileSync(join(A, "skills", "Clean-Code", "SKILL.md"), "---\nname: Clean-Code\n---\n");
+  mkdirSync(join(A, "skills", "acme-custom"), { recursive: true });
+  writeFileSync(join(A, "skills", "acme-custom", "SKILL.md"), "---\nname: acme-custom\n---\ncustom\n");
+  copyFileSync(join(TEMPLATES, ".agents", "AGENTS.md"), join(A, "AGENTS.md"));
+
+  const { code, stdout } = await runUpgrade(dir);
+  assert.equal(code, 0, stdout);
+  assert.ok(!existsSync(join(A, "rules", "conductor-system.md")), "retired always-on rule carried forward");
+  assert.ok(!existsSync(join(A, "skills", "clean-code")), "retired skill carried forward");
+  assert.ok(existsSync(join(A, "skills", "acme-custom", "SKILL.md")), "the user's own skill was removed");
+  assert.match(stdout, /rules\/conductor-system\.md/, "the removal is not reported");
+});
+
+test("the retired-file list never names a file Conductor still ships", async () => {
+  const { listFiles } = await import("../src/update.js");
+  const retired = JSON.parse(readFileSync(new URL("../src/retired-framework-files.json", import.meta.url), "utf8")).files;
+  const shipped = new Set(listFiles(join(TEMPLATES, ".agents")));
+  assert.ok(retired.includes("rules/conductor-system.md"));
+  for (const rel of retired) assert.ok(!shipped.has(rel), `${rel} is shipped again: re-run scripts/capture-retired-files.js`);
+});
+
+test("R4: upgrade refuses an agent-only repo with no conductor/ and no version stamp, unless --force", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "cond-agent-only-"));
+  mkdirSync(join(dir, ".agents", "skills", "Coherence-Gate"), { recursive: true });
+  writeFileSync(join(dir, ".agents", "skills", "Coherence-Gate", "SKILL.md"), "---\nname: Coherence-Gate\n---\n");
+  writeFileSync(join(dir, "CLAUDE.md"), "# Company OS\n\nRead AGENTS.md.\n");
+
+  const refused = await runUpgrade(dir);
+  assert.equal(refused.code, 1);
+  assert.match(refused.stderr, /--force/);
+  assert.ok(!existsSync(join(dir, "conductor")), "refused, but still created conductor/");
+  assert.ok(!existsSync(join(dir, ".agents", "workflows")), "refused, but still installed workflows");
+  assert.equal(readFileSync(join(dir, "CLAUDE.md"), "utf8"), "# Company OS\n\nRead AGENTS.md.\n");
+
+  const forced = await runUpgrade(dir, ["--force"]);
+  assert.equal(forced.code, 0, forced.stderr);
+  assert.ok(existsSync(join(dir, ".agents", "workflows", "genesis.md")));
+});

@@ -6,6 +6,31 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+---
+
+## [6.5.0] — 2026-09-24 — Safe Upgrades, One Workflow per Session, Claude Code Skills
+
+### Note — upgrading
+
+`upgrade` replaces `.agents/`, so the gates added in this release become active in every project that upgrades. A commit that used to pass can now be rejected:
+
+- deleting a test, adding a skip marker, or losing assertions → `CONDUCTOR_NO_BOUNDARY="reason"`;
+- editing `.agents/hooks/`, `.agents/rules/`, `.agents/sandbox/` or the reviewer brief → `CONDUCTOR_NO_PROTECTED="reason"`.
+
+Both waivers are logged to the ship-log. `upgrade` now commits its own changes with the protected-path waiver, so you do not type it yourself. It does not commit when it moved legacy folders or renamed files in `conductor/`, or when you had uncommitted changes in framework files. In those cases it prints the one command to run.
+
+Before upgrading many projects, run `upgrade --dry-run` in each one. A repo with `.agents/` but no `conductor/` and no version stamp is now refused (see below).
+
+### Fixed — upgrade is safe on V4 and agent-only repos, and commits everything it writes
+
+Found by upgrading copies of 8 real installs from `master`. The 5 recent installs (6.2.0 and 6.3.0) were fine. The other 3 were not.
+
+- **V4 installs keep working after the upgrade.** The kebab-case migration renamed only the numbered folders, so a `.conductor/` install kept `2-backlog/Project-Backlog/`, `1-workbench/Inbox.md`, `<project>/Blueprint/Grand-PRD.md`, and so on. On a case-sensitive filesystem, the workflows and the CLI found neither the projects nor the inbox. `renameFrameworkNames` (`src/kebab.js`) now renames framework names at every level of `conductor/`. A framework name is one in the shipped `templates/conductor/` tree, a document name a workflow writes, or a framework suffix (`-Documentation`, `-Features.md`, and so on). Every other name, for example `Nexus`, `01-Foundation-Auth` or `API-Discovery.md`, is left as the user wrote it. Case-only renames go in two steps, so they also work on macOS and Windows. When anything was renamed, `upgrade` prints the commit command instead of committing, so you check `git status` first.
+- **Retired framework files are removed from V4 installs.** With no `.checksums.json`, `upgrade` could not prove ownership, so it kept every file Conductor had since dropped, as "custom". One real V4 install kept 11 of them, including `rules/conductor-system.md`, a rule loaded in every session that pointed at the old layout. `src/retired-framework-files.json` lists the 26 `.agents/` paths Conductor once shipped and no longer ships, generated from git history by `scripts/capture-retired-files.js`. It applies only to an install with no checksums; with checksums, those alone decide. Each removal is listed in the output and kept in the backup.
+- **An agent-only repo is refused.** A repo with `.agents/` but no `conductor/` and no version stamp was turned into a full Conductor install: every workflow, the hooks, a new `conductor/` folder with the example product areas, and a second instruction block in its own `CLAUDE.md`. `upgrade` now stops and changes nothing, unless you pass `--force`.
+- **The upgrade commit includes the `.claude/skills/` shims.** They were left untracked. Only the shim paths the upgrade wrote or removed are committed, never a skill of your own.
+- `test/upgrade.test.js`: one test per failure, built from the names in the real install, each red before its fix, plus a test that the retired list never names a file still shipped. Re-verified by upgrading fresh copies of all 8 installs: 6 upgrade and pass `check-conductor` with no knowledge file lost (all 69 files of the V4 install checked byte for byte), and the 2 agent-only repos are refused unchanged.
+
 ### Fixed — Claude Code can find Conductor's skills
 
 - **`init` and `upgrade` now generate `.claude/skills/<name>/SKILL.md`** for every skill in `.agents/skills/`. Claude Code finds skills only there. Before, a skill that no workflow loads by path, for example `handoff`, was reachable in Claude Code only by an `@` file reference. Each shim redirects to the real file, the same as the `.claude/commands/` shims. A user's own `.claude/skills/<name>/` is never overwritten. Stale generated shims are removed. Verified live: a headless Claude Code session in a fresh install lists `handoff`.

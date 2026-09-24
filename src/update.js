@@ -119,7 +119,8 @@ function isSelected(relativePath, selections, coreSkills) {
  * `conductor add` never writes to it, so registry-imported skills (terraform, angular,
  * …) and hand-authored files are absent from the manifest and are always KEEP — only a
  * file we ourselves installed AND that upstream has since deleted is pruned. A missing
- * manifest (legacy/V4 install) means no proof of ownership → nothing is pruned. The
+ * manifest (legacy/V4 install) falls back to `options.retired`: a path Conductor once
+ * shipped and no longer ships (src/retired-framework-files.json) is pruned. The
  * caller backs up the old tree first, so a REMOVE is recoverable from the backup.
  *
  * The prior checksum-gated SKIP ("local override kept") is intentionally gone: a
@@ -138,6 +139,10 @@ function planUpdate(sourceDir, targetDir, checksumPath, options = {}) {
     // Ownership record: paths this install's init/upgrade actually delivered.
     // `conductor add` does NOT write here, so imported/custom files are absent.
     const oldManifest = readChecksumFile(checksumPath);
+    // With a manifest, it alone decides ownership: a registry skill that reuses a
+    // retired name is never pruned. `retired` applies only when there is none.
+    const noManifest = Object.keys(oldManifest).length === 0;
+    const retired = options.retired || new Set();
 
     /** @type {UpdateAction[]} */
     const plan = [];
@@ -165,6 +170,10 @@ function planUpdate(sourceDir, targetDir, checksumPath, options = {}) {
             if (Object.prototype.hasOwnProperty.call(oldManifest, rel)) {
                 // We delivered this file before; upstream has dropped it → prune it.
                 plan.push({ action: 'REMOVE', relativePath: rel, reason: 'framework file removed upstream' });
+            } else if (noManifest && retired.has(rel)) {
+                // No manifest (V4): the proof of ownership is that Conductor once
+                // shipped this exact path (src/retired-framework-files.json).
+                plan.push({ action: 'REMOVE', relativePath: rel, reason: 'retired framework file' });
             } else {
                 // Never framework-tracked → user-authored or `conductor add`-imported → keep.
                 plan.push({ action: 'KEEP', relativePath: rel, reason: 'custom or imported file' });

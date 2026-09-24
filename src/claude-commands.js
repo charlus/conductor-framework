@@ -198,18 +198,20 @@ $ARGUMENTS
  *
  * @param {string} targetDir project root
  * @param {{stdout?: {write: (s: string) => void}}} [opts]
- * @returns {Promise<{written: number, removed: number, skipped: string[]}>}
+ * @returns {Promise<{written: number, removed: number, skipped: string[], writtenNames: string[], removedNames: string[]}>}
  */
 export async function generateClaudeSkills(targetDir, opts = {}) {
   const stdout = opts.stdout;
   const skillsDir = join(targetDir, ".agents", "skills");
   if (!(await exists(skillsDir))) {
-    return { written: 0, removed: 0, skipped: [] };
+    return { written: 0, removed: 0, skipped: [], writtenNames: [], removedNames: [] };
   }
 
   const claudeSkillsDir = join(targetDir, ".claude", "skills");
   const liveNames = new Set();
   const skipped = [];
+  const writtenNames = [];
+  const removedNames = [];
   let written = 0;
   for (const name of await readdir(skillsDir)) {
     const source = join(skillsDir, name, "SKILL.md");
@@ -224,6 +226,7 @@ export async function generateClaudeSkills(targetDir, opts = {}) {
     const description = extractDescription(await readFile(source, "utf8"), `Conductor ${name} skill`);
     await mkdir(join(claudeSkillsDir, name), { recursive: true });
     await writeFile(shimPath, skillShimContent(name, description));
+    writtenNames.push(name);
     written += 1;
   }
 
@@ -235,6 +238,7 @@ export async function generateClaudeSkills(targetDir, opts = {}) {
       if (!(await exists(shimPath))) continue;
       if ((await readFile(shimPath, "utf8")).includes(MARKER)) {
         await rm(join(claudeSkillsDir, name), { recursive: true });
+        removedNames.push(name);
         removed += 1;
       }
     }
@@ -250,5 +254,5 @@ export async function generateClaudeSkills(targetDir, opts = {}) {
   if (stdout && skipped.length > 0) {
     stdout.write(`  ⏭️  Kept your own .claude/skills/ for: ${skipped.join(", ")}\n`);
   }
-  return { written, removed, skipped };
+  return { written, removed, skipped, writtenNames, removedNames };
 }

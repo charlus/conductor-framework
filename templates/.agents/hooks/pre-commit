@@ -13,18 +13,123 @@ set -uo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [ -z "$ROOT" ] && exit 0
-# shellcheck source=/dev/null
-. "$ROOT/.agents/hooks/lib.sh"
-
 [ "${CONDUCTOR_HOOKS:-on}" = "off" ] && exit 0
 
+# ---- Load the shared library from a copy the change cannot rewrite ----------
+# Both hooks source lib.sh, which makes it the single point that switches every
+# gate off. Two versions of this got it wrong, both found by independent review:
+#   1. sourcing the WORKING-TREE copy: deleting, moving or rewriting lib.sh
+#      disabled every gate for the very commit doing it (round 1, B1);
+#   2. sourcing the working-tree copy FIRST and the committed copy on top: any
+#      top-level statement still ran — one `exit 0` switched everything off,
+#      and `readonly -f` stopped the trusted copy redefining a helper (delta).
+# So: once a lib.sh is COMMITTED, only the committed copy is sourced. The
+# working-tree copy is never executed. It is used only when nothing has been
+# committed yet — a fresh install, where there is no gate to weaken.
+#
+# The limit, stated rather than implied: this protects the LIBRARY. git runs the
+# hook ENTRY SCRIPTS (pre-commit, pre-push) from the working tree, so a change
+# that rewrites both runs the rewritten versions. Removing or disabling
+# pre-commit is caught at pre-push below; rewriting both entry scripts defeats
+# every client-side hook, and the backstop for that is the PR gate and the
+# loop's Checker, not this file.
+conductor_load_lib() {
+  local ref="$1" tmp
+  if [ -n "$ref" ] && git -C "$ROOT" cat-file -e "$ref:.agents/hooks/lib.sh" 2>/dev/null; then
+    tmp="$(mktemp 2>/dev/null)" || return 1
+    if ! git -C "$ROOT" show "$ref:.agents/hooks/lib.sh" > "$tmp" 2>/dev/null; then
+      rm -f "$tmp"
+      return 1
+    fi
+    # shellcheck source=/dev/null
+    . "$tmp"
+    rm -f "$tmp"
+    return 0
+  fi
+  [ -f "$ROOT/.agents/hooks/lib.sh" ] || return 1
+  # shellcheck source=/dev/null
+  . "$ROOT/.agents/hooks/lib.sh"
+}
+
+# Every helper `$1` needs, or the names that are missing. A committed lib.sh
+# older than this hook (mid-upgrade) lacks the newer helpers; running on with
+# them undefined would silently skip their gates, so a gap fails closed instead.
+conductor_missing_helpers() {
+  local fn missing=""
+  for fn in $1; do
+    type "$fn" >/dev/null 2>&1 || missing="$missing $fn"
+  done
+  printf '%s' "${missing# }"
+}
+
+# Minimal ship-log writer for the one path where lib.sh could not be loaded,
+# so even that waiver is recorded rather than silent.
+conductor_log_waiver_fallback() {
+  local log="$ROOT/conductor/0-compass/ship-log.md"
+  [ -f "$log" ] || return 0
+  printf -- '- [%s] Hook waiver (%s): %s\n' "$(date '+%Y-%m-%d %H:%M')" "$1" "$2" >> "$log"
+}
+
+TRUSTED_REF=""
+git -C "$ROOT" rev-parse --verify -q HEAD >/dev/null 2>&1 && TRUSTED_REF="HEAD"
+
+REQUIRED="conductor_is_test_file conductor_is_impl_file conductor_is_eval_file conductor_is_llm_feature_file conductor_is_brief_doc conductor_has_brief_check conductor_is_ship_log conductor_newest_entry_has_for_you conductor_deleted_test_files conductor_staged_test_paths conductor_added_skip_markers conductor_assertion_delta conductor_protected_changes conductor_log_waiver"
+lib_ok=1
+conductor_load_lib "$TRUSTED_REF" || lib_ok=0
+missing="$(conductor_missing_helpers "$REQUIRED")"
+
+if [ "$lib_ok" = "0" ] || [ -n "$missing" ]; then
+  # Enforcement is installed but its library is unavailable or incomplete: fail
+  # CLOSED. Failing open here is exactly the hole — it is what let one deleted
+  # file disable every gate at once.
+  if [ -n "$TRUSTED_REF" ] && git -C "$ROOT" cat-file -e "HEAD:.agents/hooks/lib.sh" 2>/dev/null; then
+    if [ -n "${CONDUCTOR_NO_PROTECTED:-}" ]; then
+      conductor_log_waiver_fallback "Protected" "$CONDUCTOR_NO_PROTECTED"
+      echo "⚠️  Conductor enforcement library unavailable — WAIVED: $CONDUCTOR_NO_PROTECTED"
+      exit 0
+    fi
+    echo ""
+    echo "🛑 Conductor — the committed enforcement library cannot run this hook; commit blocked."
+    echo ""
+    if [ -n "$missing" ]; then
+      echo "  The committed .agents/hooks/lib.sh is missing:$([ -n "$missing" ] && printf ' %s' "$missing")"
+      echo "  That is normal for the one commit that upgrades Conductor itself."
+      echo "  \`conductor upgrade\` makes that commit for you; to make it by hand:"
+      echo "    CONDUCTOR_NO_PROTECTED=\"conductor upgrade\" git commit …"
+      echo "  The push needs nothing — pre-push recognises the official hooks."
+    else
+      echo "  .agents/hooks/lib.sh is committed but cannot be read, so no gate could run."
+      echo "  If you are deliberately removing Conductor, say so:"
+      echo "    CONDUCTOR_NO_PROTECTED=\"why\" git commit …"
+    fi
+    echo ""
+    exit 1
+  fi
+  exit 0   # nothing installed yet: no gate exists to weaken
+fi
+
+# Nothing staged at all is the only early exit. The gates below must still see
+# a commit that ONLY removes files: it stages nothing under ACM, and that is
+# exactly the shape of the cheapest Goodhart move ("delete the failing test")
+# and of disabling a gate by deleting it. Filtering to ACM up here is how both
+# stayed invisible.
+[ -z "$(git diff --cached --name-only)" ] && exit 0
+
 staged="$(git diff --cached --name-only --diff-filter=ACM)"
-[ -z "$staged" ] && exit 0
+deleted_tests="$(conductor_deleted_test_files "$ROOT")"
 
 impl=0; tests=0; impl_files=""
 llm=0;  evals=0; llm_files=""
 brief=0; brief_files=""
 report=0; report_files=""
+# Rename-aware (review B6): R entries are included, with BOTH paths, so a
+# renamed-and-disabled test is seen and a pure rename diffs as no change.
+staged_tests=()
+while IFS= read -r f; do
+  [ -n "$f" ] && staged_tests+=("$f")
+done <<< "$(conductor_staged_test_paths "$ROOT")"
+[ "${#staged_tests[@]}" -gt 0 ] && tests=1
+
 while IFS= read -r f; do
   [ -z "$f" ] && continue
   if conductor_is_test_file "$f"; then
@@ -68,6 +173,82 @@ if [ "$impl" = "1" ] && [ "$tests" = "0" ]; then
     echo "    • stage the failing/covering test alongside the code, or"
     echo "    • if this genuinely has no test surface (config, generated code),"
     echo "      record the reason:  CONDUCTOR_NO_TEST=\"why\" git commit …"
+    echo ""
+    blocked=1
+  fi
+fi
+
+# ---- The Goodhart boundary ------------------------------------------------
+# Independent of the TDD gate above: CONDUCTOR_NO_TEST says "this change has no
+# test surface", which is not a licence to remove proof that already exists.
+boundary_why=""
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  boundary_why="$boundary_why\n    - test file DELETED: $f"
+done <<< "$deleted_tests"
+
+if [ "${#staged_tests[@]}" -gt 0 ]; then
+  while IFS= read -r hit; do
+    [ -z "$hit" ] && continue
+    boundary_why="$boundary_why\n    - test DISABLED: $hit"
+  done <<< "$(conductor_added_skip_markers "$ROOT" "${staged_tests[@]}")"
+
+  delta="$(conductor_assertion_delta "$ROOT" "${staged_tests[@]}")"
+  if [ "$delta" -lt 0 ]; then
+    boundary_why="$boundary_why\n    - assertions REMOVED: net $delta across the staged tests"
+  fi
+fi
+
+if [ -n "$boundary_why" ]; then
+  if [ -n "${CONDUCTOR_NO_BOUNDARY:-}" ]; then
+    conductor_log_waiver "$ROOT" "Boundary" "$CONDUCTOR_NO_BOUNDARY"
+    echo "⚠️  Conductor Goodhart boundary WAIVED: $CONDUCTOR_NO_BOUNDARY"
+    echo "    (logged to conductor/0-compass/ship-log.md)"
+  else
+    echo ""
+    echo "🛑 Conductor Goodhart boundary — commit blocked."
+    echo ""
+    echo "  This commit makes the test suite prove less than it did:"
+    echo -e "$boundary_why"
+    echo ""
+    echo "  'All tests pass' only means something while the tests still test."
+    echo "  Deleting, skipping or gutting a failing test reaches green without"
+    echo "  fixing anything, so the gate treats it as the defect it is. Either:"
+    echo "    • fix the code the test was holding to account, or"
+    echo "    • if the behaviour is genuinely gone (feature removed, test"
+    echo "      merged elsewhere, assertion moved), say so:"
+    echo "      CONDUCTOR_NO_BOUNDARY=\"why\" git commit …"
+    echo ""
+    blocked=1
+  fi
+fi
+
+# ---- Protected paths ------------------------------------------------------
+protected_files=""
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  protected_files="$protected_files\n    - $f"
+done <<< "$(conductor_protected_changes "$ROOT")"
+
+if [ -n "$protected_files" ]; then
+  if [ -n "${CONDUCTOR_NO_PROTECTED:-}" ]; then
+    conductor_log_waiver "$ROOT" "Protected" "$CONDUCTOR_NO_PROTECTED"
+    echo "⚠️  Conductor protected paths WAIVED: $CONDUCTOR_NO_PROTECTED"
+    echo "    (logged to conductor/0-compass/ship-log.md)"
+  else
+    echo ""
+    echo "🛑 Conductor protected paths — commit blocked."
+    echo ""
+    echo "  This commit edits the enforcement surface itself:"
+    echo -e "$protected_files"
+    echo ""
+    echo "  The hooks, the always-on rules, the sandbox profile and the reviewer"
+    echo "  brief are the acceptance conditions. Whatever is being built does not"
+    echo "  get to edit what decides whether it passes. Either:"
+    echo "    • make the change you actually meant, outside these paths, or"
+    echo "    • if you are deliberately changing the rules (a 'conductor"
+    echo "      upgrade', or a decision you have made), say so:"
+    echo "      CONDUCTOR_NO_PROTECTED=\"why\" git commit …"
     echo ""
     blocked=1
   fi

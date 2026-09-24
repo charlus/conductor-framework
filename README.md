@@ -72,6 +72,7 @@ Upgrade works from **any prior version** (V4, V5, or a hand-copied install) on a
 - **Migrate structure & schema** — legacy `.agent/` / `.conductor/` / root numbered folders → the `conductor/` dashboard; `loop-state.json` → the current schema.
 - **Refresh platform stubs** — the framework block in `CLAUDE.md`/`GEMINI.md` (between `<!-- conductor:managed -->` markers) is updated in place while your own notes outside it are kept; your `CHANGELOG.md` is never touched.
 - **Stamp the version** — records the framework version for idempotent future upgrades.
+- **Commit itself** — in a git repo, it commits exactly the framework files it wrote, and nothing of yours. Then `git push` as usual. If you had uncommitted edits in those files, or pass `--no-commit`, it prints the one command to run instead.
 
 Preview any upgrade with `upgrade --dry-run` (prints the plan, writes nothing).
 

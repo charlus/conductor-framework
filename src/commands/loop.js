@@ -19,6 +19,7 @@ import { applyClaim, applyDone } from "../loop/writeback.js";
 import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, isInfraReason, VERDICT_REL } from "../loop/checker.js";
 import { openPullRequest } from "../loop/merge.js";
 import { runSwarm } from "../loop/swarm.js";
+import { predictConflicts } from "../loop/conflict.js";
 import { lockDecision, renderLock } from "../loop/lock.js";
 import { reviveForResume } from "../loop/resume.js";
 import { mineRecurringFailures, renderImprovementReport } from "../loop/improver.js";
@@ -144,14 +145,26 @@ function makeGit(cwd) {
   return (gitArgs) => runCli("git", gitArgs, cwd);
 }
 
-/** Run an arbitrary CLI: run(cmd, args) -> {ok, stdout}. */
+/**
+ * Run an arbitrary CLI: run(cmd, args) -> {ok, stdout, stderr, exitCode}.
+ *
+ * `exitCode` and `stderr` are additive (every caller before them read only
+ * `ok`/`stdout`). Conflict prediction needs both: `git merge-tree` answers
+ * "conflict" with exit 1 and "I don't have that flag" with exit 129, and
+ * collapsing either into `ok: false` makes them indistinguishable. Reading
+ * stderr also drains the pipe, which an unread one would eventually block on.
+ */
 function runCli(cmd, argv, cwd) {
   return new Promise((res) => {
     const child = spawn(cmd, argv, { cwd, stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
+    let err = "";
     child.stdout.on("data", (d) => (out += d.toString()));
-    child.on("error", () => res({ ok: false, stdout: "" }));
-    child.on("close", (code) => res({ ok: code === 0, stdout: out.trim() }));
+    child.stderr.on("data", (d) => (err += d.toString()));
+    child.on("error", () => res({ ok: false, stdout: "", stderr: "", exitCode: -1 }));
+    child.on("close", (code) =>
+      res({ ok: code === 0, stdout: out.trim(), stderr: err.trim(), exitCode: code ?? -1 })
+    );
   });
 }
 
@@ -824,6 +837,11 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       },
       runVerify: ({ task, cmd }) => sh(cmd, cwdFor.get(task.id) ?? root),
       runChecker: async ({ task }) => makeChecker(cwdFor.get(task.id) ?? root, await checkerPromptFor(task))(),
+      // F7: would this branch collide with the base before we push it? Asked
+      // against the object store from the ROOT checkout, so no working tree is
+      // touched and no worktree has to be clean for it to answer.
+      predictConflict: async ({ task }) =>
+        predictConflicts({ git, base: "HEAD", branch: task.worktree?.branch }),
       merge: async ({ task }) => {
         const m = await makeMerge(
           cwdFor.get(task.id) ?? root,

@@ -8,7 +8,16 @@ const execFileAsync = promisify(execFile);
 
 const HOOKS_REL = ".agents/hooks";
 // Files that must be executable and are safe to chmod (the git-hook entry points).
-const EXECUTABLE_HOOKS = ["pre-commit", "pre-push", "verification-stop-hook.sh", "lib.sh"];
+const EXECUTABLE_HOOKS = [
+  "pre-commit",
+  "pre-push",
+  "verification-stop-hook.sh",
+  // Opt-in Claude Code PreToolUse hook. Not wired by core.hooksPath (that is
+  // git's), but it still needs the bit set for settings.json to invoke it.
+  "pretooluse-no-bypass.sh",
+  "pretooluse-fact-gate.sh",
+  "lib.sh",
+];
 
 async function exists(path) {
   try {

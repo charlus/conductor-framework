@@ -11,6 +11,107 @@ import { normalizeState } from "../loop/driver.js";
 import { packageVersion, readVersionStamp, writeVersionStamp, detectShape } from "../version.js";
 import { createBackup, restoreBackup, ensureGitignore } from "../backup.js";
 import { applyManagedStub } from "../stubs.js";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * The files an upgrade writes, and so the only files its commit may contain.
+ * Anything outside this list is the user's, and is never swept in.
+ */
+const FRAMEWORK_PATHS = [
+  ".agents", "CLAUDE.md", "GEMINI.md", "CHANGELOG.md", ".claude/commands",
+  "conductor/5-templates", "conductor/1-workbench/loop-state.json",
+  "conductor.config.json", ".gitignore",
+];
+
+async function git(args, cwd, env) {
+  try {
+    const { stdout } = await execFileAsync("git", args, {
+      cwd, maxBuffer: 1 << 24, env: env ? { ...process.env, ...env } : process.env,
+    });
+    return { ok: true, stdout: stdout.trim() };
+  } catch (e) {
+    return { ok: false, stdout: String(e.stdout ?? "").trim(), stderr: String(e.stderr ?? "").trim() };
+  }
+}
+
+/**
+ * The repo's state BEFORE the upgrade writes anything, so the commit step can
+ * tell the user's uncommitted edits from the upgrade's own.
+ */
+async function gitSnapshot(dir) {
+  const inRepo = await git(["rev-parse", "--is-inside-work-tree"], dir);
+  if (!inRepo.ok || inRepo.stdout !== "true") return { repo: false };
+  const head = (await git(["rev-parse", "--verify", "-q", "HEAD"], dir)).ok;
+  const busy = [];
+  for (const marker of ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply"]) {
+    const where = (await git(["rev-parse", "--git-path", marker], dir)).stdout;
+    if (where && (await exists(resolve(dir, where)))) busy.push(marker);
+  }
+  const dirty = (await git(["status", "--porcelain", "--", ...FRAMEWORK_PATHS], dir)).stdout
+    .split("\n").filter(Boolean).map((l) => l.slice(3));
+  return { repo: true, head, busy, dirty };
+}
+
+/**
+ * Commit exactly the framework files the upgrade wrote — with the protected-
+ * path waiver set, so the gate still logs it — or, when that is not safe, print
+ * the one command that does it.
+ *
+ * WHY. An upgrade rewrites the enforcement hooks, so its commit needs
+ * CONDUCTOR_NO_PROTECTED. Making every user discover and type that was the
+ * friction the maintainer asked to remove. The push needs nothing: pre-push
+ * recognises the official pre-commit it ships with.
+ */
+async function commitUpgrade({ targetDir, version, snap, noCommit, structural, stdout }) {
+  if (!snap.repo) return;
+  const existing = [];
+  for (const p of FRAMEWORK_PATHS) {
+    if (!(await exists(join(targetDir, p)))) continue;
+    // An explicitly named ignored path makes `git add` fail outright.
+    if ((await git(["check-ignore", "-q", "--", p], targetDir)).ok) continue;
+    existing.push(p);
+  }
+  const paths = existing.join(" ");
+  const message = `chore: upgrade Conductor to ${version}`;
+  const manual = structural
+    ? `git add -A && CONDUCTOR_NO_PROTECTED="conductor upgrade" git commit -m "${message}"`
+    : `git add -A -- ${paths} && CONDUCTOR_NO_PROTECTED="conductor upgrade" git commit -m "${message}" -- ${paths}`;
+  const printManual = (why) => {
+    stdout.write(`\n   Commit it with one command${why ? ` (${why})` : ""}:\n`);
+    stdout.write(`     ${manual}\n`);
+    stdout.write("   Then push as usual — the push needs no waiver.\n");
+  };
+
+  if (noCommit) return printManual("--no-commit");
+  if (!snap.head) return printManual("the repo has no commits yet");
+  if (snap.busy.length) return printManual(`a ${snap.busy.join("/")} is in progress`);
+  if (structural) return printManual("legacy folders were moved — check `git status` first");
+  if (snap.dirty.length) {
+    return printManual(`you had uncommitted changes in ${snap.dirty.join(", ")}, and I will not commit your work for you`);
+  }
+
+  if (!existing.length) return;
+  const add = await git(["add", "-A", "--", ...existing], targetDir);
+  if (!add.ok) return printManual(`git add failed: ${add.stderr.split("\n")[0]}`);
+  if ((await git(["diff", "--cached", "--quiet", "--", ...existing], targetDir)).ok) {
+    stdout.write("\n   Nothing to commit — the framework files were already current.\n");
+    return;
+  }
+  // `-- paths` commits ONLY these paths, so anything else the user had staged
+  // stays staged and out of this commit.
+  const commit = await git(["commit", "-q", "-m", message, "--", ...existing], targetDir, {
+    CONDUCTOR_NO_PROTECTED: `conductor upgrade to ${version}`,
+  });
+  if (!commit.ok) {
+    const why = (commit.stdout + "\n" + commit.stderr).split("\n").map((l) => l.trim()).filter(Boolean).slice(-1)[0];
+    return printManual(`the commit was refused${why ? `: ${why}` : ""}`);
+  }
+  const sha = (await git(["rev-parse", "--short", "HEAD"], targetDir)).stdout;
+  stdout.write(`\n   ✅ Committed the upgrade as ${sha}. Push as usual — no waiver needed.\n`);
+}
 
 function getTemplateDir() {
   return fileURLToPath(new URL("../../templates", import.meta.url));
@@ -40,6 +141,7 @@ function planCounts(plan) {
 export async function upgradeCommand(args, { cwd, stdout, stderr }) {
   const dryRun = args.includes("--dry-run");
   const noBackup = args.includes("--no-backup");
+  const noCommit = args.includes("--no-commit");
   const positional = args.filter((a) => !a.startsWith("--"));
   const targetDir = resolve(cwd, positional[0] || ".");
 
@@ -117,6 +219,10 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       stdout.write(`\nNo changes written (dry run). Re-run without --dry-run to apply.\n`);
       return 0;
     }
+
+    // Before anything is written: what in the framework files is already the
+    // user's own uncommitted work? The commit step must never sweep it in.
+    const snap = await gitSnapshot(targetDir);
 
     // ---- Backup first (unless opted out) ----
     let backup = null;
@@ -260,6 +366,7 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
     await ensureVerifyCommand(targetDir, stdout);
 
     stdout.write("\n🎼 Upgrade complete!\n");
+    await commitUpgrade({ targetDir, version, snap, noCommit, structural: doesStructuralMigration, stdout });
     if (backup) stdout.write(`   Old instructions backed up in ${backup.backupRoot.replace(targetDir + "/", "")} (git-ignored).\n`);
     stdout.write("   Your conductor/ project knowledge was preserved.\n");
     stdout.write("   Verify: bash .agents/tests/check-conductor.sh\n");

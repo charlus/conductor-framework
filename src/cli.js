@@ -14,6 +14,8 @@ import { loopCommand } from "./commands/loop.js";
 import { statusCommand } from "./commands/status.js";
 import { inboxCommand } from "./commands/inbox.js";
 import { viewCommand } from "./commands/view.js";
+import { reviewCommand } from "./commands/review.js";
+import { surveyCommand } from "./commands/survey.js";
 
 function helpText() {
   return [
@@ -34,6 +36,8 @@ function helpText() {
     "    conductor list [--remote] [--tier <tier>]",
     "    conductor search <query> [--tag <tag>]",
     "    conductor verify [--set <cmd> | --detect | --none] [--no-run]",
+    "    conductor review <file.md> [--timeout <min>]",
+    "    conductor survey [dir] [--json] [--out <file>]",
     "    conductor install-hooks [--uninstall]",
     "    conductor trust-verify [--revoke] [--list]",
     "    conductor evidence <run|check|list> …",
@@ -53,6 +57,8 @@ function helpText() {
     "    list            List installed skills (or --remote for registry)",
     "    search          Search the registry for skills",
     "    verify          Show or set the command `git push` must pass (the push gate)",
+    "    review          Render a document in the browser and wait for approve / request-changes",
+    "    survey          Collect the facts about an existing codebase you have inherited",
     "    install-hooks   Enable deterministic TDD/verification git hooks",
     "    trust-verify    Record operator consent for this repo's verify command",
     "    evidence        Record/grade verification evidence against the working tree",
@@ -110,6 +116,10 @@ export async function runCli(args, io = process) {
       return inboxCommand(rest, context);
     case "view":
       return viewCommand(rest, context);
+    case "review":
+      return reviewCommand(rest, context);
+    case "survey":
+      return surveyCommand(rest, context);
     case "init":
       return initCommand(rest, context);
     case "upgrade":

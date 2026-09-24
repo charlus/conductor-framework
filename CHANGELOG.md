@@ -6,6 +6,12 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `conductor status` shows whether the gates are armed
+
+- A **Gates** line: `on`, or why not with the fix. The hooks only enforce when `core.hooksPath` points at `.agents/hooks` and both entry scripts are executable, so a repo cloned after init, a foreign hooksPath (`.husky`) or a lost executable bit left every law as prose with nothing on screen to say so. It also reports which opt-in Claude Code guards (`pretooluse-no-bypass.sh`, `pretooluse-fact-gate.sh`) are wired in `.claude/settings.json` or `settings.local.json`.
+- A **Waivers** line: hook waivers logged to the ship-log in the last 30 days, by kind. A gate waived every week is a gate in name only.
+- Both are in `conductor status --json` under `digest.gates`. `test/status-gates.test.js` (16 tests, real git for the wiring cases).
+
 ### Added — the gates cannot be satisfied by removing the proof (F9, F12, F11)
 
 A source audit of ECC (`github.com/affaan-m/ecc`) ran its loop-failure taxonomy against our own envelope and found three holes. All three are closed. Design and review record: `docs/roadmap/Peer-Framework-Harvest.md`.

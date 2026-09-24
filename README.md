@@ -150,6 +150,8 @@ conductor status
     3  triage  rename the export button
 ```
 
+Under the counts, three lines answer "is anything actually enforced here?": the **Push gate** command, whether the git **Gates** are armed (with the fix when they are not, and which opt-in agent guards are on), and the **Waivers** logged in the last 30 days.
+
 That queue is the **same** one `conductor loop` drains, in the same order, from the same parser — a preview of the fleet's next move, not a second opinion about it. `--json` for scripts, `--no-color` for pipes.
 
 Reading state this way costs **no tokens and no context**. Asking your agent to summarise the backlog costs a full turn, every time, for the question you ask most often in a day.

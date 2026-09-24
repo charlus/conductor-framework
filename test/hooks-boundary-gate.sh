@@ -479,6 +479,24 @@ else
 fi
 rm -rf "$D" "$B"
 
+# ---- P18: the OFFICIAL pre-commit shipped by an upgrade pushes with no waiver -
+# pre-push carries the fingerprint of the pre-commit released alongside it. An
+# edit that lands on exactly that content is an upgrade, not a neutering, so
+# the push needs nothing (maintainer: remove upgrade friction). Forging the
+# match means editing pre-push too — both entry scripts, the stated limit.
+read -r D B <<< "$(push_repo)"
+printf '\n# an older release\n' >> "$D/.agents/hooks/pre-commit"
+git -C "$D" add -A; CONDUCTOR_HOOKS=off git -C "$D" commit -q -m "older release" >/dev/null 2>&1
+CONDUCTOR_HOOKS=off git -C "$D" push -q origin HEAD:main >/dev/null 2>&1
+cp "$REPO_ROOT/templates/.agents/hooks/pre-commit" "$D/.agents/hooks/pre-commit"
+git -C "$D" add -A; CONDUCTOR_NO_PROTECTED="conductor upgrade" git -C "$D" commit -q -m "upgrade" >/dev/null 2>&1
+if git -C "$D" push -q origin HEAD:main >/dev/null 2>&1; then
+  ok "P18: the official upgraded pre-commit pushes with no waiver"
+else
+  no "P18: an upgrade to the OFFICIAL pre-commit still demanded a waiver at push"
+fi
+rm -rf "$D" "$B"
+
 # ---- P5: ordinary .agents/ content is NOT protected -----------------------
 # Only the enforcement surface is frozen. Skills and workflows stay editable.
 D="$(seeded_repo)"

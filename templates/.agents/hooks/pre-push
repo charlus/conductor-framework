@@ -10,6 +10,12 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [ -z "$ROOT" ] && exit 0
 [ "${CONDUCTOR_HOOKS:-on}" = "off" ] && exit 0
 
+# The fingerprint of the pre-commit released WITH this pre-push. An edit to
+# pre-commit that lands on exactly this content is an upgrade, not a neutering,
+# and needs no waiver at push. Forging a match means editing pre-push as well —
+# both entry scripts, the stated limit. Pinned by test/hooks-registry-drift.test.js.
+CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256="a4cb60533f1a3da177e70e114353e0c67e925b71c1e57e5b54e0fab9517fd50e"
+
 # git feeds one line per pushed ref: <local ref> <local sha> <remote ref> <remote sha>.
 PUSH_LINES="$(cat)"
 ZERO="0000000000000000000000000000000000000000"
@@ -124,13 +130,36 @@ removed_hooks=""
 # other: pre-commit (running the committed library) blocks an edit to pre-push
 # at commit time, and pre-push blocks an edit to pre-commit here. Editing BOTH
 # defeats any client-side hook; that is the stated limit.
+blob_sha256() {
+  # $1 = commit, $2 = path. Hashes the COMMITTED blob's raw bytes, piped
+  # straight through: capturing it in a variable first strips trailing
+  # newlines, which would make this disagree with the drift test for any file
+  # not ending in exactly one. Line-ending conversion on checkout cannot touch
+  # a blob. A read failure hashes nothing and so never matches (fail-safe).
+  if command -v sha256sum >/dev/null 2>&1; then git -C "$ROOT" show "$1:$2" 2>/dev/null | sha256sum | cut -d' ' -f1
+  elif command -v shasum >/dev/null 2>&1; then git -C "$ROOT" show "$1:$2" 2>/dev/null | shasum -a 256 | cut -d' ' -f1
+  else git -C "$ROOT" show "$1:$2" 2>/dev/null | openssl dgst -sha256 | awk '{print $NF}'
+  fi
+}
 hook_changes() {
-  git -C "$ROOT" diff --raw -M "$1" "$2" -- .agents/hooks/ 2>/dev/null | awk -F'\t' '
+  local from="$1" to="$2" line path
+  git -C "$ROOT" diff --raw -M "$from" "$to" -- .agents/hooks/ 2>/dev/null | awk -F'\t' '
     { split($1, m, " "); nm = m[2]; st = substr(m[5], 1, 1); p = $2; q = $3
       if (st == "D") print p " (deleted)"
       else if (st == "R") print p " (renamed to " q ")"
       else if (p ~ /\/pre-(commit|push)$/ && (st == "T" || nm != "100755")) print p " (no longer executable)"
-      else if (p ~ /\/pre-commit$/ && st == "M") print p " (edited — the edited copy judged its own commit)" }'
+      else if (p ~ /\/pre-commit$/ && st == "M") print "__EDITED__\t" p }' |
+    while IFS= read -r line; do
+      case "$line" in
+        __EDITED__*)
+          path="${line#*$'\t'}"
+          # The official pre-commit for this release is an upgrade: let it through.
+          [ "$(blob_sha256 "$to" "$path")" = "$CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256" ] && continue
+          printf '%s (edited — the edited copy judged its own commit)\n' "$path"
+          ;;
+        *) printf '%s\n' "$line" ;;
+      esac
+    done
 }
 while read -r _lref lsha _rref rsha; do
   [ -z "${lsha:-}" ] || [ "$lsha" = "$ZERO" ] && continue

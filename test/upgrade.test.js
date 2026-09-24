@@ -167,3 +167,80 @@ test("upgrade is idempotent (second run succeeds and stays current)", async () =
   assert.equal(code, 0);
   assert.match(stdout, new RegExp(`Already on ${packageVersion().replace(/\./g, "\\.")}`));
 });
+
+// ---------------------------------------------------------------------------
+// The upgrade commits itself (maintainer: remove upgrade friction).
+//
+// An upgrade rewrites the enforcement hooks, so its commit needs the
+// CONDUCTOR_NO_PROTECTED waiver. Making every user discover and type that was
+// the friction. `conductor upgrade` now commits exactly the framework files it
+// wrote, with the waiver set (so it is still logged), and never sweeps in the
+// user's own work. When it cannot do that safely it prints the one command.
+// ---------------------------------------------------------------------------
+import { execFileSync } from "node:child_process";
+import { initCommand } from "../src/commands/init.js";
+
+const g = (dir, ...a) => execFileSync("git", ["-C", dir, ...a], { encoding: "utf8", env: { ...process.env, CONDUCTOR_HOOKS: "off" } }).trim();
+
+/** A git repo holding an OLDER install: current templates with lib.sh edited, committed. */
+async function makeGitInstall() {
+  const dir = mkdtempSync(join(tmpdir(), "cond-git-"));
+  execFileSync("git", ["-C", dir, "init", "-q"]);
+  g(dir, "config", "user.email", "t@t.local");
+  g(dir, "config", "user.name", "t");
+  await initCommand([dir, "--all"], { cwd: tmpdir(), stdout: sink(), stderr: sink() });
+  // An older release: a protected file differs, exactly what a real upgrade replaces.
+  writeFileSync(join(dir, ".agents/hooks/lib.sh"), readFileSync(join(dir, ".agents/hooks/lib.sh"), "utf8") + "\n# older release\n");
+  g(dir, "add", "-A");
+  g(dir, "commit", "-q", "-m", "an older conductor install");
+  return dir;
+}
+
+test("upgrade commits the framework files itself, with the waiver", async () => {
+  const dir = await makeGitInstall();
+  const before = g(dir, "rev-parse", "HEAD");
+  const { code, stdout } = await runUpgrade(dir);
+  assert.equal(code, 0, stdout);
+  assert.notEqual(g(dir, "rev-parse", "HEAD"), before, "no commit was made");
+  assert.match(g(dir, "log", "-1", "--format=%s"), new RegExp(`^chore: upgrade Conductor to ${packageVersion()}`));
+  assert.equal(g(dir, "status", "--porcelain", "--", ".agents"), "", "framework files left uncommitted");
+  assert.match(stdout, /Push as usual/);
+});
+
+test("upgrade never sweeps the user's own staged work into its commit", async () => {
+  const dir = await makeGitInstall();
+  writeFileSync(join(dir, "mine.txt"), "my work in progress\n");
+  g(dir, "add", "mine.txt");
+  await runUpgrade(dir);
+  assert.ok(!g(dir, "show", "--name-only", "--format=", "HEAD").split("\n").includes("mine.txt"), "user file was committed");
+  assert.match(g(dir, "status", "--porcelain", "--", "mine.txt"), /^A /, "user file is no longer staged");
+});
+
+test("upgrade does not commit over the user's uncommitted framework edits", async () => {
+  // Their CLAUDE.md notes outside the managed block are theirs; committing them
+  // unasked would be a surprise. Print the one command instead.
+  const dir = await makeGitInstall();
+  writeFileSync(join(dir, "CLAUDE.md"), readFileSync(join(dir, "CLAUDE.md"), "utf8") + "\nMY UNCOMMITTED NOTE\n");
+  const before = g(dir, "rev-parse", "HEAD");
+  const { stdout } = await runUpgrade(dir);
+  assert.equal(g(dir, "rev-parse", "HEAD"), before, "it committed over uncommitted user edits");
+  assert.match(stdout, /CONDUCTOR_NO_PROTECTED="conductor upgrade" git commit/);
+  assert.match(stdout, /CLAUDE\.md/);
+});
+
+test("--no-commit prints the exact command and commits nothing", async () => {
+  const dir = await makeGitInstall();
+  const before = g(dir, "rev-parse", "HEAD");
+  const { stdout } = await runUpgrade(dir, ["--no-commit"]);
+  assert.equal(g(dir, "rev-parse", "HEAD"), before);
+  assert.match(stdout, /CONDUCTOR_NO_PROTECTED="conductor upgrade" git commit/);
+});
+
+test("the printed command works as printed", async () => {
+  const dir = await makeGitInstall();
+  const { stdout } = await runUpgrade(dir, ["--no-commit"]);
+  const cmd = stdout.split("\n").map((l) => l.trim()).find((l) => l.startsWith("git add"));
+  assert.ok(cmd, "no command printed");
+  execFileSync("bash", ["-c", cmd], { cwd: dir, env: process.env });
+  assert.equal(g(dir, "status", "--porcelain", "--", ".agents"), "", "the printed command left files uncommitted");
+});

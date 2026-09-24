@@ -40,10 +40,13 @@ not get to edit what decides whether it passes. Workflows, skills and your
 project knowledge stay freely editable — freezing those would make the gate a
 tax rather than a boundary.
 
-A `conductor upgrade` legitimately rewrites these paths. Commit **and push** it
-with `CONDUCTOR_NO_PROTECTED="conductor upgrade"` — both hooks check, because
-each covers the one the other cannot — so the change to your enforcement
-surface is a visible decision rather than a silent one.
+A `conductor upgrade` legitimately rewrites these paths, and handles that
+itself: it commits exactly the framework files it wrote, with
+`CONDUCTOR_NO_PROTECTED` set so the waiver is still logged, and never sweeps in
+your own work. Then push as usual — `pre-push` carries the fingerprint of the
+official `pre-commit` and lets that exact file through. If you had uncommitted
+edits in those files, a merge was in progress, or you passed `--no-commit`, it
+prints the one command to run instead.
 
 **The gates judge a change with the copy already committed.** Both hooks load
 `lib.sh` from the last commit (at push, from what the remote already has), on

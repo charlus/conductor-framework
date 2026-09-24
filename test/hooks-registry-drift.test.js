@@ -20,6 +20,8 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -62,6 +64,22 @@ describe("F3 — the hook registry cannot drift", () => {
       missing,
       [],
       `hooks missing from EXECUTABLE_HOOKS in src/commands/install-hooks.js: ${missing.join(", ")}`,
+    );
+  });
+
+  test("pre-push carries the fingerprint of the pre-commit it ships with", () => {
+    // pre-push accepts an edit to pre-commit, without a waiver, only when the
+    // result is byte-for-byte the pre-commit released alongside it. If the two
+    // drift, every upgrade asks for a waiver again — and nothing else says so.
+    const { createHash } = require("node:crypto");
+    const actual = createHash("sha256").update(readFileSync(join(HOOKS, "pre-commit"))).digest("hex");
+    const m = read(join(HOOKS, "pre-push")).match(/^CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256="([0-9a-f]{64})"$/m);
+    assert.ok(m, "pre-push declares no CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256");
+    assert.equal(
+      m[1],
+      actual,
+      `pre-commit changed but pre-push still fingerprints the old one. Update it:\n` +
+        `  sed -i 's/^CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256=.*/CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256="${actual}"/' templates/.agents/hooks/pre-push`,
     );
   });
 

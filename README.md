@@ -113,6 +113,8 @@ Genesis → Storyboard → Grand PRD → UX/UI Design Brief → Technical Vision
    └── Discovery Phase ─────────────────────────────────────────────── Execution Phase ──────────────┘
 ```
 
+Run each planning step in a fresh session. Every step ends with the exact next command and the folder to read, for example `/clear`, then `/carve conductor/2-backlog/project-backlog/<Project>`. The next session reads that folder and does not ask. See `.agents/skills/handoff/SKILL.md`, *Between workflows*.
+
 ### What's Inside
 
 - **17 Workflows** — From Genesis (ideation) to Build (verified execution) to Ship, **Survey** for a codebase you inherited, plus the headless **Unattended-Loop** orchestrator and its independent **Loop-Checker**

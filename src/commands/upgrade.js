@@ -3,7 +3,7 @@ import { constants as fsConstants } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { planUpdate, executeUpdate } from "../update.js";
-import { renameRecursive, updateChecksumsKeys, renameNumberedFolders } from "../kebab.js";
+import { renameRecursive, updateChecksumsKeys, renameNumberedFolders, renameFrameworkNames } from "../kebab.js";
 import { generateClaudeCommands, generateClaudeSkills } from "../claude-commands.js";
 import { installHooksCommand } from "./install-hooks.js";
 import { ensureVerifyCommand } from "../verify-config.js";
@@ -65,7 +65,7 @@ async function gitSnapshot(dir) {
  * friction the maintainer asked to remove. The push needs nothing: pre-push
  * recognises the official pre-commit it ships with.
  */
-async function commitUpgrade({ targetDir, version, snap, noCommit, structural, stdout }) {
+async function commitUpgrade({ targetDir, version, snap, noCommit, structural, extraPaths = [], stdout }) {
   if (!snap.repo) return;
   const existing = [];
   for (const p of FRAMEWORK_PATHS) {
@@ -73,6 +73,12 @@ async function commitUpgrade({ targetDir, version, snap, noCommit, structural, s
     // An explicitly named ignored path makes `git add` fail outright.
     if ((await git(["check-ignore", "-q", "--", p], targetDir)).ok) continue;
     existing.push(p);
+  }
+  // Generated `.claude/skills/<name>` shims, one path each: never the whole
+  // folder, which may hold the user's own skills. A removed shim counts only
+  // if git tracks it, or `git add` would fail on the missing path.
+  for (const p of extraPaths) {
+    if ((await exists(join(targetDir, p))) || (await git(["ls-files", "--", p], targetDir)).stdout) existing.push(p);
   }
   const paths = existing.join(" ");
   const message = `chore: upgrade Conductor to ${version}`;
@@ -88,7 +94,7 @@ async function commitUpgrade({ targetDir, version, snap, noCommit, structural, s
   if (noCommit) return printManual("--no-commit");
   if (!snap.head) return printManual("the repo has no commits yet");
   if (snap.busy.length) return printManual(`a ${snap.busy.join("/")} is in progress`);
-  if (structural) return printManual("legacy folders were moved — check `git status` first");
+  if (structural) return printManual(structural);
   if (snap.dirty.length) {
     return printManual(`you had uncommitted changes in ${snap.dirty.join(", ")}, and I will not commit your work for you`);
   }
@@ -142,6 +148,7 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
   const dryRun = args.includes("--dry-run");
   const noBackup = args.includes("--no-backup");
   const noCommit = args.includes("--no-commit");
+  const force = args.includes("--force");
   const positional = args.filter((a) => !a.startsWith("--"));
   const targetDir = resolve(cwd, positional[0] || ".");
 
@@ -174,10 +181,26 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       return 1;
     }
 
+    // An `.agents/` folder alone does not make a Conductor project: it is the
+    // cross-tool convention, and some repos use it for their own agents. With
+    // no conductor/ layout and no version stamp, an upgrade would turn such a
+    // repo into a full Conductor install (workflows, hooks, a new conductor/).
+    if (!hasConductor && !hasLegacyConductor && !hasRootFolders && !readVersionStamp(agentsDir) && !force) {
+      stderr.write(
+        "This repo has .agents/ but no conductor/ folder and no Conductor version stamp.\n" +
+          "It looks like an agent-only repo, not a Conductor project.\n" +
+          "Upgrading would install every workflow and the git hooks, create conductor/,\n" +
+          "and add a Conductor block to CLAUDE.md and GEMINI.md.\n" +
+          "If that is what you want, re-run with --force. Nothing was changed.\n"
+      );
+      return 1;
+    }
+
     const version = packageVersion();
     // Core/default skills always land on upgrade (like rules/workflows), so new
     // primitives arrive even if they postdate the user's .selections.json.
     let coreSkills = new Set();
+    const retired = new Set(JSON.parse(await readFile(new URL("../retired-framework-files.json", import.meta.url), "utf8")).files);
     try {
       const reg = JSON.parse(await readFile(join(sourceAgentsDir, "registry.json"), "utf8"));
       coreSkills = new Set((reg.skills || []).filter((s) => s.default || s.category === "core").map((s) => s.dir));
@@ -202,7 +225,7 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       }
       stdout.write(`  Backup:   .conductor-backup/<ts>/ (.agents/${(await exists(target5Templates)) ? ", conductor/5-templates/" : ""}${doesStructuralMigration ? ", legacy dirs" : ""})\n`);
       if (hasAgents) {
-        const c = planCounts(planUpdate(sourceAgentsDir, agentsDir, checksumPath, { coreSkills }));
+        const c = planCounts(planUpdate(sourceAgentsDir, agentsDir, checksumPath, { coreSkills, retired }));
         stdout.write(`  .agents/  REPLACE ${c.UPDATE} framework · ADD ${c.COPY} new · PRUNE ${c.REMOVE} dropped · CARRY ${c.KEEP} custom · ${c.AVAILABLE} optional (not selected)\n`);
       } else {
         stdout.write(`  .agents/  fresh install\n`);
@@ -226,6 +249,8 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
 
     // ---- Backup first (unless opted out) ----
     let backup = null;
+    let renamedKnowledge = 0;
+    let skillPaths = [];
     const backupPaths = [];
     if (hasAgents) backupPaths.push(".agents");
     if (await exists(target5Templates)) backupPaths.push(join("conductor", "5-templates"));
@@ -282,15 +307,21 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       stdout.write("\nStep 2: Normalizing framework names to kebab-case...\n");
       await renameRecursive(agentsDir, stdout);        // all of .agents/ is framework
       await renameNumberedFolders(conductorDir, stdout); // only the numbered folders, no user files
+      renamedKnowledge = await renameFrameworkNames(conductorDir, join(templateDir, "conductor"), stdout);
       if (await exists(target5Templates)) await renameRecursive(target5Templates, stdout);
       await updateChecksumsKeys(checksumPath);
 
       // ---- Step 3: Replace .agents/ framework files (carry forward custom) ----
       stdout.write("\nStep 3: Upgrading .agents/ instructions...\n");
-      const plan = planUpdate(sourceAgentsDir, agentsDir, checksumPath, { coreSkills });
+      const plan = planUpdate(sourceAgentsDir, agentsDir, checksumPath, { coreSkills, retired });
       const c = planCounts(plan);
       executeUpdate(plan, sourceAgentsDir, agentsDir, checksumPath);
+      const retiredRemoved = plan.filter((i) => i.reason === "retired framework file").map((i) => i.relativePath);
       stdout.write(`  ✅ Replaced ${c.UPDATE} framework files, added ${c.COPY} new, pruned ${c.REMOVE} dropped upstream, carried ${c.KEEP} custom (${c.AVAILABLE} optional not installed).\n`);
+      if (retiredRemoved.length) {
+        stdout.write(`  🗑️  Removed ${retiredRemoved.length} framework file(s) Conductor no longer ships (kept in the backup):\n`);
+        for (const rel of retiredRemoved) stdout.write(`       .agents/${rel}\n`);
+      }
 
       // ---- Step 4: Refresh conductor/5-templates (framework scaffolding) ----
       stdout.write("\nStep 4: Refreshing conductor/5-templates/...\n");
@@ -340,7 +371,8 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       stdout.write("\nStep 7: Claude Code slash commands...\n");
       const { written } = await generateClaudeCommands(targetDir, { stdout });
       if (written === 0) stdout.write("  ⏭️  No workflows found; skipped .claude/commands/\n");
-      await generateClaudeSkills(targetDir, { stdout });
+      const shims = await generateClaudeSkills(targetDir, { stdout });
+      skillPaths = [...shims.writtenNames, ...shims.removedNames].map((n) => `.claude/skills/${n}`);
 
       // ---- Step 8: Enforcement hooks ----
       stdout.write("\nStep 8: Enforcement hooks...\n");
@@ -367,7 +399,10 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
     await ensureVerifyCommand(targetDir, stdout);
 
     stdout.write("\n🎼 Upgrade complete!\n");
-    await commitUpgrade({ targetDir, version, snap, noCommit, structural: doesStructuralMigration, stdout });
+    const structural = doesStructuralMigration
+      ? "legacy folders were moved — check `git status` first"
+      : renamedKnowledge > 0 ? "framework names in conductor/ were renamed — check `git status` first" : false;
+    await commitUpgrade({ targetDir, version, snap, noCommit, structural, extraPaths: skillPaths, stdout });
     if (backup) stdout.write(`   Old instructions backed up in ${backup.backupRoot.replace(targetDir + "/", "")} (git-ignored).\n`);
     stdout.write("   Your conductor/ project knowledge was preserved.\n");
     stdout.write("   Verify: bash .agents/tests/check-conductor.sh\n");

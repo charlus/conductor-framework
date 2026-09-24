@@ -100,6 +100,7 @@ Tell your AI assistant what you need. The Conductor classifies and routes:
 | "I have an idea" | **Genesis** workflow → full problem exploration |
 | "Build it" | **Build** workflow → verified execution |
 | "Quick path" | **Quick-Path** → skip discovery, go fast |
+| "I inherited this codebase" | **Survey** workflow → facts from the code, the why from you |
 | "Loop", "Unattended" | **Unattended-Loop** workflow → headless autonomous run |
 | "CTO mode" | **CTO** persona → strategic thinking partner |
 | "Security mode" | **Security Auditor** persona → vulnerability analysis |
@@ -114,7 +115,7 @@ Genesis → Storyboard → Grand PRD → UX/UI Design Brief → Technical Vision
 
 ### What's Inside
 
-- **16 Workflows** — From Genesis (ideation) to Build (verified execution) to Ship, plus the headless **Unattended-Loop** orchestrator and its independent **Loop-Checker**
+- **17 Workflows** — From Genesis (ideation) to Build (verified execution) to Ship, **Survey** for a codebase you inherited, plus the headless **Unattended-Loop** orchestrator and its independent **Loop-Checker**
 - **31 Skills** — including the `grilling` and `collaborative-drafting` interview/drafting primitives, `writing-evals` + `architecture-checklist` (the ship-contract), `handoff` (context hygiene), Verification Gate, Code Review, Systematic Debugging, and more
 - **12 Personas** — Including the strategic thinking partners and loop-execution specialists (**Maker** and **Checker**)
 
@@ -176,6 +177,26 @@ The output is **derived**: written to an ignored folder, regenerated whole each 
 
 > On WSL the command prints a `file://wsl.localhost/<distro>/…` URL, because a Windows browser can't resolve `file:///home/...`. Use the URL the command prints — a hand-made one looks correct there and silently does nothing.
 
+### `conductor review` — approve a document without pasting it
+
+```bash
+conductor review conductor/3-product-areas/billing/spec.md
+```
+
+The agent runs this when a document needs your sign-off. The document opens rendered in your browser. Select text to comment on it, then press **Approve** or **Request changes**. Your verdict and comments return to the agent as JSON, with exit `0` (approved), `2` (changes requested) or `1` (no verdict). Feedback is written to disk before each response, so a crashed agent loses none of it, and an approval is valid only for the exact text you approved.
+
+The page is served on loopback and accepts same-origin JSON only.
+
+### `conductor survey` — the facts about a codebase you inherited
+
+```bash
+conductor survey --out conductor/1-workbench/survey.md
+```
+
+File and language counts, test coverage by area with the untested areas first, entry points, HTTP routes, configuration keys and dependencies. Facts only: it does not guess what the product is for. The **Survey** workflow ("I inherited this codebase") runs it, interviews you for what the code cannot say, and writes the `conductor/` knowledge base, marking every claim it could not establish `TBD`.
+
+Coverage is attributed by what a test imports, then by name, so an area marked untested is a place to check, not a proven gap.
+
 ---
 
 ## The Verification Iron Law
@@ -187,7 +208,16 @@ Before claiming any work is done, the agent must run a check, read the output, c
 Conductor backs its laws with **code, not just prose** — deterministic git hooks (`.agents/hooks/`, wired by `conductor install-hooks`), because prose rules are advisory and only code enforces:
 
 - **Test-Driven Law** — a `pre-commit` gate blocks implementation code staged with no test.
+- **Goodhart boundary** — the cheapest way to make tests pass is to remove them. `pre-commit` blocks a commit that deletes a test file, adds a skip marker (`.skip`, `.only`, `@pytest.mark.skip`, `#[ignore]`…) or net-loses assertions.
+- **Protected paths** — the change being built does not edit what judges it. Edits to `.agents/hooks/`, `.agents/rules/`, `.agents/sandbox/` and the reviewer brief are blocked, and the hooks judge each change with the library already committed, so deleting or rewriting it switches nothing off. `conductor upgrade` commits its own framework changes, so an upgrade needs no extra step.
 - **Eval-Driven Law** — tests verify the deterministic surface; **evals** verify the non-deterministic LLM-output surface of the apps you build. If a feature calls an LLM provider, a `pre-commit` gate requires an evalset alongside it and a `pre-push` gate runs it — see the `writing-evals` skill (three grading modes). The **ship-contract** extends this: `architecture-checklist` turns "follow the architecture" into checkable items the Checker verifies. Every escape hatch is logged, never silent.
+
+Every escape hatch is an environment variable with a reason (`CONDUCTOR_NO_BOUNDARY="why"`), logged to `conductor/0-compass/ship-log.md`.
+
+Two **opt-in** Claude Code `PreToolUse` hooks act before the action rather than at the commit (setup in [`hooks/README.md`](templates/.agents/hooks/README.md)):
+
+- **`pretooluse-no-bypass.sh`** denies Bash calls that skip the git hooks (`--no-verify`, `commit -n`, `-c core.hooksPath=`, including through `env`, `sh -c` and shell quoting). It stops the ordinary bypass, not a determined one: the server-side PR gate stays the backstop.
+- **`pretooluse-fact-gate.sh`** makes the agent state the facts before its first edit of a file (the failing test), its first new file (what already does this), and each destructive command. Measured: gated runs named the files their change affects 4/4, ungated 0/4 (n=4, see `test/evals/`).
 
 **And the law now has a memory.** "Fresh evidence" used to mean *fresh at the moment of the check* — after that the result was trusted indefinitely, which is why a review round would re-run the whole suite to prove something it had already proven. `conductor evidence` binds a verification run to a **content fingerprint of the working tree**:
 
@@ -214,7 +244,7 @@ Around the driver:
 * **Platform adapters** (`src/loop/adapters/`) — Claude Code (primary), Antigravity (`agy`), and Codex (`codex`), each verified against the installed CLI; selected via `--platform` → `loop-state.json` → auto-detect.
 * **Maker/Checker split** — the Maker builds in an isolated git worktree; an **independent Checker** process verifies via a multi-vote verdict (`checker-verdict.json`, fail-safe reject).
 * **Sandbox gate** — real headless runs are gated behind a sandbox (`--unsafe-no-sandbox` to override); L3 requires `cli-native` (the CLI vendor's own sandbox — Anthropic bubblewrap for `claude`, no Docker image needed) or a container.
-* **Swarm scaling & autonomy slider (L0–L3)** — parallelize independent work with a PR-gated merge queue.
+* **Swarm scaling & autonomy slider (L0–L3)** — parallelize independent work with a PR-gated merge queue. Before a merge, `git merge-tree` predicts conflicts: clean branches land first and a colliding branch is escalated by name instead of opening a PR that cannot merge.
 
 **Ignition contract** — the driver is a *goal* loop with no scheduler of its own (by design). Seed it from an external trigger and it composes into the **time-based** and **proactive** loops of Anthropic's Loop-Engineering taxonomy:
 
@@ -296,7 +326,7 @@ ALWAYS-ON (every session pays this): 16.1 KB ≈ 4409 tokens
      3.8 KB  classifier         AGENTS.md
      2.6 KB  rule               rules/test-driven-law.md
      ...
-EAGER (paid only when invoked): 31 skills, 16 workflows
+EAGER (paid only when invoked): 31 skills, 17 workflows
 ```
 
 CI fails on growth past a committed ceiling **and** on a new skill or workflow with no budget entry at all — so adding context is a visible decision, never a default. Ceilings are in bytes: exact, and they do not drift when a tokenizer changes.

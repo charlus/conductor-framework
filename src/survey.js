@@ -22,9 +22,15 @@ import { extname, sep } from "node:path";
 
 /** Trees whose contents would drown every count in the report. */
 const EXCLUDED = [
-  /(^|\/)node_modules\//, /(^|\/)vendor\//, /(^|\/)\.git\//, /(^|\/)dist\//,
-  /(^|\/)build\//, /(^|\/)target\//, /(^|\/)coverage\//, /(^|\/)__pycache__\//,
-  /(^|\/)\.venv\//, /(^|\/)venv\//, /(^|\/)\.next\//, /(^|\/)\.conductor-backup\//,
+  // Always tooling, whatever the depth.
+  /(^|\/)node_modules\//, /(^|\/)\.git\//, /(^|\/)__pycache__\//, /(^|\/)\.venv\//,
+  /(^|\/)venv\//, /(^|\/)\.next\//, /(^|\/)\.conductor-backup\//, /(^|\/)\.yarn\//,
+  /(^|\/)\.nuxt\//, /(^|\/)\.svelte-kit\//, /(^|\/)\.turbo\//, /(^|\/)\.cache\//,
+  // Build output only where tools put it: at the root, or at the root of a
+  // workspace package. Matching these names at ANY depth dropped a real
+  // src/build/compile.js from the report (coverage review, I4).
+  /^(dist|build|target|coverage|out|vendor)\//,
+  /^(packages|apps|libs|crates|services)\/[^/]+\/(dist|build|target|coverage|out|vendor)\//,
   // No worktree rule here on purpose. A worktree is detected by the `.git` at
   // its root, in the walker — excluding by folder name both missed a worktree
   // at an arbitrary path and would drop a real `src/worktrees/` module.
@@ -95,9 +101,19 @@ function stem(path) {
  */
 function matchSourceStem(testPath, testStem, stemAreas, areaNames) {
   let candidate = testStem;
+  // The segments dropped so far. A match found only AFTER dropping must have
+  // every dropped segment among its area's path segments: `loop-driver` →
+  // `driver` in src/loop is fine, `user-service` → `service` in src/billing is
+  // not — that credited billing and hid src/user's gap, the dangerous
+  // direction (coverage review, B8). Declining is the correct answer there.
+  const dropped = [];
+  const agrees = (area) => dropped.every((seg) => area.split("/").includes(seg));
   while (candidate) {
     const areas = stemAreas.get(candidate);
-    if (areas && areas.size === 1) return [...areas][0];
+    if (areas && areas.size === 1) {
+      const only = [...areas][0];
+      return agrees(only) ? only : null;
+    }
     if (areas && areas.size > 1) {
       // Ambiguous: index.js and render.js exist many times in a real repo.
       // Prefer the area sharing the longest path prefix with the test; if
@@ -119,10 +135,11 @@ function matchSourceStem(testPath, testStem, stemAreas, areaNames) {
           tied = true;
         }
       }
-      return bestScore > 0 && !tied ? best : null;
+      return bestScore > 0 && !tied && agrees(best) ? best : null;
     }
     const cut = candidate.indexOf("-");
     if (cut === -1) break;
+    dropped.push(candidate.slice(0, cut));
     candidate = candidate.slice(cut + 1);
   }
   // Last resort: a test named after a module DIRECTORY rather than a file.
@@ -130,6 +147,26 @@ function matchSourceStem(testPath, testStem, stemAreas, areaNames) {
   // single source file carries the name but the area does.
   const byLeaf = [...areaNames].filter((a) => a.split("/").pop() === testStem);
   return byLeaf.length === 1 ? byLeaf[0] : null;
+}
+
+/**
+ * The source file an import specifier refers to, or null.
+ *
+ * `require("../src/loop")` names a DIRECTORY: taking the area of the raw
+ * specifier read it as area `src`, crediting the parent and leaving src/loop
+ * untested (coverage review, I6). Resolve it the way a module loader would:
+ * the exact file, then with an extension, then an index file, then anything
+ * inside that directory.
+ */
+const RESOLVE_EXT = [".js", ".ts", ".mjs", ".cjs", ".jsx", ".tsx", ".py"];
+function resolveSpecifier(spec, sourceFiles) {
+  const s = String(spec ?? "").replace(/\/$/, "");
+  if (!s) return null;
+  const set = new Set(sourceFiles);
+  if (set.has(s)) return s;
+  for (const ext of RESOLVE_EXT) if (set.has(s + ext)) return s + ext;
+  for (const ext of RESOLVE_EXT) if (set.has(`${s}/index${ext}`)) return `${s}/index${ext}`;
+  return sourceFiles.find((f) => f.startsWith(`${s}/`)) ?? null;
 }
 
 /** The area a path belongs to: its first two segments, or its first. */
@@ -184,11 +221,16 @@ export function coverageByArea(paths, { importsByTest = {} } = {}) {
   // loop meant every test after the first saw an exhausted one. The unit test
   // had a single test file, so it passed; the real repo did not.
   const areaNames = [...byArea.keys()];
+  const sourceFiles = paths
+    .map((p) => String(p).split(sep).join("/"))
+    .filter((p) => classifyFile(p).kind === "source");
   for (const p of tests) {
     // What the test IMPORTS is a fact; what it is named is a guess. Prefer
     // the fact. This repo has both src/commands/evidence.js and src/evidence/,
     // which no name-based rule can tell apart.
     const imported = (importsByTest[p] ?? [])
+      .map((spec) => resolveSpecifier(spec, sourceFiles))
+      .filter(Boolean)
       .map((src) => areaOf(src))
       .filter((a) => byArea.has(a) && byArea.get(a).source > 0);
     const target = imported.length ? imported[0] : matchSourceStem(p, stem(p), stemAreas, areaNames);
@@ -224,7 +266,9 @@ export function extractEnvKeys(text) {
 }
 
 const JS_ROUTE =
-  /(?:^|[^\w.])(?:app|router|server|api)\s*\.\s*(get|post|put|patch|delete|options|head)\s*\(\s*['"`]([^'"`]+)['"`]/gi;
+  // No `api`: `api.get("/users/me")` is an HTTP CLIENT call, not a handler
+  // (coverage review, I7). These receivers are the ones that declare routes.
+  /(?:^|[^\w.])(?:app|router|server|routes)\s*\.\s*(get|post|put|patch|delete|options|head)\s*\(\s*['"`]([^'"`]+)['"`]/gi;
 const PY_ROUTE =
   /^\s*@\s*(?:app|router|bp|blueprint)\s*\.\s*(get|post|put|patch|delete)\s*\(\s*['"]([^'"]+)['"]/gim;
 
@@ -267,7 +311,12 @@ export function findEntryPoints(manifests = {}) {
       }
       // `start` runs the product; `test`/`build` do not.
       const start = pkg.scripts?.start;
-      if (typeof start === "string") out.add(`(npm start) ${start}`);
+      // Values stay out: `STRIPE_KEY=sk_live_… node src/cli.js` is reported as
+      // `STRIPE_KEY=… node src/cli.js`. A survey is committed to conductor/
+      // (coverage review, I5), and the key names are already reported.
+      if (typeof start === "string") {
+        out.add(`(npm start) ${start.replace(/\b([A-Za-z_][A-Za-z0-9_]*)=\S+/g, "$1=…")}`);
+      }
     } catch {
       /* a broken manifest is a fact about the repo, not a reason to abort */
     }
@@ -331,9 +380,10 @@ export function renderSurvey(facts) {
           "",
         ]
       : []),
-    "> Coverage is attributed by name: a test is credited to the source file it",
-    "> appears to be named after. Conventions vary, so treat an area marked",
-    "> untested as a place to check rather than a proven gap.",
+    "> Coverage is attributed by what each test imports where that resolves,",
+    "> and otherwise by the source file the test appears to be named after —",
+    "> declining when the name is ambiguous. Treat an area marked untested as a",
+    "> place to check rather than a proven gap.",
     "",
     "## What this does not tell you",
     "",

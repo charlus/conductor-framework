@@ -49,6 +49,23 @@ describe("F15 — file classification", () => {
     assert.equal(classifyFile("assets/logo.png").kind, "other");
   });
 
+  test("a real module named like a build dir is SOURCE, not excluded (I4)", () => {
+    // `/build/` at any depth dropped src/build/compile.js from the report.
+    assert.equal(classifyFile("src/build/compile.js").kind, "source");
+    assert.equal(classifyFile("lib/dist/index.js").kind, "source");
+    assert.equal(classifyFile("src/coverage/report.js").kind, "source");
+  });
+
+  test("generated trees ARE excluded where tools put them", () => {
+    for (const p of [
+      "build/out.js", "dist/bundle.js", "target/x.js", "coverage/c.js", "out/o.js",
+      "packages/web/dist/app.js", "apps/api/build/server.js",
+      ".yarn/releases/yarn-4.cjs", ".nuxt/x.js", ".svelte-kit/y.js", ".turbo/z.js",
+    ]) {
+      assert.equal(classifyFile(p).kind, "excluded", `${p} should be excluded`);
+    }
+  });
+
   test("vendored and generated trees are excluded, not classified", () => {
     // A node_modules with 40k files would drown every count in the report.
     for (const p of [
@@ -220,10 +237,56 @@ describe("F15 — the risk map", () => {
     assert.equal(areas.find((a) => a.area === "src/alpha").tests, 0);
   });
 
-  test("a test that names no known source still counts somewhere", () => {
+  test("a CO-LOCATED orphan test is credited to its own area (the fallback)", () => {
+    // Coverage review, C4: the previous test here was named "still counts
+    // somewhere" and passed with the fallback deleted — the original code did
+    // not count that orphan either. This asserts the fallback itself: a test
+    // that names no source and imports nothing, sitting beside real source,
+    // belongs to that source's area.
+    const areas = coverageByArea(["src/widget/a.js", "src/widget/thing.test.js"]);
+    assert.equal(areas.find((a) => a.area === "src/widget").tests, 1);
+  });
+
+  test("an orphan test in a test-only tree invents no area and credits none", () => {
     const areas = coverageByArea(["src/a.js", "test/orphan.test.js"]);
     assert.equal(areas.length, 1, "an orphan test must not invent an area");
-    assert.equal(areas[0].area, "src");
+    assert.equal(areas[0].tests, 0, "…and must not be credited to an unrelated one");
+  });
+
+  test("a partial-name match is not credited to an unrelated area (review B8)", () => {
+    // `user-service.test.js` had no exact match, the prefix `user-` was
+    // dropped, and it was credited to the only service.js — in src/billing.
+    // That showed billing as tested and hid src/user's gap: the dangerous
+    // direction. A dropped prefix must agree with the area it lands in.
+    const areas = coverageByArea([
+      "src/user/model.js",
+      "src/user/routes.js",
+      "src/billing/service.js",
+      "test/user-service.test.js",
+    ]);
+    assert.equal(areas.find((a) => a.area === "src/billing").tests, 0, "credited to an unrelated area");
+  });
+
+  test("a dropped prefix that DOES name the area is still accepted", () => {
+    const areas = coverageByArea(["src/loop/driver.js", "test/loop-driver.test.js"]);
+    assert.equal(areas.find((a) => a.area === "src/loop").tests, 1);
+  });
+
+  test("an import of a DIRECTORY credits that directory, not its parent (I6)", () => {
+    const areas = coverageByArea(
+      ["src/loop/driver.js", "src/index.js", "test/x.test.js"],
+      { importsByTest: { "test/x.test.js": ["src/loop"] } },
+    );
+    assert.equal(areas.find((a) => a.area === "src/loop").tests, 1);
+    assert.equal(areas.find((a) => a.area === "src").tests, 0);
+  });
+
+  test("an extensionless import resolves to its file", () => {
+    const areas = coverageByArea(
+      ["src/loop/driver.js", "test/x.test.js"],
+      { importsByTest: { "test/x.test.js": ["src/loop/driver"] } },
+    );
+    assert.equal(areas.find((a) => a.area === "src/loop").tests, 1);
   });
 
   test("an area with no source is not reported as untested", () => {
@@ -268,6 +331,12 @@ describe("F15 — the surfaces the product exposes", () => {
     assert.deepEqual(routes.sort(), ["GET /items", "POST /items/{id}"]);
   });
 
+  test("an HTTP CLIENT call is not a declared route (I7)", () => {
+    // `api.get("/users/me")` is an axios-style client call, not a handler.
+    assert.deepEqual(findRoutes('const me = await api.get("/users/me");\napi.post("/login", body);\n', "js"), []);
+    assert.deepEqual(findRoutes('app.get("/health", h);\n', "js"), ["GET /health"]);
+  });
+
   test("a mention in a comment or a string is not a route", () => {
     assert.deepEqual(findRoutes('// app.get("/old", h) — removed\n', "js"), []);
     assert.deepEqual(findRoutes('const doc = "app.get(/x)";\n', "js"), []);
@@ -285,6 +354,15 @@ describe("F15 — the surfaces the product exposes", () => {
     assert.ok(entries.includes("bin/cli.js"));
     assert.ok(entries.some((e) => e.includes("server.js")));
     assert.ok(!entries.some((e) => e.includes("vitest")), "test script is not an entry point");
+  });
+
+  test("a value in the start script does not reach the report (I5)", () => {
+    const entries = findEntryPoints({
+      "package.json": JSON.stringify({ scripts: { start: "STRIPE_KEY=sk_live_abc PORT=3000 node src/cli.js" } }),
+    });
+    const line = entries.find((e) => e.includes("npm start"));
+    assert.ok(line.includes("STRIPE_KEY=") && line.includes("node src/cli.js"));
+    assert.ok(!line.includes("sk_live_abc"), "a secret value reached the report");
   });
 
   test("a manifest that is not JSON does not take the survey down", () => {
@@ -321,6 +399,13 @@ describe("F15 — the report", () => {
     // routes" when it means "I did not find any". Those are different.
     const md = renderSurvey({ ...facts, routes: [], envKeys: [] });
     assert.match(md, /none found/i);
+  });
+
+  test("describes its own coverage method accurately (I3)", () => {
+    // It said "attributed by name" after attribution moved to imports first.
+    const md = renderSurvey(facts);
+    assert.match(md, /imports/i);
+    assert.ok(!/Coverage is attributed by name:/.test(md), "the report misstates its method");
   });
 
   test("is honest that it is facts, not understanding", () => {

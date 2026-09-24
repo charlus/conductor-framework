@@ -78,6 +78,19 @@ git -C "$D" rm -q g.txt
 git -C "$D" commit -qm del-g
 git -C "$D" checkout -q "$BASE_BRANCH"
 
+# Delta review: a file that ALREADY contains an exact marker line, edited by
+# both sides on lines far enough apart that git merges cleanly, but close
+# enough that the marker falls inside the hunk's context and is printed. A
+# first version of this fixture put the marker outside the context window, so
+# it never appeared and the case passed against the buggy regex too.
+git -C "$D" checkout -q "$BASE_BRANCH"
+printf 'l1\nl2\nl3\nl4\nl5\n<<<<<<< .our\nl7\nl8\nl9\nl10\nl11\nl12\n' > "$D/h.txt"
+git -C "$D" add -A; git -C "$D" commit -qm "file with a marker line"
+git -C "$D" checkout -q -b feat-h-top;    sed -i 's/^l3$/L3/' "$D/h.txt"; git -C "$D" commit -qam top
+git -C "$D" checkout -q "$BASE_BRANCH"
+git -C "$D" checkout -q -b feat-h-bottom; sed -i 's/^l9$/L9/' "$D/h.txt"; git -C "$D" commit -qam bottom
+git -C "$D" checkout -q "$BASE_BRANCH"
+
 # Ask the real module, with a real git runner.
 predict() {
   node --input-type=module -e "
@@ -138,7 +151,7 @@ actual_conflict() {
   rm -rf "$c"
 }
 
-for pair in "feat-a feat-b" "feat-a feat-clean" "feat-a feat-far" "feat-a feat-marker" "feat-mod-g feat-del-g"; do
+for pair in "feat-a feat-b" "feat-a feat-clean" "feat-a feat-far" "feat-a feat-marker" "feat-mod-g feat-del-g" "feat-h-top feat-h-bottom"; do
   set -- $pair
   PRED="$(predict "$1" "$2" | grep -o '"conflicted":[a-z]*' | cut -d: -f2)"
   ACTUAL="$(actual_conflict "$1" "$2")"

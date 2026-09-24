@@ -32,7 +32,11 @@
  * text — a fixture, a test, this very file — was reported as a collision, and
  * the swarm withheld a merge that git performs cleanly.
  */
-const CONFLICT_OPEN = /^[+ ]<<<<<<< \.our$/;
+// `+` only: git WRITES the marker, so in the merged hunk it is always an added
+// line. A context line (leading space) is a marker that was already in the
+// file — accepting it made a file that merely contains one, edited on distant
+// lines by both sides, read as a conflict (delta review, IMPORTANT).
+const CONFLICT_OPEN = /^\+<<<<<<< \.our$/;
 
 /** Sections where both sides edited the same content and markers mean conflict. */
 const TEXT_CONFLICT_SECTIONS = new Set(["changed in both", "added in both"]);

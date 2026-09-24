@@ -64,3 +64,47 @@ negative control whenever a new entry point could plausibly over-trigger.
 
 `last-run-<suite>.json` is written after every run so two runs can be diffed.
 It is a run artifact, not committed.
+
+## fact-gate
+
+Does the fact gate (`hooks/pretooluse-fact-gate.sh`, F1) change what the agent
+actually does?
+
+```bash
+CONDUCTOR_EVALS=1 npm run eval:factgate                    # 3 runs per arm
+CONDUCTOR_EVALS=1 npm run eval:factgate -- --runs 5 --verbose
+CONDUCTOR_EVALS=1 npm run eval:factgate:sensitivity        # can it fail?
+```
+
+Two arms on the same fixture: gated, and the identical repo with
+`CONDUCTOR_FACT_GATE=off`. The fixture's `src/config.js` is imported by three
+files that each transform its value, so doubling the timeout silently doubles a
+budget and a probe interval. The measure is whether the agent **names the files
+its change affects** — no judge, a string match on the final answer.
+
+**Measured 2026-09-22 against `claude` 2.1.278, n=4 per arm:**
+
+```
+gated     surfaced impact 4/4 (100%)
+control   surfaced impact 0/4 (0%)          delta +100pp
+sensitivity (two identical ungated arms)    delta  +25pp   → noise floor
+```
+
+The effect is four times the measured noise. n=4 is small; treat the direction
+as established and the magnitude as approximate.
+
+### Two ways the first version of this eval was worthless
+
+Recorded because both are easy to repeat.
+
+1. **It scored the gate against its own denial.** The metric was "did a search
+   happen before the first Edit". A gated run's first Edit is the one the gate
+   *denies* — by construction it always looked like editing before searching.
+   The gate appeared to make things 33pp *worse*.
+2. **The metric was at the ceiling.** The control already searched 3/3 on a
+   task that obvious, so there was no headroom for any effect to appear. A
+   measure pinned at 100% cannot detect anything in either direction.
+
+Both were invisible until the eval ran and produced a result that did not make
+sense. A green eval proves nothing on its own; a red one is only useful if you
+read the runs rather than the verdict.

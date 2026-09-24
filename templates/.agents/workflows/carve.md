@@ -41,26 +41,28 @@ You are the Conductor wearing both **hats simultaneously**:
 
 **Announce:** *"We're entering Phase 0: Loading the Blueprint."*
 
-1.  **Load Context** (Read in this order):
+1.  **Target (fact — look it up):** If this workflow was started with a path (`/<workflow> <path>`), that folder is the Project: read from it and do not ask. Otherwise list `conductor/2-backlog/project-backlog/` by last change and recommend the most recent unfinished Project. If that folder holds a `handoff.md`, read it first: it lists what the previous session left open.
+
+2.  **Load Context** (Read in this order, inside the Project folder):
     * `blueprint/grand-prd.md` — Epics and scope
     * `blueprint/ux-ui-design-brief.md` — Screens, navigation, and interactions
     * `blueprint/technical-vision.md` — Data model, architecture, and tech stack
     * `conductor/4-context/meta/domain-model.md` — The ubiquitous language (slice names come from here)
     * `genesis/world-transformation.md` — The vision (for prioritization decisions)
 
-2.  **Present Blueprint Summary:**
+3.  **Present Blueprint Summary:**
     * *"From the Blueprint, I see:*
     *   *[X] Epics covering [scope summary]*
     *   *[Y] screens across [navigation areas]*
     *   *[Z] entities in the data model*
     *   *The architecture uses [key decisions]"*
 
-3.  **Surface Tensions:**
+4.  **Surface Tensions:**
     * Are there Epics that don't map cleanly to screens?
     * Are there screens that reference entities not in the data model?
     * Any mismatches between Grand PRD scope and Technical Vision scope?
 
-4.  **Confirm:** *"Blueprint loaded. Ready to slice?"*
+5.  **Confirm:** *"Blueprint loaded. Ready to slice?"*
     * Wait for confirmation before proceeding.
 
 ---
@@ -159,7 +161,7 @@ For each proposed Implementation:
 *Perform this for each Implementation, in order:*
 
 1.  **Define:**
-    * **Problem:** The user pain point this solves (tied to Genesis Problem Solar System)
+    * **Problem:** The user pain point this solves (tied to a symptom in `genesis/problem-solar-system.md`)
     * **Acceptance Criteria:** Specific, testable conditions — "A user can [verb] [noun]"
     * **Screens & Interactions:** Which screens from UX/UI Brief are included
     * **Entities & API:** Which parts of the data model and architecture are needed
@@ -213,8 +215,7 @@ For each proposed Implementation:
 * Which Implementation is recommended to start with
 
 **Next Steps:**
-- *"Ready to continue to **Spec-It** to detail implementation 01? Just say 'Spec it' when ready."*
-- *"Or if you want to jump straight to a later implementation, tell me which one."*
+- **Fresh session (`.agents/skills/handoff/SKILL.md`, *Between workflows*):** delete any `handoff.md` you read at the start. Write a new `handoff.md` into the folder the next command names only if this session leaves open questions or decisions that no document records. Then give the human the exact next command with the real path: *"Start a fresh session (Claude Code: `/clear`), then run `/spec-it conductor/2-backlog/project-backlog/[ProjectName]/implementations/01-[Name]`."* Name the recommended first Implementation; the human may pick another.
 
 ---
 

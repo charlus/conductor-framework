@@ -280,3 +280,122 @@ test("normalizeTask preserves a per-task verify command", () => {
   assert.equal(normalizeTask({ id: "x", verify: "npm run t:x" }).verify, "npm run t:x");
   assert.equal(normalizeTask({ id: "y" }).verify, null);
 });
+
+// ---- F7: conflict prediction in the merge queue ---------------------------
+//
+// Before this, a collision was discovered only when the merge was attempted:
+// the worker had already burned a beat, passed verify and passed the Checker,
+// and the human got "PR-gated merge failed: unknown". Prediction reorders the
+// queue so clean work still lands, and names the colliding files.
+
+test("F7: a predicted-clean task still merges when a sibling would conflict", async () => {
+  const merged = [];
+  const state = swarmState([{ id: "t1" }, { id: "t2" }], { concurrency: 2 });
+  await runSwarm(state, {
+    ...swarmDeps({
+      merge: async ({ task }) => {
+        merged.push(task.id);
+        return { ok: true, branch: `b/${task.id}`, prUrl: `http://pr/${task.id}` };
+      },
+    }),
+    predictConflict: async ({ task }) =>
+      task.id === "t1"
+        ? { conflicted: true, files: ["src/api/users.js"], method: "merge-tree" }
+        : { conflicted: false, files: [], method: "merge-tree" },
+  });
+
+  // t1 is never handed to merge — no doomed PR. t2 lands.
+  assert.deepEqual(merged, ["t2"]);
+  assert.equal(state.tasks.find((t) => t.id === "t2").status, "merged");
+  assert.equal(state.tasks.find((t) => t.id === "t1").status, "passed");
+});
+
+test("F7: the conflicting files reach the human, not 'unknown'", async () => {
+  const inbox = [];
+  const state = swarmState([{ id: "t1" }], { concurrency: 1 });
+  await runSwarm(state, {
+    ...swarmDeps(),
+    writeInbox: async (_s, reason) => inbox.push(reason),
+    predictConflict: async () => ({
+      conflicted: true,
+      files: ["src/api/users.js", "src/api/session.js"],
+      method: "merge-tree",
+    }),
+  });
+  const note = inbox.join("\n");
+  assert.match(note, /src\/api\/users\.js/);
+  assert.match(note, /src\/api\/session\.js/);
+  assert.match(note, /kept/i, "must say the branch is preserved");
+  assert.equal(state.status, "awaiting_review");
+});
+
+test("F7: clean branches merge before colliding ones", async () => {
+  const merged = [];
+  const state = swarmState([{ id: "t1" }, { id: "t2" }, { id: "t3" }], { concurrency: 3 });
+  await runSwarm(state, {
+    ...swarmDeps({
+      merge: async ({ task }) => {
+        merged.push(task.id);
+        return { ok: true, branch: `b/${task.id}`, prUrl: "u" };
+      },
+    }),
+    // t1 is first in wave order but predicted to collide; it must not block
+    // t2/t3 from landing, and it must not be merged at all.
+    predictConflict: async ({ task }) => ({
+      conflicted: task.id === "t1",
+      files: task.id === "t1" ? ["a.js"] : [],
+      method: "merge-tree",
+    }),
+  });
+  assert.deepEqual(merged, ["t2", "t3"]);
+});
+
+test("F7: with no predictor wired, the queue behaves exactly as before", async () => {
+  // Regression guard: prediction is additive. An unwired or unknown predictor
+  // must never change the merge path.
+  const merged = [];
+  const state = swarmState([{ id: "t1" }, { id: "t2" }], { concurrency: 2 });
+  await runSwarm(state, swarmDeps({
+    merge: async ({ task }) => {
+      merged.push(task.id);
+      return { ok: true, branch: `b/${task.id}`, prUrl: "u" };
+    },
+  }));
+  assert.deepEqual(merged, ["t1", "t2"]);
+  assert.equal(state.status, "completed");
+});
+
+test("F7: an 'unknown' prediction merges normally, never escalates", async () => {
+  const merged = [];
+  const state = swarmState([{ id: "t1" }], { concurrency: 1 });
+  await runSwarm(state, {
+    ...swarmDeps({
+      merge: async ({ task }) => {
+        merged.push(task.id);
+        return { ok: true, branch: "b", prUrl: "u" };
+      },
+    }),
+    predictConflict: async () => ({ conflicted: false, files: [], method: "unknown" }),
+  });
+  assert.deepEqual(merged, ["t1"]);
+  assert.equal(state.status, "completed");
+});
+
+test("F7: a predictor that throws does not take the swarm down", async () => {
+  // Prediction is an optimisation. If it breaks, the merge must still run.
+  const merged = [];
+  const state = swarmState([{ id: "t1" }], { concurrency: 1 });
+  await runSwarm(state, {
+    ...swarmDeps({
+      merge: async ({ task }) => {
+        merged.push(task.id);
+        return { ok: true, branch: "b", prUrl: "u" };
+      },
+    }),
+    predictConflict: async () => {
+      throw new Error("git exploded");
+    },
+  });
+  assert.deepEqual(merged, ["t1"]);
+  assert.equal(state.status, "completed");
+});

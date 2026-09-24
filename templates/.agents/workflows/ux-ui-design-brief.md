@@ -32,7 +32,7 @@ description: UX/UI Design Brief (Translating Epics into Interface)
 
 ## Phase 0: Setup — determine project and load context
 
-1. **Which project (decision):** Ask which project (or fresh). Then check for the Grand PRD at `…/[ProjectName]/blueprint/grand-prd.md` yourself.
+1. **Which project:** **Target (fact — look it up):** If this workflow was started with a path (`/<workflow> <path>`), that folder is the Project: read from it and do not ask. If that folder holds a `handoff.md`, read it first: it lists what the previous session left open. Otherwise ask which project (or fresh). Then check for the Grand PRD at `…/[ProjectName]/blueprint/grand-prd.md` yourself.
    - **If missing:** recommend running the Grand PRD workflow first (without it there are no Epics to design for). Proceed only if the user directs otherwise.
 2. **Load context (fact — look it up):** Read the Grand PRD (Epics, problems, outcomes), the Storyboard scenes, and Main Character.
 3. **Review the existing app (fact — look it up):** If there's a codebase, inspect current navigation, screens/routes, and patterns (lists, detail views, editing) yourself. Present where new screens fit into existing navigation and confirm patterns to follow. If greenfield, say so.
@@ -80,6 +80,7 @@ Work these phases in order. For **each**, apply Collaborative-Drafting's four mo
 ## Completion Protocol
 
 - **Recap:** "UX/UI Design Brief complete for `[ProjectName]` — [N] screens, [key navigation], [key interactions]." We now have the WHAT (PRD) and the INTERFACE (UX/UI).
+- **Fresh session (`.agents/skills/handoff/SKILL.md`, *Between workflows*):** delete any `handoff.md` you read at the start. Write a new `handoff.md` into the folder the next command names only if this session leaves open questions or decisions that no document records. Then give the human the exact next command with the real path: *"Start a fresh session (Claude Code: `/clear`), then run `/technical-vision conductor/2-backlog/project-backlog/[ProjectName]`."*
 - **Next step:** The **Technical Vision** workflow — how to build this interface.
 - **Project state:**
   ```

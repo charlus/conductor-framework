@@ -8,9 +8,66 @@
 |---|---|---|---|
 | `pre-commit` | **Test-Driven Law** | `git commit` | implementation code is staged with no test change |
 | `pre-commit` | **Eval-Driven Law** | `git commit` | code that calls an LLM provider is staged with no eval alongside (waiver: `CONDUCTOR_NO_EVAL="reason"`). See `skills/writing-evals/`. The two gates are independent — waiving one never skips the other. |
+| `pre-commit` | **Goodhart boundary** | `git commit` | a test file is deleted, a test is disabled (`.skip`/`.only`/`@pytest.mark.skip`/`#[ignore]`/`t.Skip`/`@Disabled`…), or the staged tests net-lose assertions (waiver: `CONDUCTOR_NO_BOUNDARY="reason"`) |
+| `pre-commit` | **Protected paths** | `git commit` | the change edits `.agents/hooks/`, `.agents/rules/`, `.agents/sandbox/` or the reviewer brief (waiver: `CONDUCTOR_NO_PROTECTED="reason"`) |
 | `pre-push` | **Verification Iron Law** | `git push` | the configured verification command exits non-zero |
 | `verification-stop-hook.sh` | Verification Iron Law (interactive) | Claude Code `Stop` | **opt-in** — code changed since HEAD and verify is red |
+| `pretooluse-no-bypass.sh` | every gate above | Claude Code `PreToolUse` | **opt-in** — a Bash call tries to skip the git hooks (`--no-verify`, `-n`, `-c core.hooksPath=`) |
+| `pretooluse-fact-gate.sh` | investigate before you write | Claude Code `PreToolUse` | **opt-in** — the first edit/creation of a file, and the first run of each destructive command, until the facts are stated (off: `CONDUCTOR_FACT_GATE=off`) |
 | `lib.sh` | — | sourced by the others | shared helpers |
+
+### Why the boundary gate exists
+
+The Test-Driven Law proves a test *changed*. It cannot tell a new test from a
+deleted one — `--diff-filter=ACM` never sees a deletion, and staging `.skip(`
+*is* a change. So the two cheapest ways to reach "all tests pass" — delete the
+failing test, skip the failing test — both satisfied it, and gutting the
+assertions satisfied it too. A done-criterion needs a boundary beside it: what
+the change must **not** do. That is this gate, and it is why the gate is
+independent of `CONDUCTOR_NO_TEST` (that waiver says "this change has no test
+surface", which is not a licence to remove proof that already exists).
+
+It is deliberately syntactic. A hook cannot judge whether removing a test was
+*right* — only that it happened. When it was right, say so in the waiver and
+the reason lands in the ship-log.
+
+### Why some paths are frozen
+
+"Build may not edit the acceptance conditions" is the rule every plan/build/judge
+loop rests on. The hooks, the always-on rules, the sandbox profile and the
+reviewer brief *are* the acceptance conditions, so whatever is being built does
+not get to edit what decides whether it passes. Workflows, skills and your
+project knowledge stay freely editable — freezing those would make the gate a
+tax rather than a boundary.
+
+A `conductor upgrade` legitimately rewrites these paths, and handles that
+itself: it commits exactly the framework files it wrote, with
+`CONDUCTOR_NO_PROTECTED` set so the waiver is still logged, and never sweeps in
+your own work. Then push as usual — `pre-push` carries the fingerprint of the
+official `pre-commit` and lets that exact file through. If you had uncommitted
+edits in those files, a merge was in progress, or you passed `--no-commit`, it
+prints the one command to run instead.
+
+**The gates judge a change with the copy already committed.** Both hooks load
+`lib.sh` from the last commit (at push, from what the remote already has), on
+top of the working-tree copy. So deleting, moving or rewriting `lib.sh` cannot
+switch the gates off for the commit that does it. And if the committed library
+cannot be loaded at all, the hook fails **closed** — it used to fail open,
+which let one deleted file disable every gate at once.
+
+**Disabling `pre-commit` is caught at the push.** git runs `pre-commit` from
+the working tree, so a commit that deletes, renames, un-chmods or *edits* it is
+judged by the altered copy — which may judge nothing. `pre-push` refuses a range
+that does any of those unless the push carries `CONDUCTOR_NO_PROTECTED="why"`.
+The reverse holds too: an edit to `pre-push` is a protected-path change that
+`pre-commit`, still running the committed library, blocks at commit.
+
+**What no local hook can stop.** git executes `pre-commit` and `pre-push`
+themselves from the working tree, so a change that rewrites *both entry
+scripts* runs the rewritten versions. That is a property of client-side hooks,
+not a gap in these ones. The backstop is server-side — the PR gate and branch
+protection — and, for `conductor loop`, the independent Checker, which reviews
+the diff that reached the branch rather than trusting the hooks that ran on it.
 
 ## Enabling the git hooks
 
@@ -69,14 +126,86 @@ Non-LLM projects (no eval files) never see this gate.
 Determinism can over-block legitimate config/doc work, so every gate has a logged bypass:
 
 ```bash
-CONDUCTOR_NO_TEST="config-only change"  git commit …    # TDD gate (pre-commit)
+CONDUCTOR_NO_TEST="config-only change"  git commit …     # TDD gate (pre-commit)
 CONDUCTOR_NO_EVAL="stub, no eval surface" git commit …   # Eval presence gate (pre-commit)
+CONDUCTOR_NO_BRIEF="pre-A5 spec" git commit …            # brief check (pre-commit)
+CONDUCTOR_NO_REPORT="editing an old entry" git commit …  # report shape (pre-commit)
+CONDUCTOR_NO_BOUNDARY="feature removed" git commit …     # Goodhart boundary (pre-commit)
+CONDUCTOR_NO_PROTECTED="conductor upgrade" git commit …  # protected paths (pre-commit)
 CONDUCTOR_SKIP_VERIFY="hotfix, tests offline" git push … # verify gate (pre-push)
 CONDUCTOR_SKIP_EVAL="eval infra down" git push …         # Eval run-gate (pre-push)
 CONDUCTOR_HOOKS=off git commit …                         # disable all Conductor hooks
 ```
 
-All four reasons are appended to `conductor/0-compass/ship-log.md` so bypasses stay auditable. Prefer these over `git commit --no-verify`, which silently skips *every* hook and leaves no trail.
+Every named reason is appended to `conductor/0-compass/ship-log.md`, so a bypass stays auditable. The rule is not *never bypass* — it is *every bypass is logged*. Prefer these over `git commit --no-verify`, which silently skips **every** hook and leaves no trail.
+
+## Optional: the fact gate (Claude Code)
+
+Every other gate here fires **after** the work: the Test-Driven Law and the
+Goodhart boundary at commit, the Verification Iron Law at push, the Checker
+after the beat. All of them catch a bad change once it exists. None of them
+stop a model writing one from a guess.
+
+Self-evaluation does not close that gap — ask a model "are you sure?" and the
+answer is always yes. Asking *"which files import this one"* does, because it
+cannot be answered without running a search, and running the search puts the
+answer in the context. The investigation is the point; the question only
+forces it.
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Edit|Write|Bash", "hooks": [ { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.agents/hooks/pretooluse-fact-gate.sh" } ] }
+    ]
+  }
+}
+```
+
+It denies the **first** edit or creation of each file, and the **first run of
+each** destructive command, naming the facts to state; the identical retry is
+then allowed. A *different* destructive command is gated on its own — each one
+destroys something different. Three questions per gate:
+
+| Gate | Asks for |
+|---|---|
+| Edit | every file that imports this one (searched, not recalled); the failing test this makes pass; the instruction verbatim |
+| Write | what will call the new file; what you searched to confirm nothing already does this; the instruction verbatim |
+| Destructive Bash | exactly what it destroys; a one-line rollback; the instruction verbatim |
+
+**What it does not do:** verify any of it. A `PreToolUse` hook sees the tool
+call, not the reasoning. It buys a pause and a prompt at the moment of action —
+do not read it as proof. `Read`, `Grep` and `Glob` are never gated; they are the
+investigation being demanded. Routine `Bash` is not gated either — ECC's
+GateGuard denies it once per session, but our loop runs many commands a beat and
+there is no investigation to buy there, only a wasted turn.
+
+After three denials in a session the message condenses to a single line carrying
+its ordinal. Identical repeated denials are what push a model into a repetition
+loop, so the gate keeps denying but stops repeating itself.
+
+Turn it off with `CONDUCTOR_FACT_GATE=off`, or everything with
+`CONDUCTOR_HOOKS=off`. Both `PreToolUse` hooks bound themselves with `timeout`
+(`CONDUCTOR_HOOK_TIMEOUT`, default 5s) and fail **open** on expiry: a hook in
+front of every tool call must never be able to wedge the session.
+
+## Optional: blocking the unlogged bypass (Claude Code)
+
+`--no-verify` defeats all of the above in one flag, and a sentence in a README is advisory — which is the whole reason these gates are code. Make it a block:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.agents/hooks/pretooluse-no-bypass.sh" } ] }
+    ]
+  }
+}
+```
+
+It denies `git commit --no-verify`, the `-n` shorthand, `git push --no-verify`, `-c core.hooksPath=` overrides and an inline `CONDUCTOR_HOOKS=off`, and the denial names the logged waiver to use instead. It fails **open** on anything unexpected — no node, unparseable input, an unknown shape — because a hook that blocks on its own errors would wedge every Bash call in the session. A quoted mention (`git commit -m "document --no-verify"`) is not a use, and is allowed.
+
+**Reach.** `PreToolUse` is a Claude Code mechanism, so this guards that harness only. On Codex and Antigravity the protection is after the fact, not before: `conductor loop` records a hook-bypassed commit and the improver surfaces the pattern across runs. Detection, not prevention — worth knowing which one you have.
 
 ## Optional: interactive Verification hook (Claude Code)
 

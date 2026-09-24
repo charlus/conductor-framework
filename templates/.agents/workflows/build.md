@@ -46,18 +46,20 @@ If either is missing:
 
 **Announce:** *"We're entering Build Mode. Let me load the context."*
 
-1.  **Load Context** (Read in this order):
+1.  **Target (fact — look it up):** If this workflow was started with a path (`/<workflow> <path>`), that folder is the Implementation: read from it and do not ask. Otherwise find the Project (list `conductor/2-backlog/project-backlog/` by last change) and recommend its first Implementation that is specced but not built. If that folder holds a `handoff.md`, read it first: it lists what the previous session left open. Delete it once its items are handled.
+
+2.  **Load Context** (Read in this order; `blueprint/` is in the Project folder, two levels above the Implementation):
     * `implementation-plan.md` — The phase-by-phase execution plan
     * `feature-spec.md` — The acceptance criteria and requirements
     * `blueprint/grand-prd.md` — The broader Epic context (for judgment calls)
     * Any relevant `conductor/4-context/` files (Technical, Design) if referenced
 
-2.  **Review Critically:**
+3.  **Review Critically:**
     * Does the plan make sense?
     * Are there gaps, ambiguities, or things you'd do differently?
     * If concerns: raise them NOW, before starting execution
 
-3.  **Create Task Tracker:**
+4.  **Create Task Tracker:**
     * Create a `task-tracker.md` in the Implementation folder
     * Extract every task from the Implementation Plan into a table:
 
@@ -68,11 +70,11 @@ If either is missing:
     | 2 | [task name from plan] | not_started | |
     ```
 
-4.  **Test Strategy:** Run the `analyze-tests` skill (`.agents/skills/analyze-tests/SKILL.md`) before touching implementation code. It decides what kinds of tests this implementation needs — that strategy is what each task's RED step below draws from.
+5.  **Test Strategy:** Run the `analyze-tests` skill (`.agents/skills/analyze-tests/SKILL.md`) before touching implementation code. It decides what kinds of tests this implementation needs — that strategy is what each task's RED step below draws from.
 
     * **Eval surface (Eval-Driven Law):** If any task calls an LLM provider (`openai`, `anthropic`, `langchain`, …), that feature's non-deterministic output needs an **evalset**, not just a test — load the `writing-evals` skill (`.agents/skills/writing-evals/SKILL.md`) for the three grading modes. The `pre-commit` hook enforces this: provider-calling code staged without an eval is blocked. Fold the evalset into that task's RED step alongside its test.
 
-5.  **Confirm:** *"Context loaded. [X] tasks identified, test strategy set. Ready to build?"*
+6.  **Confirm:** *"Context loaded. [X] tasks identified, test strategy set. Ready to build?"*
     * Wait for user confirmation before proceeding.
 
 ---

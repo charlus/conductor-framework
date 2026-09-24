@@ -12,7 +12,7 @@ A long conversation degrades: the more tokens in context, the worse the reasonin
 Effective reasoning lives in a **smart zone** — roughly the first ~120k tokens of a context window. Past it, recall and judgement fall off even when the window technically has room. So:
 
 - **Hand off *before* you leave the smart zone**, not after quality has already dropped.
-- **Keep one coherent chain of work in one window.** A discovery → spec → tickets chain wants continuity — do it in one session. But a fresh *build* of a well-specced ticket should start clean: the spec is the contract, the exploration that produced it is noise.
+- **One workflow per session.** Each Conductor workflow writes its result to documents, and the next one reads them from disk. The documents are the contract; the conversation that produced them is noise. See *Between workflows* below.
 - Prefer **many short, focused sessions** over one sprawling one.
 
 ## When to hand off
@@ -21,6 +21,14 @@ Effective reasoning lives in a **smart zone** — roughly the first ~120k tokens
 - You're moving from *planning* to *doing* (the planning transcript is dead weight for the doer).
 - The loop is starting a new iteration/implementation that doesn't need the last one's transcript.
 - A human or another agent will take over.
+
+## Between workflows
+
+The planning chain is Genesis → Storyboard → Grand PRD → UX/UI Design Brief → Technical Vision → Carve → Spec-It → Build. Run each step in a fresh session. A model given requirements across many conversation turns does worse than the same model given the same content at once (Laban et al., 2025: −39% on average; joining the same fragments into one prompt recovered ~95%). A fresh session that reads the documents gets the second case.
+
+1. **The next command carries the path.** At completion, give the human the exact command with the real folder: `/clear`, then `/carve conductor/2-backlog/project-backlog/Billing`. For Spec-It and Build the path is the Implementation folder. Do not keep a "current project" pointer file: it goes stale, and it breaks when several projects are active.
+2. **The receiving workflow reads that path and does not ask.** With no path, it lists the Projects by last change and recommends the most recent unfinished one.
+3. **`handoff.md` only for what no document holds.** If the session leaves open questions or decisions that no document records, write them to `handoff.md` in the folder the next command names, using the structure below. If everything is in the documents, write nothing. The receiving workflow reads `handoff.md` first. When it finishes, it deletes the file it read, and writes a new one only for its own open items.
 
 ## Writing the handoff
 

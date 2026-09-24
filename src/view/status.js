@@ -106,6 +106,38 @@ function verifyLine(verify, c) {
 }
 
 /**
+ * One line for the git gates: armed, or why not and the fix. "Armed" is what
+ * git will do, not what is installed — a lost executable bit or a foreign
+ * hooksPath leaves every law as prose, and nothing else on screen says so.
+ */
+function gatesLine(gates, c) {
+  switch (gates.hooks) {
+    case "not-git":
+      return c("not a git repository — nothing to wire", "dim");
+    case "missing":
+      return c("OFF — .agents/hooks/ is missing · fix: conductor upgrade", "red");
+    case "custom":
+      return c(`not wired — core.hooksPath is '${gates.customPath}' · see .agents/hooks/README.md`, "yellow");
+    case "on": {
+      const names = [gates.guards?.bypass && "bypass blocker", gates.guards?.factGate && "fact gate"].filter(Boolean);
+      const guards = names.length
+        ? `agent guard${names.length > 1 ? "s" : ""}: ${names.join(", ")}`
+        : "agent guards: none (opt-in)";
+      return `on · commit + push · ${c(guards, "dim")}`;
+    }
+    default:
+      return c("OFF — commits and pushes are not checked · fix: conductor install-hooks", "red");
+  }
+}
+
+/** One line for the waivers logged in the window. A waived gate is not a gate. */
+function waiversLine(waivers, c) {
+  if (!waivers?.count) return c(`none in ${waivers?.days ?? 30} days`, "dim");
+  const kinds = waivers.byKind.map((k) => `${k.kind} ×${k.count}`).join(", ");
+  return c(`${waivers.count} in ${waivers.days} days · ${kinds}`, "yellow");
+}
+
+/**
  * Render the digest.
  *
  * @param {object} state from buildState
@@ -140,6 +172,12 @@ export function renderStatus(state, { color = true, width = 78 } = {}) {
   lines.push(`  ${c("Loop".padEnd(9), "dim")}${loopLine(d.loop)}`);
   lines.push(`  ${c("Ship-log".padEnd(10), "dim")}${shipLogLine(d.shipLog, c)}`);
   lines.push(`  ${c("Push gate".padEnd(10), "dim")}${verifyLine(d.verify, c)}`);
+  if (d.gates) {
+    lines.push(`  ${c("Gates".padEnd(10), "dim")}${gatesLine(d.gates, c)}`);
+    if (d.gates.hooks !== "not-git") {
+      lines.push(`  ${c("Waivers".padEnd(10), "dim")}${waiversLine(d.gates.waivers, c)}`);
+    }
+  }
 
   // Leads everything below the digest: across several products this is the
   // only line that cannot be answered by anyone else. Absent when empty — an

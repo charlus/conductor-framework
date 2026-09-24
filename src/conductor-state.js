@@ -181,6 +181,33 @@ export function summariseShipLog(md, { now = Date.now() } = {}) {
 }
 
 /**
+ * Count the hook waivers logged in the last `days` days.
+ *
+ * Reads the exact line `hooks/lib.sh conductor_log_waiver` appends:
+ * `- [YYYY-MM-DD HH:MM] Hook waiver (Kind): reason`. A gate waived every week
+ * is a gate in name only, and this is the one place that shows it.
+ *
+ * @param {string|undefined} md
+ * @param {{now?: number, days?: number}} [opts]
+ * @returns {{count: number, days: number, byKind: Array<{kind: string, count: number}>}}
+ */
+export function summariseWaivers(md, { now = Date.now(), days = 30 } = {}) {
+  const since = now - days * DAY_MS;
+  const counts = new Map();
+  let count = 0;
+  for (const m of String(md ?? "").matchAll(/^- \[(\d{4})-(\d{2})-(\d{2})[^\]]*\] Hook waiver \(([^)]+)\)/gm)) {
+    const at = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (at < since - DAY_MS || at > now) continue;
+    count += 1;
+    counts.set(m[4], (counts.get(m[4]) ?? 0) + 1);
+  }
+  const byKind = [...counts]
+    .map(([kind, n]) => ({ kind, count: n }))
+    .sort((a, b) => b.count - a.count || a.kind.localeCompare(b.kind));
+  return { count, days, byKind };
+}
+
+/**
  * Pull the decisions a ship-log still has waiting on the human.
  *
  * WHY. `status` answered "what is on our plate" with counts and freshness.
@@ -230,6 +257,7 @@ export function openDecisions(md) {
  * @param {string} [input.shipLogMd]
  * @param {number|null} [input.mergesSinceShipLog] merges in THIS repo since the last entry; null = unknown
  * @param {string|null} [input.verifyCommand] what pre-push will run; null/blank = the gate is off
+ * @param {object|null} [input.gateWiring] from readGateWiring; null = unknown
  * @param {number} [input.now]
  * @param {number} [input.staleDays]
  */
@@ -243,6 +271,7 @@ export function buildState({
   shipLogMd = "",
   mergesSinceShipLog = null,
   verifyCommand = null,
+  gateWiring = null,
   now = Date.now(),
   staleDays = 30,
 }) {
@@ -329,6 +358,9 @@ export function buildState({
         const state = !cmd ? "unset" : cmd.toLowerCase() === NONE ? NONE : "set";
         return { state, configured: state === "set", command: state === "set" ? cmd : null };
       })(),
+      gates: gateWiring
+        ? { ...gateWiring, waivers: summariseWaivers(shipLogMd, { now }) }
+        : null,
     },
     inbox: { relPath: INBOX_REL, items: inboxItems },
     backlog: { relPath: BACKLOG_REL, ...backlog },
@@ -476,6 +508,85 @@ async function countMergesSince(root, date) {
   }
 }
 
+const HOOKS_REL = ".agents/hooks";
+
+/** True when the file exists and has an executable bit — git skips it otherwise, silently. */
+async function isExecutable(path) {
+  try {
+    return ((await stat(path)).mode & 0o111) !== 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Which Conductor guards a Claude Code settings file wires as PreToolUse hooks. */
+function guardsIn(raw) {
+  let settings;
+  try {
+    settings = JSON.parse(raw);
+  } catch {
+    return { bypass: false, factGate: false };
+  }
+  const entries = Array.isArray(settings?.hooks?.PreToolUse) ? settings.hooks.PreToolUse : [];
+  const commands = entries
+    .flatMap((e) => (Array.isArray(e?.hooks) ? e.hooks : []))
+    .map((h) => String(h?.command ?? ""));
+  return {
+    bypass: commands.some((c) => c.includes("pretooluse-no-bypass.sh")),
+    factGate: commands.some((c) => c.includes("pretooluse-fact-gate.sh")),
+  };
+}
+
+/**
+ * Whether git will actually run the Conductor hooks here, and which opt-in
+ * Claude Code guards are wired. Mirrors `conductor install-hooks`: armed means
+ * `core.hooksPath` resolves to `.agents/hooks` and both entry scripts are
+ * executable. Anything less and every law is prose.
+ *
+ * @returns {Promise<{hooks: "on"|"off"|"custom"|"missing"|"not-git", customPath?: string, guards: {bypass: boolean, factGate: boolean}}>}
+ */
+export async function readGateWiring(root) {
+  const settings = await Promise.all(
+    ["settings.json", "settings.local.json"].map((f) => readIfPresent(join(root, ".claude", f))),
+  );
+  const guards = settings
+    .filter((raw) => raw !== null)
+    .map(guardsIn)
+    .reduce((a, b) => ({ bypass: a.bypass || b.bypass, factGate: a.factGate || b.factGate }), {
+      bypass: false,
+      factGate: false,
+    });
+
+  try {
+    const { stdout } = await execFileP("git", ["rev-parse", "--is-inside-work-tree"], { cwd: root });
+    if (stdout.trim() !== "true") return { hooks: "not-git", guards };
+  } catch {
+    return { hooks: "not-git", guards };
+  }
+
+  let hooksPath = "";
+  try {
+    ({ stdout: hooksPath } = await execFileP("git", ["config", "--get", "core.hooksPath"], { cwd: root }));
+    hooksPath = hooksPath.trim();
+  } catch {
+    hooksPath = ""; // unset: git exits 1
+  }
+
+  const hooksDir = join(root, HOOKS_REL);
+  const ours = hooksPath.replace(/\/+$/, "") === HOOKS_REL || hooksPath.replace(/\/+$/, "") === hooksDir;
+  if (hooksPath && !ours) return { hooks: "custom", customPath: hooksPath, guards };
+
+  try {
+    await stat(hooksDir);
+  } catch {
+    return { hooks: "missing", guards };
+  }
+  if (!hooksPath) return { hooks: "off", guards };
+
+  const armed = (await Promise.all(["pre-commit", "pre-push"].map((h) => isExecutable(join(hooksDir, h))))).every(Boolean);
+  return { hooks: armed ? "on" : "off", guards };
+}
+
 /** Every markdown file under `conductor/`, excluding the derived views. */
 async function walkDocs(root) {
   const base = join(root, CONDUCTOR_DIR);
@@ -542,6 +653,7 @@ export async function collectState(root, { now = Date.now(), staleDays = 30 } = 
   }
 
   const docs = await walkDocs(root);
+  const gateWiring = await readGateWiring(root);
   const present = inboxMd !== null || backlogMd !== null || docs.length > 0;
 
   return {
@@ -556,6 +668,7 @@ export async function collectState(root, { now = Date.now(), staleDays = 30 } = 
       shipLogMd: shipLogMd ?? "",
       mergesSinceShipLog,
       verifyCommand,
+      gateWiring,
       now,
       staleDays,
     }),

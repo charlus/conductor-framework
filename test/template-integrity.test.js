@@ -185,6 +185,12 @@ describe("E5.5 — host integration points are the only host-specific references
   const ALLOWED = new Set([
     "hooks/README.md",
     "hooks/verification-stop-hook.sh",
+    // PreToolUse is a Claude Code mechanism with no cross-host equivalent, so
+    // the bypass blocker is an integration point like the Stop hook above, not
+    // methodology. Its own header states the reach limit and names the
+    // after-the-fact fallback the other engines get.
+    "hooks/pretooluse-no-bypass.sh",
+    "hooks/pretooluse-fact-gate.sh",
     "sandbox/README.md",
     "how-it-works.md",
     "tests/check-conductor.sh",

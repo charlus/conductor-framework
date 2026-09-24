@@ -6,6 +6,10 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Claude Code can find Conductor's skills
+
+- **`init` and `upgrade` now generate `.claude/skills/<name>/SKILL.md`** for every skill in `.agents/skills/`. Claude Code finds skills only there. Before, a skill that no workflow loads by path, for example `handoff`, was reachable in Claude Code only by an `@` file reference. Each shim redirects to the real file, the same as the `.claude/commands/` shims. A user's own `.claude/skills/<name>/` is never overwritten. Stale generated shims are removed. Verified live: a headless Claude Code session in a fresh install lists `handoff`.
+
 ---
 
 ## [6.4.0] — 2026-09-16 — Product-Owner Reporting, the Brief Check, the Ship Tail & Terminal Surfaces

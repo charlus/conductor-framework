@@ -186,6 +186,8 @@ button:disabled { opacity: .5; cursor: default; }
 .thread { max-width: 860px; margin: 0 auto 8px; font-size: 13.5px; color: var(--muted); }
 .thread div { padding: 2px 0; }
 .done { text-align: center; padding: 14px; font-weight: 600; color: var(--accent); }
+.notice { max-width: 860px; margin: 0 auto 6px; font-size: 13px; color: var(--warn); }
+.notice:empty { display: none; }
 article [data-anchorable] { cursor: pointer; border-radius: 4px;
   transition: background .12s, box-shadow .12s; }
 article [data-anchorable]:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
@@ -205,6 +207,7 @@ article [data-anchorable].picked { background: color-mix(in srgb, var(--accent) 
 </div>
 <div class="panel">
   <div class="thread" id="thread"></div>
+  <div class="notice" id="notice" role="status"></div>
   <div class="anchored" id="anchored">
     <span>on</span><b id="anchor-snippet"></b>
     <button id="anchor-clear" type="button">clear</button>
@@ -224,6 +227,7 @@ article [data-anchorable].picked { background: color-mix(in srgb, var(--accent) 
   var doc = document.getElementById("doc");
   var anchoredBar = document.getElementById("anchored");
   var anchorSnippet = document.getElementById("anchor-snippet");
+  var notice = document.getElementById("notice");
   var picked = null;
 
   // Pointing at a paragraph is the entire reason this is a page and not a
@@ -264,6 +268,14 @@ article [data-anchorable].picked { background: color-mix(in srgb, var(--accent) 
   }
 
   doc.addEventListener("click", function (e) {
+    // A link in the plan, such as [spec](other.md), is a same-tab link to a page
+    // this server does not have: following it would 404 and drop anything
+    // unsent. The click still anchors its paragraph, which is what a click
+    // on this page means.
+    var link = e.target.closest("a");
+    if (link && doc.contains(link) && (link.getAttribute("href") || "").charAt(0) !== "#") {
+      e.preventDefault();
+    }
     var el = e.target.closest("[data-anchorable]");
     if (!el || !doc.contains(el)) return;
     setAnchor(el === picked ? null : el);
@@ -285,12 +297,19 @@ article [data-anchorable].picked { background: color-mix(in srgb, var(--accent) 
     });
   }
 
+  // A send either reaches the server or it did not; there is no third case
+  // that should cost the human their words. The first version cleared the box
+  // BEFORE sending and drew an empty thread on a bad response, so a click into
+  // a review whose process had ended silently erased what they had written.
   function send(payload) {
     return fetch("api/feedback", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload)
-    }).then(function (r) { return r.json(); }).then(function (s) {
+    }).then(function (r) {
+      if (!r.ok) throw new Error("status " + r.status);
+      return r.json();
+    }).then(function (s) {
       draw(s.feedback || []);
       if (s.done) {
         controls.innerHTML = '<div class="done">Sent \u2014 ' + s.status +
@@ -301,28 +320,38 @@ article [data-anchorable].picked { background: color-mix(in srgb, var(--accent) 
     });
   }
 
+  function notSent() {
+    notice.textContent = "Not sent \u2014 this review is no longer running. " +
+      "Your text is still in the box: re-run conductor review, then send it again.";
+  }
+
+  function sent() {
+    text.value = "";
+    notice.textContent = "";
+  }
+
   function sendText(t) {
-    if (picked) {
-      var payload = {
-        kind: "annotation",
-        text: t,
-        anchor: {
-          selector: selectorFor(picked),
-          tag: picked.tagName.toLowerCase(),
-          snippet: (picked.textContent || "").trim().slice(0, 300)
-        }
-      };
-      setAnchor(null);
-      return send(payload);
-    }
-    return send({ kind: "comment", text: t });
+    var el = picked;
+    var payload = el ? {
+      kind: "annotation",
+      text: t,
+      anchor: {
+        selector: selectorFor(el),
+        tag: el.tagName.toLowerCase(),
+        snippet: (el.textContent || "").trim().slice(0, 300)
+      }
+    } : { kind: "comment", text: t };
+    // The anchor is released only once the note has actually landed.
+    return send(payload).then(function (s) {
+      if (el && picked === el) setAnchor(null);
+      return s;
+    });
   }
 
   document.getElementById("comment").addEventListener("click", function () {
     var t = text.value.trim();
     if (!t) return;
-    text.value = "";
-    sendText(t);
+    sendText(t).then(sent, notSent);
   });
 
   ["approve", "changes"].forEach(function (id) {
@@ -330,8 +359,9 @@ article [data-anchorable].picked { background: color-mix(in srgb, var(--accent) 
       var t = text.value.trim();
       var verdict = this.getAttribute("data-verdict");
       var chain = t ? sendText(t) : Promise.resolve();
-      text.value = "";
-      chain.then(function () { return send({ kind: "verdict", verdict: verdict }); });
+      chain
+        .then(function () { return send({ kind: "verdict", verdict: verdict }); })
+        .then(sent, notSent);
     });
   });
 })();

@@ -53,15 +53,6 @@ describe("F4 — the review page", () => {
     assert.ok(!/<link[^>]+stylesheet/.test(html), "no external stylesheet");
   });
 
-  test("the document is pointable, not just readable", () => {
-    const html = renderReviewPage({ markdown: MD, title: "Plan", artifactPath: "/p/plan.md" });
-    // The affordance that makes this a canvas rather than a comment box.
-    assert.match(html, /data-anchorable/);
-    assert.match(html, /kind: "annotation"/);
-    // Anchoring an inline element yields a selector the agent cannot act on.
-    assert.match(html, /h1,h2,h3,h4,h5,h6,p,li,pre,blockquote,tr/);
-  });
-
   test("escapes the artifact path rather than interpolating it raw", () => {
     const html = renderReviewPage({
       markdown: "# x\n",
@@ -510,3 +501,158 @@ async function post(baseUrl, body) {
   });
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// The page's own script, run for real.
+//
+// Coverage review, B9: the previous "the document is pointable" test checked
+// that the strings `data-anchorable` and `kind: "annotation"` appeared in the
+// page — and both also appear in its CSS and script text, so the test stayed
+// green with click-to-anchor deleted. That left DoD-22 with no behavioural
+// evidence at all. So this runs the EXACT script renderReviewPage ships
+// against a minimal DOM and asserts what a click actually sends.
+// ---------------------------------------------------------------------------
+
+class El {
+  constructor(tag, text = "", attrs = {}) {
+    this.tagName = tag.toUpperCase();
+    this.children = [];
+    this.parentElement = null;
+    this.attrs = { ...attrs };
+    this.listeners = {};
+    this._text = text;
+    this.value = "";
+    const set = new Set();
+    this.classList = { add: (c) => set.add(c), remove: (c) => set.delete(c), contains: (c) => set.has(c) };
+  }
+  append(...kids) { for (const k of kids) { k.parentElement = this; this.children.push(k); } return this; }
+  appendChild(k) { return this.append(k); }
+  set innerHTML(_) { this.children = []; this._text = ""; }
+  get textContent() { return this._text + this.children.map((c) => c.textContent).join(""); }
+  set textContent(v) { this._text = String(v); this.children = []; }
+  setAttribute(k, v) { this.attrs[k] = String(v); }
+  getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }
+  addEventListener(t, f) { (this.listeners[t] ??= []).push(f); }
+  focus() {}
+  get previousElementSibling() {
+    const sibs = this.parentElement?.children ?? [];
+    const i = sibs.indexOf(this);
+    return i > 0 ? sibs[i - 1] : null;
+  }
+  matches(sel) {
+    const attr = sel.match(/^\[([\w-]+)\]$/);
+    if (attr) return attr[1] in this.attrs;
+    return sel.split(",").map((x) => x.trim().toUpperCase()).includes(this.tagName);
+  }
+  closest(sel) { let n = this; while (n) { if (n.matches(sel)) return n; n = n.parentElement; } return null; }
+  contains(el) { let n = el; while (n) { if (n === this) return true; n = n.parentElement; } return false; }
+  querySelectorAll(sel) {
+    const out = [];
+    const walk = (n) => { for (const c of n.children) { if (c.matches(sel)) out.push(c); walk(c); } };
+    walk(this);
+    return out;
+  }
+}
+
+/** Build the page's DOM, run its real script, and hand back the controls. */
+function mountPage({ fetchImpl } = {}) {
+  const html = renderReviewPage({ markdown: "# Plan\n", title: "Plan", artifactPath: "/p/plan.md" });
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+
+  const byId = {};
+  const el = (tag, id, text = "", attrs = {}) => { const e = new El(tag, text, attrs); if (id) byId[id] = e; return e; };
+  const link = el("a", null, "the other doc", { href: "other.md" });
+  const doc = el("article", "doc").append(
+    el("h1", null, "Plan"),
+    el("h2", null, "Phase 1"),
+    el("p", null, "Do the thing."),
+    el("h2", null, "Phase 2"),
+    el("p", null, "See ").append(link),
+  );
+  for (const id of ["thread", "text", "controls", "anchored", "anchor-snippet", "anchor-clear", "comment", "notice"]) {
+    if (!byId[id]) el(id === "text" ? "textarea" : "div", id);
+  }
+  el("button", "approve", "Approve", { "data-verdict": "approve" });
+  el("button", "changes", "Request changes", { "data-verdict": "request-changes" });
+
+  const sent = [];
+  const fetch = fetchImpl ?? (async (_url, opts) => {
+    sent.push(JSON.parse(opts.body));
+    return { ok: true, status: 200, json: async () => ({ feedback: sent, done: false }) };
+  });
+  const document = { getElementById: (id) => byId[id] ?? null, createElement: (t) => new El(t) };
+  new Function("document", "fetch", "window", script)(document, fetch, {});
+
+  const fire = (target, type = "click") => {
+    const ev = { target, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+    for (let n = target; n; n = n.parentElement) for (const f of n.listeners[type] ?? []) f.call(n, ev);
+    return ev;
+  };
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+  return { byId, doc, link, sent, fire, flush, h2: doc.children[3] };
+}
+
+describe("F4 — the page's script, run for real (review B9, I1, I2)", () => {
+  test("clicking a heading anchors the next note to it", async () => {
+    const page = mountPage();
+    page.fire(page.h2);
+    page.byId.text.value = "Split this into two phases";
+    page.fire(page.byId.comment);
+    await page.flush();
+    assert.equal(page.sent.length, 1);
+    const note = page.sent[0];
+    assert.equal(note.kind, "annotation");
+    assert.equal(note.anchor.tag, "h2");
+    assert.equal(note.anchor.snippet, "Phase 2");
+    assert.match(note.anchor.selector, /h2:nth-of-type\(2\)$/, "the SECOND h2, not the first");
+  });
+
+  test("clicking the same element again clears the anchor", async () => {
+    const page = mountPage();
+    page.fire(page.h2);
+    page.fire(page.h2);
+    page.byId.text.value = "a general note";
+    page.fire(page.byId.comment);
+    await page.flush();
+    assert.equal(page.sent[0].kind, "comment");
+  });
+
+  test("a note sent with a verdict carries its anchor, then the verdict", async () => {
+    const page = mountPage();
+    page.fire(page.h2);
+    page.byId.text.value = "not this phase";
+    page.fire(page.byId.changes);
+    await page.flush(); await page.flush();
+    assert.deepEqual(page.sent.map((s) => s.kind), ["annotation", "verdict"]);
+    assert.equal(page.sent[1].verdict, "request-changes");
+  });
+
+  test("a click into a server that has gone keeps the human's words (I1)", async () => {
+    // It used to clear the box before sending and wipe the thread on a bad
+    // response, so a click into a dead review silently erased what they wrote.
+    const page = mountPage({ fetchImpl: async () => { throw new TypeError("Failed to fetch"); } });
+    page.byId.text.value = "this took me ten minutes to write";
+    page.fire(page.byId.comment);
+    await page.flush(); await page.flush();
+    assert.equal(page.byId.text.value, "this took me ten minutes to write");
+    assert.match(page.byId.notice.textContent, /not sent/i);
+  });
+
+  test("a refused response keeps the words too, and does not wipe the thread (I1)", async () => {
+    const page = mountPage({ fetchImpl: async () => ({ ok: false, status: 403, json: async () => ({}) }) });
+    page.byId.thread.append(new El("div", "an earlier note"));
+    page.byId.text.value = "keep me";
+    page.fire(page.byId.approve);
+    await page.flush(); await page.flush();
+    assert.equal(page.byId.text.value, "keep me");
+    assert.match(page.byId.thread.textContent, /an earlier note/, "the thread was wiped");
+  });
+
+  test("clicking a link in the plan does not navigate the review away (I2)", () => {
+    // `[spec](other.md)` rendered as a same-tab link: clicking it left the
+    // page for a 404 and dropped anything unsent.
+    const page = mountPage();
+    const ev = page.fire(page.link);
+    assert.equal(ev.defaultPrevented, true);
+  });
+});

@@ -1,11 +1,10 @@
 # Peer-Framework Harvest (ECC) — F1–F15
 
-> **Status:** all five "do now" items shipped 2026-09-22 — F9/F11/F12
-> (`943fee5`), F7 (`8587ab4`), F3 (`09234ce`), F1 (`dea93a2`, measured) —
-> plus **F4** (slices 1 and 2, `3309702` + `21bdaf7`) and **F15** (`bceb57c`).
-> **The harvest is complete.** F8 and F10 are deliberately unbuilt with
-> reasoning; F6 is dropped; F2, F5, F13, F14 are parked. Nothing is
-> outstanding — the next move on this line of work is measurement, not code.
+> **Status:** complete and in PR #33 (branch `feat/goodhart-boundary-and-bypass-gates`,
+> head `cbbd024`), awaiting the maintainer's merge. Shipped: F9/F11/F12, F7, F3, F1
+> (measured), F4 (both slices), F15. F8 and F10 deliberately unbuilt; F6 dropped;
+> F2, F5, F13, F14 parked. Three independent review rounds found 18 blockers, all
+> fixed — the last commit is author-verified only, by the maintainer's decision D3.
 >
 > **Source:** a source audit of **ECC** (`github.com/affaan-m/ecc`, `ecc-universal`
 > 2.2.1, read at `bf70150`, 2026-09-22) — 68 agents, 292 skills, 94 command shims,
@@ -244,3 +243,33 @@ is their product and would be our liability.
 **One operational note if ECC is ever installed for real:** its `hooks.json`
 embeds a minified plugin-root resolver that then executes node scripts from a
 path discovered at runtime. Executable config with a hairy resolution path.
+
+---
+
+## 5. What independent review found (PR #33)
+
+Three rounds, rubric v2, Opus reviewers. 6 blockers, then 7, then 3; every one
+reproduced before it was fixed, and fixed by class with the reviewer's own
+counterexample as the failing test.
+
+The findings clustered in one place: the **client-side enforcement hooks**. Each
+round found a new edge of the same question — can a git hook be bypassed? — and
+that question has no terminating answer, because git runs the hooks from files
+the agent can edit. It is the same unbounded-question failure recorded for the
+review gate itself. The maintainer decided the standard twice rather than let it
+run on: **D2**, the bypass blocker stops the ordinary bypass and states its limit;
+**D3**, the round-3 blockers are fixed author-verified and merged without a
+fourth round. The real backstop for a determined bypass is server-side — the PR
+gate and the loop's Checker.
+
+What the rounds caught that the author's own suites did not, in order of cost:
+- a single `exit 0` in `lib.sh` switched every gate off, and the first fix for
+  that still ran the working-tree copy first;
+- any page on another localhost port could approve a review;
+- the conflict predictor reported a false collision for any file containing
+  marker text — breaking the one promise the module makes;
+- four tests passed with the thing they were named for deleted.
+
+And two regressions introduced by fixes, both caught: an anchored `rm` pattern
+that stopped gating `sh -c "rm -rf …"`, and a timeout rounding that shelled out
+to `awk` and gave perl `alarm ""` where awk was absent.

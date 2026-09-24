@@ -209,7 +209,7 @@ Mechanics live in `.agents/skills/context-engineering/SKILL.md`.
 
 | Command | What it is for |
 |---|---|
-| `conductor status` | The daily question, answered in one screen: inbox depth, open tasks per priority, the work queue in the order the loop would drain it, stale documents, loop state. Costs no tokens and no context — never ask an agent to summarise state instead. |
+| `conductor status` | The daily question, answered in one screen: inbox depth, open tasks per priority, the work queue in the order the loop would drain it, stale documents, loop state, and whether the gates are armed (push command, git hooks wired, opt-in agent guards, waivers in the last 30 days). Costs no tokens and no context — never ask an agent to summarise state instead. |
 | `conductor inbox add "…"` / `conductor inbox list` | Deterministic quick capture and read-back. |
 | `conductor review <file.md>` | Hands one document to the human for sign-off: rendered in the browser, text-anchored comments, **Approve** / **Request changes**. Exit `0` approved, `2` changes requested, `1` no verdict; stdout is JSON. Run it in the background and read the JSON when it exits. |
 | `conductor survey [dir] [--out <file>]` | Facts about an existing codebase: languages, coverage by area (untested first), entry points, routes, config keys, dependencies. Used by `workflows/survey.md`. An area marked untested is a place to check, not a proven gap. |

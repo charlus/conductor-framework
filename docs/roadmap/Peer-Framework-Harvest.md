@@ -18,8 +18,10 @@
 >
 > **Not verified:** nothing in ECC was executed. Every claim about it is from
 > reading source. Our own three gates are proven by behaviour tests that install
-> the real hooks into a temp repo and run real `git`; the PreToolUse hook is
-> proven against its stdin contract, not yet inside a live Claude Code session.
+> the real hooks into a temp repo and run real `git`. Both PreToolUse hooks
+> were run in a live Claude Code session on 2026-09-24 (§6). Still unverified:
+> the `perl` timeout fallback on macOS, the modern `merge-tree` path, and
+> conflict prediction in a real swarm run.
 
 ---
 
@@ -274,3 +276,30 @@ What the rounds caught that the author's own suites did not, in order of cost:
 And two regressions introduced by fixes, both caught: an anchored `rm` pattern
 that stopped gating `sh -c "rm -rf …"`, and a timeout rounding that shelled out
 to `awk` and gave perl `alarm ""` where awk was absent.
+
+---
+
+## 6. Live-session test of the PreToolUse hooks (2026-09-24)
+
+`claude` 2.1.281, headless `claude -p` with `--allowedTools
+"Bash,Edit,Write,Read,Grep,Glob"`, run against a fresh `conductor init --all`
+project with both hooks in the project's `.claude/settings.json`, as the hooks
+README documents. One session per scenario, so the fact gate's per-session
+state starts empty each time.
+
+| Scenario | Result |
+|---|---|
+| `git commit --allow-empty --no-verify` | Denied by `pretooluse-no-bypass.sh`. No commit made. |
+| `git -c core.hooksPath=/dev/null commit` | Denied by `pretooluse-no-bypass.sh`. No commit made. |
+| First Edit of `src/price.js` | Denied by the fact gate. The model searched the callers, wrote a failing test, confirmed it failed on the assertion, and the identical retry was allowed. |
+| First Write of a new file | Denied, then the identical retry was allowed. |
+| `rm -rf build` | Denied, then the identical retry was allowed. A changed command (`… && ls build`) was denied again, as designed. |
+| `ls src && git status --short` | Not gated. |
+
+The denial reaches the model as `PreToolUse:<Tool> hook error: …` followed by
+the hook's full message, and the model acted on it in every case.
+
+**Fixture trap.** The first run placed the test projects under `~/.claude/`.
+Claude Code refuses every edit there as a "sensitive file", after the hook has
+already allowed it, so the edit scenarios looked broken when the hook was not.
+Live fixtures go under `/tmp`.

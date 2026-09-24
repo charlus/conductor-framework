@@ -71,7 +71,7 @@ A source audit of ECC (`github.com/affaan-m/ecc`) ran its loop-failure taxonomy 
 
 ### Review record
 
-Three independent review rounds on PR #33 found 18 blockers, all fixed. Two commits are author-verified only: `cbbd024` (the final round's findings, by decision) and `d224e38` (the self-committing upgrade, requested after review closed). Not verified: both `PreToolUse` hooks in a live session since their last fixes, the `perl` fallback on macOS, the modern `merge-tree` path, and conflict prediction in a real swarm run.
+Three independent review rounds on PR #33 found 18 blockers, all fixed. Two commits are author-verified only: `cbbd024` (the final round's findings, by decision) and `d224e38` (the self-committing upgrade, requested after review closed). Both `PreToolUse` hooks were run in a live Claude Code session on 2026-09-24 and behaved as documented (`docs/roadmap/Peer-Framework-Harvest.md` §6). Not verified: the `perl` fallback on macOS, the modern `merge-tree` path, and conflict prediction in a real swarm run.
 
 ---
 

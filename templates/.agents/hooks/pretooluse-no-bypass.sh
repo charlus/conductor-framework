@@ -27,6 +27,9 @@
 #     "command": "$CLAUDE_PROJECT_DIR/.agents/hooks/pretooluse-no-bypass.sh" } ] } ]
 #
 # WHAT IT IS NOT. A guard against the ordinary, lazy bypass — not a sandbox.
+# That is a decided standard, not an accident (PR #33 review, decision D2): it
+# closes every form found by review, and deliberately does not chase a
+# determined attacker, because there is no end state to that chase.
 # It parses the command the way the shell would, including grouped short
 # flags, quoting, wrapper programs and `sh -c` strings. It cannot see a git
 # alias (`git config alias.c "commit -n"` then `git c`), a script file that
@@ -47,7 +50,19 @@ command -v node >/dev/null 2>&1 || exit 0
 # "the session stalls" rather than "the gate stepped aside". Bound it here and
 # fail OPEN on expiry.
 run_bounded() {
-  local rc t="${CONDUCTOR_HOOK_TIMEOUT:-5}"
+  local rc t="${CONDUCTOR_HOOK_TIMEOUT:-5}" pt
+  # A value that is not a positive number means "no bound" to both tools —
+  # coreutils treats 0 as disabled, perl's `alarm 0` cancels the alarm — so
+  # anything else falls back to 5. perl takes whole seconds: round UP, never 0.
+  # Pure bash on purpose: this runs in front of every tool call, and an
+  # earlier version that shelled out to awk returned nothing where awk was
+  # absent — giving perl `alarm ""`, which is no alarm at all.
+  case "$t" in ''|.|*[!0-9.]*|*.*.*) t=5 ;; esac
+  local int="${t%%.*}" frac=""
+  case "$t" in *.*) frac="${t#*.}" ;; esac
+  pt=$((10#${int:-0}))
+  [ -n "${frac//0/}" ] && pt=$((pt + 1))
+  if [ "$pt" -lt 1 ]; then t=5; pt=5; fi
   # coreutils `timeout`, Homebrew's `gtimeout`, then perl's alarm — which ships
   # with stock macOS, where the first two usually do not. The first version
   # fell back to an UNBOUNDED node when `timeout` was missing (review finding),
@@ -57,7 +72,7 @@ run_bounded() {
   elif command -v gtimeout >/dev/null 2>&1; then
     gtimeout "$t" node -e "$1"
   elif command -v perl >/dev/null 2>&1; then
-    perl -e 'alarm shift; exec @ARGV' "$t" node -e "$1"
+    perl -e 'alarm shift; exec @ARGV' "$pt" node -e "$1"
   else
     node -e "$1"   # nothing to bound it with; the harness timeout is all that is left
     exit $?
@@ -138,6 +153,34 @@ function tokenize(cmd) {
     if (c === "|" && cmd[i + 1] === "|") { pushSeg(); i += 2; continue; }
     if ("\n;|&()`".includes(c)) { pushSeg(); i++; continue; }
     // `$(` opens a command substitution: what follows is its own command.
+    // $'…' is ANSI-C quoting: the shell decodes the escapes and passes the
+    // result as one word, so `$'--no-verify'` reaches git as --no-verify.
+    if (c === "$" && cmd[i + 1] === "'") {
+      tok = tok ?? "";
+      i += 2;
+      const ESC = { n: "\n", t: "\t", r: "\r", e: "\x1b", a: "\x07", b: "\b", f: "\f", v: "\v", "\\": "\\", "'": "'", '"': '"' };
+      while (i < cmd.length && cmd[i] !== "'") {
+        if (cmd[i] === "\\" && i + 1 < cmd.length) {
+          const n = cmd[i + 1];
+          if (n === "x") {
+            const hex = cmd.slice(i + 2).match(/^[0-9a-fA-F]{1,2}/);
+            if (hex) { tok += String.fromCharCode(parseInt(hex[0], 16)); i += 2 + hex[0].length; continue; }
+          }
+          if (/[0-7]/.test(n)) {
+            const oct = cmd.slice(i + 1).match(/^[0-7]{1,3}/)[0];
+            tok += String.fromCharCode(parseInt(oct, 8));
+            i += 1 + oct.length;
+            continue;
+          }
+          tok += ESC[n] ?? n;
+          i += 2;
+          continue;
+        }
+        tok += cmd[i++];
+      }
+      i++;
+      continue;
+    }
     if (c === "$" && cmd[i + 1] === "(") { pushSeg(); i += 2; continue; }
     tok = (tok ?? "") + c;
     i++;
@@ -147,11 +190,21 @@ function tokenize(cmd) {
 }
 
 // Programs that run their argument list as another command.
-const WRAPPERS = new Set(["env", "command", "sudo", "doas", "exec", "nohup", "nice", "time", "builtin"]);
+const WRAPPERS = new Set([
+  "env", "command", "sudo", "doas", "exec", "nohup", "nice", "time", "builtin",
+  // Added after the delta review — each runs its argument list as a command.
+  "timeout", "gtimeout", "xargs", "stdbuf", "ionice", "flock", "setsid", "chrt", "taskset", "unbuffer",
+]);
 // …and the wrapper options that consume a value, so it is not read as the program.
 const WRAPPER_VALUE_OPT = {
-  sudo: /^-[ugCDhprtTU]$/, doas: /^-[uC]$/, env: /^-[uCS]$/, nice: /^-n$/,
+  sudo: /^-[ugCDhprtTU]$/, doas: /^-[uC]$/, env: /^-[uC]$/, nice: /^-n$/,
+  timeout: /^-[sk]$/, gtimeout: /^-[sk]$/, xargs: /^-[IiLlnPsdEa]$/, stdbuf: /^-[ioe]$/,
+  ionice: /^-[cnp]$/, flock: /^-[wE]$/, taskset: /^-[c]$/,
 };
+// …and the ones that take a POSITIONAL argument before the program:
+// `timeout 60 git …`, `flock /tmp/lock git …`, `chrt 10 git …`, `taskset 0x1 git …`.
+const WRAPPER_POSITIONAL = new Set(["timeout", "gtimeout", "flock", "chrt", "taskset"]);
+
 const SHELLS = /^(sh|bash|zsh|dash|ksh|ash)$/;
 
 // commit options that take a value, so the NEXT token is data, not a flag.
@@ -163,10 +216,17 @@ const COMMIT_VALUE_LONG = /^--(message|file|reuse-message|reedit-message|fixup|s
 function checkSegment(argv, depth) {
   let i = 0;
   let hooksOff = false;
+  // git also reads config from the environment: GIT_CONFIG_KEY_<n> with a
+  // matching VALUE, or GIT_CONFIG_PARAMETERS. Either can point core.hooksPath
+  // at an empty directory, which disables every hook as surely as -c does.
+  let hooksPathEnv = false;
   const takeAssignments = () => {
     while (i < argv.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(argv[i])) {
       const [name, ...rest] = argv[i].split("=");
-      if (name === "CONDUCTOR_HOOKS" && /^(off|0|false)$/i.test(rest.join("="))) hooksOff = true;
+      const value = rest.join("=");
+      if (name === "CONDUCTOR_HOOKS" && /^(off|0|false)$/i.test(value)) hooksOff = true;
+      if (/^GIT_CONFIG_KEY_\d+$/.test(name) && /^core\.hookspath$/i.test(value)) hooksPathEnv = true;
+      if (name === "GIT_CONFIG_PARAMETERS" && /core\.hookspath/i.test(value)) hooksPathEnv = true;
       i++;
     }
   };
@@ -178,8 +238,16 @@ function checkSegment(argv, depth) {
     i++;
     while (i < argv.length && argv[i].startsWith("-")) {
       const opt = argv[i++];
+      // `env -S "…"` splits its argument into a command line: judge it as one.
+      if (w === "env" && (opt === "-S" || opt === "--split-string") && i < argv.length) {
+        return depth < 4 ? verdict([argv[i], ...argv.slice(i + 1)].join(" "), depth + 1) : null;
+      }
+      if (w === "env" && /^-S./.test(opt)) {
+        return depth < 4 ? verdict([opt.slice(2), ...argv.slice(i)].join(" "), depth + 1) : null;
+      }
       if (WRAPPER_VALUE_OPT[w] && WRAPPER_VALUE_OPT[w].test(opt)) i++;
     }
+    if (WRAPPER_POSITIONAL.has(w) && i < argv.length) i++;
     takeAssignments(); // env VAR=value …
   }
   if (i >= argv.length) return null;
@@ -221,6 +289,9 @@ function checkSegment(argv, depth) {
     break;
   }
   if (hooksPath) return { sub: sub || "commit", how: "-c core.hooksPath= overrides where git looks for hooks" };
+  if (hooksPathEnv && (!sub || sub in GATED)) {
+    return { sub: sub || "commit", how: "GIT_CONFIG_* in the environment points core.hooksPath elsewhere" };
+  }
   if (!sub || !(sub in GATED)) return null;
 
   for (let j = i; j < argv.length; j++) {

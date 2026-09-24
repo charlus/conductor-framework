@@ -179,11 +179,17 @@ fi
 echo ""
 echo "Fact gate — the destructive list (review IMPORTANT):"
 
-for c in 'git push -f origin main' 'git checkout -- .' 'git restore .' 'find . -delete' 'git stash drop' 'git stash clear' 'cd x && rm -rf y'; do
+# The second half of this list is the delta review's regression: an anchored
+# rm pattern stopped gating rm -rf behind a shell, a path or a wrapper, all of
+# which the version before it caught.
+for c in 'git push -f origin main' 'git checkout -- .' 'git restore .' 'find . -delete' 'git stash drop' 'git stash clear' 'cd x && rm -rf y' \
+         'sh -c "rm -rf build"' "bash -c 'rm -rf build'" '/bin/rm -rf build' 'time rm -rf build' 'command rm -rf build' 'nohup rm -rf build' 'env rm -rf build' 'git push origin +main'; do
   S="$(new_session)"; C="$(call "$S" Bash "$(bash_cmd "$c")")"
   if [ "$C" = "2" ]; then ok "D+: gated — $c"; else no "D+: MISSED destructive — $c (exit $C)"; fi
 done
-for c in 'git clean -nd' 'git clean --dry-run -fd' 'git rm -r src' 'git push --force-with-lease' 'git restore --staged src/a.js' 'git checkout main'; do
+# `git clean -f -n` is a dry run whatever order the flags come in: allowing it
+# is correct, not a regression.
+for c in 'git clean -nd' 'git clean --dry-run -fd' 'git clean -f -n' 'git rm -r src' 'git push --force-with-lease' 'git restore --staged src/a.js' 'git checkout main' 'farm -rf x'; do
   S="$(new_session)"; C="$(call "$S" Bash "$(bash_cmd "$c")")"
   if [ "$C" = "0" ]; then ok "D-: not gated — $c"; else no "D-: FALSE positive — $c (exit $C)"; fi
 done
@@ -280,6 +286,21 @@ if [ "$C" = "0" ] && [ "$ELAPSED" -lt 8 ]; then
 else
   no "S14c: unbounded without coreutils timeout (exit $C after ${ELAPSED}s)"
 fi
+
+# ---- S14d: a sub-second timeout still bounds it (delta review) --------------
+# perl's alarm takes whole seconds, and `alarm 0` means NO alarm — so a 0.5
+# became unbounded. Any value that is not a positive number falls back to 5.
+FAKE="$(mktemp -d)"
+printf '#!/bin/sh\n/bin/sleep 30\n' > "$FAKE/node"; chmod +x "$FAKE/node"
+ln -s "$(command -v perl)" "$FAKE/perl"
+for t in 0.5 0 garbage; do
+  S="$(new_session)"; START=$(date +%s)
+  C="$(printf '{"session_id":"%s","tool_name":"Edit","tool_input":%s}' "$S" "$(edit /r/t.js)" \
+    | PATH="$FAKE" CONDUCTOR_HOOK_TIMEOUT="$t" /bin/bash "$HOOK" >/dev/null 2>&1; printf '%s' "$?")"
+  ELAPSED=$(( $(date +%s) - START ))
+  if [ "$C" = "0" ] && [ "$ELAPSED" -lt 9 ]; then ok "S14d: CONDUCTOR_HOOK_TIMEOUT=$t is still bounded (${ELAPSED}s)"; else no "S14d: CONDUCTOR_HOOK_TIMEOUT=$t unbounded (exit $C after ${ELAPSED}s)"; fi
+done
+rm -rf "$FAKE"
 
 # ---- S15: the master switch ------------------------------------------------
 S="$(new_session)"

@@ -53,7 +53,19 @@ command -v node >/dev/null 2>&1 || exit 0
 # "the session stalls" rather than "the gate stepped aside". Bound it here and
 # fail OPEN on expiry.
 run_bounded() {
-  local rc t="${CONDUCTOR_HOOK_TIMEOUT:-5}"
+  local rc t="${CONDUCTOR_HOOK_TIMEOUT:-5}" pt
+  # A value that is not a positive number means "no bound" to both tools —
+  # coreutils treats 0 as disabled, perl's `alarm 0` cancels the alarm — so
+  # anything else falls back to 5. perl takes whole seconds: round UP, never 0.
+  # Pure bash on purpose: this runs in front of every tool call, and an
+  # earlier version that shelled out to awk returned nothing where awk was
+  # absent — giving perl `alarm ""`, which is no alarm at all.
+  case "$t" in ''|.|*[!0-9.]*|*.*.*) t=5 ;; esac
+  local int="${t%%.*}" frac=""
+  case "$t" in *.*) frac="${t#*.}" ;; esac
+  pt=$((10#${int:-0}))
+  [ -n "${frac//0/}" ] && pt=$((pt + 1))
+  if [ "$pt" -lt 1 ]; then t=5; pt=5; fi
   # coreutils `timeout`, Homebrew's `gtimeout`, then perl's alarm — which ships
   # with stock macOS, where the first two usually do not. The first version
   # fell back to an UNBOUNDED node when `timeout` was missing (review finding),
@@ -63,7 +75,7 @@ run_bounded() {
   elif command -v gtimeout >/dev/null 2>&1; then
     gtimeout "$t" node -e "$1"
   elif command -v perl >/dev/null 2>&1; then
-    perl -e 'alarm shift; exec @ARGV' "$t" node -e "$1"
+    perl -e 'alarm shift; exec @ARGV' "$pt" node -e "$1"
   else
     node -e "$1"   # nothing to bound it with; the harness timeout is all that is left
     exit $?
@@ -102,10 +114,14 @@ const read = () => { try { return fs.readFileSync(0, "utf8"); } catch { return "
 // `git stash drop/clear`, and wrongly caught `git rm -r` (recoverable from
 // git) and a `git clean -n` dry run.
 const DESTRUCTIVE = [
-  // rm -r/-f as a command — not `git rm`, which git can undo.
-  /(^|[;&|(]\s*|\bsudo\s+|\bxargs\s+)rm\s+(-[A-Za-z]*\s+)*-[A-Za-z]*[rRf]/,
+  // rm -r/-f wherever it runs — bare, by path (/bin/rm), inside `sh -c "…"`,
+  // or behind a wrapper — but NOT `git rm`, which git can undo, and not a
+  // longer word ending in "rm". The previous version anchored rm to a command
+  // position, which dropped every one of those forms (delta review regression).
+  /(?<!\bgit\s+)(?<![\w.-])(?:\/(?:usr\/)?(?:local\/)?bin\/)?rm\s+(?:-[A-Za-z]*\s+)*-[A-Za-z]*[rRf]/,
   /\bgit\s+reset\s+--hard\b/,
-  /\bgit\s+push\b[^;&|\n]*(--force(?!-with-lease)\b|\s-[A-Za-z]*f\b)/,
+  // --force, -f, or a `+` refspec, which force-pushes that one ref.
+  /\bgit\s+push\b[^;&|\n]*(--force(?!-with-lease)\b|\s-[A-Za-z]*f\b|\s\+\S)/,
   /\bgit\s+branch\s+-D\b/,
   /\bgit\s+worktree\s+remove\b[^;&|\n]*--force\b/,
   /\bgit\s+checkout\b[^;&|\n]*(\s--(\s|$)|\s\.(\s|$))/,

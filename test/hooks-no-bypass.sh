@@ -69,6 +69,20 @@ blocked "R10: sudo with an option"                 'sudo -u bob git commit --no-
 blocked "R11: inside \$(…)"                        'echo $(git commit --no-verify -m x)'
 
 echo ""
+echo "Hook-bypass blocker — the delta review's counterexamples (B2, standard: the ordinary bypass):"
+
+blocked "R12: timeout wrapper"                     'timeout 60 git commit --no-verify -m x'
+blocked "R13: timeout with options"                'timeout -s KILL 60 git commit -n -m x'
+blocked "R14: xargs wrapper"                       'xargs git commit -n'
+blocked "R15: xargs with a value option"           'xargs -n 1 git commit --no-verify'
+blocked "R16: env -S split string"                 'env -S "git commit --no-verify"'
+blocked "R17: ANSI-C quoting"                      "git commit \$'--no-verify' -m x"
+blocked "R18: GIT_CONFIG_KEY_n=core.hooksPath"     'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null git commit -m x'
+blocked "R19: GIT_CONFIG_PARAMETERS"               "GIT_CONFIG_PARAMETERS=\"'core.hooksPath=/dev/null'\" git commit -m x"
+blocked "R20: stdbuf wrapper"                      'stdbuf -oL git commit -n -m x'
+blocked "R21: flock wrapper"                       'flock /tmp/l git commit --no-verify -m x'
+
+echo ""
 echo "Hook-bypass blocker — allowed commands:"
 
 allowed "A1: an ordinary commit"                'git commit -m "feat: thing"'
@@ -84,6 +98,9 @@ allowed "A10: a mention inside echo"              'echo "git commit --no-verify"
 allowed "A11: sh -c running something harmless"   'sh -c "echo hi"'
 allowed "A12: git -C before the subcommand"       'git -C . commit -m x'
 allowed "A13: --message= with a dash value"       'git commit --message=-n'
+allowed "A14: timeout around an ordinary commit"  'timeout 60 git commit -m x'
+allowed "A15: xargs -n running something else"    'xargs -n 1 echo'
+allowed "A16: GIT_CONFIG_* for an unrelated key"  'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=user.name GIT_CONFIG_VALUE_0=x git commit -m x'
 
 echo ""
 echo "Hook-bypass blocker — envelope:"

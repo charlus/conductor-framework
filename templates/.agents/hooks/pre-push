@@ -117,12 +117,20 @@ removed_hooks=""
 # deletion: `git mv pre-commit pre-commit.disabled` is status R, and
 # `chmod -x pre-commit` is a mode change git obeys by silently skipping the
 # hook. Both disable it as surely as deleting it (delta review, B1).
+#
+# An EDITED pre-commit counts too (final review, NB1): git runs the edited
+# copy, so a pre-commit rewritten to `exit 0` judged its own commit and passed
+# it — with a deleted test in the same commit. The two entry scripts cover each
+# other: pre-commit (running the committed library) blocks an edit to pre-push
+# at commit time, and pre-push blocks an edit to pre-commit here. Editing BOTH
+# defeats any client-side hook; that is the stated limit.
 hook_changes() {
   git -C "$ROOT" diff --raw -M "$1" "$2" -- .agents/hooks/ 2>/dev/null | awk -F'\t' '
     { split($1, m, " "); nm = m[2]; st = substr(m[5], 1, 1); p = $2; q = $3
       if (st == "D") print p " (deleted)"
       else if (st == "R") print p " (renamed to " q ")"
-      else if (p ~ /\/pre-(commit|push)$/ && (st == "T" || nm != "100755")) print p " (no longer executable)" }'
+      else if (p ~ /\/pre-(commit|push)$/ && (st == "T" || nm != "100755")) print p " (no longer executable)"
+      else if (p ~ /\/pre-commit$/ && st == "M") print p " (edited — the edited copy judged its own commit)" }'
 }
 while read -r _lref lsha _rref rsha; do
   [ -z "${lsha:-}" ] || [ "$lsha" = "$ZERO" ] && continue

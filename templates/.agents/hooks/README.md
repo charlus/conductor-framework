@@ -40,8 +40,9 @@ not get to edit what decides whether it passes. Workflows, skills and your
 project knowledge stay freely editable — freezing those would make the gate a
 tax rather than a boundary.
 
-A `conductor upgrade` legitimately rewrites these paths. Commit it with
-`CONDUCTOR_NO_PROTECTED="conductor upgrade"` so the change to your enforcement
+A `conductor upgrade` legitimately rewrites these paths. Commit **and push** it
+with `CONDUCTOR_NO_PROTECTED="conductor upgrade"` — both hooks check, because
+each covers the one the other cannot — so the change to your enforcement
 surface is a visible decision rather than a silent one.
 
 **The gates judge a change with the copy already committed.** Both hooks load
@@ -51,10 +52,12 @@ switch the gates off for the commit that does it. And if the committed library
 cannot be loaded at all, the hook fails **closed** — it used to fail open,
 which let one deleted file disable every gate at once.
 
-**Deleting `pre-commit` is caught at the push.** git runs `pre-commit` from the
-working tree, so a commit that deletes it runs no commit gate at all.
-`pre-push` refuses a range that removes a hook unless the push carries
-`CONDUCTOR_NO_PROTECTED="why"`.
+**Disabling `pre-commit` is caught at the push.** git runs `pre-commit` from
+the working tree, so a commit that deletes, renames, un-chmods or *edits* it is
+judged by the altered copy — which may judge nothing. `pre-push` refuses a range
+that does any of those unless the push carries `CONDUCTOR_NO_PROTECTED="why"`.
+The reverse holds too: an edit to `pre-push` is a protected-path change that
+`pre-commit`, still running the committed library, blocks at commit.
 
 **What no local hook can stop.** git executes `pre-commit` and `pre-push`
 themselves from the working tree, so a change that rewrites *both entry

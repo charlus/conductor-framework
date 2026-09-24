@@ -189,7 +189,10 @@ for c in 'git push -f origin main' 'git checkout -- .' 'git restore .' 'find . -
 done
 # `git clean -f -n` is a dry run whatever order the flags come in: allowing it
 # is correct, not a regression.
-for c in 'git clean -nd' 'git clean --dry-run -fd' 'git clean -f -n' 'git rm -r src' 'git push --force-with-lease' 'git restore --staged src/a.js' 'git checkout main' 'farm -rf x'; do
+# The last four are the final review's NI1: text that only MENTIONS a
+# destructive command, and git's own rm behind -C.
+for c in 'git clean -nd' 'git clean --dry-run -fd' 'git clean -f -n' 'git rm -r src' 'git push --force-with-lease' 'git restore --staged src/a.js' 'git checkout main' 'farm -rf x' \
+         'grep -rn "rm -rf" src' 'git commit -m "drop rm -f usage"' 'git commit -m "undo the git reset --hard"' 'git -C sub rm -rf x'; do
   S="$(new_session)"; C="$(call "$S" Bash "$(bash_cmd "$c")")"
   if [ "$C" = "0" ]; then ok "D-: not gated — $c"; else no "D-: FALSE positive — $c (exit $C)"; fi
 done

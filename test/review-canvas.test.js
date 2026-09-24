@@ -648,6 +648,30 @@ describe("F4 — the page's script, run for real (review B9, I1, I2)", () => {
     assert.match(page.byId.thread.textContent, /an earlier note/, "the thread was wiped");
   });
 
+  test("a note that did not land keeps its anchor for the retry (NI2)", async () => {
+    // The anchor is released only once the note has landed: after a failed
+    // send, retrying must still point at the same heading.
+    let up = false;
+    const sent = [];
+    const page = mountPage({
+      fetchImpl: async (_u, opts) => {
+        if (!up) throw new TypeError("Failed to fetch");
+        sent.push(JSON.parse(opts.body));
+        return { ok: true, status: 200, json: async () => ({ feedback: sent, done: false }) };
+      },
+    });
+    page.fire(page.h2);
+    page.byId.text.value = "split this";
+    page.fire(page.byId.comment);
+    await page.flush(); await page.flush();
+    up = true;
+    page.fire(page.byId.comment);
+    await page.flush(); await page.flush();
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].kind, "annotation", "the anchor was dropped by the failed send");
+    assert.equal(sent[0].anchor.snippet, "Phase 2");
+  });
+
   test("clicking a link in the plan does not navigate the review away (I2)", () => {
     // `[spec](other.md)` rendered as a same-tab link: clicking it left the
     // page for a 404 and dropped anything unsent.

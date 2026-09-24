@@ -206,6 +206,10 @@ const WRAPPER_VALUE_OPT = {
 const WRAPPER_POSITIONAL = new Set(["timeout", "gtimeout", "flock", "chrt", "taskset"]);
 
 const SHELLS = /^(sh|bash|zsh|dash|ksh|ash)$/;
+// Shell keywords that come BEFORE a command in the same segment: in
+// `if ! git diff --quiet; then git commit -n …; fi` the segment starts with
+// `then`, so the first word was never git (final review, NB2).
+const RESERVED = new Set(["if", "then", "else", "elif", "fi", "do", "done", "while", "until", "{", "}", "!"]);
 
 // commit options that take a value, so the NEXT token is data, not a flag.
 // `git commit -m -n` commits with the message "-n"; reading that -n as
@@ -231,8 +235,10 @@ function checkSegment(argv, depth) {
     }
   };
 
-  takeAssignments();
   for (let guard = 0; i < argv.length && guard < 8; guard++) {
+    while (i < argv.length && RESERVED.has(argv[i])) i++;
+    takeAssignments();
+    if (i >= argv.length) break;
     const w = argv[i].split("/").pop();
     if (!WRAPPERS.has(w)) break;
     i++;

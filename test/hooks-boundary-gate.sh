@@ -463,6 +463,22 @@ else
 fi
 rm -rf "$D" "$B"
 
+# ---- P17: an EDITED pre-commit is caught at push (final review, NB1) --------
+# The edited pre-commit runs itself, so an `exit 0` in it judges nothing at
+# commit. pre-push is the first gate left that did not change: it must count
+# any change to pre-commit in the range, not only a deletion, rename or mode.
+read -r D B <<< "$(push_repo)"
+printf '#!/bin/sh\nexit 0\n' > "$D/.agents/hooks/pre-commit"
+git -C "$D" rm -q test/add.test.js
+git -C "$D" add -A
+git -C "$D" commit -q -m "neuter the commit gate" >/dev/null 2>&1
+if git -C "$D" push -q origin HEAD:main >/dev/null 2>&1; then
+  no "P17: an edited pre-commit let a deleted test ship"
+else
+  ok "P17: an edited pre-commit is BLOCKED at push"
+fi
+rm -rf "$D" "$B"
+
 # ---- P5: ordinary .agents/ content is NOT protected -----------------------
 # Only the enforcement surface is frozen. Skills and workflows stay editable.
 D="$(seeded_repo)"

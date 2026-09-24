@@ -267,6 +267,13 @@ describe("F15 — the risk map", () => {
     assert.equal(areas.find((a) => a.area === "src/billing").tests, 0, "credited to an unrelated area");
   });
 
+  test("the ambiguous branch also requires the dropped prefix to agree (NI2)", () => {
+    // `user-render` → `render`, which exists in two areas. Path proximity alone
+    // picks src/view, but the dropped `user` names neither — so it declines.
+    const areas = coverageByArea(["src/view/render.js", "lib/loop/render.js", "src/user-render.test.js"]);
+    assert.equal(areas.find((a) => a.area === "src/view").tests, 0);
+  });
+
   test("a dropped prefix that DOES name the area is still accepted", () => {
     const areas = coverageByArea(["src/loop/driver.js", "test/loop-driver.test.js"]);
     assert.equal(areas.find((a) => a.area === "src/loop").tests, 1);

@@ -140,7 +140,25 @@ const DESTRUCTIVE = [
  * only when forced, and never on a dry run — a regex cannot tell `-fd` from
  * `-nd` without also reading the flags around it.
  */
-function isDestructive(cmd) {
+/**
+ * The command as the patterns should read it (final review, NI1):
+ *  - quoted text is blanked, because a commit message or a grep pattern that
+ *    MENTIONS `rm -rf` destroys nothing — except a string handed to
+ *    `sh -c` / `bash -c` / `eval`, which IS a command and is kept;
+ *  - `git -C dir` / `git -c k=v` are folded to `git`, so `git -C sub rm` is
+ *    read as git's own (recoverable) rm.
+ */
+function forMatching(cmd) {
+  return String(cmd)
+    // Not `\b` before `-c`: a space and a dash are both non-word characters,
+    // so `\b` never matches there and every `sh -c "…"` string was blanked.
+    .replace(/((?<![\w-])(?:-[A-Za-z]*c|eval)\s+)?(["'])((?:\\.|(?!\2)[\s\S])*)\2/g,
+      (m, lead, q, body) => (lead ? m : q + " ".repeat(body.length) + q))
+    .replace(/\bgit((?:\s+-[Cc]\s+\S+)+)/g, "git");
+}
+
+function isDestructive(raw) {
+  const cmd = forMatching(raw);
   for (const m of String(cmd).matchAll(/\bgit\s+clean\b([^;&|\n]*)/g)) {
     const args = m[1];
     const dry = /(^|\s)-[A-Za-z]*n[A-Za-z]*(?=\s|$)/.test(args) || /--dry-run\b/.test(args);

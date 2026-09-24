@@ -104,6 +104,14 @@ s_verify()    { printf '{ "verify": "false" }\n' > "$1/conductor.config.json"; g
 s_evalrun()   { mkdir -p "$1/evals"; printf 'export const e = [];\n' > "$1/evals/x.eval.js"
                 printf '{ "verify": "true", "eval": "false" }\n' > "$1/conductor.config.json"; git -C "$1" add -A
                 CONDUCTOR_HOOKS=off git -C "$1" commit -q -m evals >/dev/null 2>&1; }
+# The REMOTE's committed library is unusable: pre-push's own fail-closed path,
+# which logs through the fallback writer (final review, NB3).
+s_pushlib()   { : > "$1/.agents/hooks/lib.sh"; git -C "$1" add -A
+                CONDUCTOR_HOOKS=off git -C "$1" commit -q -m "break lib" >/dev/null 2>&1
+                CONDUCTOR_HOOKS=off git -C "$1" push -q origin HEAD:main >/dev/null 2>&1
+                printf 'export const e = 5;\n' > "$1/src/e.js"
+                printf 'test("e", () => { expect(5).toBe(5); });\n' > "$1/test/e.test.js"
+                git -C "$1" add -A; CONDUCTOR_HOOKS=off git -C "$1" commit -q -m "work" >/dev/null 2>&1; }
 s_rmhook()    { git -C "$1" rm -q .agents/hooks/pre-commit
                 CONDUCTOR_HOOKS=off git -C "$1" commit -q -m "rm hook" >/dev/null 2>&1; }
 
@@ -120,6 +128,7 @@ echo "  pre-push"
 check "W8 Verification Iron Law"    CONDUCTOR_SKIP_VERIFY  s_verify    push
 check "W9 Eval-Driven Law (run)"    CONDUCTOR_SKIP_EVAL    s_evalrun   push
 check "W10 hook removal"            CONDUCTOR_NO_PROTECTED s_rmhook    push
+check "W11 remote library unusable" CONDUCTOR_NO_PROTECTED s_pushlib   push
 
 echo ""
 echo "  Passed: $pass"

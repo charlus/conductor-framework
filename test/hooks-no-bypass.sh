@@ -83,6 +83,19 @@ blocked "R20: stdbuf wrapper"                      'stdbuf -oL git commit -n -m 
 blocked "R21: flock wrapper"                       'flock /tmp/l git commit --no-verify -m x'
 
 echo ""
+echo "Hook-bypass blocker — the final review's counterexamples (NB2):"
+
+# A shell keyword opened the segment, so the first word was `then`, `do`,
+# `{` or `!` — never git — and the bypass after it was never read.
+blocked "R22: if … then"                            'if true; then git commit --no-verify -m x; fi'
+blocked "R23: the ordinary one-liner"               'if ! git diff --cached --quiet; then git commit -n -m x; fi'
+blocked "R24: for … do"                             'for i in 1; do git commit -n -m x; done'
+blocked "R25: a { } group"                          '{ git commit --no-verify -m x; }'
+blocked "R26: ! negation"                           '! git commit -n -m x'
+blocked "R27: else branch"                          'if false; then :; else git commit --no-verify -m x; fi'
+blocked "R28: while body"                           'while false; do git push --no-verify; done'
+
+echo ""
 echo "Hook-bypass blocker — allowed commands:"
 
 allowed "A1: an ordinary commit"                'git commit -m "feat: thing"'
@@ -100,6 +113,7 @@ allowed "A12: git -C before the subcommand"       'git -C . commit -m x'
 allowed "A13: --message= with a dash value"       'git commit --message=-n'
 allowed "A14: timeout around an ordinary commit"  'timeout 60 git commit -m x'
 allowed "A15: xargs -n running something else"    'xargs -n 1 echo'
+allowed "A17: a keyword around an ordinary commit"  'if true; then git commit -m x; fi'
 allowed "A16: GIT_CONFIG_* for an unrelated key"  'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=user.name GIT_CONFIG_VALUE_0=x git commit -m x'
 
 echo ""

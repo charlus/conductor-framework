@@ -95,6 +95,8 @@ if [ "$lib_ok" = "0" ] || [ -n "$missing" ]; then
       echo "  The committed .agents/hooks/lib.sh is missing:$([ -n "$missing" ] && printf ' %s' "$missing")"
       echo "  That is normal for the one commit that upgrades Conductor itself:"
       echo "    CONDUCTOR_NO_PROTECTED=\"conductor upgrade\" git commit …"
+      echo "  and the same waiver on the push that carries it (the hooks themselves"
+      echo "  changed, and pre-push checks that too)."
     else
       echo "  .agents/hooks/lib.sh is committed but cannot be read, so no gate could run."
       echo "  If you are deliberately removing Conductor, say so:"

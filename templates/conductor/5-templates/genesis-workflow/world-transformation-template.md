@@ -1,4 +1,4 @@
-# World Transformation
+# Before and After
 
 > Template for Genesis Phase 2 output. Replace bracketed placeholders with actual content.
 
@@ -42,7 +42,7 @@
 
 ---
 
-## 🌟 North Star
+## Target Outcome
 
 **[3-5 word summary of the transformation goal.]**
 

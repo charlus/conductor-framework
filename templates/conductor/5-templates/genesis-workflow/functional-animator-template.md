@@ -1,8 +1,8 @@
-# Functional Animator
+# Capabilities
 
 > Template for Genesis Phase 3 output. Replace bracketed placeholders with actual content.
 
-The specific **jobs** this feature must perform to bring the World Transformation to life.
+The specific **jobs** this feature must perform to deliver the "After" in the Before and After document.
 
 > Focus: User capabilities only. What can you *do* with this thing?
 
@@ -61,12 +61,12 @@ The specific **jobs** this feature must perform to bring the World Transformatio
 
 ---
 
-## 🔗 Mapping: Problems → Jobs
+## 🔗 Mapping: Symptoms → Jobs
 
-<!-- Ensure every Satellite from Problem Solar System has a corresponding job. -->
+<!-- Ensure every symptom in the Problem document has a corresponding job. -->
 
-| Satellite Problem | Solved By |
-|-------------------|-----------|
+| Symptom | Solved By |
+|---------|-----------|
 | [Problem 1] | [Capability Area]: [Job name(s)] |
 | [Problem 2] | [Capability Area]: [Job name(s)] |
 | [Problem 3] | [Capability Area]: [Job name(s)] |

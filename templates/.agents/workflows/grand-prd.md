@@ -29,8 +29,8 @@ It is the first of three Blueprint documents: **Grand PRD** (this) → **UX/UI D
 
 ## Phase 0: Setup — determine project and load context
 
-1. **Which project (decision):** Ask which existing project, or whether we're starting fresh. Then check `conductor/2-backlog/project-backlog/[ProjectName]/` yourself and branch:
-   - **Path A — Genesis + Storyboard both exist:** Read all of them carefully (Problem-Solar-System, World-Transformation, Functional-Animator, Main-Character, Storyboard). Present a brief synthesis (the Sun, the transformation, the main character + outcomes, the scenes, the functional jobs) and confirm it captures the essence.
+1. **Which project:** **Target (fact — look it up):** If this workflow was started with a path (`/<workflow> <path>`), that folder is the Project: read from it and do not ask. If that folder holds a `handoff.md`, read it first: it lists what the previous session left open. Otherwise ask which existing project, or whether we're starting fresh. Then check `conductor/2-backlog/project-backlog/[ProjectName]/` yourself and branch:
+   - **Path A — Genesis + Storyboard both exist:** Read all of them carefully (the three `genesis/` docs, Main-Character, Storyboard). Present a brief synthesis (the core problem, the before and after, the main character + outcomes, the scenes, the functional jobs) and confirm it captures the essence.
    - **Path B — Genesis only:** Recommend running Storyboard first (it adds user perspective). If the user proceeds anyway, load Genesis and continue.
    - **Path C — neither:** Recommend running Genesis first. If the user prefers, do condensed context-gathering (grill the problem, transformation, main character, capabilities) and continue.
 
@@ -53,7 +53,7 @@ It is the first of three Blueprint documents: **Grand PRD** (this) → **UX/UI D
 **Goal:** Define each Epic fully.
 
 1. **Draft each Epic (lead with the definition):** For each, propose the full story and let the user adjust:
-   - **Problem it solves** — which Satellites from the Problem Solar System; what pain it eliminates.
+   - **Problem it solves** — which symptoms from `genesis/problem-solar-system.md`; what pain it eliminates.
    - **Why it matters** — how it connects to the transformation; which part of the "after" world it enables.
    - **What the user experiences** — which Storyboard scenes; concrete scenarios, not just features.
    - **Outcomes delivered** — which Main Character outcomes; framed "After this Epic, the main character can…"
@@ -63,7 +63,7 @@ It is the first of three Blueprint documents: **Grand PRD** (this) → **UX/UI D
 
 ## Phase 3: Grand PRD Assembly
 
-1. **Draft the document** into the template structure: Project Overview · The Problem (Sun + Satellites) · The Transformation (Before/After/North Star) · The Main Character · The Epics (problem/why/what/outcomes) · Non-Goals.
+1. **Draft the document** into the template structure: Project Overview · The Problem (core problem + symptoms) · Before and After (with the target outcome) · The Main Character · The Epics (problem/why/what/outcomes) · Non-Goals.
 2. **Independent review (fresh-context gate):** Before saving, run `.agents/skills/independent-review/SKILL.md` with the **Grand PRD** lens — a reviewer that did not draft the PRD checks the Epics are MECE, right-sized, and collectively deliver the full transformation (no Storyboard scene lost, no outcome unaddressed, no smuggled scope). Address every `CHANGES REQUESTED` finding before continuing.
 3. **Converge & save:** Present it, absorb final adjustments, then — one approval — create `blueprint/` if needed and write `blueprint/grand-prd.md`. Confirm saved.
 
@@ -72,6 +72,7 @@ It is the first of three Blueprint documents: **Grand PRD** (this) → **UX/UI D
 ## Completion Protocol
 
 - **Recap:** "Grand PRD complete for `[ProjectName]` — [N] Epics covering [key areas]." It captures the WHAT and WHY.
+- **Fresh session (`.agents/skills/handoff/SKILL.md`, *Between workflows*):** delete any `handoff.md` you read at the start. Write a new `handoff.md` into the folder the next command names only if this session leaves open questions or decisions that no document records. Then give the human the exact next command with the real path: *"Start a fresh session (Claude Code: `/clear`), then run `/ux-ui-design-brief conductor/2-backlog/project-backlog/[ProjectName]`."*
 - **Next step:** The **UX/UI Design Brief** — translate these Epics into screens, navigation, and interactions.
 - **Project state:**
   ```

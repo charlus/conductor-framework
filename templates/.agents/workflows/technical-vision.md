@@ -35,23 +35,25 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
 
 **Announce:** *"We're entering Phase 0: Setup. Let me load the Blueprint context."*
 
-1.  **Load Context** (Read in this order):
+1.  **Target (fact — look it up):** If this workflow was started with a path (`/<workflow> <path>`), that folder is the Project: read from it and do not ask. Otherwise list `conductor/2-backlog/project-backlog/` by last change and recommend the most recent unfinished Project. If that folder holds a `handoff.md`, read it first: it lists what the previous session left open.
+
+2.  **Load Context** (Read in this order, inside the Project folder):
     * `blueprint/grand-prd.md` — The epics and product vision
     * `blueprint/ux-ui-design-brief.md` — The screens, navigation, and interactions
-    * `genesis/problem-solar-system.md` — The problem landscape (for constraints and non-goals)
+    * `genesis/problem-solar-system.md` — The core problem and symptoms (for constraints and non-goals)
     * `genesis/world-transformation.md` — The vision (for guiding architectural decisions)
     * Any relevant `conductor/4-context/technical/` files (existing tech stack, conventions)
 
-2.  **Analyze Existing System** (if not greenfield):
+3.  **Analyze Existing System** (if not greenfield):
     * **Review Codebase:** Explore folder structure, patterns, current stack
     * **Identify Reuse:** What components, infrastructure, patterns can we leverage?
     * **Identify Gaps:** What's entirely new and needs to be built?
 
-3.  **Present Context Summary:**
-    * *"From the Grand PRD, I see [X] epics covering [scope]. The UX/UI Brief shows [Y] screens with [key interactions]. The problem landscape highlights [constraints]."*
+4.  **Present Context Summary:**
+    * *"From the Grand PRD, I see [X] epics covering [scope]. The UX/UI Brief shows [Y] screens with [key interactions]. The problem document highlights [constraints]."*
     * Surface any concerns: *"I noticed [tension/gap] between the PRD and the Design."*
 
-4.  **Confirm:** *"Context loaded. Ready to architect?"*
+5.  **Confirm:** *"Context loaded. Ready to architect?"*
     * Wait for confirmation before proceeding.
 
 ---
@@ -243,7 +245,7 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
 
 **Next Steps:**
 - *"The Blueprint is now complete (Grand PRD + UX/UI + Technical Vision)."*
-- *"Ready to continue to **Carve** to break this into buildable implementations? Just say 'Carve' when ready."*
+- **Fresh session (`.agents/skills/handoff/SKILL.md`, *Between workflows*):** delete any `handoff.md` you read at the start. Write a new `handoff.md` into the folder the next command names only if this session leaves open questions or decisions that no document records. Then give the human the exact next command with the real path: *"Start a fresh session (Claude Code: `/clear`), then run `/carve conductor/2-backlog/project-backlog/[ProjectName]`."*
 
 ---
 

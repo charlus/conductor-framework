@@ -6,6 +6,17 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — one planning workflow per session, and plain Genesis terms
+
+Running Genesis through to Spec-It in one conversation leaves Carve and Spec-It with the largest and noisiest context of the chain. Every workflow already reads its inputs from `conductor/`, but nothing told the human to start fresh, and a fresh session could not know which Project to read: Carve, Technical Vision and Build named no project at all.
+
+- **Every step of the chain ends with the exact next command, with the folder.** For example: `/clear`, then `/carve conductor/2-backlog/project-backlog/Billing`. The chain is Genesis → Storyboard → Grand PRD → UX/UI Design Brief → Technical Vision → Carve → Spec-It → Build.
+- **Every receiving workflow reads the folder it is given and does not ask.** With no folder, it lists Projects by last change and recommends the most recent unfinished one.
+- **`handoff.md` carries only what no document holds.** It holds open questions and decisions, lives in the folder the next command names, is read first, and is deleted once handled. There is no "current project" pointer file.
+- **`skills/handoff`** gains *Between workflows* and drops its advice to run discovery → spec → tickets in one session.
+- **Genesis vocabulary is plain.** *Sun* is now core problem, *Satellites* symptoms, *North Star* target outcome. The three documents are now Problem, Before and After, and Capabilities. **File names are unchanged**, so existing installs need no migration. A note in `genesis.md` maps the old names for older documents.
+- Verified live: a headless `/carve <Beta folder>` session in a two-Project install read only Beta and surfaced its `handoff.md` question. `/carve` with no folder recommended the most recent Project. Not verified live: that each workflow's completion step prints the command.
+
 ### Added — the gates cannot be satisfied by removing the proof (F9, F12, F11)
 
 A source audit of ECC (`github.com/affaan-m/ecc`) ran its loop-failure taxonomy against our own envelope and found three holes. All three are closed. Design and review record: `docs/roadmap/Peer-Framework-Harvest.md`.

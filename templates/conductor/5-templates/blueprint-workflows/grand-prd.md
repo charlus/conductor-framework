@@ -10,10 +10,10 @@
 
 ## The Problem
 
-### The Sun (Core Problem)
+### Core Problem
 [The central problem this project solves]
 
-### The Satellites (Symptoms)
+### Symptoms
 1. **[Symptom 1]** - [Description]
 2. **[Symptom 2]** - [Description]
 3. **[Symptom 3]** - [Description]
@@ -21,7 +21,7 @@
 
 ---
 
-## The Transformation
+## Before and After
 
 ### Before
 - [Current painful state 1]
@@ -33,7 +33,7 @@
 - [Desired state 2]
 - [Desired state 3]
 
-### North Star
+### Target Outcome
 [The guiding metric or vision statement]
 
 ---

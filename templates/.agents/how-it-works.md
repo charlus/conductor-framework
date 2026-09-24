@@ -228,7 +228,7 @@ Three rules for `conductor view`:
 ### Discovery
 | Workflow | Trigger | Produces | Next |
 |---|---|---|---|
-| **Genesis** | "I have an idea", "New app", "New feature area" | Problem Solar System, World Transformation, Functional Animator | Storyboard |
+| **Genesis** | "I have an idea", "New app", "New feature area" | Problem, Before and After, Capabilities (`genesis/`) | Storyboard |
 | **Storyboard** | "Shape the experience" | Main Character, Scenes | Grand PRD |
 
 ### Blueprint
@@ -287,7 +287,7 @@ What each workflow produces, and who reads it next:
 
 | Upstream | Produces | Consumed by |
 |---|---|---|
-| Genesis | Problem Solar System, World Transformation, Functional Animator | Grand PRD, Technical Vision (constraints) |
+| Genesis | Problem, Before and After, Capabilities (`genesis/`) | Grand PRD, Technical Vision (constraints) |
 | Storyboard | Main Character, Storyboard | Grand PRD |
 | Grand PRD | Epics | UX/UI, Technical Vision, Carve, Spec-It |
 | UX/UI Design Brief | Screens | Technical Vision, Carve, Spec-It |

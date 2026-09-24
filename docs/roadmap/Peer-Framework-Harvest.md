@@ -1,10 +1,11 @@
 # Peer-Framework Harvest (ECC) — F1–F15
 
 > **Status:** complete and in PR #33 (branch `feat/goodhart-boundary-and-bypass-gates`,
-> head `cbbd024`), awaiting the maintainer's merge. Shipped: F9/F11/F12, F7, F3, F1
+> head `d224e38`), awaiting the maintainer's merge. Shipped: F9/F11/F12, F7, F3, F1
 > (measured), F4 (both slices), F15. F8 and F10 deliberately unbuilt; F6 dropped;
 > F2, F5, F13, F14 parked. Three independent review rounds found 18 blockers, all
-> fixed — the last commit is author-verified only, by the maintainer's decision D3.
+> fixed. Two commits are author-verified only: `cbbd024` (decision D3) and `d224e38`
+> (the self-committing upgrade, requested after review closed).
 >
 > **Source:** a source audit of **ECC** (`github.com/affaan-m/ecc`, `ecc-universal`
 > 2.2.1, read at `bf70150`, 2026-09-22) — 68 agents, 292 skills, 94 command shims,

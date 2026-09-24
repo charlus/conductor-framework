@@ -22,8 +22,9 @@
 //   arm A (gated)   the fact-gate hook is wired into PreToolUse
 //   arm B (control) identical, gate disabled via CONDUCTOR_FACT_GATE=off
 //
-// No judge, no rubric. The metric is "did a search tool appear before the edit
-// tool", read off the tool sequence the CLI reports.
+// No judge, no rubric. The graded metric is a string match on the final
+// answer: did it name at least two of the three dependent files? Searching
+// before the edit that LANDED is reported alongside, but not graded.
 //
 // SENSITIVITY. `--sensitivity` runs arm A with the gate disabled — i.e. two
 // controls — and INVERTS the exit code: it must NOT show a difference. If it

@@ -6,6 +6,13 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — loop safety (6.5.0 field report)
+
+- F6: swarm mode opened PRs at every autonomy level. It now opens a PR only at L3 execution, like pair mode. Below that, a passed task keeps its branch, gets an inbox item, and the run ends in `awaiting_review`. `--dry-run` prints the same merge decision.
+- F7: swarm branch names cut the task id when the goal was long, so tasks shared one branch. The goal part is now at most 20 characters and the task id is kept in full. An interrupted swarm from an older version gets new branches on resume, and its old branches stay in place.
+- F8: `budget.max_beats` is now enforced. The beat ceiling is the lower of `budget.max_beats` and `iterations.max_allowed`.
+- F9: `conductor loop --help` printed the sandbox refusal. It now prints the loop help, before any state read or gate.
+
 ---
 
 ## [6.5.0] — 2026-09-24 — Safe Upgrades, One Workflow per Session, Claude Code Skills

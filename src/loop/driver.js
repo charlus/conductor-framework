@@ -205,6 +205,12 @@ export function normalizeState(raw) {
   };
 }
 
+/** The beat ceiling: the lower of iterations.max_allowed and budget.max_beats. */
+export function beatCeiling(state) {
+  const caps = [state.iterations?.max_allowed, state.budget?.max_beats].filter(Number.isFinite);
+  return caps.length ? Math.min(...caps) : 20;
+}
+
 /**
  * Autonomy-slider enforcement (Phase 4 — pair; swarm deferred behind an evidence
  * gate). Returns a terminal status if the level does not permit this run, else null.
@@ -332,7 +338,7 @@ export async function runLoop(state, deps) {
 
   while (!isTerminal(state.status)) {
     // ---- Guardrails the driver owns, checked BEFORE dispatching a beat ----
-    if (state.iterations.current >= state.iterations.max_allowed) {
+    if (state.iterations.current >= beatCeiling(state)) {
       state.status = "max_iterations_exceeded";
       await writeInbox(state, "iteration ceiling reached");
       await persist(state);

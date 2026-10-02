@@ -23,7 +23,7 @@ function esc(s) {
 export function claimBacklogItem(md, title, taskId) {
   const t = esc(title);
   // Only an unchecked, unclaimed line matching this title.
-  const re = new RegExp(`^(\\s*[-*]\\s+\\[ \\]\\s+)(?!${esc(CLAIM)})(${t})\\s*$`, "m");
+  const re = new RegExp(`^([ \\t]*[-*]\\s+\\[ \\]\\s+)(?!${esc(CLAIM)})(${t})[ \\t]*$`, "m");
   if (!re.test(md)) return md;
   return md.replace(re, `$1${CLAIM} $2 (in progress: ${taskId})`);
 }
@@ -34,7 +34,7 @@ export function claimBacklogItem(md, title, taskId) {
  */
 export function markBacklogItemDone(md, title) {
   const t = esc(title);
-  const re = new RegExp(`^(\\s*[-*]\\s+)\\[( |x|X)\\]\\s+(?:${esc(CLAIM)}\\s+)?(${t})(?:\\s+\\(in progress:[^)]*\\))?\\s*$`, "m");
+  const re = new RegExp(`^([ \\t]*[-*]\\s+)\\[( |x|X)\\]\\s+(?:${esc(CLAIM)}\\s+)?(${t})(?:\\s+\\(in progress:[^)]*\\))?[ \\t]*$`, "m");
   if (!re.test(md)) return md;
   return md.replace(re, `$1[x] $3`);
 }
@@ -45,7 +45,7 @@ export function markBacklogItemDone(md, title) {
  */
 export function removeInboxItem(md, title) {
   const t = esc(title);
-  const re = new RegExp(`^\\s*[-*]\\s+(?:${esc(CLAIM)}\\s+)?${t}\\s*$\\n?`, "m");
+  const re = new RegExp(`^[ \\t]*[-*]\\s+(?:${esc(CLAIM)}\\s+)?${t}[ \\t]*$\\n?`, "m");
   return md.replace(re, "");
 }
 

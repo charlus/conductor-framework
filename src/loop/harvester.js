@@ -70,10 +70,19 @@ export function parseBacklog(md) {
     const box = raw.match(/^(\s*)[-*]\s+\[( |x|X)\]\s+(\S.*?)\s*$/);
     if (!box) continue;
     if (box[2].toLowerCase() === "x") continue; // already done
-    const title = box[3].trim();
+    const title = stripClaim(box[3].trim());
     items.push({ type: classifyBacklog(title), title, priority, details: blockBelow(lines, i, box[1].length) });
   }
   return items;
+}
+
+/**
+ * The item's own title, without the fleet's claim annotation
+ * (`🤖 X (in progress: id)` → `X`). The id derives from the title, so a claimed
+ * item must keep the title it was claimed under, or the next run dispatches it again.
+ */
+function stripClaim(title) {
+  return title.replace(/^🤖\s+/u, "").replace(/\s+\(in progress:[^)]*\)$/, "");
 }
 
 /** The lines indented deeper than `indent` right below line `at`, dedented. */

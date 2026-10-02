@@ -4,11 +4,12 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { loopCommand } from "../src/commands/loop.js";
+import { harvestWorkQueue } from "../src/loop/harvester.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
 
@@ -150,5 +151,50 @@ test("F5: --priority with a bad value is refused", async () => {
     const { code, err } = await dry(dir, ["--from-conductor", "--priority", "high"]);
     assert.equal(code, 1);
     assert.match(err, /--priority: 'high' is not a priority/);
+  });
+});
+
+// F12: the shipped backlog held six example tasks, so --from-conductor on a fresh
+// install dispatched agents on fake work. The templates must harvest to nothing.
+test("F12: a fresh install's inbox and backlog harvest to zero work items", async () => {
+  const backlogMd = await readFile(new URL("../templates/conductor/2-backlog/task-backlog.md", import.meta.url), "utf8");
+  const inboxMd = await readFile(new URL("../templates/conductor/1-workbench/inbox.md", import.meta.url), "utf8");
+  assert.deepEqual(harvestWorkQueue({ backlogMd, inboxMd }), []);
+});
+
+// D1: an outer conductor repo with the code in a gitignored nested repo cannot
+// work (the loop's worktrees never contain the code). It ran silently against
+// the outer repo; it must refuse and say why.
+async function withNestedRepo(config, fn) {
+  return withProject({ state: L3, config, remote: "https://github.com/a/b.git" }, async (dir) => {
+    await writeFile(join(dir, ".gitignore"), "repo/\n", "utf8");
+    await mkdir(join(dir, "repo"));
+    execFileSync("git", ["init", "-q"], { cwd: join(dir, "repo") });
+    return fn(dir);
+  });
+}
+
+test("D1: a gitignored nested git repo at the top level stops the run, dry-run included", async () => {
+  await withNestedRepo(null, async (dir) => {
+    const { code, err } = await dry(dir);
+    assert.equal(code, 1);
+    assert.match(err, /'repo\/' is a separate git repository that this repo ignores/);
+  });
+});
+
+test("D1: loop.allow_nested_repo: true lets the run proceed", async () => {
+  await withNestedRepo({ loop: { allow_nested_repo: true } }, async (dir) => {
+    const { code, err } = await dry(dir);
+    assert.doesNotMatch(err, /separate git repository/);
+    assert.notEqual(code, undefined);
+  });
+});
+
+test("D1: a gitignored directory that is not a git repo is fine", async () => {
+  await withProject({ state: L3, remote: "https://github.com/a/b.git" }, async (dir) => {
+    await writeFile(join(dir, ".gitignore"), "node_modules/\n", "utf8");
+    await mkdir(join(dir, "node_modules"));
+    await writeFile(join(dir, "node_modules", "x.js"), "", "utf8");
+    assert.doesNotMatch((await dry(dir)).err, /separate git repository/);
   });
 });

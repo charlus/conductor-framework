@@ -8,7 +8,7 @@
 import { readFile, writeFile, rename, access, rm, cp, mkdir, readdir, mkdtemp } from "node:fs/promises";
 import { constants as fsConstants, rmSync } from "node:fs";
 import { spawn } from "node:child_process";
-import { join, resolve, sep } from "node:path";
+import { join, resolve, sep, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { runLoop, normalizeState, resolveVerifyCommand, beatCeiling } from "../loop/driver.js";
 import { resolveAdapter } from "../loop/adapters/index.js";
@@ -25,6 +25,7 @@ import { reviveForResume } from "../loop/resume.js";
 import { mineRecurringFailures, renderImprovementReport } from "../loop/improver.js";
 import { parseTriggerPayload, applyTrigger, renderTriggerDoc } from "../loop/trigger.js";
 import { allowedToolsFor } from "../loop/untrusted.js";
+import { writeBeatLog, BEAT_LOG_DIR } from "../loop/beat-log.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings } from "../loop/config.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
@@ -78,6 +79,7 @@ const LOOP_HELP = [
   "    require_ready    true → only backlog items tagged loop-ready",
   "    priorities       [\"P1\"] → only backlog items under these headings",
   "    inbox            false → never harvest inbox lines",
+  "    allow_nested_repo true → run although a gitignored nested git repo exists",
   "",
 ].join("\n");
 
@@ -231,6 +233,18 @@ async function configVerify(root) {
   } catch {
     return "";
   }
+}
+
+/** Top-level gitignored directories of `root` that are git repositories themselves. */
+async function ignoredNestedRepos(root) {
+  const res = await runCli("git", ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory"], root);
+  if (!res.ok) return [];
+  const found = [];
+  for (const entry of res.stdout.split("\n")) {
+    if (!/^[^/]+\/$/.test(entry)) continue; // top-level directories only
+    if (await exists(join(root, entry, ".git"))) found.push(entry);
+  }
+  return found;
 }
 
 /** The raw conductor.config.json from the ROOT checkout ({} if absent). Throws on bad JSON. */
@@ -423,6 +437,20 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   }
   const promptPath = join(root, WORKFLOW_REL);
 
+  // D1: an outer conductor repo whose code lives in a gitignored nested repo
+  // cannot work: worktrees of THIS repo never contain that code, so every beat
+  // would run against the wrong repository. Refuse and say why.
+  const nestedRepos = loopConfig.allowNestedRepo ? [] : await ignoredNestedRepos(root);
+  if (nestedRepos.length) {
+    stderr.write(
+      nestedRepos
+        .map((d) => `⛔  '${d}' is a separate git repository that this repo ignores. conductor loop works on ONE repository: its worktrees, commits and PRs would be in this repo, without that code.\n`)
+        .join("") +
+        "    Run conductor in the code repository itself. If that directory is unrelated to the work, set loop.allow_nested_repo: true in conductor.config.json.\n"
+    );
+    return 1;
+  }
+
   // F4: the forge comes from the origin host (or loop.forge), resolved before any
   // beat so a missing or unauthenticated CLI fails here, not after the push.
   const willOpenPr = planMergeAction({ autonomyLevel: state.autonomy_level, phase: state.phase }) === "pr";
@@ -499,7 +527,28 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     );
     return 1;
   }
-  const adapter = resolved.adapter;
+  // F11: every maker and checker beat leaves its output in the main repo's git
+  // dir, so a beat that did nothing can be diagnosed after teardown. Best-effort.
+  const gitCommonDir = await runCli("git", ["rev-parse", "--git-common-dir"], root);
+  const beatLogDir = gitCommonDir.ok ? join(resolve(root, gitCommonDir.stdout), BEAT_LOG_DIR) : null;
+  const logged = (kind, run) => async (opts) => {
+    const result = await run(opts);
+    if (beatLogDir) {
+      try {
+        const label = `${kind}${opts.role ? ` ${opts.role}` : ""} ${basename(opts.cwd ?? root)}`;
+        const path = await writeBeatLog(beatLogDir, { now: Date.now(), label, cwd: opts.cwd ?? root, result });
+        await audit(`${kind} log: ${path}`);
+      } catch {
+        /* a log failure never fails a beat */
+      }
+    }
+    return result;
+  };
+  const adapter = {
+    ...resolved.adapter,
+    runBeat: logged("maker", resolved.adapter.runBeat),
+    runChecker: logged("checker", resolved.adapter.runChecker),
+  };
   stdout.write(`[CONDUCTOR LOOP] platform: ${adapter.name}\n`);
 
   if (willOpenPr) {

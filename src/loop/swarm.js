@@ -92,6 +92,7 @@ export function normalizeTask(task, defaults = {}) {
     source: task.source ?? null,
     route: task.route ?? null,
     priority: task.priority ?? null,
+    details: task.details ?? "",
     // TDD split (opt-in): `contract_first` overrides the swarm-wide policy;
     // `phase` tracks contract → implementation across a task's beats.
     contract_first: typeof task.contract_first === "boolean" ? task.contract_first : null,
@@ -278,10 +279,20 @@ export async function runSwarm(state, deps) {
     if (budget.beats >= budget.maxBeats) { terminal = "max_iterations_exceeded"; break; }
     if ((now() - budget.startedAt) / 60000 >= budget.maxWallClockMin) { terminal = "budget_exceeded"; break; }
 
-    const wave = frontier.slice(0, concurrency);
-    for (const t of wave) {
+    const assigned = frontier.slice(0, concurrency);
+    const wave = [];
+    for (const t of assigned) {
       t.role = resolveRoleForTask(t, state.roles, "maker").name;
       t.worktree = (await assignWorktree({ task: t })) ?? t.worktree;
+      // F2: no beat in a worktree whose loop.setup failed — verify would fail on
+      // the missing dependencies, not on the task.
+      if (t.worktree?.setup_error) {
+        t.status = "failed";
+        await writeInbox(state, `task ${t.id}: worktree setup failed — ${t.worktree.setup_error}`);
+        await audit(`task ${t.id}: failed (worktree setup failed)`);
+        continue;
+      }
+      wave.push(t);
     }
     state.iterations.current = budget.beats;
     await persist(state);

@@ -5,8 +5,8 @@
 // file is the IO shell (read/persist state, run git + verify, pick the adapter);
 // all guarantees live in the pure driver so `node --test` can exercise them.
 
-import { readFile, writeFile, rename, access, rm, cp, mkdir, readdir } from "node:fs/promises";
-import { constants as fsConstants } from "node:fs";
+import { readFile, writeFile, rename, access, rm, cp, mkdir, readdir, mkdtemp } from "node:fs/promises";
+import { constants as fsConstants, rmSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { join, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
@@ -25,6 +25,7 @@ import { reviveForResume } from "../loop/resume.js";
 import { mineRecurringFailures, renderImprovementReport } from "../loop/improver.js";
 import { parseTriggerPayload, applyTrigger, renderTriggerDoc } from "../loop/trigger.js";
 import { allowedToolsFor } from "../loop/untrusted.js";
+import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings } from "../loop/config.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
 const LOCK_REL = "conductor/1-workbench/loop.lock";
@@ -65,8 +66,18 @@ const LOOP_HELP = [
   "    --goal <text>         Set the goal for this run",
   "    --event <file.json>   Seed the goal from a trigger payload",
   "    --from-conductor      Harvest the work queue from the backlog and inbox",
+  "    --priority <P1[,P2]>  With --from-conductor: only backlog items under these headings",
+  "    --no-inbox            With --from-conductor: do not harvest inbox lines",
   "    --unsafe-no-sandbox   Allow sandbox: none (only inside a VM you control)",
   "    -h, --help            Show this help",
+  "",
+  "  Per-project settings, in the \"loop\" block of conductor.config.json (never overwritten by upgrade):",
+  "    forge            \"gh\" | \"glab\" (default: from the origin host, github.com → gh, else glab)",
+  "    setup            Shell command run once per new worktree, before the first beat",
+  "    allowed_domains  Extra hosts for the cli-native sandbox network list",
+  "    require_ready    true → only backlog items tagged loop-ready",
+  "    priorities       [\"P1\"] → only backlog items under these headings",
+  "    inbox            false → never harvest inbox lines",
   "",
 ].join("\n");
 
@@ -81,6 +92,8 @@ const LOOP_FLAGS = new Set([
   "--from-conductor",
   "--help",
   "-h",
+  "--priority",
+  "--no-inbox",
 ]);
 
 /** Parse `--flag value` or `--flag=value`; returns null if absent. Accepts a
@@ -187,12 +200,6 @@ function runCli(cmd, argv, cwd) {
   });
 }
 
-/** True if a CLI responds to `--version`. */
-async function cliAvailable(cmd) {
-  const r = await runCli(cmd, ["--version"], undefined);
-  return r.ok;
-}
-
 /** Append one auditable line to the ship-log (best-effort; never throws). */
 async function appendShipLog(root, message, now) {
   const log = join(root, "conductor/0-compass/ship-log.md");
@@ -224,6 +231,13 @@ async function configVerify(root) {
   } catch {
     return "";
   }
+}
+
+/** The raw conductor.config.json from the ROOT checkout ({} if absent). Throws on bad JSON. */
+async function readRootConfig(root) {
+  const cfgPath = join(root, "conductor.config.json");
+  if (!(await exists(cfgPath))) return {};
+  return readJson(cfgPath);
 }
 
 async function writeInbox(root, state, reason) {
@@ -261,6 +275,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   const goalFlag = flagValue(args, "--goal");
   const eventFlag = flagValue(args, "--event");
   const fromConductor = args.includes("--from-conductor");
+  const priorityFlag = flagValue(args, "--priority");
+  const noInbox = args.includes("--no-inbox");
 
   if (!(await exists(statePath))) {
     stderr.write(`No ${STATE_REL} found. Run 'conductor init' or 'conductor upgrade' first.\n`);
@@ -276,6 +292,27 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     return 1;
   }
   const state = normalizeState(raw);
+
+  // The "loop" block of conductor.config.json, read from the ROOT checkout only:
+  // a beat runs in a worktree and cannot widen its own sandbox or setup. A bad
+  // value stops the run (dry-run included) rather than being silently ignored.
+  let loopConfig;
+  try {
+    loopConfig = parseLoopConfig(await readRootConfig(root));
+  } catch (e) {
+    stderr.write(`Could not parse conductor.config.json: ${e.message}\n`);
+    return 1;
+  }
+  if (priorityFlag !== null) {
+    const parsed = parsePriorities(priorityFlag);
+    if (parsed.error) loopConfig.errors.push(`--priority: ${parsed.error}`);
+    else loopConfig.priorities = parsed.priorities;
+  }
+  if (noInbox) loopConfig.inbox = false;
+  if (loopConfig.errors.length) {
+    stderr.write(`⛔  Invalid loop settings in conductor.config.json:\n${loopConfig.errors.map((e) => `    - ${e}`).join("\n")}\n`);
+    return 1;
+  }
 
   // ---- Resume discipline (P1.4): a prior run may have died mid-beat, freezing a
   // task at a working status the frontier never re-selects (→ deadlock on resume)
@@ -337,7 +374,13 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   if (fromConductor) {
     const inboxMd = (await exists(join(root, INBOX_REL))) ? await readFile(join(root, INBOX_REL), "utf8") : "";
     const backlogMd = (await exists(join(root, BACKLOG_REL))) ? await readFile(join(root, BACKLOG_REL), "utf8") : "";
-    harvestedQueue = harvestWorkQueue({ inboxMd, backlogMd });
+    harvestedQueue = harvestWorkQueue({
+      inboxMd,
+      backlogMd,
+      requireReady: loopConfig.requireReady,
+      priorities: loopConfig.priorities,
+      includeInbox: loopConfig.inbox,
+    });
     state.tasks = harvestedQueue; // swarm route; normalizeTask preserves title/source/route
     // persist + audit DEFERRED to the post-lock block below (dry-run stays read-only).
   }
@@ -380,6 +423,12 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   }
   const promptPath = join(root, WORKFLOW_REL);
 
+  // F4: the forge comes from the origin host (or loop.forge), resolved before any
+  // beat so a missing or unauthenticated CLI fails here, not after the push.
+  const willOpenPr = planMergeAction({ autonomyLevel: state.autonomy_level, phase: state.phase }) === "pr";
+  const remote = await runCli("git", ["remote", "get-url", "origin"], root);
+  const forgeInfo = resolveForge({ override: loopConfig.forge, remoteUrl: remote.ok ? remote.stdout : "" });
+
   if (dryRun) {
     const detected = Object.entries(resolved.availability)
       .filter(([, ok]) => ok)
@@ -411,7 +460,10 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         `  beats:    ${state.iterations.current}/${beatCeiling(state)}`,
         `  autonomy: ${state.autonomy_level}  (${autonomySummary(state)})`,
         `  sandbox:  ${state.sandbox}${state.autonomy_level === "L3" && !["cli-native", "container"].includes(state.sandbox) ? "  ⛔ L3 requires sandbox=cli-native or container (will halt: halted_sandbox_required)" : ""}`,
-        `  merge:    ${planMergeAction({ autonomyLevel: state.autonomy_level, phase: state.phase }) === "pr" ? "PR-gated (gh/glab) on completion" : "none (human reviews/merges)"}`,
+        `  merge:    ${willOpenPr ? "PR-gated on completion" : "none (human reviews/merges)"}`,
+        ...(willOpenPr ? [`  forge:    ${forgeInfo.forge ? `${forgeInfo.forge} (${forgeInfo.source})` : `⛔ ${forgeInfo.error}`}`] : []),
+        `  setup:    ${loopConfig.setup ?? "(none)"}`,
+        ...(loopConfig.allowedDomains.length ? [`  network:  + ${loopConfig.allowedDomains.join(", ")}${state.sandbox === "cli-native" ? "" : "  (only applies to sandbox=cli-native with claude)"}`] : []),
         `  mode:     ${state.tasks?.length ? `swarm (${state.tasks.length} tasks)` : "pair (single goal)"}`,
         `  concurrency: ${state.concurrency}${state.concurrency > 1 && (state.autonomy_level !== "L3" || !(state.tasks?.length)) ? "  ⛔ swarm needs L3 + a task graph (will halt: halted_autonomy)" : ""}`,
         `  checker:  ${state.checker_votes > 1 ? `${state.checker_votes}-vote (adversarial, majority)` : "single verdict"}`,
@@ -423,12 +475,17 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       ].join("\n")
     );
     if (fromConductor) {
-      stdout.write(`  harvested: ${harvestedQueue.length} work item(s) from conductor/\n`);
+      const filters = [
+        loopConfig.requireReady && "loop-ready only",
+        loopConfig.priorities.length && `priorities ${loopConfig.priorities.join(",")}`,
+        !loopConfig.inbox && "no inbox",
+      ].filter(Boolean);
+      stdout.write(`  harvested: ${harvestedQueue.length} work item(s) from conductor/${filters.length ? ` (${filters.join(", ")})` : ""}\n`);
       for (const t of harvestedQueue) {
         stdout.write(`    - [${t.type}${t.priority ? " " + t.priority : ""}] ${t.title}  → ${t.route ?? "(brief)"}\n`);
       }
     }
-    return adapterError || !resolved.adapter ? 1 : 0;
+    return adapterError || !resolved.adapter || (willOpenPr && !forgeInfo.forge) ? 1 : 0;
   }
 
   if (adapterError) {
@@ -445,6 +502,23 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   const adapter = resolved.adapter;
   stdout.write(`[CONDUCTOR LOOP] platform: ${adapter.name}\n`);
 
+  if (willOpenPr) {
+    if (!forgeInfo.forge) {
+      stderr.write(`⛔  ${forgeInfo.error}\n`);
+      return 1;
+    }
+    const authArgs = ["auth", "status", ...(forgeInfo.host ? ["--hostname", forgeInfo.host] : [])];
+    const auth = await runCli(forgeInfo.forge, authArgs, root);
+    if (!auth.ok) {
+      stderr.write(
+        `⛔  This run opens a PR/MR with '${forgeInfo.forge}' (${forgeInfo.source}), but '${forgeInfo.forge} ${authArgs.join(" ")}' failed. ` +
+          `Install and authenticate it, or set loop.forge in conductor.config.json. Nothing was run.\n`
+      );
+      return 1;
+    }
+    stdout.write(`[CONDUCTOR LOOP] forge: ${forgeInfo.forge} (${forgeInfo.source})\n`);
+  }
+
   // cli-native sandbox: hand the claude beats a settings profile that turns ON
   // Anthropic's bubblewrap sandbox, fail-closed (failIfUnavailable). Only the
   // claude engine reads this — codex/agy provide their own out-of-process sandbox.
@@ -453,7 +527,18 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const p = join(root, ".agents/sandbox/claude-sandbox.settings.json");
     if (await exists(p)) {
       sandboxSettingsPath = p;
-      stdout.write(`[CONDUCTOR LOOP] sandbox: cli-native (Anthropic bubblewrap via ${".agents/sandbox/claude-sandbox.settings.json"})\n`);
+      // F3: the template is framework-owned (upgrade overwrites it), so project
+      // domains live in loop.allowed_domains and are merged into a generated copy
+      // in a private (0700) temp dir, outside every worktree.
+      if (loopConfig.allowedDomains.length) {
+        const merged = mergeSandboxSettings(await readJson(p), loopConfig.allowedDomains);
+        const dir = await mkdtemp(join(tmpdir(), "conductor-sandbox-"));
+        process.once("exit", () => rmSync(dir, { recursive: true, force: true }));
+        sandboxSettingsPath = join(dir, "claude-sandbox.settings.json");
+        await writeFile(sandboxSettingsPath, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
+        stdout.write(`[CONDUCTOR LOOP] sandbox network: + ${loopConfig.allowedDomains.join(", ")}\n`);
+      }
+      stdout.write(`[CONDUCTOR LOOP] sandbox: cli-native (Anthropic bubblewrap via ${sandboxSettingsPath === p ? ".agents/sandbox/claude-sandbox.settings.json" : sandboxSettingsPath})\n`);
     } else {
       stderr.write(
         `[CONDUCTOR LOOP] ⛔ sandbox=cli-native but .agents/sandbox/claude-sandbox.settings.json is missing — refusing to run unsandboxed. Run 'conductor upgrade' to restore it.\n`
@@ -540,8 +625,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       title,
       git: makeGit(cwd),
       run: (cmd, argv) => runCli(cmd, argv, cwd),
-      hasGh: await cliAvailable("gh"),
-      hasGlab: await cliAvailable("glab"),
+      forge: forgeInfo.forge,
     });
   };
 
@@ -565,6 +649,26 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     } catch {
       /* best-effort source-of-truth update */
     }
+  }
+
+  // F2: run loop.setup once per worktree, before its first beat. The marker lives
+  // in the worktree's private git dir, so it never shows in the tree or the PR,
+  // and a failed setup is retried on the next run. Runs in the driver, outside
+  // the agent sandbox: the command is operator-authored and read from the root.
+  async function runWorktreeSetup(worktreePath) {
+    if (!loopConfig.setup) return { ok: true };
+    const markerRel = await runCli("git", ["rev-parse", "--git-path", "conductor-setup.done"], worktreePath);
+    const marker = markerRel.ok ? resolve(worktreePath, markerRel.stdout) : null;
+    if (marker && (await exists(marker))) return { ok: true, skipped: true };
+    stdout.write(`[CONDUCTOR LOOP] setup: ${loopConfig.setup} (in ${worktreePath})\n`);
+    const res = await sh(loopConfig.setup, worktreePath);
+    if (res.exitCode !== 0) {
+      const tail = res.output.trim().split("\n").slice(-5).join(" | ");
+      return { ok: false, reason: `exit ${res.exitCode}: ${tail || "(no output)"}` };
+    }
+    if (marker) await writeFile(marker, `${new Date().toISOString()}\n`, "utf8");
+    await audit(`setup ok in ${worktreePath}`);
+    return { ok: true };
   }
 
   // Fill a fresh worktree with any conductor scaffold git didn't check out because
@@ -708,6 +812,17 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         stderr.write(`Worktree isolation failed: ${e.message}\n`);
         return 1;
       }
+      const setup = await runWorktreeSetup(workCwd);
+      if (!setup.ok) {
+        state.status = "halted_setup_failed";
+        await atomicWriteJson(statePath, state);
+        await writeInbox(root, state, `worktree setup failed — ${setup.reason}`);
+        await audit(`halted_setup_failed: ${setup.reason}`);
+        stderr.write(`⛔  loop.setup failed in ${workCwd} — ${setup.reason}\n`);
+        return 1;
+      }
+      // The operator fixed the setup and re-ran: resume instead of stopping on the old halt.
+      if (state.status === "halted_setup_failed") state.status = "idle";
     }
 
     // The maker signals "goal complete" by writing maker-signal.json; the driver
@@ -823,6 +938,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         // Conductor-enable the isolated Maker even if the scaffold is gitignored.
         await materializeContextInto(plan.path);
         cwdFor.set(task.id, plan.path);
+        const setup = await runWorktreeSetup(plan.path);
+        if (!setup.ok) return { path: plan.path, branch: plan.branch, setup_error: setup.reason };
         // FB-2: mark the item claimed in ./conductor/ so a human won't double-book it.
         // applyClaim is idempotent — a re-claim on resume no-ops (no diff → no commit).
         await updateConductorSource(task, applyClaim, `chore(loop): claim ${task.id}`);

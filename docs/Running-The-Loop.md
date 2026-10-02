@@ -47,6 +47,28 @@ A fresh install seeds `loop-state.json` with `phase: "discovery"` and no verify 
 
 The verify command resolves in this order: `verification.command` → `conductor.config.json` `"verify"` → `npm test` (if a test script exists). Commit your changes so the repo is clean.
 
+### Per-project settings (`conductor.config.json`)
+
+Settings that belong to the project, not to one run, go in the `loop` block of `conductor.config.json`. `conductor upgrade` keeps this file. The loop reads it from the main checkout only, never from a worktree, so a beat cannot change its own settings. An invalid value stops the run, `--dry-run` included.
+
+```jsonc
+{
+  "loop": {
+    "setup": "python -m venv .venv && .venv/bin/pip install -r requirements.txt",
+    "allowed_domains": ["pypi.org", "files.pythonhosted.org", "code.example.com"],
+    "forge": "glab",
+    "require_ready": true,
+    "priorities": ["P1"],
+    "inbox": false
+  }
+}
+```
+
+- `setup`: runs once in each new worktree, before its first beat, in the driver and outside the agent sandbox. A worktree starts without `.venv` or `node_modules`, so without this the verify command fails before it tests anything. If it fails, a pair run stops with `halted_setup_failed` and a swarm task is failed. Fix it and run again: setup is retried.
+- `allowed_domains`: extra hosts for the `cli-native` sandbox (claude). They are merged into a generated copy of `.agents/sandbox/claude-sandbox.settings.json`. Hostnames only, with an optional leading `*.`.
+- `forge`: `gh` or `glab`. Default: from `git remote get-url origin`, `github.com` → `gh`, any other host → `glab`. At L3 execution the loop checks `<forge> auth status` for that host before the first beat.
+- `require_ready`, `priorities`, `inbox`: which items `--from-conductor` takes. See Fleet mode.
+
 **Alternatively, seed the goal at launch** instead of editing the file:
 
 ```bash
@@ -103,7 +125,13 @@ conductor loop /path/to/repo --from-conductor --platform claude
 
 What it harvests, typed and routed:
 - **`1-workbench/inbox.md`** bullets → `triage` items (the agent decides each thought's home and files it).
-- **`2-backlog/task-backlog.md`** open `- [ ]` items → `bugfix` (bug-ish titles) or `task`, tagged with their `## P1/P2/P3` priority. `- [x]` done items are skipped.
+- **`2-backlog/task-backlog.md`** open `- [ ]` items → `bugfix` (bug-ish titles) or `task`, tagged with their `## P1/P2/P3` priority. `- [x]` done items are skipped. The lines indented below an item (its context, its fix) go to the agent with it.
+
+Which items it takes:
+- An item whose title contains `BLOCKED` or `NEEDS_DECISION` is never taken.
+- `loop.require_ready: true` takes only items whose title contains `loop-ready`. Use it when the backlog holds items that are not ready for an agent.
+- `--priority P1` (or `loop.priorities: ["P1"]`) takes only items under those headings.
+- `--no-inbox` (or `loop.inbox: false`) skips inbox lines. `require_ready` and a priority filter skip them too, because an inbox line has neither.
 
 Then, per item, the fleet:
 1. **Claims it** — marks the item `🤖 … (in progress)` in `conductor/` so you (or another agent) won't double-book it.

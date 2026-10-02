@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runLoop, normalizeState, autonomyPreflight, describeHalt } from "../src/loop/driver.js";
-import { planMergeAction, pickForgeCli, prCommand, prLookupCommand, openPullRequest } from "../src/loop/merge.js";
+import { planMergeAction, prCommand, prLookupCommand, openPullRequest } from "../src/loop/merge.js";
 
 function harness(overrides = {}) {
   const state = normalizeState({
@@ -141,12 +141,6 @@ test("planMergeAction: PR only at L3 execution", () => {
   assert.equal(planMergeAction({ autonomyLevel: "L2", phase: "blueprint" }), "none");
 });
 
-test("pickForgeCli prefers gh, falls back to glab, else null", () => {
-  assert.equal(pickForgeCli({ hasGh: true, hasGlab: true }), "gh");
-  assert.equal(pickForgeCli({ hasGh: false, hasGlab: true }), "glab");
-  assert.equal(pickForgeCli({ hasGh: false, hasGlab: false }), null);
-});
-
 test("prCommand shapes gh/glab argv", () => {
   const [gh, ghArgs] = prCommand("gh", { branch: "b", title: "t" });
   assert.equal(gh, "gh");
@@ -166,11 +160,10 @@ test("openPullRequest: no forge → clean failure, no push attempted", async () 
     title: "t",
     git: async () => ((pushed = true), { ok: true, stdout: "" }),
     run: async () => ({ ok: true, stdout: "" }),
-    hasGh: false,
-    hasGlab: false,
+    forge: null,
   });
   assert.equal(res.ok, false);
-  assert.match(res.reason, /no 'gh' or 'glab'/);
+  assert.match(res.reason, /no forge resolved/);
   assert.equal(pushed, false);
 });
 
@@ -180,8 +173,7 @@ test("openPullRequest: push + gh returns the PR url", async () => {
     title: "t",
     git: async (args) => ({ ok: args[0] === "push", stdout: "" }),
     run: async () => ({ ok: true, stdout: "https://github.com/o/r/pull/7\n" }),
-    hasGh: true,
-    hasGlab: false,
+    forge: "gh",
   });
   assert.equal(res.ok, true);
   assert.equal(res.prUrl, "https://github.com/o/r/pull/7");
@@ -194,8 +186,7 @@ test("openPullRequest: failed push aborts before opening a PR", async () => {
     title: "t",
     git: async () => ({ ok: false, stdout: "" }),
     run: async () => ((prOpened = true), { ok: true, stdout: "" }),
-    hasGh: true,
-    hasGlab: false,
+    forge: "gh",
   });
   assert.equal(res.ok, false);
   assert.match(res.reason, /git push failed/);
@@ -218,8 +209,7 @@ test("openPullRequest: plain push rejected → force-with-lease fallback, then P
       return { ok: true, stdout: "" }; // fetch
     },
     run: async () => ({ ok: true, stdout: "https://github.com/o/r/pull/12\n" }),
-    hasGh: true,
-    hasGlab: false,
+    forge: "gh",
   });
   assert.equal(res.ok, true);
   assert.equal(res.prUrl, "https://github.com/o/r/pull/12");
@@ -240,8 +230,7 @@ test("openPullRequest: create fails but a PR already exists → reuse it (no fal
       if (argv[0] === "pr" && argv[1] === "list") return { ok: true, stdout: "https://github.com/o/r/pull/9\n" };
       return { ok: false, stdout: "" };
     },
-    hasGh: true,
-    hasGlab: false,
+    forge: "gh",
   });
   assert.equal(res.ok, true);
   assert.equal(res.prUrl, "https://github.com/o/r/pull/9");
@@ -258,9 +247,25 @@ test("openPullRequest: create fails and no PR exists → genuine failure", async
       if (argv[1] === "list") return { ok: true, stdout: "\n" }; // no url → none open
       return { ok: false, stdout: "" };
     },
-    hasGh: true,
-    hasGlab: false,
+    forge: "gh",
   });
   assert.equal(res.ok, false);
   assert.match(res.reason, /failed to open the PR/);
+});
+
+// Field report F4: the forge is chosen from the origin host, not from which CLI
+// happens to be installed. openPullRequest takes the resolved forge.
+test("F4: openPullRequest with forge glab pushes then opens the MR with glab", async () => {
+  const calls = [];
+  const res = await openPullRequest({
+    branch: "conductor/loop/x",
+    title: "t",
+    git: async (args) => (calls.push(["git", ...args]), { ok: true, stdout: "" }),
+    run: async (cmd, argv) => (calls.push([cmd, ...argv]), { ok: true, stdout: "https://code.example/g/p/-/merge_requests/7" }),
+    forge: "glab",
+  });
+  assert.equal(res.ok, true);
+  assert.equal(res.prUrl, "https://code.example/g/p/-/merge_requests/7");
+  assert.equal(calls[0][0], "git");
+  assert.deepEqual(calls[1].slice(0, 3), ["glab", "mr", "create"]);
 });

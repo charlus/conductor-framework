@@ -6,6 +6,17 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+---
+
+## [6.6.0] — 2026-10-02 — Loop Settings per Project, Swarm Merge Gate
+
+### Note — upgrading
+
+Nothing changes until you add a `loop` block to `conductor.config.json`, with two exceptions for `conductor loop`:
+
+- `--from-conductor` no longer takes backlog items whose title contains `BLOCKED` or `NEEDS_DECISION`.
+- An L3 execution run now checks `<forge> auth status` for the origin host before the first beat, and stops if it fails. On a non-GitHub origin the forge is now `glab`, even when `gh` is installed.
+
 ### Added — per-project loop settings (6.5.0 field report)
 
 A new `loop` block in `conductor.config.json`. Upgrade keeps it. The loop reads it from the main checkout only. An invalid value stops the run. See `docs/Running-The-Loop.md`.

@@ -9,6 +9,7 @@
 //   require_ready    true → only backlog items tagged `loop-ready` are harvested
 //   priorities       ["P1", …] → only backlog items under these headings
 //   inbox            false → inbox lines are not harvested
+//   allow_nested_repo true → run even though a gitignored nested git repo exists
 //
 // The driver reads this file from the ROOT checkout only, never from a worktree,
 // so a beat cannot widen its own sandbox or change its own setup. All helpers are
@@ -23,7 +24,7 @@ const DOMAIN_RE = /^(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a
 export function parseLoopConfig(config) {
   const raw = config && typeof config === "object" && config.loop && typeof config.loop === "object" ? config.loop : {};
   const errors = [];
-  const out = { forge: null, setup: null, allowedDomains: [], requireReady: false, priorities: [], inbox: true, errors };
+  const out = { forge: null, setup: null, allowedDomains: [], requireReady: false, priorities: [], inbox: true, allowNestedRepo: false, errors };
 
   if (raw.forge !== undefined && raw.forge !== null) {
     if (FORGES.includes(raw.forge)) out.forge = raw.forge;
@@ -49,6 +50,10 @@ export function parseLoopConfig(config) {
     const parsed = parsePriorities(raw.priorities);
     if (parsed.error) errors.push(`loop.priorities: ${parsed.error}`);
     else out.priorities = parsed.priorities;
+  }
+  if (raw.allow_nested_repo !== undefined) {
+    if (typeof raw.allow_nested_repo === "boolean") out.allowNestedRepo = raw.allow_nested_repo;
+    else errors.push("loop.allow_nested_repo must be true or false");
   }
   if (raw.inbox !== undefined) {
     if (typeof raw.inbox === "boolean") out.inbox = raw.inbox;

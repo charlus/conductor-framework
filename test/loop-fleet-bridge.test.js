@@ -222,3 +222,36 @@ test("F5: normalizeTask keeps details, so the swarm beat still sees them", () =>
   const [task] = harvestWorkQueue({ backlogMd: RICH_BACKLOG, requireReady: true, priorities: ["P1"] });
   assert.match(renderAssignment(normalizeTask(task)), /Acceptance: the file opens in Excel\./);
 });
+
+// ---- F10: a claimed item keeps its id across re-harvests --------------------
+//
+// The claim rewrites the line to `🤖 X (in progress: id)`. Parsed raw, that gave
+// a new title and a new id, so the next run dispatched the item again and the
+// done write-back could not find it.
+
+test("F10: re-harvesting a claimed backlog item yields the same id and clean title", () => {
+  const md = "## P1\n- [ ] Rename settings page\n  - Fix: rename the route too.\n";
+  const [first] = harvestWorkQueue({ backlogMd: md });
+  const claimed = applyClaim(md, first);
+  assert.match(claimed, /🤖 Rename settings page \(in progress: /);
+  const [again] = harvestWorkQueue({ backlogMd: claimed });
+  assert.equal(again.id, first.id);
+  assert.equal(again.title, "Rename settings page");
+  assert.equal(again.source.title, "Rename settings page");
+  assert.equal(again.details, "- Fix: rename the route too.");
+});
+
+test("F10: done write-back still finds a claimed item harvested on a later run", () => {
+  const md = "## P1\n- [ ] Rename settings page\n";
+  const claimed = applyClaim(md, harvestWorkQueue({ backlogMd: md })[0]);
+  const [again] = harvestWorkQueue({ backlogMd: claimed });
+  assert.equal(applyDone(claimed, again), "## P1\n- [x] Rename settings page\n");
+});
+
+test("F10: claim and done keep the blank line after the item", () => {
+  const md = "## P1\n- [ ] A\n\n## P2\n- [ ] B\n";
+  const [a] = harvestWorkQueue({ backlogMd: md });
+  const claimed = applyClaim(md, a);
+  assert.equal(claimed, `## P1\n- [ ] 🤖 A (in progress: ${a.id})\n\n## P2\n- [ ] B\n`);
+  assert.equal(applyDone(claimed, a), "## P1\n- [x] A\n\n## P2\n- [ ] B\n");
+});

@@ -143,8 +143,10 @@ Because the queue is **re-harvested every run**, a human editing `conductor/` �
 ## How it reads your project
 
 - **Instructions/rules/personas:** picked up automatically — the agent auto-loads `CLAUDE.md → .agents/AGENTS.md` and the workflow directs it to read `.agents/rules/` and `.agents/personas/` each beat.
-- **Goal / phase / status:** *only* from `loop-state.json`. The driver does not scan your `conductor/` folders.
-- **Open tasks from `conductor/2-plan/`:** **not** ingested automatically today — you bridge them into `tasks[]` (via `carve`) or give a single `--goal`. (Auto-bridging is on the roadmap — see [`roadmap/Loop-Robustness-Plan.md`](roadmap/Loop-Robustness-Plan.md).)
+- **Goal / phase / status:** from `loop-state.json`.
+- **Work items:** with `--from-conductor`, from `conductor/1-workbench/inbox.md` and `conductor/2-backlog/task-backlog.md` (see Fleet mode). Without it, the driver reads no other `conductor/` file: give a single `--goal`, or put a task graph in `tasks[]` (for example with `carve`).
+- **Per-project settings:** from the `loop` block of `conductor.config.json` in the main checkout.
+- **One repository only:** the loop works on the repository it starts in. If a top-level directory is a separate, gitignored git repository (an outer repo for `conductor/` with the code nested inside), the loop refuses to run, because its worktrees would not contain that code. Run it in the code repository. If the nested repository is unrelated to the work, set `loop.allow_nested_repo: true`.
 
 ## Claude Code native alternative
 
@@ -209,3 +211,4 @@ conductor evidence list                     # what ran, when, against which tree
 - Prefer `sandbox: "cli-native"` for real runs — it enables the agent CLI's own vendor sandbox (Anthropic's bubblewrap for `claude`, fail-closed). `sandbox: "none"` + `--unsafe-no-sandbox` runs the agent unsandboxed; only do that inside a throwaway clone or a VM.
 - The loop is **young**. The rough edge that used to lose work — a maker creating files without committing, so verify passed on the working tree while the committed diff stayed empty — is now backstopped (`src/loop/autocommit.js` captures uncommitted maker changes before teardown, and the empty-done-claim guard refuses to ship a branch with no commits). Prefer `L1` and review the branch before merging anyway. Hardening is tracked in [`roadmap/Loop-Robustness-Plan.md`](roadmap/Loop-Robustness-Plan.md).
 - Escalations and the run trail are written to `conductor/1-workbench/inbox.md` and `conductor/0-compass/ship-log.md` — read those after every run.
+- Each maker and checker beat saves the agent's output in `.git/conductor-loop-logs/` of the main repository. The ship-log gives the path of each one. These logs are never committed, and the newest 200 are kept. Read them when a beat did nothing or the Checker rejected.

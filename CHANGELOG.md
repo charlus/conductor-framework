@@ -6,6 +6,14 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — loop follow-ups
+
+- F10: a backlog item claimed by the loop (`🤖 X (in progress: …)`) got a new id on the next harvest. A repeated or resumed `--from-conductor` run took it again, and the done write-back could not find it. The claim annotation is now ignored when the id is computed. The claim and done write-backs also no longer remove the blank line after the item, or the final newline.
+- F11: the agent's output from each maker and checker beat is saved in `.git/conductor-loop-logs/`, and the path is written to the ship-log. The newest 200 logs are kept. Before, a beat that did nothing left no trace once its clean worktree was removed.
+- F12: a fresh install's backlog held six example tasks, which `--from-conductor` would dispatch to agents. The example is now a quoted format note, so nothing is harvested. Existing installs keep their backlog: delete the example items if they are still there.
+- F13: `docs/Running-The-Loop.md` said the driver does not read `conductor/`. It now describes `--from-conductor`, the `loop` settings and the beat logs.
+- D1: the loop refuses to run when a top-level directory is a separate, gitignored git repository, for example an outer `conductor/` repo with the code nested inside. Before, it ran against the outer repo without a warning. `loop.allow_nested_repo: true` overrides this when the nested repository is unrelated to the work.
+
 ---
 
 ## [6.6.0] — 2026-10-02 — Loop Settings per Project, Swarm Merge Gate

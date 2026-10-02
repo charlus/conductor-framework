@@ -5,7 +5,8 @@
 // branch and opens a pull/merge request, gated by the green floor + Checker
 // approval already established upstream. A human (or a separate CI merge policy)
 // does the actual merge. Reuses the `gh` / `glab` CLIs (the same tools the
-// git-hub-cli / git-lab-cli skills use), auto-detecting whichever is present.
+// git-hub-cli / git-lab-cli skills use). The caller resolves which one from the
+// origin host (config.js resolveForge).
 //
 // The `git(args) -> {ok, stdout}` runner is injected so the decision + command
 // shape are testable without a real remote.
@@ -15,13 +16,6 @@ export function planMergeAction({ autonomyLevel, phase }) {
   const rank = { L0: 0, L1: 1, L2: 2, L3: 3 }[autonomyLevel] ?? 1;
   if (phase === "execution" && rank >= 3) return "pr";
   return "none"; // L1/L2 and non-execution hand off to the human without merging
-}
-
-/** Which forge CLI to use, given availability probes. */
-export function pickForgeCli({ hasGh, hasGlab }) {
-  if (hasGh) return "gh";
-  if (hasGlab) return "glab";
-  return null;
 }
 
 /** The argv for opening a PR/MR on the chosen forge (pure — for testing). */
@@ -72,13 +66,12 @@ async function findExistingPr(forge, branch, run) {
  * Push the branch and open a PR/MR. Injected IO:
  *   git(args) -> {ok, stdout}
  *   run(cmd, args) -> {ok, stdout}   (for gh/glab)
- *   hasGh / hasGlab: booleans
+ *   forge: "gh" | "glab" | null — resolved from the origin host or loop.forge (config.js)
  * @returns {Promise<{ok:boolean, branch?:string, prUrl?:string, reason?:string}>}
  */
-export async function openPullRequest({ branch, title, git, run, hasGh, hasGlab }) {
-  const forge = pickForgeCli({ hasGh, hasGlab });
+export async function openPullRequest({ branch, title, git, run, forge }) {
   if (!forge) {
-    return { ok: false, reason: "no 'gh' or 'glab' CLI on PATH to open a PR" };
+    return { ok: false, reason: "no forge resolved to open a PR (set loop.forge in conductor.config.json)" };
   }
 
   // Push the branch (set upstream). Never touch a protected branch directly.

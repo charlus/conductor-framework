@@ -53,24 +53,59 @@ export function parseInbox(md) {
 /**
  * Parse `2-backlog/task-backlog.md`. Open checkboxes (`- [ ]`) become work items,
  * tagged with the priority heading (`## P1 …`) they sit under; done (`- [x]`) is
- * skipped. Bug-ish titles route to `bugfix`, the rest to `task`.
+ * skipped. Bug-ish titles route to `bugfix`, the rest to `task`. The lines
+ * indented below an item (its context, its fix) are kept, dedented, as `details`.
  */
 export function parseBacklog(md) {
   const items = [];
+  const lines = String(md ?? "").split("\n");
   let priority = null;
-  for (const raw of String(md ?? "").split("\n")) {
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
     const h = raw.match(/^#{1,6}\s+(P\d)\b/i);
     if (h) {
       priority = h[1].toUpperCase();
       continue;
     }
-    const box = raw.match(/^\s*[-*]\s+\[( |x|X)\]\s+(\S.*?)\s*$/);
+    const box = raw.match(/^(\s*)[-*]\s+\[( |x|X)\]\s+(\S.*?)\s*$/);
     if (!box) continue;
-    if (box[1].toLowerCase() === "x") continue; // already done
-    const title = box[2].trim();
-    items.push({ type: classifyBacklog(title), title, priority });
+    if (box[2].toLowerCase() === "x") continue; // already done
+    const title = box[3].trim();
+    items.push({ type: classifyBacklog(title), title, priority, details: blockBelow(lines, i, box[1].length) });
   }
   return items;
+}
+
+/** The lines indented deeper than `indent` right below line `at`, dedented. */
+function blockBelow(lines, at, indent) {
+  const block = [];
+  for (let j = at + 1; j < lines.length; j++) {
+    const line = lines[j];
+    if (!line.trim()) {
+      block.push("");
+      continue;
+    }
+    if (line.match(/^\s*/)[0].length <= indent) break;
+    block.push(line);
+  }
+  while (block.length && block[block.length - 1] === "") block.pop();
+  const depth = Math.min(...block.filter(Boolean).map((l) => l.match(/^\s*/)[0].length));
+  return block.map((l) => l.slice(depth)).join("\n");
+}
+
+const NOT_READY_RE = /\bBLOCKED\b|\bNEEDS[_ ]DECISION\b/;
+const READY_RE = /(^|[\s[(#])loop-ready\b/i;
+
+/**
+ * Should the loop take this backlog item? Never one marked BLOCKED or
+ * NEEDS_DECISION. With `requireReady`, only one tagged `loop-ready`. With
+ * `priorities`, only one under those headings.
+ */
+export function isHarvestable(item, { requireReady = false, priorities = [] } = {}) {
+  if (NOT_READY_RE.test(item.title)) return false;
+  if (requireReady && !READY_RE.test(item.title)) return false;
+  if (priorities.length && !priorities.includes(item.priority)) return false;
+  return true;
 }
 
 /**
@@ -80,12 +115,17 @@ export function parseBacklog(md) {
  * write-back, and the workflow route for the beat. Duplicate ids are dropped
  * (first wins) so re-harvesting is idempotent.
  *
- * @param {{inboxMd?:string, backlogMd?:string}} sources
+ * @param {{inboxMd?:string, backlogMd?:string, requireReady?:boolean, priorities?:string[], includeInbox?:boolean}} sources
  * @returns {Array<{id,type,title,priority,source,route,status,deps}>}
  */
-export function harvestWorkQueue({ inboxMd = "", backlogMd = "" } = {}) {
-  const backlog = parseBacklog(backlogMd).map((it) => ({ ...it, sourceKind: "backlog" }));
-  const inbox = parseInbox(inboxMd).map((it) => ({ ...it, sourceKind: "inbox" }));
+export function harvestWorkQueue({ inboxMd = "", backlogMd = "", requireReady = false, priorities = [], includeInbox = true } = {}) {
+  const backlog = parseBacklog(backlogMd)
+    .filter((it) => isHarvestable(it, { requireReady, priorities }))
+    .map((it) => ({ ...it, sourceKind: "backlog" }));
+  // Inbox lines are raw thoughts: never loop-ready and never under a priority, so
+  // either filter excludes them, as does includeInbox=false.
+  const takeInbox = includeInbox && !requireReady && priorities.length === 0;
+  const inbox = (takeInbox ? parseInbox(inboxMd) : []).map((it) => ({ ...it, sourceKind: "inbox" }));
   const rank = { bugfix: 0, task: 1, triage: 2 };
   const ordered = [...backlog, ...inbox].sort((a, b) => (rank[a.type] ?? 9) - (rank[b.type] ?? 9));
 
@@ -100,6 +140,7 @@ export function harvestWorkQueue({ inboxMd = "", backlogMd = "" } = {}) {
       type: it.type,
       title: it.title,
       priority: it.priority ?? null,
+      details: it.details ?? "",
       source: { kind: it.sourceKind, title: it.title },
       route: workflowForType(it.type),
       status: "pending",
@@ -145,6 +186,7 @@ export function renderAssignment(task) {
     `- **Item:** ${task.title}`,
     `- **Source:** ${task.source?.kind ?? "conductor"} (\`${task.source?.title ?? task.title}\`)`,
     route.workflow ? `- **Run workflow:** \`${route.workflow}\`` : "- **Run workflow:** (none — follow the brief)",
+    ...(task.details ? ["", "**Item details** (from the backlog, verbatim):", "", task.details] : []),
     "",
     `**Brief:** ${route.brief}`,
   ].join("\n");

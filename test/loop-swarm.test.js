@@ -436,3 +436,21 @@ test("F8: swarm honours budget.max_beats when lower than iterations.max_allowed"
   assert.equal(final.status, "max_iterations_exceeded");
   assert.equal(beats, 1);
 });
+
+// Field report F2: a worktree whose loop.setup failed must never get a beat —
+// the verify floor would fail on missing dependencies, not on the task.
+test("F2: a task whose worktree setup failed is failed without a beat; siblings still run", async () => {
+  const beatsFor = [];
+  const inbox = [];
+  const state = swarmState([{ id: "a" }, { id: "b" }], { concurrency: 2 });
+  const deps = swarmDeps({ runBeat: async ({ task }) => (beatsFor.push(task.id), { exitCode: 0 }) });
+  deps.assignWorktree = async ({ task }) =>
+    task.id === "a" ? { path: "/wt/a", branch: "b/a", setup_error: "exit 1: pip: not found" } : { path: "/wt/b", branch: "b/b" };
+  deps.writeInbox = async (_s, reason) => inbox.push(reason);
+  const final = await runSwarm(state, deps);
+  assert.ok(!beatsFor.includes("a"));
+  assert.ok(beatsFor.includes("b"));
+  assert.equal(final.tasks.find((t) => t.id === "a").status, "failed");
+  assert.equal(final.tasks.find((t) => t.id === "b").status, "merged");
+  assert.ok(inbox.some((r) => /task a: worktree setup failed — exit 1: pip: not found/.test(r)));
+});

@@ -6,6 +6,15 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+### Added — per-project loop settings (6.5.0 field report)
+
+A new `loop` block in `conductor.config.json`. Upgrade keeps it. The loop reads it from the main checkout only. An invalid value stops the run. See `docs/Running-The-Loop.md`.
+
+- F2: `loop.setup` runs once per new worktree, before the first beat (for example `npm ci`, or a venv install). A failure stops a pair run with the new status `halted_setup_failed`, or fails the swarm task. No beat runs in that worktree.
+- F3: `loop.allowed_domains` adds hosts to the `cli-native` sandbox network list. The loop merges them into a generated copy of the template, so `conductor upgrade` no longer erases them.
+- F4: the forge comes from the origin host: `github.com` → `gh`, any other host → `glab`. `loop.forge` overrides it. At L3 execution, `<forge> auth status --hostname <host>` is checked before the first beat, not after the push. Before, `gh` won whenever it was installed.
+- F5: `--from-conductor` never takes items marked `BLOCKED` or `NEEDS_DECISION`. `loop.require_ready: true` takes only items tagged `loop-ready`. `--priority P1` / `loop.priorities` and `--no-inbox` / `loop.inbox` filter the queue. The agent now gets the item's indented details, not only its title.
+
 ### Fixed — loop safety (6.5.0 field report)
 
 - F6: swarm mode opened PRs at every autonomy level. It now opens a PR only at L3 execution, like pair mode. Below that, a passed task keeps its branch, gets an inbox item, and the run ends in `awaiting_review`. `--dry-run` prints the same merge decision.

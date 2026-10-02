@@ -26,6 +26,7 @@ export const TERMINAL_STATUSES = Object.freeze([
   "halted_no_verification",
   "halted_sandbox_required",
   "halted_autonomy",
+  "halted_setup_failed",
 ]);
 
 /** Autonomy slider (ADR-0001 D3). Higher rank = more autonomy. */

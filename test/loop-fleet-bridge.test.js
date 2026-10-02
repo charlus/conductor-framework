@@ -164,3 +164,61 @@ test("applyClaim/applyDone: dispatch by source kind", () => {
   // inbox items are not claimed mid-flight (removed on completion instead).
   assert.equal(applyClaim(INBOX, inboxTask), INBOX);
 });
+
+// ---- Field report F5: task selection + the full item block ------------------
+
+const RICH_BACKLOG = `# Backlog
+
+## P1 - High Priority (Do Next)
+- [ ] T1 Export invoices to CSV loop-ready
+  - Context: finance asks for a monthly export.
+  - Fix: add GET /invoices.csv, reuse the list query.
+
+    Acceptance: the file opens in Excel.
+- [ ] ⛔ BLOCKED T2 Migrate auth to SSO loop-ready
+  - Waiting on the client IdP.
+- [ ] T3 Pick a charting library NEEDS_DECISION
+- [ ] T4 Rename settings page
+## P2 - Medium Priority
+- [ ] T5 Tidy CSS variables loop-ready
+`;
+
+test("F5: parseBacklog keeps the indented block of each item as details", () => {
+  const t1 = parseBacklog(RICH_BACKLOG).find((i) => i.title.startsWith("T1"));
+  assert.equal(
+    t1.details,
+    "- Context: finance asks for a monthly export.\n- Fix: add GET /invoices.csv, reuse the list query.\n\n  Acceptance: the file opens in Excel."
+  );
+  assert.equal(parseBacklog(RICH_BACKLOG).find((i) => i.title.startsWith("T4")).details, "");
+});
+
+test("F5: harvest skips BLOCKED and NEEDS_DECISION items by default", () => {
+  const titles = harvestWorkQueue({ backlogMd: RICH_BACKLOG }).map((t) => t.title);
+  assert.ok(!titles.some((t) => t.includes("T2")));
+  assert.ok(!titles.some((t) => t.includes("T3")));
+  assert.ok(titles.some((t) => t.includes("T4")));
+});
+
+test("F5: requireReady takes only loop-ready items", () => {
+  const titles = harvestWorkQueue({ backlogMd: RICH_BACKLOG, requireReady: true }).map((t) => t.title);
+  assert.deepEqual(titles.map((t) => t.split(" ")[0]), ["T1", "T5"]);
+});
+
+test("F5: priorities filter and includeInbox=false", () => {
+  const q = harvestWorkQueue({ inboxMd: INBOX, backlogMd: RICH_BACKLOG, priorities: ["P1"], includeInbox: false });
+  assert.ok(q.every((t) => t.priority === "P1"));
+  assert.ok(q.every((t) => t.source.kind === "backlog"));
+  assert.ok(q.some((t) => t.title.startsWith("T1")));
+});
+
+test("F5: renderAssignment hands the agent the item details", () => {
+  const [task] = harvestWorkQueue({ backlogMd: RICH_BACKLOG, requireReady: true, priorities: ["P1"] });
+  const text = renderAssignment(task);
+  assert.match(text, /Fix: add GET \/invoices\.csv/);
+  assert.match(text, /Acceptance: the file opens in Excel\./);
+});
+
+test("F5: normalizeTask keeps details, so the swarm beat still sees them", () => {
+  const [task] = harvestWorkQueue({ backlogMd: RICH_BACKLOG, requireReady: true, priorities: ["P1"] });
+  assert.match(renderAssignment(normalizeTask(task)), /Acceptance: the file opens in Excel\./);
+});

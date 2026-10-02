@@ -399,3 +399,40 @@ test("F7: a predictor that throws does not take the swarm down", async () => {
   assert.deepEqual(merged, ["t1"]);
   assert.equal(state.status, "completed");
 });
+
+// ---- Field report F6: swarm must honour the autonomy merge gate ------------
+//
+// Pair mode only opens a PR at L3 execution. Swarm called merge() at every
+// level, so a hand-written tasks[] at L1 pushed branches and opened PRs.
+
+test("F6: swarm at L1 never calls merge — passed tasks go to awaiting_review", async () => {
+  let merges = 0;
+  const inbox = [];
+  const state = swarmState([{ id: "a" }, { id: "b" }], { concurrency: 1 });
+  state.autonomy_level = "L1";
+  const deps = swarmDeps({ merge: async () => (merges++, { ok: true }) });
+  deps.writeInbox = async (_s, reason) => inbox.push(reason);
+  const final = await runSwarm(state, deps);
+  assert.equal(merges, 0);
+  assert.equal(final.status, "awaiting_review");
+  assert.ok(final.tasks.every((t) => t.status === "passed"));
+  assert.ok(inbox.some((r) => /no merge at L1/.test(r)));
+});
+
+test("F6: swarm at L3 outside execution never calls merge", async () => {
+  let merges = 0;
+  const state = swarmState([{ id: "a" }], { concurrency: 1 });
+  state.phase = "blueprint";
+  const final = await runSwarm(state, swarmDeps({ merge: async () => (merges++, { ok: true }) }));
+  assert.equal(merges, 0);
+  assert.equal(final.status, "awaiting_review");
+});
+
+test("F8: swarm honours budget.max_beats when lower than iterations.max_allowed", async () => {
+  let beats = 0;
+  const state = swarmState([{ id: "a" }, { id: "b" }, { id: "c" }], { concurrency: 1, maxBeats: 100 });
+  state.budget.max_beats = 1;
+  const final = await runSwarm(state, swarmDeps({ runBeat: async () => (beats++, { exitCode: 0 }) }));
+  assert.equal(final.status, "max_iterations_exceeded");
+  assert.equal(beats, 1);
+});

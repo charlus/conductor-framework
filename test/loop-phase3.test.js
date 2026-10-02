@@ -11,6 +11,7 @@ import { parseCheckerVerdict, verdictToExitCode, isInfraReason } from "../src/lo
 import {
   slugify,
   worktreePlan,
+  taskWorktreePlan,
   createWorktree,
   teardownWorktree,
 } from "../src/loop/worktree.js";
@@ -222,4 +223,16 @@ test("materializeConductorContext copies exactly the missing anchors", async () 
   });
   assert.deepEqual(filled, ["GEMINI.md", ".agents", "conductor"]);
   assert.deepEqual(copied, ["GEMINI.md", ".agents", "conductor"]);
+});
+
+// Field report F7: the swarm branch was slugify(goal + task id) cut to 40
+// characters, so a long goal cut off the task id and every task shared a branch.
+test("F7: taskWorktreePlan keeps the full task id and caps the goal at 20 characters", () => {
+  const goal = "Deliver the whole quarterly roadmap for the client portal";
+  const a = taskWorktreePlan("/repo", goal, "task:add-csv-export-to-the-invoice-list-page");
+  const b = taskWorktreePlan("/repo", goal, "task:add-pdf-export-to-the-invoice-list-page");
+  assert.notEqual(a.branch, b.branch);
+  assert.equal(a.branch, "conductor/loop/deliver-the-whole-qu-task-add-csv-export-to-the-invoice-list-page");
+  assert.equal(a.path, "/repo/.agents/.worktrees/deliver-the-whole-qu-task-add-csv-export-to-the-invoice-list-page");
+  assert.equal(taskWorktreePlan("/repo", "", "t1").branch, "conductor/loop/loop-t1");
 });

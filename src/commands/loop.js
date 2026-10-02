@@ -10,14 +10,14 @@ import { constants as fsConstants } from "node:fs";
 import { spawn } from "node:child_process";
 import { join, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
-import { runLoop, normalizeState, resolveVerifyCommand } from "../loop/driver.js";
+import { runLoop, normalizeState, resolveVerifyCommand, beatCeiling } from "../loop/driver.js";
 import { resolveAdapter } from "../loop/adapters/index.js";
-import { createWorktree, teardownWorktree, worktreePlan, materializeConductorContext, CONTEXT_ANCHORS, hasUniqueCommits } from "../loop/worktree.js";
+import { createWorktree, teardownWorktree, worktreePlan, taskWorktreePlan, materializeConductorContext, CONTEXT_ANCHORS, hasUniqueCommits } from "../loop/worktree.js";
 import { autoCommit, autoCommitMessage } from "../loop/autocommit.js";
 import { harvestWorkQueue, renderAssignment } from "../loop/harvester.js";
 import { applyClaim, applyDone } from "../loop/writeback.js";
 import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, isInfraReason, VERDICT_REL } from "../loop/checker.js";
-import { openPullRequest } from "../loop/merge.js";
+import { openPullRequest, planMergeAction } from "../loop/merge.js";
 import { runSwarm } from "../loop/swarm.js";
 import { predictConflicts } from "../loop/conflict.js";
 import { lockDecision, renderLock } from "../loop/lock.js";
@@ -53,6 +53,23 @@ function autonomySummary(state) {
   }
 }
 
+const LOOP_HELP = [
+  "",
+  "  conductor loop [target-directory] [options]",
+  "",
+  "  Run the deterministic autonomous loop driver against conductor/1-workbench/loop-state.json.",
+  "",
+  "  Options:",
+  "    --dry-run             Print the run plan and exit. Writes nothing.",
+  "    --platform <name>     Engine: claude | codex | antigravity (default: loop-state, then auto-detect)",
+  "    --goal <text>         Set the goal for this run",
+  "    --event <file.json>   Seed the goal from a trigger payload",
+  "    --from-conductor      Harvest the work queue from the backlog and inbox",
+  "    --unsafe-no-sandbox   Allow sandbox: none (only inside a VM you control)",
+  "    -h, --help            Show this help",
+  "",
+].join("\n");
+
 /** The loop's own option tokens — used so `flagValue` never mistakes a missing
  *  value for the next flag (and vice-versa). */
 const LOOP_FLAGS = new Set([
@@ -62,6 +79,8 @@ const LOOP_FLAGS = new Set([
   "--goal",
   "--event",
   "--from-conductor",
+  "--help",
+  "-h",
 ]);
 
 /** Parse `--flag value` or `--flag=value`; returns null if absent. Accepts a
@@ -209,7 +228,7 @@ async function configVerify(root) {
 
 async function writeInbox(root, state, reason) {
   const inbox = join(root, "conductor/1-workbench/inbox.md");
-  const line = `\n## [loop] Escalation — ${state.status}\n${reason}\n(goal: ${state.goal_description || "n/a"}, beat ${state.iterations.current}/${state.iterations.max_allowed})\n`;
+  const line = `\n## [loop] Escalation — ${state.status}\n${reason}\n(goal: ${state.goal_description || "n/a"}, beat ${state.iterations.current}/${beatCeiling(state)})\n`;
   try {
     const prev = (await exists(inbox)) ? await readFile(inbox, "utf8") : "";
     await writeFile(inbox, prev + line, "utf8");
@@ -228,6 +247,11 @@ async function writeTriggerDoc(root, provenance) {
 }
 
 export async function loopCommand(args, { cwd, stdout, stderr }) {
+  // Before any state read or gate: help must never be refused.
+  if (args.includes("--help") || args.includes("-h")) {
+    stdout.write(`${LOOP_HELP}\n`);
+    return 0;
+  }
   const positional = args.find((a) => !a.startsWith("-"));
   const root = resolve(cwd, positional || ".");
   const statePath = join(root, STATE_REL);
@@ -384,10 +408,10 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           : []),
         `  phase:    ${state.phase}`,
         `  verify:   ${verifyCommand ?? "(none → will halt: halted_no_verification)"}`,
-        `  beats:    ${state.iterations.current}/${state.iterations.max_allowed}`,
+        `  beats:    ${state.iterations.current}/${beatCeiling(state)}`,
         `  autonomy: ${state.autonomy_level}  (${autonomySummary(state)})`,
         `  sandbox:  ${state.sandbox}${state.autonomy_level === "L3" && !["cli-native", "container"].includes(state.sandbox) ? "  ⛔ L3 requires sandbox=cli-native or container (will halt: halted_sandbox_required)" : ""}`,
-        `  merge:    ${state.phase === "execution" && state.autonomy_level === "L3" ? "PR-gated (gh/glab) on completion" : "none (human reviews/merges)"}`,
+        `  merge:    ${planMergeAction({ autonomyLevel: state.autonomy_level, phase: state.phase }) === "pr" ? "PR-gated (gh/glab) on completion" : "none (human reviews/merges)"}`,
         `  mode:     ${state.tasks?.length ? `swarm (${state.tasks.length} tasks)` : "pair (single goal)"}`,
         `  concurrency: ${state.concurrency}${state.concurrency > 1 && (state.autonomy_level !== "L3" || !(state.tasks?.length)) ? "  ⛔ swarm needs L3 + a task graph (will halt: halted_autonomy)" : ""}`,
         `  checker:  ${state.checker_votes > 1 ? `${state.checker_votes}-vote (adversarial, majority)` : "single verdict"}`,
@@ -786,7 +810,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const deps = {
       verifyCommand,
       assignWorktree: async ({ task }) => {
-        const plan = worktreePlan(root, `${state.goal_description}-${task.id}`);
+        const plan = taskWorktreePlan(root, state.goal_description, task.id);
         // Idempotent (P1.4 resume): a prior interrupted run may have left this
         // task's worktree + branch on disk. Reuse it rather than failing the
         // `add`; a fresh `git worktree add` on an existing path/branch errors out.

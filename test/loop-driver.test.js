@@ -16,6 +16,7 @@ import {
   normalizeVerifyOutput,
   classifyBeatResult,
   isTerminal,
+  beatCeiling,
 } from "../src/loop/driver.js";
 
 /** Build normalized state + a deps harness with sensible test defaults. */
@@ -339,4 +340,24 @@ test("(k) a usage-limit beat halts as usage_limit_reached without charging the i
   assert.equal(final.iterations.current, 0, "the dead beat must be refunded, not charged");
   assert.equal(inbox.length, 1);
   assert.match(inbox[0], /1:20am/, "the reset time must reach the inbox");
+});
+
+// Field report F8: budget.max_beats was read but never enforced; only
+// iterations.max_allowed capped the run. The lower of the two is the ceiling.
+test("F8: budget.max_beats caps the run when lower than iterations.max_allowed", async () => {
+  const { state, deps } = harness({
+    max_allowed: 20,
+    state: { budget: { max_beats: 2, max_wall_clock_min: 120 } },
+    runBeat: async ({ state }) => ((state.maker_reported_done = true), { exitCode: 0 }),
+    runVerify: async () => ({ exitCode: 1, output: "red" }),
+  });
+  const final = await runLoop(state, deps);
+  assert.equal(final.status, "max_iterations_exceeded");
+  assert.equal(final.iterations.current, 2);
+});
+
+test("F8: beatCeiling is the lower of max_allowed and max_beats", () => {
+  assert.equal(beatCeiling(normalizeState({ iterations: { max_allowed: 10 }, budget: { max_beats: 20 } })), 10);
+  assert.equal(beatCeiling(normalizeState({ iterations: { max_allowed: 10 }, budget: { max_beats: 4 } })), 4);
+  assert.equal(beatCeiling(normalizeState({ iterations: { max_allowed: 7 } })), 7);
 });

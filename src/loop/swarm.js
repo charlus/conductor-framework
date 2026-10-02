@@ -15,8 +15,9 @@
 // All IO (agent beats, verify, checker, merge, git, clock, persist) is injected
 // so the whole scheduler is unit-testable with stubs — no processes spawned.
 
-import { hashString, computeStallHash, preflight, describeHalt } from "./driver.js";
+import { hashString, computeStallHash, preflight, describeHalt, beatCeiling } from "./driver.js";
 import { orderMergeQueue } from "./conflict.js";
+import { planMergeAction } from "./merge.js";
 
 export const MAX_TASK_STALLS = 3;
 
@@ -238,7 +239,7 @@ export async function runSwarm(state, deps) {
   if (!state.budget.started_at) state.budget.started_at = new Date(now()).toISOString();
   const budget = {
     beats: state.iterations.current ?? 0,
-    maxBeats: state.iterations.max_allowed ?? 20,
+    maxBeats: beatCeiling(state),
     startedAt: Date.parse(state.budget.started_at),
     maxWallClockMin: state.budget.max_wall_clock_min ?? 120,
   };
@@ -261,6 +262,12 @@ export async function runSwarm(state, deps) {
 
     const frontier = computeFrontier(state.tasks);
     if (frontier.length === 0) {
+      // Below L3 execution a passed task is never merged, so its dependants can
+      // never run. That is the human's review point, not a deadlock.
+      if (state.tasks.some((t) => t.status === "passed")) {
+        terminal = "awaiting_review";
+        break;
+      }
       // Nothing runnable but not all terminal → everything left is blocked.
       terminal = "stalled";
       await writeInbox(state, "swarm deadlocked: remaining tasks are blocked by failures");
@@ -312,6 +319,22 @@ export async function runSwarm(state, deps) {
     // attempted). Prediction is an optimisation — the PR-gated merge is still
     // the gate.
     const passed = results.filter((r) => r.outcome === "passed");
+
+    // Same gate as the pair: a PR is opened only at L3 execution. Below that the
+    // branch is kept for the human and nothing is pushed.
+    if (planMergeAction({ autonomyLevel: state.autonomy_level, phase: state.phase }) !== "pr") {
+      for (const { task } of passed) {
+        task.status = "passed";
+        await writeInbox(
+          state,
+          `task ${task.id} passed — no merge at ${state.autonomy_level} ${state.phase}. Branch ${task.worktree?.branch ?? "(unknown)"} kept for review.`
+        );
+        await audit(`task ${task.id}: passed, no merge at ${state.autonomy_level} ${state.phase}`);
+      }
+      await persist(state);
+      continue;
+    }
+
     for (const r of passed) {
       if (!predictConflict) continue;
       try {

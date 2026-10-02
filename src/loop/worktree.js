@@ -16,12 +16,12 @@ import { join } from "node:path";
 const WORKTREES_DIR = ".agents/.worktrees";
 
 /** kebab-slug of a goal, bounded, safe for a branch/dir name. Deterministic. */
-export function slugify(text, fallback = "loop") {
+export function slugify(text, fallback = "loop", max = 40) {
   const slug = String(text ?? "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
+    .slice(0, max);
   return slug || fallback;
 }
 
@@ -31,6 +31,16 @@ export function worktreePlan(root, goalDescription) {
   const branch = `conductor/loop/${slug}`;
   const path = join(root, WORKTREES_DIR, slug);
   return { branch, path, slug };
+}
+
+/**
+ * Pure: the worktree/branch for one swarm task. The goal part is capped at 20
+ * characters and the task id is never cut, so two tasks never share a branch.
+ */
+export function taskWorktreePlan(root, goalDescription, taskId) {
+  const goal = slugify(goalDescription, "loop", 20).replace(/-+$/, "");
+  const slug = `${goal}-${slugify(taskId, "task", Infinity)}`;
+  return { branch: `conductor/loop/${slug}`, path: join(root, WORKTREES_DIR, slug), slug };
 }
 
 /**

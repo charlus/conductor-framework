@@ -15,13 +15,6 @@ trigger: always_on
 > **ALWAYS** write a failing test before implementation code during Build. See `.agents/rules/test-driven-law.md`.
 > **ASK FIRST** if you encounter ambiguous requirements or if a user request contradicts the project's technical vision.
 
-## The Hybrid Architecture
-
-Conductor separates your capabilities (The Engine) from the project state (The Dashboard).
-
-1. **The Engine (`.agents/`)**: Where your instructions, skills, workflows, and personas live. Read-only for the project's logic.
-2. **The Dashboard (`conductor/`)**: Where the human manages the task backlog, inbox, and PRDs. This is your primary collaborative workspace.
-
 ## Request Classifier
 
 Classify what the user needs before acting:
@@ -55,13 +48,3 @@ Full classifier (with the "not sure what you need" decision guide) and everythin
 
 > [!IMPORTANT]
 > **Skill Discovery:** Use Progressive Disclosure to find capabilities beyond this table. Check the YAML frontmatter in `.agents/skills/` for triggers on demand — don't load every skill up front.
-
-## Quick Reference
-
-- **Full system reference**: `.agents/how-it-works.md`
-- **Prime Directive**: `.agents/rules/prime-directive.md`
-- **Verification Iron Law**: `.agents/rules/verification-iron-law.md`
-- **Test-Driven Law**: `.agents/rules/test-driven-law.md`
-- **Skills & Workflows**: `.agents/skills/` and `.agents/workflows/`
-- **Personas**: `.agents/personas/`
-- **Project State**: `conductor/`

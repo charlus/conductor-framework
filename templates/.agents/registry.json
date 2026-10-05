@@ -341,6 +341,13 @@
       "default": true
     },
     {
+      "name": "agents-md",
+      "file": "agents-md.md",
+      "description": "Project Card (Keep the Description in AGENTS.md Current)",
+      "category": "core",
+      "default": true
+    },
+    {
       "name": "survey",
       "file": "survey.md",
       "description": "Survey (Onboarding a Codebase Somebody Else Wrote)",
@@ -412,6 +419,7 @@
       ],
       "workflows": [
         "agentic-flow",
+        "agents-md",
         "build",
         "carve",
         "deepen",

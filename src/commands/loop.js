@@ -28,6 +28,7 @@ import { allowedToolsFor } from "../loop/untrusted.js";
 import { writeBeatLog, BEAT_LOG_DIR } from "../loop/beat-log.js";
 import { syncLoopStateInto } from "../loop/state-sync.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
+import { ignoredNestedRepos } from "../nested-repos.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings } from "../loop/config.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
@@ -235,18 +236,6 @@ async function configVerify(root) {
   } catch {
     return "";
   }
-}
-
-/** Top-level gitignored directories of `root` that are git repositories themselves. */
-async function ignoredNestedRepos(root) {
-  const res = await runCli("git", ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory"], root);
-  if (!res.ok) return [];
-  const found = [];
-  for (const entry of res.stdout.split("\n")) {
-    if (!/^[^/]+\/$/.test(entry)) continue; // top-level directories only
-    if (await exists(join(root, entry, ".git"))) found.push(entry);
-  }
-  return found;
 }
 
 /** The raw conductor.config.json from the ROOT checkout ({} if absent). Throws on bad JSON. */

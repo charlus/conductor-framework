@@ -1,7 +1,10 @@
 # Root AGENTS.md and the Project Card
 
-> **Status:** decisions D5–D13 approved 2026-10-05. R4 and R5 verified live. Delivery steps 1–2
-> built (F21 #48; root `AGENTS.md` generation and migration). Steps 3–5 (the card) not built.
+> **Status:** decisions D5–D13 approved 2026-10-05. R4 and R5 verified live. Delivery steps 1–4
+> built: F21 (#48), root `AGENTS.md` generation and migration (#50), `conductor agents-md
+> facts|write|check` + `status` drift line + the `agents-md` workflow. Live: the workflow wrote a
+> 2,284-byte card on a real project, passing `check`. Step 5 (the with/without-card eval that
+> decides the size) not run.
 > **Scope:** one standard instruction file that every harness loads, a leaner framework text,
 > and a short, current description of the project in every session.
 > **Out of scope:** nested AGENTS.md per code directory (D4).

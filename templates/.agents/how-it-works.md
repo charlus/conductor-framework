@@ -170,6 +170,7 @@ task-backlog.md → Do it → ship-log.md
 | "Quick path", "Just build this" | Fast Track | → `workflows/quick-path.md` (skips discovery) |
 | "Let's reflect", "Retro" | Learning | → `workflows/retrospective.md` |
 | "Loop", "Unattended", "Autonomous", "Loop-ready" | Autonomous Loop | → `workflows/unattended-loop.md` |
+| "Update the project card", "Refresh AGENTS.md" | Project card | → `workflows/agents-md.md` (also when `conductor status` says the card is a draft or stale) |
 | "Brain dump", "Refine my ideas" | Skill | → `skills/brain-dump-to-epics/` |
 | "CTO mode", "Architect mode", "PM mode", etc. | Thinking Partner | → load matching persona from `personas/` |
 | "How does this framework work?" | Navigation | → load `conductor-assistant` persona |
@@ -232,6 +233,7 @@ The other commands, for setup, gates and measurement:
 | `conductor evidence run\|check\|list` | Run the verify command and record the result against the exact working tree; `pre-push` accepts fresh evidence instead of re-running |
 | `conductor review-log append\|summary` | Record review findings and how each was handled. A finding class dismissed more than half the time is a rubric defect |
 | `conductor context-bill` | What the framework costs every session before an agent reads project code (always-on vs on-demand bytes) |
+| `conductor agents-md facts\|write\|check` | The project card in `AGENTS.md`: print the facts the code states, refresh them in the card, check the card (exit 0 = complete and current, then stamped) |
 | `conductor trust-verify` | Record your consent to this repo's verify command. The opt-in Claude Code Stop hook runs it only after that, because the command comes from a file anyone can edit |
 | `conductor loop` | The unattended loop driver. See *Running the loop* below and `conductor loop --help` |
 
@@ -305,6 +307,7 @@ Three rules for `conductor view`:
 | **Agentic-Flow** | Any workflow designing human-AI interaction | Designing agent-facing UX |
 | **Unattended-Loop** | Headless orchestrator | Recursively executes any and all lifecycle phases unattended |
 | **Loop-Checker** | Unattended-Loop (independent Checker process) | Skeptical verification of the Maker's work; verdict via `checker-verdict.json`, fail-safe reject |
+| **Agents-MD** | After `upgrade`, or when `conductor status` flags the card | Keeps the project card in the root `AGENTS.md` true: facts from `conductor agents-md write`, summaries by the agent, `conductor agents-md check` as the gate |
 
 > **Interview & drafting primitives:** Genesis, Storyboard, Grand PRD, and the UX/UI Design Brief supply their *agenda* and load the `grilling` + `collaborative-drafting` skills for the *how*. Spec-It synthesizes from blueprint context rather than re-interviewing; Quick-Path, Retrospective, Technical Vision, and Carve reference the primitives too.
 

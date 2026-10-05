@@ -6,6 +6,13 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the project card in AGENTS.md
+
+- `conductor agents-md facts|write|check`. `write` fills the card's Stack, Commands, Layout and product-area list from the code (manifests, `conductor.config.json`, directories, `conductor/3-product-areas/`), keeps whatever an agent already wrote, and marks the rest `TODO`. `check` exits 0 only for a complete card: fixed headings, no `TODO`, facts unchanged, at most 5 conventions, at most 3,072 bytes. It then stamps one hash per source.
+- In the outer layout (code in a gitignored nested repository), the facts come from the nested code repository.
+- `conductor status` says when the card is a draft, or stale and which sources changed.
+- New workflow `agents-md` (`/agents-md` in Claude Code): the agent writes Purpose, Conventions and one line per product area from `conductor/`, then runs `check` until it exits 0. `init` and `upgrade` point to it.
+
 ### Changed — one root AGENTS.md replaces CLAUDE.md and GEMINI.md
 
 - `init` and `upgrade` write a root `AGENTS.md`, the standard file every harness reads. Its framework block is generated from `.agents/` (the classifier and the rules marked `inline: true`); edit `.agents/`, never the block. A project card block follows, a draft for now. Text you write outside the markers is kept. An existing team-written `AGENTS.md` keeps every byte, below the inserted blocks.

@@ -377,6 +377,9 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       await writeFile(agentsMdPath, agentsMd, "utf8");
       stdout.write(`  ✅ AGENTS.md ${hadAgentsMd ? "framework block refreshed (your text kept)" : "created"}\n`);
       for (const w of await instructionWarningsFor(targetDir)) stdout.write(`  ⚠️  ${w}\n`);
+      if (/project-card:begin status=draft/.test(agentsMd)) {
+        stdout.write("  👉 The project card in AGENTS.md is a draft. Ask your agent to run the agents-md workflow (/agents-md in Claude Code).\n");
+      }
       // CHANGELOG.md is the user's own project changelog — create only if absent.
       const changelogPath = join(targetDir, "CHANGELOG.md");
       if (!(await exists(changelogPath))) {

@@ -44,7 +44,7 @@ function parseArgs(args) {
  * reviewer's worktree at `review-copy/` was walked and reported as its own
  * untested area. The root's own `.git` is never counted.
  */
-async function walk(root, dir = root, acc = [], nested = []) {
+export async function walk(root, dir = root, acc = [], nested = []) {
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });

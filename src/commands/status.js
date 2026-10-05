@@ -9,6 +9,7 @@
 import { collectState } from "../conductor-state.js";
 import { renderStatus } from "../view/status.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
+import { cardState } from "./agents-md.js";
 
 function parseArgs(args) {
   const opts = { color: null, json: false, staleDays: 30, dir: null };
@@ -53,6 +54,10 @@ export async function statusCommand(args, context) {
   context.stdout.write(
     `${renderStatus(state, { color: wantsColour(opts, context.stdout, env) })}\n`
   );
+  // The project card: every session loads it, so a draft or stale card is worth a line.
+  const card = await cardState(root);
+  if (card === "draft") context.stdout.write("  ⚠️  Project card in AGENTS.md is a draft. Run the agents-md workflow (/agents-md).\n");
+  else if (card?.stale) context.stdout.write(`  ⚠️  Project card in AGENTS.md is stale: ${card.stale.join(", ")} changed. Run the agents-md workflow (/agents-md).\n`);
   // D9: anything that makes Claude Code skip the root AGENTS.md, and so the framework.
   for (const w of await instructionWarningsFor(root)) context.stdout.write(`  ⚠️  ${w}\n`);
   return 0;

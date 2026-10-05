@@ -225,8 +225,9 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
       stdout.write(
         "\nNext steps:\n" +
           "  1. Set the push gate:  conductor verify      (what `git push` must pass here)\n" +
-          "  2. Run the self-test:  bash .agents/tests/check-conductor.sh\n" +
-          '  3. Start building:     Tell your AI "Let\'s go"\n' +
+          "  2. Write the project card: ask your agent to run the agents-md workflow (/agents-md)\n" +
+          "  3. Run the self-test:  bash .agents/tests/check-conductor.sh\n" +
+          '  4. Start building:     Tell your AI "Let\'s go"\n' +
           "\nRun the autonomous loop (no git clone needed):\n" +
           "  • Zero-install:  npx github:charlus/conductor-framework loop --dry-run\n" +
           "  • Persistent:    npm i -g github:charlus/conductor-framework   then:   conductor loop --dry-run\n" +

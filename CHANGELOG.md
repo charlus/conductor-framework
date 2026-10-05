@@ -6,6 +6,11 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the agent sees the live loop state
+
+- F15: an agent beat runs in a worktree, which holds the committed `loop-state.json`, not the driver's live one. With `conductor/` tracked in git (the common setup), a pair-mode agent read an old goal and phase, often an empty goal and `discovery`, and refused to work. Before every maker and checker beat, in pair and swarm mode, the driver now copies the live state into the worktree and hides the copy from git.
+- F18: the auto-capture commit swept the driver's `maker-signal.json` (and on later beats `checker-verdict.json`) into the branch, so the PR carried them. Both are now hidden from git in the worktree.
+
 ### Fixed — loop follow-ups
 
 - F10: a backlog item claimed by the loop (`🤖 X (in progress: …)`) got a new id on the next harvest. A repeated or resumed `--from-conductor` run took it again, and the done write-back could not find it. The claim annotation is now ignored when the id is computed. The claim and done write-backs also no longer remove the blank line after the item, or the final newline.

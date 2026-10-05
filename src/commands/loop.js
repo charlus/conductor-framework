@@ -26,6 +26,7 @@ import { mineRecurringFailures, renderImprovementReport } from "../loop/improver
 import { parseTriggerPayload, applyTrigger, renderTriggerDoc } from "../loop/trigger.js";
 import { allowedToolsFor } from "../loop/untrusted.js";
 import { writeBeatLog, BEAT_LOG_DIR } from "../loop/beat-log.js";
+import { syncLoopStateInto } from "../loop/state-sync.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings } from "../loop/config.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
@@ -527,11 +528,19 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     );
     return 1;
   }
-  // F11: every maker and checker beat leaves its output in the main repo's git
-  // dir, so a beat that did nothing can be diagnosed after teardown. Best-effort.
+  // Around every maker and checker beat, in pair and swarm mode:
+  // F15: the worktree gets the driver's live loop-state.json (git checks out the
+  //      committed one), hidden from git so it never reaches the PR.
+  // F11: the beat's output is saved in the main repo's git dir, so a beat that did
+  //      nothing can be diagnosed after teardown. Best-effort.
   const gitCommonDir = await runCli("git", ["rev-parse", "--git-common-dir"], root);
   const beatLogDir = gitCommonDir.ok ? join(resolve(root, gitCommonDir.stdout), BEAT_LOG_DIR) : null;
   const logged = (kind, run) => async (opts) => {
+    try {
+      await syncLoopStateInto({ root, cwd: opts.cwd ?? root, git: makeGit(opts.cwd ?? root) });
+    } catch (e) {
+      stderr.write(`[CONDUCTOR LOOP] ⚠️  could not copy loop-state.json into ${opts.cwd}: ${e.message}\n`);
+    }
     const result = await run(opts);
     if (beatLogDir) {
       try {

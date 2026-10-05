@@ -6,6 +6,11 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — framework reference matches what ships
+
+- `how-it-works.md`: the folder map adds `hooks/`, `sandbox/`, `references/`, the `.claude/` shims, `architecture-checklist.md` and `loop-trigger.md`, and describes what `conductor.config.json` now holds. The CLI reference covers every command (`install-hooks`, `verify`, `evidence`, `review-log`, `context-bill`, `trust-verify`, `loop`, `init`/`upgrade`). The full classifier gets the `status` row and `conductor inbox add`. The skill registry lists `architecture-checklist` and `writing-evals`. A new *Running the loop* section gives an agent the loop facts: one repository, per-project settings, task selection, driver-owned state, merge rule, where the evidence is. Links to design documents point to GitHub, because `docs/` and `src/` do not exist in an installed project.
+- `rules/loop-guardrails.md`: the full terminal-status vocabulary, the beat ceiling as the lower of `iterations.max_allowed` and `budget.max_beats`, and the per-run reset.
+
 ### Changed — leaner always-loaded framework text
 
 - F21: the text every session loads drops from 8.3 KB to 6.0 KB. Removed from `.agents/AGENTS.md`: "The Hybrid Architecture" and "Quick Reference", both already in `how-it-works.md`. Removed from `rules/test-driven-law.md`: the test-layer table (already in `how-it-works.md`) and the interactive-versus-unattended section (already in `workflows/unattended-loop.md`). No rule changed.

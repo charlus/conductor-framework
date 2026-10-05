@@ -19,6 +19,9 @@ your-project/
 │   ├── workflows/                 # Step-by-step guides that PRODUCE artifacts through a defined process
 │   ├── skills/                    # Atomic capabilities that EXECUTE discrete actions
 │   ├── personas/                  # Judgment partners that embody ways of THINKING
+│   ├── references/                # On-demand reference docs (not skills)
+│   ├── hooks/                     # Git + Claude Code hooks that enforce the laws (wired by `conductor install-hooks`)
+│   ├── sandbox/                   # Sandbox profile for `conductor loop` (sandbox: cli-native)
 │   └── tests/                     # Framework self-test (check-conductor.sh)
 ├── conductor/                     # The Dashboard — project state (your collaborative workspace)
 │   ├── 0-compass/                 # North Star & Ship Log
@@ -36,8 +39,9 @@ your-project/
 │   │   └── meta/                    # Decision Log, Glossary
 │   ├── 5-templates/               # Standard structures for creating artifacts
 │   └── 6-archive/                 # Completed work
-├── conductor.config.json          # Registry URL for `conductor add/search/list --remote`
+├── conductor.config.json          # Project settings: `verify` and `eval` commands, the `loop` block, skill registry URL
 ├── GEMINI.md / CLAUDE.md          # Platform auto-discovery stubs
+├── .claude/commands/, .claude/skills/  # Generated Claude Code shims for workflows, CLI commands and skills
 └── CHANGELOG.md                   # Framework version history for this install
 ```
 
@@ -48,13 +52,15 @@ your-project/
 ### 0-compass
 Your North Star. The "where are we going?" layer.
 - **north-star.md** — The one metric that defines success right now
-- **ship-log.md** — A chronological victory log of everything you've shipped
+- **ship-log.md** — A chronological victory log of everything you've shipped, plus the loop's run trail and every logged gate waiver
+- **architecture-checklist.md** — Enforceable architecture decisions as checkable items (created by `technical-vision` / `carve`, read by the Checker)
 
 ### 1-workbench
 The daily workspace. Where focus happens.
 - **inbox.md** — Dump everything here. Process later. Reachable via chat with `Inbox: X` — see Quick Capture below.
 - **scratchpad.md** — Temporary notes. Reachable via chat with `Scratchpad: X`.
-- **loop-state.json** — The persistent external state and telemetry ledger for headless execution.
+- **loop-state.json** — The persistent external state and telemetry ledger for headless execution. Owned by the driver.
+- **loop-trigger.md** — The brief a `--goal` / `--event` trigger seeded, with its trust verdict.
 - **Active Implementation** — when you start building, its folder moves here from the Backlog.
 
 ### 2-backlog
@@ -108,11 +114,11 @@ Tests aren't a Build task like the others — they're how every other Build task
 The middle layer is a `rules/` file, not a skill you have to remember to reach for — see `.agents/rules/test-driven-law.md`. It's as non-negotiable as the Verification Iron Law, by design.
 
 ### Eval-Driven Law (for the apps you build)
-Tests verify the **deterministic** parts; **evals** verify the **non-deterministic** LLM-output surface of the app you're building. If a feature calls an LLM provider, a passing unit test is not enough — it needs an evalset. Enforced in two stages, mirroring TDD + Verification: `pre-commit` gates **presence** (provider-calling code staged without an eval — an `evals/` file or `*.eval.*` — is blocked, like TDD blocks impl-without-test), and `pre-push` gates **passing** (if the repo has evalsets, the configured `eval` command must pass — set `"eval"` in `conductor.config.json`). The gates are independent; waiving one (`CONDUCTOR_NO_EVAL` / `CONDUCTOR_SKIP_EVAL`, both logged) never skips the other. The *how* — three grading modes (rubric/LM-judge, property/assertion, reference) — lives in the on-demand `skills/writing-evals/` skill, loaded by Build when a task touches LLM-feature code. It is **not** an always-on rule: evals matter only to LLM-feature projects, so the enforcement is the (silent-when-irrelevant) hook, not static-context prose. Design: `docs/roadmap/Eval-Driven-Law.md`.
+Tests verify the **deterministic** parts; **evals** verify the **non-deterministic** LLM-output surface of the app you're building. If a feature calls an LLM provider, a passing unit test is not enough — it needs an evalset. Enforced in two stages, mirroring TDD + Verification: `pre-commit` gates **presence** (provider-calling code staged without an eval — an `evals/` file or `*.eval.*` — is blocked, like TDD blocks impl-without-test), and `pre-push` gates **passing** (if the repo has evalsets, the configured `eval` command must pass — set `"eval"` in `conductor.config.json`). The gates are independent; waiving one (`CONDUCTOR_NO_EVAL` / `CONDUCTOR_SKIP_EVAL`, both logged) never skips the other. The *how* — three grading modes (rubric/LM-judge, property/assertion, reference) — lives in the on-demand `skills/writing-evals/` skill, loaded by Build when a task touches LLM-feature code. It is **not** an always-on rule: evals matter only to LLM-feature projects, so the enforcement is the (silent-when-irrelevant) hook, not static-context prose. Design: [Eval-Driven-Law](https://github.com/charlus/conductor-framework/blob/master/docs/roadmap/Eval-Driven-Law.md).
 
 ### The ship-contract (deterministic + semantic)
 A change ships only if it satisfies the project's **ship-contract**, which has two complementary halves:
-- **Deterministic half** — facts a command decides, enforced by git hooks/CI: the **Test-Driven Law** (a test exists), the **Eval-Driven Law** (an eval exists and passes for LLM features), the **Goodhart boundary** (no test deleted, skipped or stripped of assertions), **protected paths** (`.agents/hooks/`, `.agents/rules/`, `.agents/sandbox/` and the reviewer brief are not edited by the change they judge), and any architecture-checklist item that carries a `check:` shell command. Each gate has one logged waiver (`CONDUCTOR_NO_BOUNDARY`, `CONDUCTOR_NO_PROTECTED`, …) and never a silent one. Two opt-in Claude Code `PreToolUse` hooks act earlier: `pretooluse-no-bypass.sh` denies commands that skip the git hooks, and `pretooluse-fact-gate.sh` asks for the facts before a first edit or a destructive command. Details: `.agents/hooks/README.md`.
+- **Deterministic half** — facts a command decides, enforced by git hooks/CI: the **Test-Driven Law** (a test exists), the **Eval-Driven Law** (an eval exists and passes for LLM features), the **Goodhart boundary** (no test deleted, skipped or stripped of assertions), **protected paths** (`.agents/hooks/`, `.agents/rules/`, `.agents/sandbox/` and the reviewer brief are not edited by the change they judge), and any architecture-checklist item that carries a `check:` shell command. Each gate has one logged waiver (`CONDUCTOR_NO_BOUNDARY`, `CONDUCTOR_NO_PROTECTED`, …) and never a silent one. `conductor install-hooks` wires them; `conductor status` shows whether they are armed. Two opt-in Claude Code `PreToolUse` hooks act earlier: `pretooluse-no-bypass.sh` denies commands that skip the git hooks, and `pretooluse-fact-gate.sh` asks for the facts before a first edit or a destructive command. Details: `.agents/hooks/README.md`.
 - **Semantic half** — judgments only a reader can make, enforced by the **Checker** (`workflows/loop-checker.md`) and `independent-review`: does the diff honor the intended architecture and boundaries in spirit.
 
 The bridge between them is `conductor/0-compass/architecture-checklist.md` (`skills/architecture-checklist/`): `technical-vision`/`carve` distill each enforceable architecture decision into a checkable item — deterministic (a `check:`) where grep-able, semantic otherwise — and the Checker verifies the diff against every item, citing any it fails. This turns "follow the architecture" from a vibe into a contract, the same way the hooks turned the two Laws from prose into code.
@@ -167,8 +173,9 @@ task-backlog.md → Do it → ship-log.md
 | "Brain dump", "Refine my ideas" | Skill | → `skills/brain-dump-to-epics/` |
 | "CTO mode", "Architect mode", "PM mode", etc. | Thinking Partner | → load matching persona from `personas/` |
 | "How does this framework work?" | Navigation | → load `conductor-assistant` persona |
-| "Inbox: X", "Add to inbox: X" | Capture | → append verbatim to `conductor/1-workbench/inbox.md`, no workflow |
+| "Inbox: X", "Add to inbox: X" | Capture | → `conductor inbox add "X"`, else append verbatim to `conductor/1-workbench/inbox.md`, no workflow |
 | "Scratchpad: X" | Capture | → append verbatim to `conductor/1-workbench/scratchpad.md`, no workflow |
+| "What's on our plate", "status" | Status | → `conductor status`; show its output verbatim |
 | Small fix, bug, quick task (already well-scoped) | Task | → add to `conductor/2-backlog/task-backlog.md` |
 
 **Not sure what you need?**
@@ -214,6 +221,19 @@ Mechanics live in `.agents/skills/context-engineering/SKILL.md`.
 | `conductor review <file.md>` | Hands one document to the human for sign-off: rendered in the browser, text-anchored comments, **Approve** / **Request changes**. Exit `0` approved, `2` changes requested, `1` no verdict; stdout is JSON. Run it in the background and read the JSON when it exits. |
 | `conductor survey [dir] [--out <file>]` | Facts about an existing codebase: languages, coverage by area (untested first), entry points, routes, config keys, dependencies. Used by `workflows/survey.md`. An area marked untested is a place to check, not a proven gap. |
 | `conductor view [--open]` | Renders every document in `conductor/` into ONE self-contained HTML file at `conductor/.views/index.html`: rendered tables, search across all documents, per-document outlines, and **backlinks** — which documents reference this one. Read loop: `conductor view`, then refresh the browser tab. |
+
+The other commands, for setup, gates and measurement:
+
+| Command | What it is for |
+|---|---|
+| `conductor init` / `conductor upgrade` | Install the framework / move an install to the latest version (replaces `.agents/`, never touches your `conductor/` knowledge; backs up first) |
+| `conductor install-hooks` | Wire the git hooks in `.agents/hooks/` (TDD and eval presence, Goodhart boundary, protected paths on commit; verify and evals on push) |
+| `conductor verify [--set <cmd>]` | Show or set the command `git push` must pass |
+| `conductor evidence run\|check\|list` | Run the verify command and record the result against the exact working tree; `pre-push` accepts fresh evidence instead of re-running |
+| `conductor review-log append\|summary` | Record review findings and how each was handled. A finding class dismissed more than half the time is a rubric defect |
+| `conductor context-bill` | What the framework costs every session before an agent reads project code (always-on vs on-demand bytes) |
+| `conductor trust-verify` | Record your consent to this repo's verify command. The opt-in Claude Code Stop hook runs it only after that, because the command comes from a file anyone can edit |
+| `conductor loop` | The unattended loop driver. See *Running the loop* below and `conductor loop --help` |
 
 Three rules for `conductor view`:
 
@@ -273,11 +293,22 @@ A maturity ladder for autonomy (Anthropic's *Loop Engineering* taxonomy), and th
 | # | Loop | When | Conductor primitive |
 |---|------|------|---------------------|
 | 1 | **Turn-based** | Exploring, deciding, work you want to see step by step | You prompt; the agent self-checks. Conductor makes the check **deterministic** — TDD `pre-commit` + verify `pre-push` **git hooks**, not just a `SKILL.md`. This is one rung *stronger* than "encode verification in a prompt": a hook is code the agent cannot reason around. |
-| 2 | **Goal-based** | A measurable exit condition (tests green, zero failing checks) | `conductor loop` — the deterministic driver *is* a goal loop: `goal_description` + `budget.max_beats` (turn cap) + wall-clock budget + Evidence Rule (verify exit code) + a multi-vote adversarial **Checker** (the "evaluator") in a fresh process. |
+| 2 | **Goal-based** | A measurable exit condition (tests green, zero failing checks) | `conductor loop` — the deterministic driver *is* a goal loop: `goal_description` + a beat cap (the lower of `iterations.max_allowed` and `budget.max_beats`) + wall-clock budget + Evidence Rule (verify exit code) + a multi-vote adversarial **Checker** (the "evaluator") in a fresh process. |
 | 3 | **Time-based** | Recurring work, same task, changing inputs | **Ignition contract** — drive `conductor loop --goal "…"` from Claude Code's native `/schedule` or host `cron`. Conductor does **not** ship its own scheduler; it rides the platform's. |
-| 4 | **Proactive** | Event-driven, run unattended until every item is handled | `conductor loop --event payload.json` (a webhook/CI shim writes the payload) + autonomy **L3** + worktree isolation + `judge-panel` (explore N solutions, judge adversarially) + PR-gated merge. |
+| 4 | **Proactive** | Event-driven, run unattended until every item is handled | `conductor loop --event payload.json` (a webhook/CI shim writes the payload), or `conductor loop --from-conductor` to drain the inbox and backlog, + autonomy **L3** + worktree isolation + `judge-panel` (explore N solutions, judge adversarially) + PR-gated merge. |
 
-> **The ignition contract (rungs 3–4).** A trigger seeds the run's goal but is **clamped to the operator's autonomy ceiling** in `loop-state.json` — a payload (which may come from an untrusted Slack/GitHub source) can *de-escalate* but never *escalate*. The seeded brief lands in `conductor/1-workbench/loop-trigger.md`; the deterministic driver still owns every guardrail. See `src/loop/trigger.js` and `docs/roadmap/Loop-Engineering-Alignment.md`.
+> **The ignition contract (rungs 3–4).** A trigger seeds the run's goal but is **clamped to the operator's autonomy ceiling** in `loop-state.json` — a payload (which may come from an untrusted Slack/GitHub source) can *de-escalate* but never *escalate*. The seeded brief lands in `conductor/1-workbench/loop-trigger.md`; the deterministic driver still owns every guardrail. Design: [Loop-Engineering-Alignment](https://github.com/charlus/conductor-framework/blob/master/docs/roadmap/Loop-Engineering-Alignment.md).
+
+### Running the loop
+
+Facts an agent needs when it works on, or inside, a `conductor loop` run. Full guide: [Running-The-Loop](https://github.com/charlus/conductor-framework/blob/master/docs/Running-The-Loop.md).
+
+- **One repository.** The loop works on the repository it starts in, in an isolated git worktree per goal or task. It refuses to start when a top-level directory is a separate, gitignored git repository (an outer `conductor/` repo with the code nested inside), unless `loop.allow_nested_repo` is set.
+- **Per-project settings** live in the `loop` block of `conductor.config.json`, read from the main checkout only: `setup` (run once per new worktree), `allowed_domains` (sandbox network), `forge` (`gh` / `glab`, default from the origin host), `require_ready`, `priorities`, `inbox`.
+- **Task selection** (`--from-conductor`): open backlog items and inbox lines. Items marked `BLOCKED` or `NEEDS_DECISION` are never taken; with `require_ready`, only items tagged `loop-ready`. The lines indented under an item reach the agent as its details. A claimed item shows `🤖 … (in progress: <id>)`.
+- **State.** The driver owns `loop-state.json` and copies the live one into each worktree before every beat; do not edit it, and never commit it, `maker-signal.json` or `checker-verdict.json`. A run that starts after a finished one resets its beat counter, clock and status; an interrupted one resumes.
+- **Merge.** A PR/MR is opened only at L3 in the execution phase, in pair and swarm mode alike. Below that, branches are kept for human review.
+- **Evidence after a run.** Escalations in `conductor/1-workbench/inbox.md`, the trail in `0-compass/ship-log.md`, and each beat's full agent output in `.git/conductor-loop-logs/`.
 
 ---
 
@@ -323,6 +354,8 @@ The reusable "how" that discovery/blueprint/spec workflows load instead of re-im
 | `context-updater` | Updates Product Areas + Context after Build/Retrospective |
 | `trace-documentation` | Links backlog items to the code that implemented them |
 | `context-engineering` | Reading/writing `conductor/` state and the task backlog correctly |
+| `architecture-checklist` | Turns enforceable architecture decisions into checkable items in `0-compass/architecture-checklist.md` — a `check:` command where grep-able, semantic otherwise — that the Checker verifies every diff against |
+| `writing-evals` | The how of the Eval-Driven Law: evalsets for LLM-output features, three grading modes (rubric/LM-judge, property, reference) |
 
 ### Engineering
 | Skill | Purpose |

@@ -9,6 +9,7 @@ Conductor is a harness layer: it configures your AI coding assistant (Claude Cod
 - **Laws enforced by code.** Deterministic git hooks gate every commit and push: no implementation without a test (Test-Driven Law), no LLM feature without an eval (Eval-Driven Law). Prose rules are advisory; a hook can't be reasoned around.
 - **Evals for the non-deterministic surface.** Tests verify deterministic code; **evals** verify LLM output. A **ship-contract** (`architecture-checklist`) turns "follow the architecture" into checkable items the Checker verifies before anything merges.
 - **An autonomous, multi-engine loop.** `conductor loop` drives a Maker/Checker build cycle unattended across Claude Code / `agy` / `codex`, with safety baked in: PR-gated merge (never a direct push), sandbox isolation, and an Evidence Rule — a model can't self-declare victory.
+- **One instruction file, every harness.** The root `AGENTS.md` (the AAIF standard) carries the framework's laws and a short **project card** — stack, commands, layout, purpose, conventions — so every session starts knowing the project, without a single tool call.
 - **Built for a terminal, not an IDE.** Project state stays plain markdown, so the loop and every git-based gate can read it — but you don't have to read it with `cat`. `conductor status` answers "what's on our plate" in one screen; `conductor view` renders every document into a single searchable HTML page with backlinks.
 
 ---
@@ -24,8 +25,9 @@ This scaffolds the full Conductor Framework into your project:
 ```
 your-project/
 ├── .agents/              # AI agent core (rules, workflows, skills, personas, hooks)
-│   ├── AGENTS.md        # Routing table (quick reference)
-│   ├── rules/           # Always-on laws (Prime Directive, Verification, Test-Driven)
+│   ├── AGENTS.md        # Source of the framework block in the root AGENTS.md (classifier)
+│   ├── how-it-works.md  # Full reference, read on demand
+│   ├── rules/           # Laws (Prime Directive, Verification, Test-Driven; loop guardrails)
 │   ├── workflows/       # Genesis → Build → Ship pipeline
 │   ├── skills/          # 31 modular skills
 │   ├── personas/        # 12 thinking partners
@@ -49,7 +51,7 @@ your-project/
 # Install into a specific directory
 npx github:charlus/conductor-framework init ./my-project
 
-# Only install .agents/ (for existing projects)
+# Only install .agents/ (for existing projects; run upgrade afterwards to refresh AGENTS.md)
 npx github:charlus/conductor-framework init --agent-only
 
 # Overwrite an existing installation
@@ -74,6 +76,23 @@ Upgrade works from **any prior version** (V4, V5, or a hand-copied install) on a
 - **Commit itself** — in a git repo, it commits exactly the framework files it wrote, and nothing of yours. Then `git push` as usual. If you had uncommitted edits in those files, or pass `--no-commit`, it prints the one command to run instead.
 
 Preview any upgrade with `upgrade --dry-run` (prints the plan, writes nothing).
+
+After an upgrade that created `AGENTS.md`, ask your agent to run the **agents-md** workflow (`/agents-md` in Claude Code) to write the project card. `conductor status` reminds you until it is done.
+
+---
+
+## One Instruction File: `AGENTS.md`
+
+Claude Code (2.1.277+), Codex, Copilot, Cursor and the other tools that follow the standard load the root `AGENTS.md` at the start of each session (Antigravity: assumed, not verified). Conductor writes two blocks into it and never touches anything you write below them:
+
+- **Framework block** — the request classifier and the three laws, **generated** from `.agents/` by `init`/`upgrade`. Edit `.agents/`, never the block.
+- **Project card** — at most 3 KB. `conductor agents-md write` fills Stack, Commands, Layout and the product-area list from the code; the **agents-md** workflow has the agent write Purpose, Conventions and one line per area from `conductor/`; `conductor agents-md check` exits 0 only for a complete card whose facts still match the code, then stamps it. `conductor status` names the files that changed since.
+
+Measured on a real project (5 project questions, 2 runs each, read-only tools): with the card, the agent needed **2.3 turns per question instead of 5.9**, cost **35% less** and took **half the time**. Answers were equally correct on 4 questions; on the fifth ("what must pass before I push?") only the card runs named the lint gate in CI. Small sample, one project — a direction, not a benchmark.
+
+**Where the file lives.** Start your agent in the folder that holds `conductor/` and `.agents/`; `AGENTS.md` sits there. On a solo project that is the code repository. On a team project you can keep Conductor in a private outer folder with the team's repository nested inside: your `AGENTS.md` never reaches your colleagues, Claude Code still reads the team's own `AGENTS.md` when it works in their code, and the card's facts come from the nested repository. (`conductor loop` works on one repository and refuses that layout.)
+
+Do not keep a `CLAUDE.md` or `CLAUDE.local.md` next to it: Claude Code then reads those instead of `AGENTS.md`. `init`, `upgrade` and `status` warn when they find one.
 
 ### Skill Registry (optional)
 
@@ -101,6 +120,7 @@ Tell your AI assistant what you need. The Conductor classifies and routes:
 | "Quick path" | **Quick-Path** → skip discovery, go fast |
 | "I inherited this codebase" | **Survey** workflow → facts from the code, the why from you |
 | "Loop", "Unattended" | **Unattended-Loop** workflow → headless autonomous run |
+| "Update the project card" | **Agents-MD** workflow → the card in `AGENTS.md`, checked by `conductor agents-md check` |
 | "CTO mode" | **CTO** persona → strategic thinking partner |
 | "Security mode" | **Security Auditor** persona → vulnerability analysis |
 
@@ -116,13 +136,13 @@ Run each planning step in a fresh session. Every step ends with the exact next c
 
 ### What's Inside
 
-- **17 Workflows** — From Genesis (ideation) to Build (verified execution) to Ship, **Survey** for a codebase you inherited, plus the headless **Unattended-Loop** orchestrator and its independent **Loop-Checker**
+- **18 Workflows** — From Genesis (ideation) to Build (verified execution) to Ship, **Survey** for a codebase you inherited, **Agents-MD** for the project card, plus the headless **Unattended-Loop** orchestrator and its independent **Loop-Checker**
 - **31 Skills** — including the `grilling` and `collaborative-drafting` interview/drafting primitives, `writing-evals` + `architecture-checklist` (the ship-contract), `handoff` (context hygiene), Verification Gate, Code Review, Systematic Debugging, and more
 - **12 Personas** — Including the strategic thinking partners and loop-execution specialists (**Maker** and **Checker**)
 
-Full documentation: [`AGENTS.md`](templates/.agents/AGENTS.md)
+Full reference: [`how-it-works.md`](templates/.agents/how-it-works.md) (installed as `.agents/how-it-works.md`, read on demand).
 
-*Note: Conductor uses **Progressive Disclosure**. IDEs only load a tiny `prime-directive.md` which points them to `AGENTS.md` for routing. This keeps your context window clean and lightning fast!*
+*Conductor uses **Progressive Disclosure**: every session loads only the root `AGENTS.md` (about 6 KB of framework plus the project card) and the skills' one-line descriptions. Workflows, skill bodies, personas and the full reference load when they are used.*
 
 ---
 
@@ -271,7 +291,9 @@ So privilege comes from **you**, never from the event:
 - Its goal and context are **enveloped and labelled as data, never instructions**, with injection attempts flagged inline and fullwidth/zero-width evasion folded for matching.
 - It gets an explicit **tool allowlist** — read and edit, no shell, no network. An allowlist, because every published bypass of this agent class defeated a blocklist.
 
-**▶ How to run it on your repo:** see the step-by-step guide [`docs/Running-The-Loop.md`](docs/Running-The-Loop.md) — configure The Spine (`loop-state.json`), `--dry-run` to preview, then `conductor loop <dir> --platform claude --unsafe-no-sandbox`.
+Per-project settings live in the `loop` block of `conductor.config.json`: a `setup` command per worktree, extra sandbox domains, the forge (`gh`/`glab`, otherwise read from the origin host), and which backlog items the fleet may take (`require_ready`, `priorities`). Each beat's full agent output is kept in `.git/conductor-loop-logs/`.
+
+**▶ How to run it on your repo:** see the step-by-step guide [`docs/Running-The-Loop.md`](docs/Running-The-Loop.md) — configure The Spine (`loop-state.json`, with `sandbox: "cli-native"`), `--dry-run` to preview, then `conductor loop <dir> --platform claude`.
 
 See also [`docs/roadmap/Autonomous-Loop-Backend.md`](docs/roadmap/Autonomous-Loop-Backend.md), [`docs/roadmap/Loop-Engineering-Alignment.md`](docs/roadmap/Loop-Engineering-Alignment.md), [`docs/roadmap/Loop-Robustness-Plan.md`](docs/roadmap/Loop-Robustness-Plan.md), and [`docs/adr/0001-enforcement-and-autonomy-rebalance.md`](docs/adr/0001-enforcement-and-autonomy-rebalance.md).
 
@@ -318,18 +340,18 @@ A class you keep dismissing is a **rubric** defect, not a discipline problem. Fi
 
 ## Progressive Disclosure, With a Number
 
-A methodology that loads everything up front is just a big prompt. Conductor loads a compact classifier plus a handful of always-on rules; skills and workflows are pulled in on demand. That is only true if something enforces it:
+A methodology that loads everything up front is just a big prompt. Conductor loads the framework block of `AGENTS.md` (classifier + three laws) plus the skills' descriptions; skills and workflows are pulled in on demand. That is only true if something enforces it:
 
 ```bash
 conductor context-bill
 ```
 
 ```
-ALWAYS-ON (every session pays this): 16.1 KB ≈ 4409 tokens
-     3.8 KB  classifier         AGENTS.md
-     2.6 KB  rule               rules/test-driven-law.md
+ALWAYS-ON (every session pays this): 14.4 KB ≈ 3975 tokens
+     6.2 KB  framework          AGENTS.md (framework block)
+     0.5 KB  skill-frontmatter  skills/architecture-checklist
      ...
-EAGER (paid only when invoked): 31 skills, 17 workflows
+EAGER (paid only when invoked): 31 skills, 18 workflows
 ```
 
 CI fails on growth past a committed ceiling **and** on a new skill or workflow with no budget entry at all — so adding context is a visible decision, never a default. Ceilings are in bytes: exact, and they do not drift when a tokenizer changes.

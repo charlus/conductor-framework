@@ -6,6 +6,10 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — every run after the first one halted at once
+
+- F17: `budget.started_at` was set at the first run and never reset, so any run that started more than `max_wall_clock_min` (default 120) minutes after the first one halted immediately with `budget_exceeded`. The beat counter and the terminal status also carried over, so each new run had to be reset by hand. A run that starts after a finished one (terminal status) now resets the status, beat counter, clock, token count, stall counter and last PR. An interrupted run keeps them and resumes.
+
 ### Fixed — the agent sees the live loop state
 
 - F15: an agent beat runs in a worktree, which holds the committed `loop-state.json`, not the driver's live one. With `conductor/` tracked in git (the common setup), a pair-mode agent read an old goal and phase, often an empty goal and `discovery`, and refused to work. Before every maker and checker beat, in pair and swarm mode, the driver now copies the live state into the worktree and hides the copy from git.

@@ -21,7 +21,7 @@ import { openPullRequest, planMergeAction } from "../loop/merge.js";
 import { runSwarm } from "../loop/swarm.js";
 import { predictConflicts } from "../loop/conflict.js";
 import { lockDecision, renderLock } from "../loop/lock.js";
-import { reviveForResume } from "../loop/resume.js";
+import { reviveForResume, startNewRun } from "../loop/resume.js";
 import { mineRecurringFailures, renderImprovementReport } from "../loop/improver.js";
 import { parseTriggerPayload, applyTrigger, renderTriggerDoc } from "../loop/trigger.js";
 import { allowedToolsFor } from "../loop/untrusted.js";
@@ -335,6 +335,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   // point so THIS invocation picks up cleanly. Terminal work (merged/failed) is
   // untouched. Safe: the one-loop lock guarantees no live worker to race, and a
   // re-run is idempotent (maker re-verifies, auto-commit no-ops, merge reuses PR).
+  const fresh = startNewRun(state);
+  if (fresh.reset) stdout.write(`[CONDUCTOR LOOP] new run: the previous one ended '${fresh.from}' — beats, clock and stall counters reset\n`);
   const revived = reviveForResume(state);
   if (revived.tasks || revived.run) {
     stdout.write(
@@ -879,8 +881,6 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         stderr.write(`⛔  loop.setup failed in ${workCwd} — ${setup.reason}\n`);
         return 1;
       }
-      // The operator fixed the setup and re-ran: resume instead of stopping on the old halt.
-      if (state.status === "halted_setup_failed") state.status = "idle";
     }
 
     // The maker signals "goal complete" by writing maker-signal.json; the driver

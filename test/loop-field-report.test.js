@@ -198,3 +198,16 @@ test("D1: a gitignored directory that is not a git repo is fine", async () => {
     assert.doesNotMatch((await dry(dir)).err, /separate git repository/);
   });
 });
+
+// F17 through the real IO shell: a finished run with an old clock is announced
+// as a new run, with the beat counter back at 0. Dry-run writes nothing.
+test("F17: after a finished run, the next run starts with fresh counters", async () => {
+  const finished = { ...L3, status: "awaiting_review", iterations: { current: 7, max_allowed: 20 }, budget: { started_at: "2026-01-01T00:00:00.000Z" } };
+  await withProject({ state: finished, remote: "https://github.com/a/b.git" }, async (dir) => {
+    const before = await readFile(join(dir, STATE_REL), "utf8");
+    const { out } = await dry(dir);
+    assert.match(out, /new run: the previous one ended 'awaiting_review'/);
+    assert.match(out, /beats:\s+0\/20/);
+    assert.equal(await readFile(join(dir, STATE_REL), "utf8"), before);
+  });
+});

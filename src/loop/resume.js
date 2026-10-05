@@ -47,3 +47,26 @@ export function reviveForResume(state) {
   }
   return { tasks, run };
 }
+
+/**
+ * F17: a run that starts after a FINISHED run (terminal status) is a new run.
+ * Reset what belongs to one run: status, beat counter, wall-clock start, token
+ * count, stall bookkeeping, the done claim and the last PR. Before, the clock
+ * started at the very first run and never reset, so every run more than
+ * max_wall_clock_min later halted at once with budget_exceeded. An interrupted
+ * run (non-terminal) is a resume and keeps all of it. Mutates in place.
+ * @returns {{ reset: boolean, from: string }}
+ */
+export function startNewRun(state) {
+  const from = state.status;
+  if (!isTerminal(from)) return { reset: false, from };
+  state.status = "idle";
+  state.current_worker = null;
+  state.maker_reported_done = false;
+  state.iterations.current = 0;
+  state.budget.started_at = null;
+  state.budget.tokens_spent = 0;
+  state.stall = { consecutive: 0, last_beat_hash: null };
+  state.merge = null;
+  return { reset: true, from };
+}

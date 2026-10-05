@@ -1,167 +1,164 @@
-# Root AGENTS.md and the Project Card (D2, D3)
+# Root AGENTS.md and the Project Card
 
-> **Status:** design, approved in principle 2026-10-05 (D2, D3). Not built.
-> **Scope:** make every harness load the same instructions from one standard file, and give
-> every session a short, current description of the project.
-> **Out of scope:** nested AGENTS.md per code directory (D4), shrinking the framework text.
+> **Status:** design, decisions D5–D11 approved 2026-10-05. R4 and R5 verified live. Not built.
+> **Scope:** one standard instruction file that every harness loads, a leaner framework text,
+> and a short, current description of the project in every session.
+> **Out of scope:** nested AGENTS.md per code directory (D4).
 >
-> Facts marked *verified* were checked against primary sources or the code on 2026-10-05.
-> Facts marked *to verify* need a live run before we depend on them.
+> *Verified* = checked against primary sources, the code, or a live run on 2026-10-05.
+> *Assumed* = accepted without proof, by decision.
 
 ---
 
 ## 1. The problem
 
-1. **No project knowledge loads by default.** Every session loads framework instructions only.
-   `conductor/` holds the project knowledge, and one prose rule (`prime-directive.md`, "Context
-   First") asks the agent to read it. Compliance depends on the model and the task. *Verified.*
-2. **The framework itself does not load reliably outside Antigravity.** `trigger: always_on`
-   in `.agents/rules/*.md` and `.agents/AGENTS.md` is an Antigravity convention. Claude Code
-   loads `CLAUDE.md`, and our `CLAUDE.md` only says, in prose, "Read and follow
-   `.agents/AGENTS.md`". Codex reads root `AGENTS.md`, which we do not ship. So on the two most
-   used harnesses, the classifier and the four laws (TDD, verification, prime directive, loop
-   guardrails) load only if the agent obeys a sentence. *Verified in the templates.*
-3. **We do not follow the standard file.** AGENTS.md (stewarded by the AAIF, Linux Foundation)
-   goes "at the root of the repository", with nested files in packages, "the closest one takes
-   precedence". About 25 tools read it. *Verified, agents.md.*
-4. **Claude Code reads root AGENTS.md only without a CLAUDE.md**, or when `CLAUDE.md` contains
-   `@AGENTS.md` (v2.1.277+). *Verified, code.claude.com/docs/en/memory.*
+1. **No project knowledge loads by default.** Sessions load framework text only. `conductor/`
+   holds the project knowledge, and one prose rule asks the agent to read it. *Verified.*
+2. **The framework does not load reliably outside Antigravity.** `trigger: always_on` is an
+   Antigravity convention. Our `CLAUDE.md` says, in prose, "Read and follow `.agents/AGENTS.md`".
+   The Claude Code docs: with such a sentence, "Claude sees `AGENTS.md` only if it decides to open
+   the file". Codex reads root `AGENTS.md`, which we do not ship. So on the two most used harnesses
+   the classifier and the laws load only if the agent obeys one sentence. *Verified.*
+3. **Our `CLAUDE.md` hides the team's instructions (F20).** By default Claude Code reads no
+   `AGENTS.md` at all when a `CLAUDE.md` exists in the working directory or above, including a
+   team's `repo/AGENTS.md` in a subdirectory. *Verified, docs.*
+4. **We do not follow the standard.** AGENTS.md (AAIF, Linux Foundation) goes "at the root of the
+   repository"; nested files in packages, "the closest one takes precedence". *Verified.*
 
-Cost today, measured on the templates: 16.5 KB (~4,000 tokens) counted as always-on framework,
-0 bytes of project. Each session that needs the project spends turns finding it again.
+What matters is not the token price: the always-loaded text is served from the prompt cache after
+the first turn. It is **adherence** ("Longer files consume more context and reduce adherence",
+target under 200 lines, Claude Code docs) and the **turns** an agent spends finding the project.
 
-## 2. Target layout
+## 2. Layout rule
+
+The harness always starts in the folder that holds `conductor/` and `.agents/`. Conductor writes
+only there, never inside a nested repository.
+
+| Layout | Working folder | Root `AGENTS.md` is seen by |
+|---|---|---|
+| Embedded (solo) | the code repository | you only: the repository is yours |
+| Outer (team) | your private outer repository; the team's code is in a subfolder | you only: the team repository is untouched |
+
+In the outer layout, with no `CLAUDE.md` in the working folder, Claude Code also reads the team's
+`repo/AGENTS.md` when it opens a file there (unless `repo/` has its own `CLAUDE.md`, which then
+loads instead). This fixes F20. *Verified, docs.* Codex started in the outer folder reads only the
+outer file (R6, documented limit). The loop refuses the outer layout (D1), unchanged.
+
+## 3. Target files
 
 ```
-AGENTS.md            ← the one standard file every harness reads
-  [managed: framework]   generated from .agents/ (classifier + always-on rules), refreshed by upgrade
-  [managed: project card] ≤ 3 KB, written by an agent, checked by code
-  (user content)          anything outside the markers, never touched
-CLAUDE.md            ← "@AGENTS.md" + Claude-only notes (slash commands); managed block
-GEMINI.md            ← pointer to AGENTS.md + Gemini-only notes; managed block
-.agents/             ← unchanged: still the single source for rules, skills, workflows, personas
-.agents/skills/      ← already the Agent Skills location Codex scans; .claude/skills shims stay
+AGENTS.md        the only instruction file
+  [managed: framework]     generated from .agents/, refreshed by upgrade
+  [managed: project card]  facts from code + summary from an agent, checked by code
+  (user content)           outside the markers, never touched
+.agents/         unchanged: the only place framework text is edited
 ```
 
-- `.agents/` stays the source of truth. Root `AGENTS.md`'s framework block is **generated** from
-  it, so nobody edits the same rule in two places.
-- The framework block contains the classifier and the always-on rules **inline**: AGENTS.md has
-  no import syntax for Codex and the other tools. Size is the same 16.5 KB the context-budget
-  ratchet already tracks, now actually loaded everywhere.
-- `CLAUDE.md` imports with `@AGENTS.md`, which is deterministic, unlike today's prose pointer.
-- `.agents/AGENTS.md` stays as the source file. Eleven references in templates and `src/` keep
-  working.
+- `CLAUDE.md` and `GEMINI.md` are removed from the templates (D5). Claude Code ≥ 2.1.277 reads
+  `AGENTS.md` when no `CLAUDE.md` exists (D9). Antigravity is assumed to read `AGENTS.md` (D7).
+- Claude Code reads nothing under `.agents/`, and Codex has no import syntax, so the framework text
+  is **inline** in the generated block.
+- `trigger: always_on` is removed from `.agents/rules/*.md`: `AGENTS.md` now carries them, and
+  Antigravity would otherwise load them twice.
 
-## 3. The project card
+## 4. Three loading levels
 
-### Content (fixed headings, in this order)
+| Level | Loaded | Content | Size |
+|---|---|---|---|
+| 1. Always | every session, every harness | framework block + project card | ~5.5 KB + card |
+| 2. Discovered | names and descriptions by the harness, body on use | skills (`.agents/skills/`, `.claude/skills` shims) | unchanged |
+| 3. On demand | through links in level 1 | `how-it-works.md`, workflows, personas, `conductor/` documents | unchanged |
 
-| Heading | Content | Source |
+### Level 1 content (F21: from ~11 KB to ~5.5 KB)
+
+| Source | Keeps | Moves to |
 |---|---|---|
-| Purpose | 2–3 sentences: what the product is, for whom | `0-compass/north-star.md` |
-| Stack | languages, frameworks, datastore, hosting | `4-context/technical/tech-stack.md`, survey facts |
-| Commands | install, run, test, verify, build | `conductor.config.json` `verify`, `loop.setup`, manifests |
-| Layout | ≤ 10 lines: top-level directories and what they hold | survey facts, `architecture.md` |
-| Conventions | ≤ 5 bullets that change how code is written | `4-context/technical/coding-patterns.md` |
-| Product areas | one line per area, with its path | `3-product-areas/*/` |
-| Read more | links to the `conductor/` documents above | fixed |
+| `.agents/AGENTS.md` (4.1 KB) | boundaries, request classifier | "Hybrid Architecture" and "Quick Reference" → `how-it-works.md` (rules are inline, links to them are dead weight) |
+| `prime-directive.md` (0.9 KB) | all | — |
+| `test-driven-law.md` (2.7 KB) | the law and its one exception | "Where this fits" → `how-it-works.md`; "Interactive vs. unattended" → loop prompt |
+| `verification-iron-law.md` (0.6 KB) | all | — |
+| `loop-guardrails.md` (2.8 KB) | — | the loop prompt: it applies only to unattended runs |
+| new | the D11 precedence line | — |
 
-Limit: **3,072 bytes**. That is under a fifth of the framework block, and enough for the table
-above. A card that needs more is a sign the detail belongs in `conductor/`.
+Where a hook enforces a rule (TDD presence, protected paths, verify on push), the prose shrinks to
+the rule plus "enforced by the `pre-commit` hook" (F22). Hooks are installed by default (D10).
 
-### Who does what
+**D11, precedence in the outer layout:** the team's instructions win for code style and repository
+process (branches, commit format, review). Conductor wins for its own process (TDD, verification,
+`conductor/` state).
 
-Writing the card is a summary, so an agent writes it. You were right that code cannot. But
-everything around the writing is deterministic, so code owns it:
+## 5. The project card
 
-| Step | Owner | How |
+| Heading | Written by | Source |
 |---|---|---|
-| Collect facts (verify command, setup, manifests, directory list, area list) | code | `conductor agents-md facts` (reuses `src/survey.js`) |
-| Write Purpose, Stack, Layout, Conventions, area one-liners | agent | workflow `agents-md.md` |
-| Enforce headings, order, size, markers | code | `conductor agents-md check`, exit 0/1 |
-| Stamp freshness | code | `check` writes a fingerprint of the source files into the card's begin marker |
-| Detect drift | code | `conductor status` compares the fingerprint with the sources: "project card is stale" |
+| Commands | code | `conductor.config.json` (`verify`, `loop.setup`), manifests |
+| Stack | code | manifests, `src/survey.js` |
+| Layout | code | top-level directories, survey |
+| Product areas (list + paths) | code | `conductor/3-product-areas/*/` |
+| Purpose | agent | `0-compass/north-star.md` |
+| Conventions (≤ 5) | agent | `4-context/technical/coding-patterns.md` |
+| Product areas (one line each) | agent | each area's documents |
+| Read more | code | fixed links into `conductor/` |
 
-The workflow's last step is `conductor agents-md check`, and the Evidence Rule applies: the
-agent may claim the card is done only on exit 0. The agent cannot widen the limit: the check
-reads it from code, not from the card.
+Code first (F23): what the code can state, it states, and it is always true. The agent writes only
+the three summaries. Where a source is empty, the agent writes "Unknown — fill `<path>`".
 
-### Freshness without a model on every commit
+- `conductor agents-md facts`: prints the code-derived sections.
+- `conductor agents-md check`: exit 0/1 on headings, order, size and markers; stamps a fingerprint
+  of the sources (the `conductor/` documents above, the manifests, the top-level directory list,
+  `verify`, `loop.setup`) into the card's begin marker.
+- `conductor status`: "project card is stale", naming the changed sources.
+- The agent may call the card done only on `check` exit 0 (Evidence Rule).
+- Stable project facts go in the card, not in Claude's personal auto memory (F24).
 
-The fingerprint covers `north-star.md`, `4-context/technical/*.md`, the list of
-`3-product-areas/*`, and the `verify` and `loop.setup` values. When any of them changes:
+**Size:** set by an eval (§7). Full card ≈ 3 KB, or Commands + Layout only ≈ 1 KB, fully generated.
 
-- `conductor status` shows the card as stale and names the changed sources.
-- The interactive classifier in `AGENTS.md` gets one line: when the card is stale and the task
-  touches the product, run the `agents-md` workflow after the task.
-- No hook regenerates it automatically: that would need a model call on commit.
-
-## 4. Migration
-
-### What `upgrade` does (code, deterministic)
+## 6. Migration (`upgrade`)
 
 | Repo state | Action |
 |---|---|
-| No root `AGENTS.md` | Create it: framework block + an empty card block marked `status: draft` |
-| Root `AGENTS.md` written by the team | Insert both managed blocks at the top. Keep their text below, untouched |
-| `CLAUDE.md` / `GEMINI.md` | Refresh the managed block as today (`src/stubs.js`). New block content: `@AGENTS.md` / pointer. User notes below the marker stay |
-| Scaffold gitignored (agent files not shared) | `AGENTS.md` follows `CLAUDE.md`: if `CLAUDE.md` is ignored, add `AGENTS.md` to the same ignore. A shared root `AGENTS.md` written by the team stays shared, and then the card goes in `CLAUDE.local.md` instead (*to verify*) |
-| Loop worktrees | Add `AGENTS.md` to `CONTEXT_ANCHORS` in `src/loop/worktree.js` |
+| No root `AGENTS.md` | Create it: framework block + card block with code facts, agent sections marked draft |
+| Root `AGENTS.md` exists (e.g. `euranova-os`) | Insert the managed blocks at the top; keep the rest byte for byte |
+| `CLAUDE.md` / `GEMINI.md` with user notes below the marker | Move the notes into the user section of `AGENTS.md`, back up both files, delete them (D8) |
+| Same files without our marker (team- or user-written) | Same, with the whole content moved |
+| Loop worktrees | `CONTEXT_ANCHORS`: add `AGENTS.md`, drop `CLAUDE.md` and `GEMINI.md` |
+| Hooks not installed | Install them (D10) |
+| Claude Code < 2.1.277 | Warn in `init`, `upgrade`, `status` and the loop pre-flight (D9) |
+| `CLAUDE.local.md` in the working folder | Warn: it switches `AGENTS.md` off for you |
 
-Then `upgrade` prints one line: "Project card is empty. Run the `agents-md` workflow (`/agents-md`
-in Claude Code)." `conductor status` keeps showing it until the card passes `check`.
+`upgrade` then prints one line: run the `agents-md` workflow to write the card summaries.
 
-### What the agent does (workflow `agents-md.md`)
+### Workflow `agents-md.md`
 
-1. Run `conductor agents-md facts`. Use these facts as given, never re-derive them.
-2. Read the sources in the table in §3. Also read the user sections of `CLAUDE.md` and `GEMINI.md`:
-   on existing installs, teams often described the project there. Move that description into the
-   card. Never delete user text: report what you moved, and let the human remove the duplicate.
-3. Write the card under the fixed headings. Where a source is empty (fresh install, or `conductor/`
-   never filled), write "Unknown — fill `<path>`" rather than invent.
-4. Run `conductor agents-md check`. Fix and repeat until exit 0.
-5. Show the human the card and the moved text. One confirmation, then commit with the rest of
-   the work.
+1. Run `conductor agents-md facts`; use them as given.
+2. Read the sources of the three agent sections. On a first migration, also read the notes moved
+   from the old stubs: a project description there goes into Purpose. Report what moved; delete
+   nothing.
+3. Write the three sections.
+4. Run `conductor agents-md check` until exit 0.
+5. Show the human the card. One confirmation, then commit.
 
-Same workflow for the first migration and every refresh: on a refresh, step 2 only reads the
-sources the stale message named.
+## 7. Verification
 
-## 5. Harness support
+| Item | How | Status |
+|---|---|---|
+| R4: `AGENTS.md` reloads after `/compact` | one long-lived `claude -p` stream session: canary changed on disk, compaction, canary asked → new word, same as `CLAUDE.md` | *verified* |
+| R5: headless `claude -p` loads `AGENTS.md` | canary in a fresh `-p` run | *verified*. "First session after a Claude Code upgrade" not reproducible: covered by the version warning and by the laws in the loop prompt |
+| Card value | agent eval, 5 real tasks on `eurassistant`, with and without card: tool calls before the first correct edit, wrong-command rate | to run; decides the size |
+| Migration | `upgrade` tests per §6 row; "existing `AGENTS.md` keeps every byte outside the markers" | to build |
+| Harnesses | live: Claude Code and Codex on a migrated repo, "what does this project do and how do I run its tests?" without reading a file | to run |
+| Budget | `context-budget` ratchet: framework block ≤ its new size, card ≤ its limit | to build |
 
-| Harness | Reads | After this change | Status |
-|---|---|---|---|
-| Claude Code | `CLAUDE.md` (+ `@AGENTS.md`) | framework + card, deterministic | verified (docs) |
-| Codex | root `AGENTS.md`, nearest wins | framework + card | verified (agents.md, Codex docs) |
-| Copilot, Cursor, Zed, Jules… | root `AGENTS.md` | framework + card | verified (agents.md list) |
-| Antigravity 2.0 / agy | `.agents/rules` always-on, `GEMINI.md` | as today, plus card through the pointer | *to verify*: does it also read root `AGENTS.md`? If yes, the rules load twice (~4,000 extra tokens) and the framework block must be skipped for it |
-| Gemini CLI | `GEMINI.md`, `AGENTS.md` if configured | as today, plus card through the pointer | *to verify* |
+## 8. Delivery
 
-## 6. Enforcement and tests
+1. F21: trim the framework text in `.agents/` (helps current installs at once).
+2. Root `AGENTS.md` generation, stub removal and migration, `CONTEXT_ANCHORS`, hooks by default,
+   version and `CLAUDE.local.md` warnings, D11 line. Live check on Claude Code and Codex.
+3. `conductor agents-md facts|check`, `status` stale line.
+4. Workflow `agents-md.md` and its eval; card eval decides the size.
+5. Release note: a new root `AGENTS.md`, `CLAUDE.md` and `GEMINI.md` gone, one workflow to run.
 
-- `conductor agents-md check`: behaviour tests for size, missing heading, wrong order, missing
-  markers, stale fingerprint.
-- `upgrade` tests for each row of the §4 table, including "team-owned AGENTS.md keeps every byte
-  outside the markers".
-- `test/context-budget.test.js`: framework block counted once, card ceiling 3,072 bytes.
-- Agent-layer eval (`test/evals/`): given a filled `conductor/`, the workflow produces a card that
-  passes `check` and names the real verify command. A sensitivity case with an empty
-  `conductor/` must produce "Unknown — fill …" lines, not invented facts.
-- Live: one Claude Code session and one Codex session on a migrated repo, each asked "what does
-  this project do and how do I run its tests?" without reading any file first.
+## 9. Found during this design, separate
 
-## 7. Delivery
-
-1. `AGENTS.md` generation + stub changes + `upgrade` migration + `CONTEXT_ANCHORS` (code only,
-   card block empty). Live check on Claude Code and Codex.
-2. `conductor agents-md facts|check`, `status` drift line.
-3. Workflow `agents-md.md`, slash shim, classifier line, eval.
-4. Release note: what a team sees in its repo after `upgrade` (a new root `AGENTS.md`), and the
-   one workflow to run.
-
-## 8. Open questions
-
-- Q1. Antigravity and Gemini CLI: do they read root `AGENTS.md`? Decides whether the framework
-  block is skipped for them (§5).
-- Q2. Private setups with a shared, team-owned root `AGENTS.md`: is `CLAUDE.local.md` loaded
-  reliably in Claude Code today? Decides where the card goes in that case (§4).
-- Q3. 3,072 bytes is a starting value. Measure on two real projects before release.
+- F26: inside the `cli-native` sandbox, an agent cannot run `npx github:charlus/conductor-framework …`
+  (read-only npm cache), so workflow steps that call the CLI fail in loop beats. Seen in a beat log.

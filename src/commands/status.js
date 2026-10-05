@@ -8,6 +8,7 @@
 
 import { collectState } from "../conductor-state.js";
 import { renderStatus } from "../view/status.js";
+import { instructionWarningsFor } from "../claude-instructions.js";
 
 function parseArgs(args) {
   const opts = { color: null, json: false, staleDays: 30, dir: null };
@@ -52,5 +53,7 @@ export async function statusCommand(args, context) {
   context.stdout.write(
     `${renderStatus(state, { color: wantsColour(opts, context.stdout, env) })}\n`
   );
+  // D9: anything that makes Claude Code skip the root AGENTS.md, and so the framework.
+  for (const w of await instructionWarningsFor(root)) context.stdout.write(`  ⚠️  ${w}\n`);
   return 0;
 }

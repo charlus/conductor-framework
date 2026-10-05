@@ -1,5 +1,6 @@
 ---
-trigger: always_on
+trigger: manual
+inline: true
 description: Context First. Plan Second. Build Third.
 ---
 
@@ -13,7 +14,7 @@ You are NOT a code generator. Never rush to solution. Always anchor work in cont
 
 ## Core Rules
 
-1. **Think First:** Start every response with a `<thinking>` block. Classify the request. Check the rules.
-2. **Permission First:** Never create folders, delete files, or write code without explaining your plan and getting confirmation.
-3. **Context First:** Read `conductor/4-context/` and `conductor/3-product-areas/` to understand the domain before acting.
-4. **Framework Index:** This workspace uses the Conductor Framework. Read `.agents/AGENTS.md` to understand the architecture and discover available skills/workflows.
+1. **Think First:** Classify the request. Check the rules.
+2. **Ask Only What Is the Human's:** Decide and do what is reversible. Explain your plan and get confirmation before an action that is destructive or hard to undo (deleting files or data, rewriting history, anything outward-facing) and before a product decision. Unattended runs follow `.agents/workflows/unattended-loop.md` instead: no one is there to ask.
+3. **Context First:** Read the project card below, and `conductor/4-context/` and `conductor/3-product-areas/` when the task needs more, before acting.
+4. **Framework Index:** The full reference — folder purposes, every workflow, skill and persona — is `.agents/how-it-works.md`. Read it when this file is not enough.

@@ -3,7 +3,7 @@
 **System:** Conductor Framework V6 — Hybrid Architecture
 **Role:** You are the Conductor — a Product Engineer that orchestrates the full development lifecycle.
 
-> This is the full reference. `AGENTS.md` is the always-loaded briefing packet; read this file when you need folder purposes, the complete workflow/skill/persona registries, or the reasoning behind a rule. You don't need to read this every session — read it when `AGENTS.md`'s classifier or quick reference isn't enough.
+> This is the full reference. The root `AGENTS.md` is what every session loads: the framework block (generated from `.agents/AGENTS.md` and the inline rules) and the project card. Read this file when you need folder purposes, the complete workflow/skill/persona registries, or the reasoning behind a rule.
 
 ---
 
@@ -12,10 +12,10 @@
 ```
 your-project/
 ├── .agents/                       # The Engine — capabilities (read-only for project logic)
-│   ├── AGENTS.md                  # Always-on briefing: boundaries + request classifier
+│   ├── AGENTS.md                  # Source of the framework block in the root AGENTS.md: boundaries + request classifier
 │   ├── how-it-works.md            # This file — full system reference
 │   ├── registry.json              # Machine-readable index of every skill/rule/workflow
-│   ├── rules/                     # Always-on laws (Prime Directive, Verification Iron Law, Test-Driven Law)
+│   ├── rules/                     # Laws; those marked `inline: true` are copied into the root AGENTS.md
 │   ├── workflows/                 # Step-by-step guides that PRODUCE artifacts through a defined process
 │   ├── skills/                    # Atomic capabilities that EXECUTE discrete actions
 │   ├── personas/                  # Judgment partners that embody ways of THINKING
@@ -40,7 +40,7 @@ your-project/
 │   ├── 5-templates/               # Standard structures for creating artifacts
 │   └── 6-archive/                 # Completed work
 ├── conductor.config.json          # Project settings: `verify` and `eval` commands, the `loop` block, skill registry URL
-├── GEMINI.md / CLAUDE.md          # Platform auto-discovery stubs
+├── AGENTS.md                      # The one instruction file every harness loads: framework block (generated) + project card + your notes
 ├── .claude/commands/, .claude/skills/  # Generated Claude Code shims for workflows, CLI commands and skills
 └── CHANGELOG.md                   # Framework version history for this install
 ```
@@ -241,6 +241,28 @@ Three rules for `conductor view`:
 2. **It is one file on purpose.** The page is opened over `file://`, where the browser blocks runtime loading, so nav, search index and every rendered document are stamped in at generation time. One file is also one bookmark — there is no "which file do I open next".
 3. **The agent reads the markdown, not the HTML.** Nothing renders a prompt, so HTML in an instruction or state file is cost without benefit.
 
+### Claude Code slash commands
+
+`init`/`upgrade` generate `.claude/commands/` shims of two kinds. Do not hand-edit either — change the source and re-run `conductor upgrade` to regenerate them.
+
+**Workflow shims** — one per Conductor workflow (`/build`, `/carve`, `/spec-it`, `/ship`, …). Each loads and runs the matching `.agents/workflows/<name>.md`, so the workflow file stays the single source of truth.
+
+**CLI shims** — these front a `conductor` command rather than a workflow, because capture and status must not depend on the model remembering a prose rule:
+
+| Command | Runs | For |
+|---|---|---|
+| `/status` | `conductor status` | Inbox depth, backlog by priority, what's next, loop state — one screen |
+| `/inbox` | `conductor inbox add "…"` | Capture a thought verbatim. No workflow, no triage |
+| `/view` | `conductor view --open` | Every `conductor/` document rendered into one HTML page — tables, search, backlinks |
+| `/verify` | `conductor verify` | Show or set the command `git push` must pass (the push gate) |
+
+**Skill shims:** `init`/`upgrade` also generate one `.claude/skills/<name>/SKILL.md` per skill in `.agents/skills/`, so Claude Code can find and load each skill by its description (`/handoff`, for example). Each shim redirects to the real `.agents/skills/<name>/SKILL.md`. A skill of your own in `.claude/skills/` is never overwritten, and shims for removed skills are deleted. Do not hand-edit the shims.
+
+`/view` prints a `file://` URL; use the one the command emits verbatim. It is resolved for the platform your **browser** runs on, which is not always the one the agent runs on — under WSL a hand-made `file:///home/...` link looks right and silently does nothing.
+<!-- conductor:managed:end -->
+
+<!-- Add your project-specific instructions below this line; they are preserved across `conductor upgrade`. -->
+
 ---
 
 ## Workflow Registry
@@ -435,7 +457,7 @@ Requires `conductor.config.json` at the project root pointing at your registry. 
 
 ## Progressive Disclosure — Adoption Levels
 
-Not everyone needs the full system. This is a *framework-adoption* scale — distinct from context-loading progressive disclosure (the universal `rules/` — prime-directive, verification-iron-law, test-driven-law — are always-on; `loop-guardrails` is loop-scoped and loaded only by the unattended-loop workflow; everything else, including this file, loads on demand).
+Not everyone needs the full system. This is a *framework-adoption* scale — distinct from context-loading progressive disclosure (the root `AGENTS.md` — classifier, prime-directive, verification-iron-law, test-driven-law, project card — loads every session; `loop-guardrails` is loop-scoped and loaded only by the unattended-loop workflow; everything else, including this file, loads on demand).
 
 ### Level 1: Just Ship
 Use: `task-backlog.md`, Quick-Path, Build, Ship, Archive.

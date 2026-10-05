@@ -40,8 +40,7 @@ your-project/
 │   ├── 4-context/       # Tribal knowledge
 │   ├── 5-templates/     # Document templates
 │   └── 6-archive/       # Completed work
-├── GEMINI.md            # Gemini auto-discovery stub
-└── CLAUDE.md            # Claude auto-discovery stub
+└── AGENTS.md            # The one instruction file every harness loads (framework block + project card)
 ```
 
 ### Options
@@ -70,7 +69,7 @@ Upgrade works from **any prior version** (V4, V5, or a hand-copied install) on a
 - **Replace the instructions** — `.agents/` framework files (workflows, skills, rules, personas) are overwritten with the current version, so a methodology upgrade actually lands. **Custom** skills/workflows you added are carried forward; new core capabilities (e.g. the interview primitives) install even if they postdate your original selection.
 - **Refresh `conductor/5-templates/`** — the framework document scaffolding — while leaving all your knowledge in `0-compass`, `2-backlog`, `3-product-areas`, `4-context`, `6-archive` untouched.
 - **Migrate structure & schema** — legacy `.agent/` / `.conductor/` / root numbered folders → the `conductor/` dashboard; `loop-state.json` → the current schema.
-- **Refresh platform stubs** — the framework block in `CLAUDE.md`/`GEMINI.md` (between `<!-- conductor:managed -->` markers) is updated in place while your own notes outside it are kept; your `CHANGELOG.md` is never touched.
+- **Write the root `AGENTS.md`** — its framework block is regenerated from `.agents/`; your own text in it is kept. The old `CLAUDE.md` / `GEMINI.md` stubs are removed, and any notes you wrote in them move into `AGENTS.md`. Claude Code reads `AGENTS.md` from v2.1.277, when no `CLAUDE.md` is present; `upgrade` and `status` warn otherwise. Your `CHANGELOG.md` is never touched.
 - **Stamp the version** — records the framework version for idempotent future upgrades.
 - **Commit itself** — in a git repo, it commits exactly the framework files it wrote, and nothing of yours. Then `git push` as usual. If you had uncommitted edits in those files, or pass `--no-commit`, it prints the one command to run instead.
 

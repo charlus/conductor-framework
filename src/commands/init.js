@@ -1,4 +1,4 @@
-import { access, cp, mkdir, rm, stat } from "node:fs/promises";
+import { access, cp, mkdir, rm, stat, readFile, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { constants as fsConstants } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,8 @@ import { generateClaudeCommands, generateClaudeSkills } from "../claude-commands
 import { installHooksCommand } from "./install-hooks.js";
 import { writeVersionStamp, packageVersion } from "../version.js";
 import { ensureVerifyCommand } from "../verify-config.js";
+import { buildFrameworkBlock, renderRootAgentsMd } from "../agents-md.js";
+import { instructionWarningsFor } from "../claude-instructions.js";
 
 function getTemplateDir() {
   return fileURLToPath(new URL("../../templates", import.meta.url));
@@ -179,7 +181,20 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
       }
 
       // Copy platform stubs and config
-      for (const stub of ["GEMINI.md", "CLAUDE.md", "CHANGELOG.md", "conductor.config.json"]) {
+      // Root AGENTS.md: the one instruction file every harness loads, generated
+      // from the .agents/ just installed. A file the user already has keeps every
+      // byte below the inserted blocks.
+      const agentsMdPath = join(targetDir, "AGENTS.md");
+      const hadAgentsMd = await exists(agentsMdPath);
+      await writeFile(
+        agentsMdPath,
+        renderRootAgentsMd(hadAgentsMd ? await readFile(agentsMdPath, "utf8") : null, await buildFrameworkBlock(agentsDir)),
+        "utf8",
+      );
+      stdout.write(`✅ ${hadAgentsMd ? "Added the Conductor framework block to your AGENTS.md" : "Created AGENTS.md"}\n`);
+      for (const w of await instructionWarningsFor(targetDir)) stdout.write(`⚠️  ${w}\n`);
+
+      for (const stub of ["CHANGELOG.md", "conductor.config.json"]) {
         const stubTarget = join(targetDir, stub);
         if (!(await exists(stubTarget))) {
           await cp(join(templateDir, stub), stubTarget);
@@ -217,7 +232,7 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
           "  • Persistent:    npm i -g github:charlus/conductor-framework   then:   conductor loop --dry-run\n" +
           "  • Fleet:         conductor loop --from-conductor --dry-run   (drain your ./conductor/ backlog)\n" +
           "  Guide: https://github.com/charlus/conductor-framework/blob/master/docs/Running-The-Loop.md\n" +
-          "\nDocs: .agents/AGENTS.md\n"
+          "\nDocs: AGENTS.md (always loaded), .agents/how-it-works.md (full reference)\n"
       );
     }
     

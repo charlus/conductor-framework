@@ -61,7 +61,8 @@ describe("E2.4 — the bill measures the right things", () => {
   });
 
   test("isAlwaysOn distinguishes always-on rules from on-demand ones", () => {
-    assert.equal(isAlwaysOn("---\ntrigger: always_on\n---\n"), true);
+    assert.equal(isAlwaysOn("---\ntrigger: manual\ninline: true\n---\n"), true);
+    assert.equal(isAlwaysOn("---\ntrigger: always_on\n---\n"), false, "Antigravity's trigger no longer decides it");
     assert.equal(isAlwaysOn("---\ndescription: loop-scoped\n---\n"), false);
     assert.equal(isAlwaysOn("# no frontmatter"), false);
   });
@@ -79,7 +80,7 @@ describe("E2.4 — the bill measures the right things", () => {
 
   test("loop-scoped rules are NOT billed as always-on", () => {
     // loop-guardrails.md is deliberately on-demand; if it ever gains
-    // `trigger: always_on` every session starts paying for it.
+    // `inline: true` every session starts paying for it.
     const loopRule = bill.alwaysOn.items.find((i) => i.name === "rules/loop-guardrails.md");
     assert.equal(loopRule, undefined, "loop-guardrails.md became always-on — it is loop-scoped");
   });

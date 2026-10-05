@@ -27,6 +27,7 @@ import { parseTriggerPayload, applyTrigger, renderTriggerDoc } from "../loop/tri
 import { allowedToolsFor } from "../loop/untrusted.js";
 import { writeBeatLog, BEAT_LOG_DIR } from "../loop/beat-log.js";
 import { syncLoopStateInto } from "../loop/state-sync.js";
+import { instructionWarningsFor } from "../claude-instructions.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings } from "../loop/config.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
@@ -561,6 +562,11 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     runChecker: logged("checker", resolved.adapter.runChecker),
   };
   stdout.write(`[CONDUCTOR LOOP] platform: ${adapter.name}\n`);
+
+  // D9: a claude beat that cannot read the root AGENTS.md runs without the laws.
+  if (adapter.name === "claude") {
+    for (const w of await instructionWarningsFor(root)) stderr.write(`[CONDUCTOR LOOP] ⚠️  ${w}\n`);
+  }
 
   if (willOpenPr) {
     if (!forgeInfo.forge) {

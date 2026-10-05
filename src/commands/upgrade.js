@@ -10,7 +10,8 @@ import { ensureVerifyCommand } from "../verify-config.js";
 import { normalizeState } from "../loop/driver.js";
 import { packageVersion, readVersionStamp, writeVersionStamp, detectShape } from "../version.js";
 import { createBackup, restoreBackup, ensureGitignore } from "../backup.js";
-import { applyManagedStub } from "../stubs.js";
+import { buildFrameworkBlock, renderRootAgentsMd, extractStubNotes, appendMovedNotes } from "../agents-md.js";
+import { instructionWarningsFor } from "../claude-instructions.js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -21,7 +22,7 @@ const execFileAsync = promisify(execFile);
  * Anything outside this list is the user's, and is never swept in.
  */
 const FRAMEWORK_PATHS = [
-  ".agents", "CLAUDE.md", "GEMINI.md", "CHANGELOG.md", ".claude/commands",
+  ".agents", "AGENTS.md", "CLAUDE.md", "GEMINI.md", "CHANGELOG.md", ".claude/commands",
   "conductor/5-templates", "conductor/1-workbench/loop-state.json",
   "conductor.config.json", ".gitignore",
 ];
@@ -69,7 +70,9 @@ async function commitUpgrade({ targetDir, version, snap, noCommit, structural, e
   if (!snap.repo) return;
   const existing = [];
   for (const p of FRAMEWORK_PATHS) {
-    if (!(await exists(join(targetDir, p)))) continue;
+    // A path the upgrade deleted (the old CLAUDE.md / GEMINI.md stubs) still
+    // belongs in the commit while git tracks it, so the deletion is recorded.
+    if (!(await exists(join(targetDir, p))) && !(await git(["ls-files", "--", p], targetDir)).stdout) continue;
     // An explicitly named ignored path makes `git add` fail outright.
     if ((await git(["check-ignore", "-q", "--", p], targetDir)).ok) continue;
     existing.push(p);
@@ -190,7 +193,7 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
         "This repo has .agents/ but no conductor/ folder and no Conductor version stamp.\n" +
           "It looks like an agent-only repo, not a Conductor project.\n" +
           "Upgrading would install every workflow and the git hooks, create conductor/,\n" +
-          "and add a Conductor block to CLAUDE.md and GEMINI.md.\n" +
+          "and write a Conductor framework block into the root AGENTS.md.\n" +
           "If that is what you want, re-run with --force. Nothing was changed.\n"
       );
       return 1;
@@ -237,7 +240,7 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       const lsPath = join(targetDir, loopStateRel);
       stdout.write(`  ${loopStateRel}  ${(await exists(lsPath)) ? "MIGRATE schema → v2" : "CREATE"}\n`);
       stdout.write(`  Preserve: conductor/ knowledge (0-compass,2-backlog,3-product-areas,4-context,6-archive) untouched\n`);
-      stdout.write(`  Stubs: refresh CLAUDE.md/GEMINI.md managed block (keep your edits + CHANGELOG.md)\n`);
+      stdout.write(`  AGENTS.md: write the framework block (keep your text); move notes from CLAUDE.md/GEMINI.md into it, then remove them\n`);
       stdout.write(`  Then: regenerate .claude/commands, git hooks; stamp ${version}\n`);
       stdout.write(`\nNo changes written (dry run). Re-run without --dry-run to apply.\n`);
       return 0;
@@ -255,7 +258,7 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
     if (hasAgents) backupPaths.push(".agents");
     if (await exists(target5Templates)) backupPaths.push(join("conductor", "5-templates"));
     if (await exists(join(targetDir, loopStateRel))) backupPaths.push(loopStateRel);
-    for (const stub of ["CLAUDE.md", "GEMINI.md"]) {
+    for (const stub of ["AGENTS.md", "CLAUDE.md", "GEMINI.md"]) {
       if (await exists(join(targetDir, stub))) backupPaths.push(stub);
     }
     if (doesStructuralMigration) {
@@ -350,14 +353,30 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
         }
       }
 
-      // ---- Step 6: Platform stubs ----
-      stdout.write("\nStep 6: Platform stubs...\n");
-      // CLAUDE.md / GEMINI.md carry a Conductor-managed block — refresh it in place,
-      // preserving anything the user wrote outside the markers.
+      // ---- Step 6: Root AGENTS.md ----
+      // The one instruction file every harness loads. Its framework block is
+      // generated from the .agents/ just installed. The old CLAUDE.md / GEMINI.md
+      // stubs go: Claude Code reads AGENTS.md only when no CLAUDE.md exists, and
+      // a CLAUDE.md here would also hide a team repo's own AGENTS.md (F20). The
+      // user's notes in them move into AGENTS.md; both were backed up in Step 0.
+      stdout.write("\nStep 6: Root AGENTS.md...\n");
+      const agentsMdPath = join(targetDir, "AGENTS.md");
+      const hadAgentsMd = await exists(agentsMdPath);
+      let agentsMd = renderRootAgentsMd(
+        hadAgentsMd ? await readFile(agentsMdPath, "utf8") : null,
+        await buildFrameworkBlock(join(targetDir, ".agents")),
+      );
       for (const stub of ["CLAUDE.md", "GEMINI.md"]) {
-        const outcome = applyManagedStub(join(targetDir, stub), join(templateDir, stub));
-        stdout.write(`  ${outcome === "unchanged" ? "⏭️ " : "✅"} ${stub} ${outcome} (managed block)\n`);
+        const stubPath = join(targetDir, stub);
+        if (!(await exists(stubPath))) continue;
+        const notes = extractStubNotes(await readFile(stubPath, "utf8"));
+        agentsMd = appendMovedNotes(agentsMd, stub, notes);
+        await rm(stubPath);
+        stdout.write(`  ✅ Removed ${stub}${notes ? " — your notes moved to AGENTS.md (\"Notes moved from " + stub + "\")" : ""}\n`);
       }
+      await writeFile(agentsMdPath, agentsMd, "utf8");
+      stdout.write(`  ✅ AGENTS.md ${hadAgentsMd ? "framework block refreshed (your text kept)" : "created"}\n`);
+      for (const w of await instructionWarningsFor(targetDir)) stdout.write(`  ⚠️  ${w}\n`);
       // CHANGELOG.md is the user's own project changelog — create only if absent.
       const changelogPath = join(targetDir, "CHANGELOG.md");
       if (!(await exists(changelogPath))) {

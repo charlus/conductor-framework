@@ -205,8 +205,8 @@ test("anchorsToMaterialize: fills only anchors present at root but missing in th
     [...CONTEXT_ANCHORS]
   );
   // Mixed: .agents committed, conductor/ gitignored, CLAUDE.md committed, no GEMINI.md.
-  const atRoot = { "CLAUDE.md": true, "GEMINI.md": false, ".agents": true, conductor: true };
-  const inWt = { "CLAUDE.md": true, "GEMINI.md": false, ".agents": true, conductor: false };
+  const atRoot = { "AGENTS.md": true, "CLAUDE.md": true, "GEMINI.md": false, ".agents": true, conductor: true };
+  const inWt = { "AGENTS.md": true, "CLAUDE.md": true, "GEMINI.md": false, ".agents": true, conductor: false };
   assert.deepEqual(
     anchorsToMaterialize({ existsAtRoot: (a) => atRoot[a], existsInWorktree: (a) => inWt[a] }),
     ["conductor"]
@@ -215,7 +215,7 @@ test("anchorsToMaterialize: fills only anchors present at root but missing in th
 
 test("materializeConductorContext copies exactly the missing anchors", async () => {
   const copied = [];
-  const inWt = { "CLAUDE.md": true, "GEMINI.md": false, ".agents": false, conductor: false };
+  const inWt = { "AGENTS.md": true, "CLAUDE.md": true, "GEMINI.md": false, ".agents": false, conductor: false };
   const filled = await materializeConductorContext({
     existsAtRoot: () => true,
     existsInWorktree: (a) => inWt[a],

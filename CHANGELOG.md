@@ -6,6 +6,15 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — one root AGENTS.md replaces CLAUDE.md and GEMINI.md
+
+- `init` and `upgrade` write a root `AGENTS.md`, the standard file every harness reads. Its framework block is generated from `.agents/` (the classifier and the rules marked `inline: true`); edit `.agents/`, never the block. A project card block follows, a draft for now. Text you write outside the markers is kept. An existing team-written `AGENTS.md` keeps every byte, below the inserted blocks.
+- `CLAUDE.md` and `GEMINI.md` are no longer installed. `upgrade` removes them, after moving any notes you wrote in them into `AGENTS.md` ("Notes moved from …"); old pointer-only stubs move nothing. Both are backed up first.
+- Why: Claude Code reads `AGENTS.md` only when no `CLAUDE.md` exists, and our `CLAUDE.md` only asked the agent, in prose, to read `.agents/AGENTS.md`. With it gone, Claude Code and Codex load the framework every session, and Claude Code also reads a team repository's own `AGENTS.md` in a subfolder.
+- Requires Claude Code 2.1.277 or later. `init`, `upgrade`, `status` and the loop warn about an older version, and about a `CLAUDE.md` or `CLAUDE.local.md` that would make Claude skip `AGENTS.md`.
+- Rules: `trigger: always_on` is replaced by `inline: true` (Antigravity no longer loads them twice). Prime directive: no visible `<thinking>` block; ask for confirmation only before destructive or hard-to-undo actions and product decisions; unattended runs follow `unattended-loop.md`. New precedence line: a team repository's instructions win for code style and repository process, Conductor's for TDD, verification and `conductor/` state. The Test-Driven Law names the `pre-commit` hook that enforces it.
+- `conductor context-bill` bills the generated framework block. The Claude Code slash-command reference moved from `CLAUDE.md` to `how-it-works.md`.
+
 ### Fixed — framework reference matches what ships
 
 - `how-it-works.md`: the folder map adds `hooks/`, `sandbox/`, `references/`, the `.claude/` shims, `architecture-checklist.md` and `loop-trigger.md`, and describes what `conductor.config.json` now holds. The CLI reference covers every command (`install-hooks`, `verify`, `evidence`, `review-log`, `context-bill`, `trust-verify`, `loop`, `init`/`upgrade`). The full classifier gets the `status` row and `conductor inbox add`. The skill registry lists `architecture-checklist` and `writing-evals`. A new *Running the loop* section gives an agent the loop facts: one repository, per-project settings, task selection, driver-owned state, merge rule, where the evidence is. Links to design documents point to GitHub, because `docs/` and `src/` do not exist in an installed project.

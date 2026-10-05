@@ -1,5 +1,6 @@
 ---
-trigger: always_on
+trigger: manual
+inline: true
 description: No completion claims without fresh verification evidence.
 ---
 

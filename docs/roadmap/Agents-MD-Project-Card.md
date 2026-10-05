@@ -3,8 +3,8 @@
 > **Status:** decisions D5–D13 approved 2026-10-05. R4 and R5 verified live. Delivery steps 1–4
 > built: F21 (#48), root `AGENTS.md` generation and migration (#50), `conductor agents-md
 > facts|write|check` + `status` drift line + the `agents-md` workflow. Live: the workflow wrote a
-> 2,284-byte card on a real project, passing `check`. Step 5 (the with/without-card eval that
-> decides the size) not run.
+> 2,284-byte card on a real project, passing `check`. Step 5 eval done: the card cut turns by 61%
+> and cost by 35% (§7); full card kept. Released in 6.7.0.
 > **Scope:** one standard instruction file that every harness loads, a leaner framework text,
 > and a short, current description of the project in every session.
 > **Out of scope:** nested AGENTS.md per code directory (D4).
@@ -156,7 +156,7 @@ the three summaries. Where a source is empty, the agent writes "Unknown — fill
 |---|---|---|
 | R4: `AGENTS.md` reloads after `/compact` | one long-lived `claude -p` stream session: canary changed on disk, compaction, canary asked → new word, same as `CLAUDE.md` | *verified* |
 | R5: headless `claude -p` loads `AGENTS.md` | canary in a fresh `-p` run | *verified*. "First session after a Claude Code upgrade" not reproducible: covered by the version warning and by the laws in the loop prompt |
-| Card value | agent eval, 5 real tasks on `eurassistant`, with and without card: tool calls before the first correct edit, wrong-command rate | to run; decides the size |
+| Card value | agent eval, 5 project questions on `eurassistant`, card vs draft card, 2 runs each, read-only tools | *done 2026-10-05*: turns 23 vs 59, cost $1.25 vs $1.93, time 81 s vs 161 s, expected answer 10/10 vs 8/10 (the 2 misses were coverage, not errors). Full card kept, limit 3,072 bytes |
 | Migration | `upgrade` tests per §6 row; "existing `AGENTS.md` keeps every byte outside the markers" | to build |
 | Harnesses | live: Claude Code and Codex on a migrated repo, "what does this project do and how do I run its tests?" without reading a file | to run |
 | Budget | `context-budget` ratchet: framework block ≤ its new size, card ≤ its limit | to build |

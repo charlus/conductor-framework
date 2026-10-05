@@ -6,6 +6,33 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+---
+
+## [6.7.0] — 2026-10-05 — One AGENTS.md, the Project Card, Loop Fixes
+
+### Note — upgrading
+
+`upgrade` changes what your project root looks like:
+
+- A new root `AGENTS.md` appears: the framework block (generated from `.agents/`, do not edit it) and a draft project card. Any text you already had in an `AGENTS.md` is kept below.
+- `CLAUDE.md` and `GEMINI.md` are removed. Notes you wrote in them move to the end of `AGENTS.md` under "Notes moved from …". Both files are backed up in `.conductor-backup/`.
+- Claude Code must be 2.1.277 or later to read `AGENTS.md`. Do not keep a `CLAUDE.md` or `CLAUDE.local.md` in the same folder: Claude Code reads those instead. `upgrade` and `status` warn about each.
+- Then ask your agent to run the **agents-md** workflow (`/agents-md`) to write the project card.
+
+### Measured — the project card earns its bytes
+
+An eval on a real project (eurassistant), 5 questions that need project knowledge (test command, where a new intent goes, stack, where tools get the user identity, what must pass before a push), 2 runs per question, read-only tools, same framework block in both arms:
+
+| | With card | Draft card |
+|---|---|---|
+| Turns | 23 (2.3 per question) | 59 (5.9) |
+| Cost | $1.25 | $1.93 |
+| Time | 81 s | 161 s |
+| Matched the expected answer | 10/10 | 8/10 |
+
+The two misses without the card both answered the push question with the local hook (pytest + evals, accurate) and did not name the `ruff` CI gate the card records: a coverage difference, not an error. n = 2 per cell, one project. The card stays at its full form, limit 3,072 bytes.
+
+
 ### Added — the project card in AGENTS.md
 
 - `conductor agents-md facts|write|check`. `write` fills the card's Stack, Commands, Layout and product-area list from the code (manifests, `conductor.config.json`, directories, `conductor/3-product-areas/`), keeps whatever an agent already wrote, and marks the rest `TODO`. `check` exits 0 only for a complete card: fixed headings, no `TODO`, facts unchanged, at most 5 conventions, at most 3,072 bytes. It then stamps one hash per source.

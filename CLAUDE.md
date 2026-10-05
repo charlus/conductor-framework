@@ -47,10 +47,8 @@ conductor-framework/          ← You are here (package source)
 ├── templates/                 # THESE files get installed into user projects
 │   ├── .agents/                # Agent core (AGENTS.md, how-it-works.md, registry.json, rules, workflows, skills, personas)
 │   ├── conductor/              # Project state (numbered folders 0-compass..6-archive)
-│   ├── conductor.config.json   # Registry URL config (used by add/list/search)
-│   ├── GEMINI.md               # Platform stub (for installed projects, not this repo)
-│   ├── CLAUDE.md
-│   └── CHANGELOG.md
+│   ├── conductor.config.json   # Project settings: verify/eval commands, loop block, registry URL
+│   └── CHANGELOG.md            # (the root AGENTS.md is GENERATED at install from .agents/, not a template file)
 ├── package.json               # manifest + npm test scripts (test:unit/smoke/hooks)
 ├── README.md                  # Public-facing with credits
 ├── CHANGELOG.md               # Package changelog
@@ -68,9 +66,9 @@ conductor-framework/          ← You are here (package source)
 
 | Decision | Rationale |
 |----------|-----------|
-| `.agents/AGENTS.md` (always-on) vs. `.agents/how-it-works.md` (on-demand) | Only `.agents/rules/*.md` and the compact `AGENTS.md` classifier load every session (Progressive Disclosure); `how-it-works.md` carries the full routing table, folder purposes, and registries and is read on demand — restored after a V5 refactor deleted the equivalent file (`rules/conductor-system.md`) without replacing its content |
+| Root `AGENTS.md` (always loaded) vs. `.agents/how-it-works.md` (on-demand) | Every session loads only the root `AGENTS.md`: a framework block GENERATED from `.agents/AGENTS.md` + the rules marked `inline: true` (`src/agents-md.js`), then the project card. `how-it-works.md` carries the full routing table, folder purposes and registries and is read on demand. Inline, because Claude Code reads nothing under `.agents/` and Codex has no import syntax |
 | `conductor/` wrapper (visible, not dotted) | Keep project root clean but let the human browse/edit their dashboard directly — this is their collaborative workspace, not hidden state |
-| Platform stubs (`GEMINI.md`, `CLAUDE.md`) | Each AI platform auto-discovers its own file format |
+| One root `AGENTS.md`, no `CLAUDE.md` / `GEMINI.md` (6.7.0) | The AAIF standard every harness reads. Claude Code (≥ 2.1.277) reads it only when no `CLAUDE.md` exists, and a `CLAUDE.md` in the working folder also hides a team repo's own `AGENTS.md`. The old stubs only asked the agent, in prose, to read `.agents/AGENTS.md`. Written next to `conductor/`, never inside a nested repo, so the outer (team) layout never leaks it. Design: `docs/roadmap/Agents-MD-Project-Card.md` |
 | kebab-case naming (all of `.agents/` + `conductor/`) | Standardized off legacy Title-Case during the V5 migration; `upgrade` auto-renames existing installs |
 | CLI auth detection (not URL regex) | `gh auth status` / `glab auth status` works for self-hosted GitLab |
 | No NotebookLM skill in templates | Requires MCP server, too environment-specific for a general framework |
@@ -95,6 +93,7 @@ Stable pointers to where the big subsystems live:
 - **Evidence freshness** → `src/evidence/` (`wtree.js` working-tree content fingerprint + `ledger.js`), surfaced as `conductor evidence run|check|list` and consumed by `hooks/pre-push`. Committing exactly the code that was tested keeps its evidence FRESH; an untracked new source file invalidates it.
 - **Swarm conflict prediction** → `src/loop/conflict.js` (`git merge-tree`, fail-open), consumed by `src/loop/swarm.js`'s merge queue. Only the legacy (git < 2.38) form is proven by `test/conflict-predict-real.sh`. F8 admission control is deliberately unbuilt: `docs/roadmap/Swarm-Collision-Admission.md`.
 - **Review canvas** → `src/review/` (`canvas.js` page, `server.js` loopback same-origin server, `store.js` NDJSON feedback queue) + `src/commands/review.js`, surfaced as `conductor review <file.md>` (exit 0/2/1, JSON on stdout).
+- **Root AGENTS.md + project card** → `src/agents-md.js` (framework block generation, rendering, stub migration; used by `init`/`upgrade`), `src/project-card.js` (card build/check/stamp, pure) + `src/commands/agents-md.js` (`conductor agents-md facts|write|check`, facts from the code repo, nested in the outer layout via `src/nested-repos.js`), `src/claude-instructions.js` (D9 warnings), `templates/.agents/workflows/agents-md.md`. Design + decisions D5–D13: `docs/roadmap/Agents-MD-Project-Card.md`.
 - **Brownfield onboarding** → `src/survey.js` + `src/commands/survey.js` (`conductor survey`, facts only) and `templates/.agents/workflows/survey.md` (the interview).
 - **Human surfaces** → `src/conductor-state.js` (ONE read of `conductor/`, shared by every renderer; calls `loop/harvester.js` rather than re-parsing) + `src/commands/status.js|inbox.js|view.js` + `src/view/` (`markdown.js` renderer, `render.js` page assembler, `styles.css`, `app.client.js`). Surfaced as `conductor status|inbox|view`. Design: `docs/roadmap/Terminal-First-Human-Surfaces.md`.
 - **Measurement** → `src/context-bill.js` + `test/fixtures/context-budget.json` (the always-on/eager ratchet, ceilings in bytes) and `src/commands/review-log.js` (review findings + dispositions; a class dismissed >50% of the time is a *rubric* defect, not an author defect).

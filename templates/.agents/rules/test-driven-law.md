@@ -1,5 +1,6 @@
 ---
-trigger: always_on
+trigger: manual
+inline: true
 description: Red before green. No implementation code without a failing test first.
 ---
 
@@ -13,7 +14,7 @@ This applies to every task in the Build workflow's per-task loop (`.agents/workf
 2. **GREEN** — Write the minimum code needed to make it pass. Run it. Confirm it passes.
 3. **REFACTOR** — Clean up the code and test without changing behavior. Run the suite again to confirm it's still GREEN.
 
-Full mechanics: `.agents/workflows/tdd-cycle.md`.
+Full mechanics: `.agents/workflows/tdd-cycle.md`. Enforced by the `pre-commit` hook: a commit that stages implementation code without a test change is rejected.
 
 ## The one exception
 

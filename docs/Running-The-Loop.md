@@ -7,7 +7,7 @@
 `conductor loop` is a deterministic driver (`src/loop/driver.js`). Each **beat** it launches a real agent process (e.g. `claude -p`) in an isolated git worktree, then — in code, not prose — runs your verification command, consults an independent Checker process, enforces an iteration ceiling / wall-clock budget / stall detection, and transitions state. It is **not** a chat; you steer it through a JSON file called **The Spine**.
 
 - **The Spine:** `conductor/1-workbench/loop-state.json` — the goal, phase, autonomy level, verify command, and (for swarm mode) the task graph. The driver reads *only* this for control.
-- **The beat prompt:** `.agents/workflows/unattended-loop.md` (maker) and `.agents/workflows/loop-checker.md` (checker). Because the agent runs in your repo, it also auto-loads `CLAUDE.md → .agents/AGENTS.md` and reads your `.agents/` rules/personas each beat.
+- **The beat prompt:** `.agents/workflows/unattended-loop.md` (maker) and `.agents/workflows/loop-checker.md` (checker). Because the agent runs in your repo, it also loads the root `AGENTS.md` (framework block + project card) each beat, and the workflow points it to `.agents/` personas and skills.
 - **It talks back through files:** escalations → `conductor/1-workbench/inbox.md`; audit trail → `conductor/0-compass/ship-log.md`; it stops at `awaiting_review` for you to inspect and merge.
 
 ## Getting the `conductor` command (no clone needed)
@@ -142,7 +142,7 @@ Because the queue is **re-harvested every run**, a human editing `conductor/` �
 
 ## How it reads your project
 
-- **Instructions/rules/personas:** picked up automatically — the agent auto-loads `CLAUDE.md → .agents/AGENTS.md` and the workflow directs it to read `.agents/rules/` and `.agents/personas/` each beat.
+- **Instructions:** the root `AGENTS.md`, loaded by the harness each beat: the framework block (classifier and laws, generated from `.agents/`) and the project card. The workflow points the agent to `.agents/personas/` and skills on demand. Claude Code needs v2.1.277 or later and no `CLAUDE.md` in the folder; the loop warns otherwise.
 - **Goal / phase / status:** from `loop-state.json`.
 - **Work items:** with `--from-conductor`, from `conductor/1-workbench/inbox.md` and `conductor/2-backlog/task-backlog.md` (see Fleet mode). Without it, the driver reads no other `conductor/` file: give a single `--goal`, or put a task graph in `tasks[]` (for example with `carve`).
 - **Per-project settings:** from the `loop` block of `conductor.config.json` in the main checkout.

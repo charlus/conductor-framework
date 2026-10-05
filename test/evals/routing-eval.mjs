@@ -36,6 +36,8 @@ import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { buildFrameworkBlock, renderRootAgentsMd } from "../../src/agents-md.js";
+
 const ROOT = new URL("../..", import.meta.url).pathname;
 const TEMPLATES = join(ROOT, "templates");
 
@@ -112,7 +114,8 @@ if (!process.env.CONDUCTOR_EVALS) {
 }
 
 /**
- * Build a throwaway project containing the framework and a CLAUDE.md.
+ * Build a throwaway project containing the framework and its root AGENTS.md,
+ * generated exactly as `init` does (the classifier + the inline laws).
  *
  * The `descriptions` suite strips the routing table out of AGENTS.md and keeps
  * a GENERIC nudge, so only the workflow descriptions can carry the routing
@@ -158,19 +161,17 @@ async function makeFixture(suite) {
     // the descriptions are the artifact under test.
     const wf = (await readdir(join(dir, ".agents", "workflows"))).filter((f) => f.endsWith(".md"));
     nudge =
-      "# Project Instructions\n\n" +
-      "This project uses the Conductor framework. Read `.agents/AGENTS.md` first.\n\n" +
       "## Routing\n\n" +
       "When a request matches one of the workflows in `.agents/workflows/`, run that workflow.\n" +
       "Choose it by reading the workflows' own descriptions — do not guess from the filename alone.\n\n" +
       `Available workflows: ${wf.join(", ")}\n`;
   } else {
-    nudge =
-      "# Project Instructions\n\n" +
-      "This project uses the Conductor framework.\n" +
-      "Read `.agents/AGENTS.md` and follow its instructions before acting.\n";
+    nudge = "";
   }
-  await writeFile(join(dir, "CLAUDE.md"), nudge);
+  // The root AGENTS.md, generated from the (possibly stripped) .agents/ — the
+  // mechanism that ships. The descriptions nudge goes below, as user text.
+  const agentsMd = renderRootAgentsMd(null, await buildFrameworkBlock(join(dir, ".agents")));
+  await writeFile(join(dir, "AGENTS.md"), nudge ? `${agentsMd}\n${nudge}` : agentsMd);
 
   // Enough of conductor/ to look like a real install.
   for (const d of ["0-compass", "1-workbench", "2-backlog"]) {

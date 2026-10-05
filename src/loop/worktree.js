@@ -70,7 +70,9 @@ export async function createWorktree({ root, goalDescription, git }) {
 // these (a real, legitimate setup) the worktree would be blind. We fill them in
 // from the main working tree; ignored files stay ignored in the worktree, so they
 // never pollute the feature branch / PR.
-export const CONTEXT_ANCHORS = Object.freeze(["CLAUDE.md", "GEMINI.md", ".agents", "conductor"]);
+// AGENTS.md is the instruction file; CLAUDE.md / GEMINI.md stay listed for installs
+// that still carry them (a copy is made only when the root has one).
+export const CONTEXT_ANCHORS = Object.freeze(["AGENTS.md", "CLAUDE.md", "GEMINI.md", ".agents", "conductor"]);
 
 /** Pure: which anchors exist at the root but are MISSING from the worktree. */
 export function anchorsToMaterialize({ anchors = CONTEXT_ANCHORS, existsAtRoot, existsInWorktree }) {

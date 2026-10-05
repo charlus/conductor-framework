@@ -96,11 +96,15 @@ test("upgrade replaces framework instructions, carries custom, preserves knowled
   assert.equal(ls.stall.consecutive, 2, "consecutive_stalls folded into stall");
   assert.equal(ls.goal_description, "ship it", "user goal preserved");
 
-  // CLAUDE.md: managed block refreshed, user note preserved.
-  const claude = readFileSync(join(dir, "CLAUDE.md"), "utf8");
-  assert.ok(!claude.includes("OLD STUB BODY"), "old managed block refreshed");
-  assert.ok(claude.includes("Conductor Framework V6"), "managed block updated to current template");
-  assert.ok(claude.includes("MY CLAUDE NOTES"), "user note outside the block preserved");
+  // CLAUDE.md is migrated into the root AGENTS.md and removed (D5/D8): the
+  // framework block is generated, the user's note moves, the old stub body does not.
+  assert.ok(!existsSync(join(dir, "CLAUDE.md")), "CLAUDE.md removed");
+  const agentsMd = readFileSync(join(dir, "AGENTS.md"), "utf8");
+  assert.ok(agentsMd.includes("conductor:framework:begin"), "framework block written");
+  assert.ok(agentsMd.includes("## Request Classifier"), "framework block generated from .agents/");
+  assert.ok(agentsMd.includes("## Notes moved from CLAUDE.md"), "notes section added");
+  assert.ok(agentsMd.includes("MY CLAUDE NOTES"), "user note moved");
+  assert.ok(!agentsMd.includes("OLD STUB BODY"), "old managed block not carried");
 
   // Version stamp written.
   const stamp = JSON.parse(readFileSync(join(dir, ".agents", ".conductor-version.json"), "utf8"));
@@ -217,15 +221,45 @@ test("upgrade never sweeps the user's own staged work into its commit", async ()
 });
 
 test("upgrade does not commit over the user's uncommitted framework edits", async () => {
-  // Their CLAUDE.md notes outside the managed block are theirs; committing them
-  // unasked would be a surprise. Print the one command instead.
+  // Their notes in AGENTS.md outside the framework block are theirs; committing
+  // them unasked would be a surprise. Print the one command instead.
   const dir = await makeGitInstall();
-  writeFileSync(join(dir, "CLAUDE.md"), readFileSync(join(dir, "CLAUDE.md"), "utf8") + "\nMY UNCOMMITTED NOTE\n");
+  writeFileSync(join(dir, "AGENTS.md"), readFileSync(join(dir, "AGENTS.md"), "utf8") + "\nMY UNCOMMITTED NOTE\n");
   const before = g(dir, "rev-parse", "HEAD");
   const { stdout } = await runUpgrade(dir);
   assert.equal(g(dir, "rev-parse", "HEAD"), before, "it committed over uncommitted user edits");
   assert.match(stdout, /CONDUCTOR_NO_PROTECTED="conductor upgrade" git commit/);
-  assert.match(stdout, /CLAUDE\.md/);
+  assert.match(stdout, /AGENTS\.md/);
+  assert.match(readFileSync(join(dir, "AGENTS.md"), "utf8"), /MY UNCOMMITTED NOTE/, "the note survived the refresh");
+});
+
+test("upgrade migrates a tracked CLAUDE.md and GEMINI.md: notes into AGENTS.md, deletions committed", async () => {
+  const dir = await makeGitInstall();
+  writeFileSync(join(dir, "CLAUDE.md"), "<!-- conductor:managed:begin — x -->\nOLD\n<!-- conductor:managed:end -->\n\nUse plan mode for billing.\n");
+  writeFileSync(join(dir, "GEMINI.md"), "---\ntrigger: always_on\n---\n\n<!-- conductor:managed:begin — x -->\nOLD\n<!-- conductor:managed:end -->\n");
+  g(dir, "add", "-A");
+  g(dir, "commit", "-q", "-m", "old stubs");
+  const { code, stdout } = await runUpgrade(dir);
+  assert.equal(code, 0, stdout);
+  assert.ok(!existsSync(join(dir, "CLAUDE.md")) && !existsSync(join(dir, "GEMINI.md")));
+  const agentsMd = readFileSync(join(dir, "AGENTS.md"), "utf8");
+  assert.match(agentsMd, /## Notes moved from CLAUDE\.md[\s\S]*Use plan mode for billing\./);
+  assert.doesNotMatch(agentsMd, /Notes moved from GEMINI\.md/, "a stub with no user text moves nothing");
+  assert.equal(g(dir, "status", "--porcelain", "--", "AGENTS.md", "CLAUDE.md", "GEMINI.md"), "", "the deletions and AGENTS.md were committed");
+  assert.match(g(dir, "show", "--name-status", "--format=", "HEAD"), /D\tCLAUDE\.md/);
+});
+
+test("upgrade keeps every byte of a team-written AGENTS.md, below the framework block", async () => {
+  const dir = await makeGitInstall();
+  const team = "# Company OS\n\nUse pnpm. Never push to main.\n";
+  writeFileSync(join(dir, "AGENTS.md"), team);
+  g(dir, "add", "-A");
+  g(dir, "commit", "-q", "-m", "team agents file");
+  const { code, stdout } = await runUpgrade(dir);
+  assert.equal(code, 0, stdout);
+  const agentsMd = readFileSync(join(dir, "AGENTS.md"), "utf8");
+  assert.ok(agentsMd.startsWith("<!-- conductor:framework:begin"));
+  assert.ok(agentsMd.endsWith(team));
 });
 
 test("--no-commit prints the exact command and commits nothing", async () => {

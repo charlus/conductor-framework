@@ -1,19 +1,18 @@
 ---
-trigger: always_on
+trigger: manual
+description: "Source of the framework block in the root AGENTS.md. Edit here, then run conductor upgrade."
 ---
 
 # Conductor Framework
-
-> **Antigravity users:** The Conductor system loads automatically via `.agents/rules/`. You're all set.
-> **Other AI tools** (Gemini CLI, Claude, etc.): Read the rule files in `.agents/rules/` to initialize, then this file.
 
 ## Global Boundaries
 
 > [!WARNING]
 > **NEVER** rush to a solution. ALWAYS read the project context and product areas before acting.
 > **ALWAYS** use the verification gate before claiming a task is completed. NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE.
-> **ALWAYS** write a failing test before implementation code during Build. See `.agents/rules/test-driven-law.md`.
+> **ALWAYS** write a failing test before implementation code during Build. See the Test-Driven Law below.
 > **ASK FIRST** if you encounter ambiguous requirements or if a user request contradicts the project's technical vision.
+> **PRECEDENCE:** when the code lives in a team repository with its own instructions (an `AGENTS.md` or `CLAUDE.md` inside it), those win for code style and repository process: branches, commit format, review. Conductor's rules win for its own process: TDD, verification, `conductor/` state.
 
 ## Request Classifier
 

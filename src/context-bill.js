@@ -19,8 +19,8 @@
 //
 // TWO LEDGERS, because they are paid at different times:
 //
-//   ALWAYS-ON  — what EVERY session loads before doing anything: the classifier
-//                (AGENTS.md), every always-on rule, and the YAML frontmatter of
+//   ALWAYS-ON  — what EVERY session loads before doing anything: the framework
+//                block of the root AGENTS.md (classifier + inline rules), and the YAML frontmatter of
 //                every skill (the router reads frontmatter to decide what to
 //                load). This is the number that matters most: it is multiplied
 //                by every session, forever.
@@ -36,6 +36,7 @@
 
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { buildFrameworkBlock, isInlineRule } from "./agents-md.js";
 
 /**
  * Bytes per token, by content class. Rough and openly so: markdown prose runs
@@ -55,10 +56,8 @@ export function frontmatterOf(text) {
   return m ? m[0] : "";
 }
 
-/** Does this rule file declare itself always-on? */
-export function isAlwaysOn(text) {
-  return /^\s*trigger:\s*always_on\s*$/m.test(frontmatterOf(text));
-}
+/** Is this rule inlined into the always-loaded framework block (`inline: true`)? */
+export const isAlwaysOn = isInlineRule;
 
 async function listFiles(dir, ext = ".md") {
   try {
@@ -86,27 +85,22 @@ async function listDirs(dir) {
 export async function buildBill(agentsDir) {
   const alwaysOnItems = [];
 
-  // 1. The classifier: loaded every session, unconditionally.
-  const classifier = join(agentsDir, "AGENTS.md");
+  // 1. The framework block of the root AGENTS.md: loaded every session, by every
+  //    harness. It is generated from .agents/ (the classifier + every rule marked
+  //    `inline: true`), so bill exactly what the generator emits.
   try {
-    const text = await readFile(classifier, "utf8");
-    alwaysOnItems.push({ name: "AGENTS.md", kind: "classifier", bytes: Buffer.byteLength(text) });
+    const block = await buildFrameworkBlock(agentsDir);
+    alwaysOnItems.push({ name: "AGENTS.md (framework block)", kind: "framework", bytes: Buffer.byteLength(block) });
   } catch {
     /* absent in a partial install */
   }
 
-  // 2. Rules. Only those declaring `trigger: always_on` are billed here — a
-  //    loop-scoped rule is loaded on demand and belongs to EAGER.
+  // 2. Rules NOT inlined are loaded on demand (e.g. loop-guardrails, by the loop).
   const rulesDir = join(agentsDir, "rules");
   for (const name of await listFiles(rulesDir)) {
     const text = await readFile(join(rulesDir, name), "utf8").catch(() => "");
-    if (!text) continue;
-    const bytes = Buffer.byteLength(text);
-    if (isAlwaysOn(text)) {
-      alwaysOnItems.push({ name: `rules/${name}`, kind: "rule", bytes });
-    } else {
-      alwaysOnItems.push({ name: `rules/${name}`, kind: "rule-on-demand", bytes: 0, eagerBytes: bytes });
-    }
+    if (!text || isAlwaysOn(text)) continue;
+    alwaysOnItems.push({ name: `rules/${name}`, kind: "rule-on-demand", bytes: 0, eagerBytes: Buffer.byteLength(text) });
   }
 
   // 3. Skill frontmatter: the router reads every skill's frontmatter to decide

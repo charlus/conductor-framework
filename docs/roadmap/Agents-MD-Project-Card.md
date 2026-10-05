@@ -1,6 +1,7 @@
 # Root AGENTS.md and the Project Card
 
-> **Status:** design, decisions D5–D11 approved 2026-10-05. R4 and R5 verified live. Not built.
+> **Status:** decisions D5–D13 approved 2026-10-05. R4 and R5 verified live. Delivery steps 1–2
+> built (F21 #48; root `AGENTS.md` generation and migration). Steps 3–5 (the card) not built.
 > **Scope:** one standard instruction file that every harness loads, a leaner framework text,
 > and a short, current description of the project in every session.
 > **Out of scope:** nested AGENTS.md per code directory (D4).
@@ -65,11 +66,15 @@ AGENTS.md        the only instruction file
 
 | Level | Loaded | Content | Size |
 |---|---|---|---|
-| 1. Always | every session, every harness | framework block + project card | ~5.5 KB + card |
+| 1. Always | every session, every harness | framework block + project card | ~6.3 KB + card (measured) |
 | 2. Discovered | names and descriptions by the harness, body on use | skills (`.agents/skills/`, `.claude/skills` shims) | unchanged |
 | 3. On demand | through links in level 1 | `how-it-works.md`, workflows, personas, `conductor/` documents | unchanged |
 
-### Level 1 content (F21: from ~11 KB to ~5.5 KB)
+### Level 1 content (F21: from 8.3 KB to 6.0 KB, measured)
+
+Correction: `loop-guardrails.md` was already loop-scoped (`trigger: manual`), so it was never in
+the always-loaded set; the "~11 KB" estimate counted it. The generated block measures ~6.3 KB with
+its markers, the D11 precedence line and the D13 wording.
 
 | Source | Keeps | Moves to |
 |---|---|---|
@@ -81,7 +86,11 @@ AGENTS.md        the only instruction file
 | new | the D11 precedence line | — |
 
 Where a hook enforces a rule (TDD presence, protected paths, verify on push), the prose shrinks to
-the rule plus "enforced by the `pre-commit` hook" (F22). Hooks are installed by default (D10).
+the rule plus "enforced by the `pre-commit` hook" (F22). Hooks are installed by default (D10):
+`init` and `upgrade` already wired them in any git repo before this design.
+
+**D12, D13 (prime directive):** no visible `<thinking>` block; confirmation only before destructive
+or hard-to-undo actions and product decisions, and unattended runs follow `unattended-loop.md`.
 
 **D11, precedence in the outer layout:** the team's instructions win for code style and repository
 process (branches, commit format, review). Conductor wins for its own process (TDD, verification,

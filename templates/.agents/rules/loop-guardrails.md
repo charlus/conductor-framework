@@ -7,10 +7,10 @@ description: "Loop-scoped safety limits (iteration ceiling, anti-stall, evidence
 
 > **Loop-scoped, not always-on** (ADR-0001 D2). These constraints only apply during headless, loop-driven runs; the `unattended-loop` workflow loads this file explicitly at Step 0.
 >
-> **Who enforces these:** when the loop runs under the `conductor loop` driver, all three limits below are enforced **deterministically in code** (`src/loop/driver.js`) from state deltas the agent cannot fake — the driver is the authority, this prose is the soft guidance layer. When you run the loop *interactively* without the driver (e.g. native `/loop`), honor these yourself as guidance. Either way, the terminal-status vocabulary is: `completed` | `stalled` | `max_iterations_exceeded` | `budget_exceeded` | `halted_scoping` | `halted_no_verification`.
+> **Who enforces these:** when the loop runs under the `conductor loop` driver, all three limits below are enforced **deterministically in code** by the driver, from state deltas the agent cannot fake — the driver is the authority, this prose is the soft guidance layer. When you run the loop *interactively* without the driver (e.g. native `/loop`), honor these yourself as guidance. Either way, the terminal-status vocabulary is: `completed` | `awaiting_review` | `stalled` | `max_iterations_exceeded` | `budget_exceeded` | `usage_limit_reached` | `halted_scoping` | `halted_no_verification` | `halted_sandbox_required` | `halted_autonomy` | `halted_setup_failed`.
 
 ## 1. The Iteration Ceiling
-* The driver increments `iterations.current` once per Maker beat and stops the loop with `status: max_iterations_exceeded` (writing `conductor/1-workbench/inbox.md`) once it reaches `iterations.max_allowed`. There is also a wall-clock budget (`budget.max_wall_clock_min`) that stops with `status: budget_exceeded`.
+* The driver increments `iterations.current` once per Maker beat and stops the loop with `status: max_iterations_exceeded` (writing `conductor/1-workbench/inbox.md`) once it reaches the beat ceiling: the lower of `iterations.max_allowed` and `budget.max_beats`. There is also a wall-clock budget (`budget.max_wall_clock_min`) that stops with `status: budget_exceeded`. Both count from the start of the current run: a run that starts after a finished one begins at zero.
 * **Do not increment the counter yourself.** Under the driver, doing so double-counts; interactively, simply stop when you reach the ceiling.
 
 ## 2. The No-Progress Law (Anti-Stall)

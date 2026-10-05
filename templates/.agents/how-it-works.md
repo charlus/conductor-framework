@@ -12,7 +12,7 @@
 ```
 your-project/
 ├── .agents/                       # The Engine — capabilities (read-only for project logic)
-│   ├── AGENTS.md                  # Always-on briefing: request classifier + quick reference
+│   ├── AGENTS.md                  # Always-on briefing: boundaries + request classifier
 │   ├── how-it-works.md            # This file — full system reference
 │   ├── registry.json              # Machine-readable index of every skill/rule/workflow
 │   ├── rules/                     # Always-on laws (Prime Directive, Verification Iron Law, Test-Driven Law)

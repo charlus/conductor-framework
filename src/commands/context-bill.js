@@ -6,7 +6,7 @@
 // Read-only, offline, deterministic. Ceilings live in bytes; token figures are
 // an ESTIMATE with the divisor printed, never a measurement.
 
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { buildBill, renderBill, checkBudget, captureBudget } from "../context-bill.js";
 import { readFile } from "node:fs/promises";
 
@@ -15,7 +15,7 @@ export async function contextBillCommand(args, { cwd, stdout, stderr }) {
   // pick up a flag's VALUE (e.g. the path after --budget).
   const positional = args[0] && !args[0].startsWith("-") ? args[0] : null;
   const agentsDir = positional
-    ? join(cwd, positional, ".agents")
+    ? join(resolve(cwd, positional), ".agents")
     : join(cwd, ".agents");
 
   const bill = await buildBill(agentsDir);

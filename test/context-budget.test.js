@@ -168,3 +168,20 @@ describe("E2.6 — the ratchet", () => {
     );
   });
 });
+
+// `conductor context-bill /abs/path` joined the absolute path onto cwd and
+// reported "nothing found". An absolute directory must be used as given.
+test("context-bill accepts an absolute target directory", async () => {
+  const { contextBillCommand } = await import("../src/commands/context-bill.js");
+  const { fileURLToPath } = await import("node:url");
+  const templates = fileURLToPath(new URL("../templates", import.meta.url));
+  let out = "";
+  let err = "";
+  const code = await contextBillCommand([templates, "--json"], {
+    cwd: (await import("node:os")).tmpdir(),
+    stdout: { write: (s) => (out += s) },
+    stderr: { write: (s) => (err += s) },
+  });
+  assert.equal(code, 0, err);
+  assert.ok(JSON.parse(out).totals.alwaysOnBytes > 0);
+});

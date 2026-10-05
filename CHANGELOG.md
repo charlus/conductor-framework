@@ -6,6 +6,11 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — leaner always-loaded framework text
+
+- F21: the text every session loads drops from 8.3 KB to 6.0 KB. Removed from `.agents/AGENTS.md`: "The Hybrid Architecture" and "Quick Reference", both already in `how-it-works.md`. Removed from `rules/test-driven-law.md`: the test-layer table (already in `how-it-works.md`) and the interactive-versus-unattended section (already in `workflows/unattended-loop.md`). No rule changed.
+- `conductor context-bill /absolute/path` reported "nothing found". An absolute directory is now used as given.
+
 ### Fixed — every run after the first one halted at once
 
 - F17: `budget.started_at` was set at the first run and never reset, so any run that started more than `max_wall_clock_min` (default 120) minutes after the first one halted immediately with `budget_exceeded`. The beat counter and the terminal status also carried over, so each new run had to be reset by hand. A run that starts after a finished one (terminal status) now resets the status, beat counter, clock, token count, stall counter and last PR. An interrupted run keeps them and resumes.

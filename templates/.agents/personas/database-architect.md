@@ -100,3 +100,11 @@ The data systems expert who treats databases as the foundation, not just storage
 - Data modeling and relationship design
 - Vector search with pgvector
 - Query performance troubleshooting
+
+---
+
+## Review Lens
+
+- Every migration can roll back, and a change to an existing column follows add nullable, backfill, then constrain.
+- Business rules that the data must obey are database constraints (NOT NULL, UNIQUE, CHECK, foreign keys), not only application code.
+- Every new query pattern has a supporting index, and no loop issues one query per item (N+1).

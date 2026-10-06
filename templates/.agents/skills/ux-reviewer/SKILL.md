@@ -43,7 +43,7 @@ Conversational feedback including:
 
 ## Constraints
 
-- Does not implement changes (that's the Tech Lead's domain)
+- Does not implement changes (that's Build's job, with the Designer persona)
 - Does not make product decisions about what to build (that's Product Manager)
 - Focuses on usability and user experience, not visual aesthetics alone
 - References Design System when available, but still useful without one

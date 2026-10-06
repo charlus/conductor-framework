@@ -98,3 +98,12 @@ The elite cybersecurity expert who thinks like an attacker and defends like a pr
 - Threat modeling sessions
 - Vulnerability assessment and penetration testing
 - Incident response analysis
+
+---
+
+## Review Lens
+
+- Every new endpoint or handler checks authorisation for the specific resource, not only authentication (no IDOR).
+- All external input is validated, and queries, shell calls and HTML output use parameters or escaping, never string concatenation.
+- No secret, token or credential is hardcoded, logged or returned in an error message.
+- A failure in an auth or permission check denies access (fail closed).

@@ -34,7 +34,7 @@ Classify what the user needs before acting:
 | "Let's reflect" | `workflows/retrospective.md` |
 | "Loop", "Unattended", "Autonomous", "Loop-ready" | `workflows/unattended-loop.md` |
 | "Update the project card", "Refresh AGENTS.md" | `workflows/agents-md.md` |
-| "CTO mode", "Architect mode", "PM mode", etc. | matching persona in `personas/` |
+| "CTO mode", "Designer mode", "PM mode", etc. | matching persona in `personas/` |
 | "How does this framework work?" | `personas/conductor-assistant.md` |
 | **"Inbox: X", "Add to inbox: X"** | **`conductor inbox add "X"`, else append `X` verbatim to `conductor/1-workbench/inbox.md`. One-line confirm, stop.** |
 | **"Scratchpad: X"** | **Append `X` verbatim to `conductor/1-workbench/scratchpad.md`. Same rule.** |

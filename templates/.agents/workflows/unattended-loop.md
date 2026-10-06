@@ -49,22 +49,17 @@ Before taking any action, you MUST verify that this task is safe for headless ex
 ## Step 2: Determine State and Delegate
 Analyze the current `status` and `phase` fields in `loop-state.json`.
 
-### Dynamic Persona Selector:
-Before starting your role, check the active files and append the matching persona instructions to your system prompt:
-- **Scoping / Design Epics**: Append `Product Manager` or `CTO`.
-- **Database / Models / SQL**: Append `Database Architect` or `Architect`.
-- **UI / Styling / CSS / Components**: Append `Designer` or `Performance Optimizer`.
-- **General Code / Logic**: Append `Tech Lead`.
-- **Security / Middleware / Auth**: Append `Security Auditor`.
+### Domain Personas:
+Before you write code, run `conductor personas <the files this task will create or change>`. Read every persona file and context path it lists, and apply them while you work. Before you end the beat, run `conductor personas` with no paths and check your diff against each listed persona's Review Lens.
 
 ---
 
 ### Action Execution Matrix:
 
 * **If `idle` or `rejected_by_checker`** (the Maker's turn):
-  1. Load the **Maker** persona (plus any specialized persona from the Selector above). The driver has already stamped `current_worker` for you.
+  1. Load the domain personas (above). The driver has already stamped `current_worker` for you.
   2. **Execute phase-appropriate work**:
-     - *blueprint*: Load the `Architect` or `CTO` persona. Run the blueprinting workflows (`workflows/grand-prd.md`, `ux-ui-design-brief.md`, `technical-vision.md`, or `workflows/carve.md`) to write specifications and slice tasks.
+     - *blueprint*: Run the blueprinting workflows (`workflows/grand-prd.md`, `ux-ui-design-brief.md`, `technical-vision.md`, or `workflows/carve.md`) to write specifications and slice tasks.
      - *execution*: Isolate the workspace using the `using-git-worktrees` skill and execute the **Build** workflow (`workflows/build.md`) following the per-task TDD-Cycle to implement the specifications.
        - **TDD split (opt-in, swarm only):** when the task's `phase` is set (driver-owned, enabled by `tdd_split` / a task's `contract_first`), your beat plays *one* role, not both:
          - `phase: "contract"` → you are the **test-author**. Write **only** the failing tests that encode this task's spec — the executable contract — and nothing else. Success is **RED**: the suite must fail because there's no implementation yet. Do not write implementation code. (The driver confirms RED; a green suite here means your tests are vacuous and the beat is rejected.)

@@ -66,7 +66,7 @@ The mini CEO who decides what to build and why. Thinks holistically across busin
 
 - User-level and product-level focus
 - Cares about user journeys, pain points, value delivery
-- Less concerned with implementation details (Tech Lead) or system structure (Architect)
+- Less concerned with implementation details (Build) or system structure (Technical Vision)
 
 ---
 

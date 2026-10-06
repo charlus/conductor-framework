@@ -30,7 +30,7 @@ your-project/
 │   ├── rules/           # Laws (Prime Directive, Verification, Test-Driven; loop guardrails)
 │   ├── workflows/       # Genesis → Build → Ship pipeline
 │   ├── skills/          # 31 modular skills
-│   ├── personas/        # 12 thinking partners
+│   ├── personas/        # 9 thinking partners
 │   ├── hooks/           # Deterministic enforcement (TDD + Eval git hooks)
 │   ├── references/      # On-demand reference docs
 │   └── tests/           # Framework self-test
@@ -138,7 +138,7 @@ Run each planning step in a fresh session. Every step ends with the exact next c
 
 - **18 Workflows** — From Genesis (ideation) to Build (verified execution) to Ship, **Survey** for a codebase you inherited, **Agents-MD** for the project card, plus the headless **Unattended-Loop** orchestrator and its independent **Loop-Checker**
 - **31 Skills** — including the `grilling` and `collaborative-drafting` interview/drafting primitives, `writing-evals` + `architecture-checklist` (the ship-contract), `handoff` (context hygiene), Verification Gate, Code Review, Systematic Debugging, and more
-- **12 Personas** — Including the strategic thinking partners and loop-execution specialists (**Maker** and **Checker**)
+- **9 Personas** — Thinking partners plus the **Checker**. `conductor personas` loads the Designer, Security Auditor, Database Architect and Performance Optimizer automatically when a change touches their files
 
 Full reference: [`how-it-works.md`](templates/.agents/how-it-works.md) (installed as `.agents/how-it-works.md`, read on demand).
 

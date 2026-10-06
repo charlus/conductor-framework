@@ -9,6 +9,7 @@ Read and adopt `.agents/personas/checker.md`, whose rubric is `.agents/skills/in
 - **The definition of done:** `goal_description` in `conductor/1-workbench/loop-state.json`, walked as a checklist, plus every item of `conductor/0-compass/architecture-checklist.md` if it exists.
 - The diff under review: the commits on the current branch / worktree.
 - The passing verification output (the floor is already met).
+- The **Review Lens** lines that `conductor personas` prints for this diff (Designer, Security Auditor, Database Architect, Performance Optimizer). Do not load the persona files themselves.
 
 ## Audit checklist
 1. Does the change implement the stated goal — all of it, not a partial slice?
@@ -16,6 +17,8 @@ Read and adopt `.agents/personas/checker.md`, whose rubric is `.agents/skills/in
 3. Any correctness, security, or data-loss risk the tests wouldn't catch? Quote the line.
 4. Is anything left in a broken or half-migrated state?
 5. **Architecture ship-contract:** if `conductor/0-compass/architecture-checklist.md` exists, verify the diff against **every** item (`skills/architecture-checklist/SKILL.md`) — run each item's `check:` command, and read the diff for the semantic ones. An unsatisfied item is a BLOCKER; name the failing item.
+
+6. **Domain Review Lens:** check the diff against each Review Lens line from the inputs. Grade a violation with the rubric's severities: a security or data-loss violation can be a BLOCKER, a design or performance violation is IMPORTANT unless the goal names it.
 
 **Report the whole class.** Having found one instance, sweep for the rest and list them in the same finding — the Maker fixes exactly the class you name, so a single-instance finding costs a full beat per instance.
 

@@ -1,6 +1,6 @@
 # Personas as an engineering team
 
-> **Status (2026-10-06):** shipped in 6.8.0 (#53 `conductor personas`, #54 team behaviour and the Architect, #55 DESIGN.md). Measured by `test/evals/persona-eval.mjs`: results below.
+> **Status (2026-10-06):** shipped in 6.8.0 (#53 `conductor personas`; #54 team behaviour and the Architect, #55 DESIGN.md, both landed on master through #56 with the UX brief changes and the eval). Measured by `test/evals/persona-eval.mjs`: results below.
 
 ## Problem
 

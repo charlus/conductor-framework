@@ -278,7 +278,7 @@ Three rules for `conductor view`:
 | Workflow | Trigger | Produces | Next |
 |---|---|---|---|
 | **Grand PRD** | "Create PRD" | Epics | UX/UI Design Brief |
-| **UX/UI Design Brief** | "Design the interface" | Screens | Technical Vision |
+| **UX/UI Design Brief** | "Design the interface" | Screens (hierarchy, states, unknown values), `DESIGN.md` | Technical Vision |
 | **Technical Vision** | "Architecture" | Architecture decisions | Carve |
 
 ### Execution
@@ -345,7 +345,7 @@ What each workflow produces, and who reads it next:
 | Genesis | Problem, Before and After, Capabilities (`genesis/`) | Grand PRD, Technical Vision (constraints) |
 | Storyboard | Main Character, Storyboard | Grand PRD |
 | Grand PRD | Epics | UX/UI, Technical Vision, Carve, Spec-It |
-| UX/UI Design Brief | Screens | Technical Vision, Carve, Spec-It |
+| UX/UI Design Brief | Screens, `DESIGN.md` | Technical Vision, Carve, Spec-It, Build |
 | Technical Vision | Architecture | Carve, Spec-It |
 | Carve | Implementation Overview, Implementation folders | Spec-It |
 | Spec-It | Feature Spec, Implementation Plan | Build |
@@ -361,7 +361,7 @@ What each workflow produces, and who reads it next:
 The reusable "how" that discovery/blueprint/spec workflows load instead of re-implementing an interview or a draft loop.
 | Skill | Purpose |
 |---|---|
-| `grilling` | The interview primitive — one question at a time, recommend an answer to each, look facts up instead of asking, one convergence gate |
+| `grilling` | The interview primitive — one question at a time, recommend an answer to each, look facts up instead of asking, one convergence gate; its Lens Pass lets personas challenge a draft |
 | `collaborative-drafting` | The drafting primitive — lead with a complete draft the human corrects (propose → discuss → coverage-check → confirm), not a blank-page questionnaire |
 
 > Lifecycle routing (which phase/workflow a request maps to) lives in the always-on **Request Classifier** in `AGENTS.md` and its full table above — not in a skill. Both harnesses reach workflows directly (Antigravity: `.agents/workflows/*.md` slash-commands; Claude Code: generated `.claude/commands/*.md` shims), so no proxy skill is needed.
@@ -373,7 +373,7 @@ The reusable "how" that discovery/blueprint/spec workflows load instead of re-im
 | `verification-gate` | Evidence-before-assertions gate — the Iron Law, operationalized |
 | `task-tracker` | Live task tracker maintained through Build |
 | `code-review` | Two-stage review after implementing: spec compliance, then code quality against a Fowler smell baseline |
-| `independent-review` | The fresh-context review gate — a reviewer that did *not* produce the artifact (PRD, architecture, spec, carved plan, diff) decides whether it's ready before save/handoff. Loaded by the blueprint workflows; Ship Phase 4 is its reference implementation |
+| `independent-review` | The fresh-context review gate — a reviewer that did *not* produce the artifact (PRD, architecture, spec, carved plan, diff) decides whether it's ready before save/handoff. Loaded by the blueprint workflows; Ship Phase 4 is its reference implementation Conflicting findings are settled in a fixed order: security and data integrity, acceptance criteria, architecture, performance, design. |
 | `behavior-validator` | Source-blind, black-box validation of the *running* artifact with adversarial anti-cheat probes — the dynamic complement to `verification-gate` (author-run) and `independent-review` (static). Used at Ship / loop execution when a change has a runtime surface |
 | `context-updater` | Updates Product Areas + Context after Build/Retrospective |
 | `trace-documentation` | Links backlog items to the code that implemented them |
@@ -407,7 +407,7 @@ The reusable "how" that discovery/blueprint/spec workflows load instead of re-im
 |---|---|
 | `brain-dump-to-epics` | Unstructured ideas → structured Epics |
 | `domain-modeling` | Active ubiquitous-language discipline — keeps a living domain model in sync with spec, code, and UI |
-| `ux-reviewer` | UX feedback against the Design System |
+| `ux-reviewer` | UX feedback against `DESIGN.md`; the visual review of rendered screens, run only on request |
 | `system-janitor` | Scans for misplaced files, recommends reorganization |
 | `handoff` | Compact the conversation into a self-contained handoff doc before leaving the ~120k-token "smart zone"; used to pass work between sessions and loop iterations |
 | `skill-registry` | Manages `conductor add/remove/list/search` against your configured registry |

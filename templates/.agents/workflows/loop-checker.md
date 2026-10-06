@@ -9,7 +9,7 @@ Read and adopt `.agents/personas/checker.md`, whose rubric is `.agents/skills/in
 - **The definition of done:** `goal_description` in `conductor/1-workbench/loop-state.json`, walked as a checklist, plus every item of `conductor/0-compass/architecture-checklist.md` if it exists.
 - The diff under review: the commits on the current branch / worktree.
 - The passing verification output (the floor is already met).
-- The **Review Lens** lines that `conductor personas` prints for this diff (Designer, Security Auditor, Database Architect, Performance Optimizer). Do not load the persona files themselves.
+- The **Review Lens** lines that `conductor personas` prints for this diff (Architect, Designer, Security Auditor, Database Architect, Performance Optimizer). Do not load the persona files themselves.
 
 ## Audit checklist
 1. Does the change implement the stated goal — all of it, not a partial slice?

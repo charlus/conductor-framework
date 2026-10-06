@@ -52,7 +52,8 @@ If either is missing:
     * `implementation-plan.md` — The phase-by-phase execution plan
     * `feature-spec.md` — The acceptance criteria and requirements
     * `blueprint/grand-prd.md` — The broader Epic context (for judgment calls)
-    * Any relevant `conductor/4-context/` files (Technical, Design) if referenced
+    * `blueprint/ux-ui-design-brief.md` — the screens this implementation touches: their layout order, hierarchy, primary action, navigation and interactions. The feature spec summarises them, the brief decides them. (A Quick-Path implementation has no brief.)
+    * `DESIGN.md` at the code repository root, when the implementation touches UI, and any relevant `conductor/4-context/` files (technical) if referenced
 
 3.  **Review Critically:**
     * Does the plan make sense?
@@ -74,8 +75,8 @@ If either is missing:
 
     * **Eval surface (Eval-Driven Law):** If any task calls an LLM provider (`openai`, `anthropic`, `langchain`, …), that feature's non-deterministic output needs an **evalset**, not just a test — load the `writing-evals` skill (`.agents/skills/writing-evals/SKILL.md`) for the three grading modes. The `pre-commit` hook enforces this: provider-calling code staged without an eval is blocked. Fold the evalset into that task's RED step alongside its test.
 
-6.  **Domain personas:** Run `conductor personas <every file the plan names>`. It lists the personas this implementation needs (Designer, Security Auditor, Database Architect, Performance Optimizer). Note them in the tracker header.
-    * **Design system first:** if the Designer is listed and `conductor/4-context/design/design-system.md` still holds only template placeholders, load the Designer persona and `.agents/skills/frontend-design/SKILL.md`, propose the design system (colours, typography, spacing, radius, core components), and save it after the human confirms. Every UI task builds on it. Without it, each screen invents its own style.
+6.  **Domain personas:** Run `conductor personas <every file the plan names>`. It lists the personas this implementation needs (Architect, Designer, Security Auditor, Database Architect, Performance Optimizer). Note them in the tracker header.
+    * **Design system first:** if the Designer is listed and there is no `DESIGN.md` at the code repository root, run `.agents/skills/design-system/SKILL.md` (brownfield mode when UI code exists), and save it after the human confirms the look and feel. Every UI task builds on it. Without it, each screen invents its own style.
 
 7.  **Confirm:** *"Context loaded. [X] tasks identified, test strategy set. Ready to build?"*
     * Wait for user confirmation before proceeding.
@@ -160,7 +161,7 @@ After completing a batch:
 3.  **Independent Review (fresh-context gate — one per batch, not per task):**
     * Run `.agents/skills/independent-review/SKILL.md` with the **Diff** lens on this batch's changes (`git diff` for the batch). Hand the reviewer `skills/independent-review/reviewer.md` verbatim plus the batch's acceptance criteria and the **Review Lens** lines from `conductor personas` on the batch diff; it returns findings and one verdict line. Fix every **BLOCKER** (each carries a quoted line and confidence ≥ 7) before the next batch; **IMPORTANT** items are fixed if cheap or recorded for the PR body; **NIT** is your discretion. `APPROVE` means zero blockers — it does not mean zero findings.
     * **Proportionality:** apply the gate's skip rule — under 50 changed non-test lines *and* no risk path touched (auth, payments, migrations, API contracts, security, CI, hooks) means the human reviewing the report below *is* the fresh set of eyes; say so and skip the subagent. One gate per batch keeps this from becoming a per-task ceremony.
-    * **One delta round, then stop.** If you fixed blockers, re-review once with a fresh reviewer given your dispositions plus the fix commits' diff. If blockers remain after that, ask the user once with everything batched into a single question — do not spawn a third reviewer.
+    * **One delta round, then stop.** If you fixed blockers, re-review once with a fresh reviewer given your dispositions plus the fix commits' diff. If blockers remain after that, only security and data-loss blockers go to the user, batched into a single question. Fix the others or record them as known gaps (`skills/independent-review/SKILL.md`). Do not spawn a third reviewer.
     * **In the autonomous loop, don't double up:** at L3 the driver already runs an independent Checker out-of-process per beat (`.agents/workflows/loop-checker.md`, verdict via `checker-verdict.json`) above the green-verify floor. This checkpoint gate is the *interactive* Build's equivalent; when the loop's Checker is active it already covers this.
 
 4.  **Ask:** *"Batch [N] complete. Ready for next batch, or any feedback?"*
@@ -183,7 +184,9 @@ After completing a batch:
     * For each acceptance criterion: verify it's met and cite evidence
     * If any criterion is NOT met → go back and fix before proceeding
 
-4.  **Report Final Evidence:**
+4.  **Visual review (off by default):** when the Designer was listed, end the report with one line: *"Visual review skipped by default. Ask for one and I will screenshot <the screens this implementation touched> and have a fresh Designer review them."* Run it only when the product owner asks (`.agents/skills/ux-reviewer/SKILL.md`, *Visual Review*). It costs a running app, a headless browser and a review pass, which is why it is not the default.
+
+5.  **Report Final Evidence:**
     ```
     ✅ Tests: [X/X] passing
     ✅ Build: Success

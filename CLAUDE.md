@@ -30,7 +30,7 @@ The installable framework lives in `templates/`. The CLI lives in `bin/` + `src/
 conductor-framework/          ← You are here (package source)
 ├── bin/conductor.js           # CLI entry point
 ├── src/
-│   ├── cli.js                 # Argument parser (init, upgrade, add, remove, list, search)
+│   ├── cli.js                 # Argument parser and command dispatch (one `case` per command)
 │   ├── detect.js               # Tech stack detection (used by init for skill recommendations)
 │   ├── registry.js             # Remote skill registry client (fetch index, download, glab/gh auth)
 │   ├── selective-copy.js       # Interactive/selective template copy for init
@@ -38,12 +38,17 @@ conductor-framework/          ← You are here (package source)
 │   ├── update.js                # Diffs installed vs. latest templates for upgrade
 │   ├── bundles.js / checksums.js / prompt.js
 │   └── commands/
-│       ├── init.js            # Scaffolds .agents/ + conductor/ into target
-│       ├── upgrade.js         # Replaces .agents/, kebab-case migration, conductor/ migration
-│       ├── add.js             # Downloads a skill from the remote registry
-│       ├── remove.js          # Removes an installed skill
-│       ├── list.js            # Lists installed or remote (--remote) skills
-│       └── search.js          # Searches the remote registry
+│       ├── init.js            # conductor init: scaffolds .agents/ + conductor/ into target
+│       ├── upgrade.js         # conductor upgrade: replaces .agents/, kebab-case migration, conductor/ migration
+│       ├── add.js / remove.js / list.js / search.js   # conductor add|remove|list|search: the remote skill registry
+│       ├── status.js / inbox.js / view.js / review.js # conductor status|inbox|view|review: human surfaces
+│       ├── survey.js          # conductor survey: facts about an inherited codebase
+│       ├── personas.js        # conductor personas: which domain personas a change needs
+│       ├── design.js          # conductor design migrate: old design folder → DESIGN.md
+│       ├── verify.js / trust-verify.js / evidence.js / install-hooks.js   # conductor verify|trust-verify|evidence|install-hooks: the gates
+│       ├── review-log.js / context-bill.js   # conductor review-log|context-bill: measurement
+│       ├── agents-md.js       # conductor agents-md: the project card
+│       └── loop.js            # conductor loop: the autonomous driver
 ├── templates/                 # THESE files get installed into user projects
 │   ├── .agents/                # Agent core (AGENTS.md, how-it-works.md, registry.json, rules, workflows, skills, personas)
 │   ├── conductor/              # Project state (numbered folders 0-compass..6-archive)
@@ -96,6 +101,7 @@ Stable pointers to where the big subsystems live:
 - **Root AGENTS.md + project card** → `src/agents-md.js` (framework block generation, rendering, stub migration; used by `init`/`upgrade`), `src/project-card.js` (card build/check/stamp, pure) + `src/commands/agents-md.js` (`conductor agents-md facts|write|check`, facts from the code repo, nested in the outer layout via `src/nested-repos.js`), `src/claude-instructions.js` (D9 warnings), `templates/.agents/workflows/agents-md.md`. Design + decisions D5–D13: `docs/roadmap/Agents-MD-Project-Card.md`.
 - **Brownfield onboarding** → `src/survey.js` + `src/commands/survey.js` (`conductor survey`, facts only) and `templates/.agents/workflows/survey.md` (the interview).
 - **Human surfaces** → `src/conductor-state.js` (ONE read of `conductor/`, shared by every renderer; calls `loop/harvester.js` rather than re-parsing) + `src/commands/status.js|inbox.js|view.js` + `src/view/` (`markdown.js` renderer, `render.js` page assembler, `styles.css`, `app.client.js`). Surfaced as `conductor status|inbox|view`. Design: `docs/roadmap/Terminal-First-Human-Surfaces.md`.
+- **Personas as an engineering team** → `src/personas.js` (path → persona map, `PRECEDENCE` for conflicting findings) + `src/commands/personas.js` (`conductor personas`), each persona's `## Review Lens`, Grilling's Lens Pass. **DESIGN.md** at the code repository root: `templates/.agents/skills/design-system/`, `src/design-md.js` + `src/commands/design.js` (`conductor design migrate`). Design + decisions: `docs/roadmap/Persona-Team.md`. Measured by `test/evals/persona-eval.mjs`.
 - **Measurement** → `src/context-bill.js` + `test/fixtures/context-budget.json` (the always-on/eager ratchet, ceilings in bytes) and `src/commands/review-log.js` (review findings + dispositions; a class dismissed >50% of the time is a *rubric* defect, not an author defect).
 - **The review gate** → `templates/.agents/skills/independent-review/` — `SKILL.md` is the caller's half, **`reviewer.md` is the reviewer's entire brief** (self-contained, ≤130 lines by test), `calibration.md` pins both drift directions. Rubric v2 is enforced in code by `src/loop/checker.js`.
 - **Untrusted input** → `src/loop/untrusted.js` (trust from authorship not transport; always-on envelope; tool allowlist, never a blocklist) + `conductor trust-verify` for the Stop hook's trust store.
@@ -115,8 +121,9 @@ Stable pointers to where the big subsystems live:
    git diff --name-only master..HEAD -- templates/.agents/workflows/ | grep -v unattended-loop   # empty for loop work
    ```
    Full install flow: `node bin/conductor.js init /tmp/test --all && bash /tmp/test/.agents/tests/check-conductor.sh`.
-5. **Commit** with Conventional Commits (`feat:`/`fix:`/`docs:`/`refactor:`); don't squash commits a roadmap doc cites by hash; keep the relevant roadmap status block + `memory/` current.
-6. **Hand off** merges and classifier-blocked / dangerous-flag actions to the human.
+5. **Documentation moves with the code, in the same PR, written as done.** Never a follow-up PR for docs. Add the change to `CHANGELOG.md` in the section of the version it ships in, and bump `package.json` in the same PR (with an upgrade note when users must act), and update `README.md`, this file, `templates/.agents/how-it-works.md` and the roadmap status block it affects. What is removed from the code is removed from the docs. `test/docs-drift.test.js` checks the countable part (counts, commands, registries); the meaning is yours.
+6. **Commit** with Conventional Commits (`feat:`/`fix:`/`docs:`/`refactor:`); don't squash commits a roadmap doc cites by hash; keep the relevant roadmap status block + `memory/` current.
+7. **Hand off** merges and classifier-blocked / dangerous-flag actions to the human.
 
 ## Credits
 

@@ -180,14 +180,6 @@ const DETECTORS = [
     },
   },
 
-  // --- Stitch (Google design tool) ---
-  {
-    tech: ["stitch"],
-    check: async (dir) => {
-      // Stitch integration is detected via MCP config or Stitch artifacts
-      return (await exists(join(dir, "DESIGN.md")));
-    },
-  },
 ];
 
 // --- Helpers ---

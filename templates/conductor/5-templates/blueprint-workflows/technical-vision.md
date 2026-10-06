@@ -165,3 +165,9 @@ This document defines how we'll build the interface designed in the UX/UI Design
 
 ### Other
 - [Any other non-functional requirements]
+
+## Lens decisions
+
+*Engineering decisions the personas' Lens Pass took alone, one line each. Product questions went to the human and are recorded above.*
+
+- **[persona]:** [decision], because [reason]

@@ -52,6 +52,12 @@ Freeze a baseline before the first cycle: the original request, the artifact's i
 
 **Dismissing a finding is a valid outcome.** For each one you decide *"deliberate trade-off → dismiss with a one-line reason"* or *"I only told myself it was deliberate — the reviewer is right."* Record the disposition either way with `conductor review-log append '{…}'` — one line per finding into `conductor/1-workbench/review-log.jsonl` (Ship 4.4 shows the record): a class dismissed most of the time is a rubric defect to fix in `calibration.md`, not an author defect.
 
+## Conflicting findings
+
+The reviewer reads the Review Lens of every persona `conductor personas` listed, so two findings can pull opposite ways: the Security Auditor wants a re-authentication step, the Designer wants no extra step. You are the accountable engineer of a team, and the human is its product owner. Settle the conflict yourself, in this order: **security and data integrity, then acceptance criteria, then architecture, then performance, then design**. The higher one wins. Record the losing finding as dismissed with `persona` and `overridden_by`; the ledger refuses an override that reverses the order.
+
+Ask the product owner only when **every option changes what the user sees or does** (an extra step, a slower screen, a dropped behaviour). Then it is a product decision: one question, both options in one line each, your recommendation first. Record their answer with `po_decision: true`. A conflict whose resolution the user cannot see is never theirs.
+
 ## The delta round — capped at one
 
 If the verdict was `CHANGES REQUESTED` and you fixed blockers, re-review **once**, with a **fresh** reviewer and a narrowed brief:
@@ -63,7 +69,7 @@ If the verdict was `CHANGES REQUESTED` and you fixed blockers, re-review **once*
 **Then it terminates.** One delta round is the cap.
 
 - Delta round returns `APPROVE` → proceed.
-- Blockers remain → **stop and ask the human once.** Batch every remaining blocker into a **single question** with each finding, its quote, your recommendation per item, and an overall recommendation. Do not spawn a third reviewer.
+- Blockers remain → only security and data-loss blockers go to the human: accepting that risk is a business decision. Batch them into a **single question** with each finding, its quote, your recommendation per item, and an overall recommendation. Every other remaining blocker is yours: fix it, or write it under **Known gaps** in the PR description, where the merger sees it. Do not spawn a third reviewer.
 
 **Never escalate an unreviewed fix round.** If the budget or the cap is reached immediately after a fix round, the delta review still runs before you report failure — otherwise you hand back work that may well be complete, having never looked at it. A round that ends without a verdict on its own fixes is not a result.
 

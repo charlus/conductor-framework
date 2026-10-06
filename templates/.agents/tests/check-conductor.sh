@@ -108,7 +108,7 @@ echo ""
 echo "4. Personas..."
 
 personas=(
-  "cto" "product-manager" "designer" "conductor-assistant"
+  "cto" "architect" "product-manager" "designer" "conductor-assistant"
   "code-archaeologist" "security-auditor" "database-architect"
   "performance-optimizer" "checker"
 )
@@ -125,7 +125,7 @@ skills=(
   "brain-dump-to-epics" "system-janitor" "ux-reviewer"
   "verification-gate" "task-tracker" "code-review" "context-updater"
   "systematic-debugging"
-  "frontend-design"
+  "frontend-design" "design-system"
   "i18n-localization" "git-worktrees"
   "git-workflow" "git-lab-cli" "git-hub-cli"
   "architecture-patterns"

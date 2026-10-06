@@ -56,7 +56,11 @@ Work these phases in order. For **each**, apply Collaborative-Drafting's four mo
     └── [Screen C] via [action]
 ```
 
-**Phase 3 — Screen-by-Screen Breakdown.** For each screen, propose: purpose, what they see (layout concept, data), what they can do (actions), where they go from here. Don't rush, don't over-detail.
+**Phase 3 — Screen-by-Screen Breakdown.** For each screen, propose: purpose, what they see, what they can do, where they go from here. Then specify the experience, because Build implements what is written and nothing more:
+- **Layout & hierarchy:** the page frame and columns, and what the user sees first, second and third. The primary action is named.
+- **States:** read and edit (an editable page opens in its read state, with an Edit action), empty, loading, error, by permission, and by status (what a viewer who has requested, been approved or already holds sees). A form opens on an action unless it is the page's only job.
+- **Unknown and empty values:** how a missing value is shown. An unknown is shown as unknown, never as a default answer ("No", "0", "Does not expire").
+- **Matches:** the existing screen this one should look like, when the app has one.
 
 **Phase 4 — Key Interactions.** Propose the recurring patterns and where each appears: drag-and-drop, create/edit (modal vs inline vs page), filtering/sorting, selection (single/multi), modals vs panels vs pages, anything product-specific. Consistency check: same action behaves the same way everywhere.
 
@@ -72,8 +76,10 @@ Work these phases in order. For **each**, apply Collaborative-Drafting's four mo
 
 1. **Draft the document** into the template structure: Overview · Screens Inventory · Navigation Structure · Screen-by-Screen Breakdown · Key Interactions · Component Inventory · Key User Flows · Platform Considerations.
 2. **Completeness check:** every Epic has screens that deliver it; every Scene is represented in a flow.
-3. **Independent review (fresh-context design gate):** Run `.agents/skills/independent-review/SKILL.md` before saving, with a **UX/design lens** — the reviewer adopts `.agents/skills/ux-reviewer/SKILL.md` and audits the brief against the Design System and UX heuristics (consistent interaction patterns, no gratuitous modals, navigation legibility, every Epic/Scene covered). This is the design-flavored sibling of the review gate the other blueprint workflows run; address `CHANGES REQUESTED` findings before save. (Taste calls stay with the human from the phases above; the gate checks craft and coverage, not aesthetics.)
-4. **Converge & save:** Present the complete brief, absorb final adjustments, then — one approval — write `…/[ProjectName]/blueprint/ux-ui-design-brief.md`. Confirm saved.
+3. **Lens Pass:** run Grilling's Lens Pass with `.agents/personas/designer.md` on every screen: hierarchy, states, unknown values, consistency with `DESIGN.md` and with the screens it matches. Its engineering answers go into the brief, its product questions to the human.
+4. **DESIGN.md:** run `.agents/skills/design-system/SKILL.md`. No `DESIGN.md` at the code repository root yet: draft it (greenfield, or extracted from the existing code). One exists: check that every screen of this brief uses its colour roles and components, and draft the additions a new pattern needs. The draft is presented and approved together with the brief in the last step: look and feel is what the user sees.
+5. **Independent review (fresh-context design gate):** Run `.agents/skills/independent-review/SKILL.md` before saving, with a **UX/design lens** — the reviewer adopts `.agents/skills/ux-reviewer/SKILL.md` and audits the brief against `DESIGN.md` and UX heuristics (consistent interaction patterns, no gratuitous modals, navigation legibility, every Epic/Scene covered). This is the design-flavored sibling of the review gate the other blueprint workflows run; address `CHANGES REQUESTED` findings before save. (Taste calls stay with the human from the phases above; the gate checks craft and coverage, not aesthetics.)
+6. **Converge & save:** Present the complete brief and the `DESIGN.md` draft, absorb final adjustments, then — one approval — write `…/[ProjectName]/blueprint/ux-ui-design-brief.md` and `DESIGN.md`. Confirm saved.
 
 ---
 

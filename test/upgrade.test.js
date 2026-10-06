@@ -317,6 +317,7 @@ test("R3: a V4 .conductor/ install gets its framework names kebab-cased at every
     "4-Context/Meta/Glossary.md": "glossary\n",
     "4-Context/Technical/API-Discovery.md": "user file\n",
     "4-Context/Design/DESIGN.md": "user file\n",
+    "4-Context/Design/Design-System.md": "our colours\n",
     "6-Archive/Completed-Implementations/03-AI-Follow-Up-Routing/Feature-Spec.md": "archived\n",
   };
   for (const [rel, body] of Object.entries(files)) {
@@ -345,6 +346,8 @@ test("R3: a V4 .conductor/ install gets its framework names kebab-cased at every
     // Not framework names: left exactly as the user named them.
     "4-context/technical/API-Discovery.md": "user file\n",
     "4-context/design/DESIGN.md": "user file\n",
+    // Retired scaffold: still renamed, so `conductor design migrate` finds it.
+    "4-context/design/design-system.md": "our colours\n",
     "6-archive/completed-implementations/03-AI-Follow-Up-Routing/feature-spec.md": "archived\n",
   };
   for (const [rel, body] of Object.entries(expected)) {

@@ -108,3 +108,45 @@ Recorded because both are easy to repeat.
 Both were invisible until the eval ran and produced a result that did not make
 sense. A green eval proves nothing on its own; a red one is only useful if you
 read the runs rather than the verdict.
+
+## persona
+
+Does an agent running Build load the Designer and the design rules before it
+writes UI code, and does it change the code?
+
+```bash
+CONDUCTOR_EVALS=1 node test/evals/persona-eval.mjs                     # rules scenario, 3 runs per arm
+CONDUCTOR_EVALS=1 node test/evals/persona-eval.mjs --sensitivity       # can it fail?
+CONDUCTOR_EVALS=1 node test/evals/persona-eval.mjs --scenario drift    # no written rules, drifted CSS
+```
+
+Arm A is `master`'s framework (rules in `conductor/4-context/design/`), arm B is
+the branch (rules in `DESIGN.md`). Same app, same spec, a real Build run of a
+small UI slice. The spec names neither the tokens nor an empty state.
+
+**Measured 2026-10-06 against `claude` 2.1.291:**
+
+```
+rules     Designer + rules read before the first write   branch 9/9   master 0/9   (n=9)
+          token-only CSS, status badges, empty state     branch 9/9   master 9/9
+sensitivity  persona step cut from build.md              branch 3/3   mutated 0/3  → the eval sees the step
+drift     token-only CSS (graded)                        branch 3/3   master 3/3   → FAILED: no difference
+          empty state (reported)                         branch 3/3   master 0/3
+          DESIGN.md created first (reported)             branch 3/3   master 0/3
+```
+
+What this establishes: agents follow the persona step, and the eval can detect
+it. What it does not: better CSS. When the rules are written down, master's
+agent finds and follows them too; when they are not, both still use an existing
+`tokens.css`. The drift difference showed up in a metric that was not graded
+(the empty state), so it is a hypothesis for the next run, not a result.
+
+**Its blind spot is UX.** The fixture is one function rendering a list:
+layout order, information hierarchy and the primary action cannot differ in a
+task that small, and a regex cannot judge them. Measuring UX needs a
+screen-sized task with a UX brief, and a blind side-by-side judgement by a
+human.
+
+`--fixture-only` builds the three fixtures without running an agent.
+`last-run-persona-<scenario>.json` is a run artifact, not committed.
+

@@ -55,6 +55,14 @@ This document translates the Epics from the Grand PRD into actual interface desi
 - [Screen A] via [action]
 - [Screen B] via [action]
 
+**Layout & Hierarchy:** [Page frame and columns. Seen first: ... Second: ... Third: ... Primary action: ...]
+
+**States:** [Read / edit (opens read, Edit action) · empty · loading · error · by permission · by status (requested, approved, held, ...)]
+
+**Unknown and Empty Values:** [How each value that can be missing is shown: "Unknown", "Not set", a dash, never a default answer]
+
+**Matches:** [The existing screen this one should look like, or "new pattern"]
+
 ---
 
 ### [Screen Name]

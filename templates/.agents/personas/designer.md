@@ -100,8 +100,8 @@ The visual perfectionist who shapes the user's sensory experience. Thinks holist
 
 ## Review Lens
 
-- Every colour, font size, spacing and radius value comes from the token file `DESIGN.md` names, not a one-off literal.
+- Every colour, font size, spacing and radius value comes from the token file `DESIGN.md` names, and each element reuses the shared component `DESIGN.md` names for it (one badge, one button set, one page frame), never a new variant.
 - Each screen follows the UX/UI Brief's layout order and hierarchy, and its primary action is the most prominent element.
-- Empty, loading, error and hover/focus states exist for every new component.
+- Every new component has its empty, loading, error and hover/focus states, and shows an unknown value as unknown, never as a default answer ("No", "0", "Does not expire").
 - Text and controls meet WCAG AA contrast, and every interactive element is reachable by keyboard.
 - A pattern `DESIGN.md` does not cover is added to it in the same change.

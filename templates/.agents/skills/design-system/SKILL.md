@@ -14,17 +14,22 @@ category: core
 
 ## The structure
 
-Use `conductor/5-templates/design-md.md`. Its sections, in order: Visual Theme & Atmosphere · Colour Palette & Roles · Typography · Layout & Spacing · Component Styling · Brand Assets · Tokens · Other Notes.
+Use `conductor/5-templates/design-md.md`. Its sections, in order: Visual Theme & Atmosphere · Colour Palette & Roles · Typography · Layout & Spacing · Component Styling · Patterns · Data Display · Brand Assets · Reference Screens · Tokens · Other Notes.
+
+A philosophy is not a system. "Restraint" and "progressive density" do not tell an agent how wide a page is, how a record is edited, or how a date is written. Each section states rules an agent can follow and a reviewer can check.
 
 - **Name, value, role, reason.** "Deep Ocean Blue (`--color-primary`, #0077B6): primary actions only, one per screen, because a single strong accent keeps the hierarchy clear." Not "blue".
 - **Values live once, in code.** The **Tokens** section names the file that holds them (Tailwind config, CSS variables, theme file). DESIGN.md quotes a value to describe it, and the token file wins if they differ. Before the token file exists, DESIGN.md holds the values, and the first UI task creates the token file from them.
-- **Components by use, not by list.** For each component: when to use it, when not to, its states (empty, loading, error, disabled, hover, focus).
+- **Components by use, not by list.** For each component: when to use it, when not to, its states (empty, loading, error, disabled, hover, focus). One implementation per component: a second badge is a defect.
+- **Patterns** say how recurring interactions work: editing a record (read state first, then Edit), forms, confirmation, disabled actions.
+- **Data Display** fixes formats: dates, numbers, money, and how an unknown or empty value is shown. An unknown is never shown as a default answer.
+- **Reference Screens** name the existing screens that embody the system, so a new screen has something to match.
 
 ## Three ways in
 
 **Greenfield (UX/UI Brief, Phase 8).** Propose the full system from the brief's screens, the Main Character and the product's tone, using `.agents/skills/frontend-design/SKILL.md` for colour, type and layout decisions. Lead with a complete draft (`.agents/skills/collaborative-drafting/SKILL.md`).
 
-**Brownfield (code exists, no DESIGN.md).** Extract, do not invent. Read the token file, global stylesheets, the component library configuration, and 3 to 5 representative screens. Describe what is there, with the role each value plays. Where the code is inconsistent (four greys used for body text), propose one choice and list the others as debt in **Other Notes**.
+**Brownfield (code exists, no DESIGN.md).** Extract, do not invent. Read the token file, global stylesheets, the component library configuration, and 3 to 5 representative screens. Describe what is there, with the role each value plays. Where the code is inconsistent (four greys used for body text), propose one choice and list the others as debt in **Other Notes**. Name the most coherent existing screens under **Reference Screens**.
 
 **Migration (an old `conductor/4-context/design/` folder).** Run `conductor design migrate`. It writes DESIGN.md from the old files, drops untouched template sections, and turns each old file into a pointer. Then rewrite each migrated section into the format above, and delete placeholder rows the old template left (`#000000`, "(e.g., …)").
 

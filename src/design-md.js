@@ -12,8 +12,11 @@ export const DESIGN_SECTIONS = [
   { title: "Colour Palette & Roles", words: ["colour", "colours", "color", "colors", "palette"] },
   { title: "Typography", words: ["typography", "font", "fonts", "type", "typeface"] },
   { title: "Layout & Spacing", words: ["layout", "spacing", "grid", "breakpoint", "breakpoints", "responsive"] },
-  { title: "Component Styling", words: ["component", "components", "button", "buttons", "form", "forms", "pattern", "patterns", "state", "states"] },
+  { title: "Component Styling", words: ["component", "components", "button", "buttons", "card", "cards", "badge", "badges", "state", "states"] },
+  { title: "Patterns", words: ["pattern", "patterns", "form", "forms", "edit", "editing", "inline", "confirmation", "confirm", "navigation", "interaction", "interactions", "modal", "modals"] },
+  { title: "Data Display", words: ["date", "dates", "number", "numbers", "format", "formats", "formatting", "currency", "unknown", "units", "time"] },
   { title: "Brand Assets", words: ["brand", "logo", "logos", "asset", "assets", "image", "images", "icon", "icons", "files"] },
+  { title: "Reference Screens", words: ["reference", "references", "example", "examples", "screens"] },
   { title: "Tokens", words: ["token", "tokens", "variables"] },
   { title: "Other Notes", words: [] },
 ];

@@ -38,6 +38,10 @@ No workflow loaded a persona file except Deepen (Code Archaeologist), the loop C
 - Reported, not graded: with no written rules, the branch added an empty state 3/3 (master 0/3) and created DESIGN.md first 3/3.
 - **F13 found and fixed:** Build never read the UX/UI Brief, so the screen design reached code only through the spec's summary. Build's Phase 0 now reads the brief for the screens it touches, and the Designer's Review Lens checks layout order and hierarchy against it.
 
+## From a real project (autopportunity, 2026-10-06)
+
+Twelve slices built, then 20 production screenshots, 30 findings, five rework slices. Root causes: Build never read the brief (fixed, F13); the brief specified function, not experience (A1); the design docs were a philosophy, not a system (A2); unknown values shown as answers and one-off components (A3); nobody looked at a rendered screen before the owner (A4). A1 to A3 shipped. **A4, the per-slice visual review, is off by default by owner decision (cost and speed)**: Build offers it in one line, `ux-reviewer` holds the how.
+
 ## Open
 
 - A UX eval: a screen-sized task with a UX brief, deterministic structure checks, and a blind side-by-side judgement by the product owner. The current eval cannot see layout, hierarchy or flow.

@@ -48,6 +48,15 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 - Build never read the UX/UI Design Brief: screens, layout order, hierarchy and interactions reached the code only through the feature spec's summary. Build's Phase 0 now reads the brief for the screens it touches, and `DESIGN.md`. The Designer's Review Lens checks each screen against the brief's layout order and primary action.
 
+### Added — the UX brief specifies experience, not only function
+
+From a real project: twelve slices were built from a brief that said what each screen does, and the owner then needed 20 screenshots, two reviews and five rework slices. The brief never said what the user sees first, how a page is edited, or how a missing value looks.
+
+- The UX/UI Brief now asks, for every screen: layout and hierarchy (seen first, second, third, the primary action), every state (read and edit, empty, loading, error, by permission, by status), how unknown values are shown, and the existing screen it should match. The Designer runs a Lens Pass on the brief before it is approved.
+- `DESIGN.md` gains **Patterns** (editing a record, forms, confirmation, disabled actions), **Data Display** (dates, numbers, unknown values) and **Reference Screens**. `conductor design migrate` places old sections there by heading.
+- The Designer's Review Lens: an unknown value is shown as unknown, never as a default answer, and each element reuses the shared component `DESIGN.md` names.
+- A **visual review** of rendered screens (headless screenshots, reviewed by a fresh Designer) is available on request. It is off by default for cost and speed: Build mentions it in one line when a change touched UI.
+
 ### Measured — agents follow the persona step
 
 - `test/evals/persona-eval.mjs` (real Build runs, `master` against this release): the Designer and the design rules are read before the first write 9/9, against 0/9 on `master`. Cutting the step from `build.md` drops it to 0/3, so the eval detects what it grades. CSS quality did not differ: both wrote token-only CSS in every scenario. Not measured yet: layout, hierarchy and flow (see `test/evals/README.md`).

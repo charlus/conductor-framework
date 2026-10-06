@@ -184,7 +184,9 @@ After completing a batch:
     * For each acceptance criterion: verify it's met and cite evidence
     * If any criterion is NOT met → go back and fix before proceeding
 
-4.  **Report Final Evidence:**
+4.  **Visual review (off by default):** when the Designer was listed, end the report with one line: *"Visual review skipped by default. Ask for one and I will screenshot <the screens this implementation touched> and have a fresh Designer review them."* Run it only when the product owner asks (`.agents/skills/ux-reviewer/SKILL.md`, *Visual Review*). It costs a running app, a headless browser and a review pass, which is why it is not the default.
+
+5.  **Report Final Evidence:**
     ```
     ✅ Tests: [X/X] passing
     ✅ Build: Success

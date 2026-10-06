@@ -162,7 +162,9 @@ conductor personas                                                 # the same, f
 
 ### DESIGN.md keeps the UI coherent
 
-One `DESIGN.md` at the root of the code repository holds the visual identity: theme, colour roles, typography, layout, component styling, and the file that holds the token values. The UX/UI Design Brief drafts it for your approval. Build extracts it from existing code when it is missing. The Designer reads it before every UI change, and a new pattern is added to it in the same change, so a screen built months later still belongs.
+One `DESIGN.md` at the root of the code repository holds the visual identity: theme, colour roles, typography, layout, component styling, and the file that holds the token values. The UX/UI Design Brief drafts it for your approval. Build extracts it from existing code when it is missing. It is a system, not a philosophy: besides colours and type it fixes the patterns (how a record is edited, how a form opens), the data display (dates, unknown values) and the reference screens a new page should match. The Designer reads it before every UI change, and a new pattern is added to it in the same change, so a screen built months later still belongs.
+
+The UX/UI Brief specifies each screen's experience, not only its function: what the user sees first, every state from read and edit to empty and by status, and how a missing value looks. A visual review of the rendered screens is available when you ask for it. It is off by default, for cost and speed.
 
 Projects that kept their design notes in the old `conductor/4-context/design/` folder combine them with `conductor design migrate` (`--dry-run` to preview). It never overwrites an existing `DESIGN.md` and leaves a pointer in each old file.
 

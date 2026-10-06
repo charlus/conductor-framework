@@ -29,11 +29,27 @@
 - **Do not use when:** [...]
 - **States:** empty, loading, error, disabled, hover, focus: [how each looks]
 
+## Patterns
+
+### [Pattern, e.g. Editing a record]
+- **How:** [e.g. The page opens in its read state. An Edit button switches the section to inputs. Save and Cancel sit at the end of the section. Saving shows a confirmation and returns to the read state.]
+- **Also:** [forms open on an action, destructive actions confirm, a disabled button looks disabled and says why]
+
+## Data Display
+
+- **Dates:** [e.g. 6 Oct 2026; DD/MM/YYYY in inputs]
+- **Numbers and money:** [e.g. € 1 250, thousands separated by a space]
+- **Unknown and empty:** [e.g. "Unknown" in muted text, never "No", "0" or a default answer]
+
 ## Brand Assets
 
 - **Logo:** [path]
 - **Icons:** [set and path]
 - **Images and illustrations:** [style, path]
+
+## Reference Screens
+
+[Existing screens that embody this system, to match when building a new one: `/capability-map` for dashboards, ...]
 
 ## Tokens
 

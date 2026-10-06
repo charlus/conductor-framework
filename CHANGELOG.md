@@ -8,6 +8,14 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.8.2] — 2026-10-06 — design migrate leaves untouched templates alone
+
+### Fixed
+
+- `conductor design migrate` wrote an empty `DESIGN.md` skeleton when `conductor/4-context/design/` held only the untouched templates. Build then saw a `DESIGN.md` and skipped extracting the real one from the code. It now writes nothing, changes nothing, and says to run the `design-system` skill. `upgrade` no longer prints the migration hint for untouched templates.
+
+---
+
 ## [6.8.1] — 2026-10-06 — Documentation matches 6.8.0
 
 ### Fixed

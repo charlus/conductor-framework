@@ -162,6 +162,19 @@ describe("conductor design migrate", () => {
     assert.equal(await designMigrationHint(root), null);
   });
 
+  test("a folder of untouched templates writes no DESIGN.md: Build would skip extracting a real one", async () => {
+    const root = await mkdtemp(join(tmpdir(), "cond-design-tpl-"));
+    const dir = join(root, "conductor", "4-context", "design");
+    await mkdir(dir, { recursive: true });
+    for (const [f, text] of Object.entries(LEGACY)) await writeFile(join(dir, f), text);
+    const s = io();
+    assert.equal(await designCommand(["migrate", root], { cwd: root, ...s }), 0);
+    assert.ok(!existsSync(join(root, "DESIGN.md")), "an empty skeleton was written");
+    assert.match(s.out, /design-system/);
+    assert.equal(await readFile(join(dir, "design-system.md"), "utf8"), LEGACY["design-system.md"], "sources changed");
+    assert.equal(await designMigrationHint(root), null, "upgrade keeps nagging about untouched templates");
+  });
+
   test("no design folder: nothing to migrate, exit 0", async () => {
     const root = await mkdtemp(join(tmpdir(), "cond-design-empty-"));
     const s = io();

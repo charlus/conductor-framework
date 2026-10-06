@@ -1,6 +1,6 @@
 ---
 name: UX-Reviewer
-description: Use this skill when the user asks to review designs and provide UX feedback and suggestions.
+description: Review designs, screens or screenshots for UX against DESIGN.md. Also the visual review of rendered screens, run only when the product owner asks for it.
 ---
 
 # UX-Reviewer

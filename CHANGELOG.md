@@ -8,6 +8,16 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.8.1] — 2026-10-06 — Documentation matches 6.8.0
+
+### Fixed
+
+- `how-it-works`: the UX/UI Design Brief now lists `DESIGN.md` as an output and Build as a consumer, `grilling` names its Lens Pass, `independent-review` its conflict order, `ux-reviewer` its visual review on request.
+- The Conductor Assistant persona listed workflows and skills by hand, and 11 skills were missing. It now points at the registries in `how-it-works.md`.
+- `ux-reviewer`'s description names `DESIGN.md` and the visual review.
+
+---
+
 ## [6.8.0] — 2026-10-06 — Personas as an Engineering Team, DESIGN.md
 
 ### Note — upgrading

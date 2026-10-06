@@ -52,7 +52,8 @@ If either is missing:
     * `implementation-plan.md` — The phase-by-phase execution plan
     * `feature-spec.md` — The acceptance criteria and requirements
     * `blueprint/grand-prd.md` — The broader Epic context (for judgment calls)
-    * Any relevant `conductor/4-context/` files (Technical, Design) if referenced
+    * `blueprint/ux-ui-design-brief.md` — the screens this implementation touches: their layout order, hierarchy, primary action, navigation and interactions. The feature spec summarises them, the brief decides them. (A Quick-Path implementation has no brief.)
+    * `DESIGN.md` at the code repository root, when the implementation touches UI, and any relevant `conductor/4-context/` files (technical) if referenced
 
 3.  **Review Critically:**
     * Does the plan make sense?

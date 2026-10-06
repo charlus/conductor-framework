@@ -198,6 +198,14 @@ describe("the framework uses DESIGN.md", () => {
     assert.ok(ctx.includes(".agents/skills/design-system/SKILL.md"));
   });
 
+  test("Build reads the UX/UI Brief and DESIGN.md before it builds a screen", () => {
+    const build = read(".agents", "workflows", "build.md");
+    const phase0 = build.slice(build.indexOf("## Phase 0"), build.indexOf("## Phase 1"));
+    assert.match(phase0, /blueprint\/ux-ui-design-brief\.md/, "Build never reads the screen design");
+    assert.match(phase0, /DESIGN\.md/);
+    assert.doesNotMatch(phase0, /\(Technical, Design\)/, "still points at the retired design folder");
+  });
+
   test("the Designer always gets DESIGN.md as context", () => {
     const designer = read(".agents", "personas", "designer.md");
     assert.match(designer, /DESIGN\.md/);

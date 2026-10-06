@@ -31,7 +31,14 @@ No workflow loaded a persona file except Deepen (Code Archaeologist), the loop C
 | Skill | `design-system`: greenfield, brownfield and migration modes. Tool-agnostic successor of the Stitch `design-md` skill, which came from google-labs-code/stitch-skills and was removed in `2886fab`. |
 | Migration | `conductor design migrate` maps every section of the old files to the DESIGN.md structure by heading, drops sections still equal to the shipped template (`src/retired-design-templates.json`), refuses to overwrite a DESIGN.md, and turns each migrated file into a pointer. Upgrade never touches `conductor/`: it prints a hint. |
 
+## Measured (2026-10-06, `test/evals/persona-eval.mjs`)
+
+- Agents follow the persona step: Designer and design rules read before the first write 9/9 on the branch, 0/9 on master. Cutting the step from `build.md` drops it to 0/3 (sensitivity).
+- No difference in CSS quality: both arms wrote token-only CSS in every scenario (n=3 to 9). The drift scenario's graded metric failed.
+- Reported, not graded: with no written rules, the branch added an empty state 3/3 (master 0/3) and created DESIGN.md first 3/3.
+- **F13 found and fixed:** Build never read the UX/UI Brief, so the screen design reached code only through the spec's summary. Build's Phase 0 now reads the brief for the screens it touches, and the Designer's Review Lens checks layout order and hierarchy against it.
+
 ## Open
 
-- A live eval (`test/evals/`) that an agent in Build actually runs `conductor personas` and reads the listed personas.
+- A UX eval: a screen-sized task with a UX brief, deterministic structure checks, and a blind side-by-side judgement by the product owner. The current eval cannot see layout, hierarchy or flow.
 - The path rules are a guess. Performance by path is weak. Projects tune them under `personas` in `conductor.config.json`.

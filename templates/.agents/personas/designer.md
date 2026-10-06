@@ -101,7 +101,7 @@ The visual perfectionist who shapes the user's sensory experience. Thinks holist
 ## Review Lens
 
 - Every colour, font size, spacing and radius value comes from the token file `DESIGN.md` names, not a one-off literal.
-- Each screen has one clear visual hierarchy: the primary action is the most prominent element.
+- Each screen follows the UX/UI Brief's layout order and hierarchy, and its primary action is the most prominent element.
 - Empty, loading, error and hover/focus states exist for every new component.
 - Text and controls meet WCAG AA contrast, and every interactive element is reachable by keyboard.
 - A pattern `DESIGN.md` does not cover is added to it in the same change.

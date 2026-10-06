@@ -44,6 +44,14 @@ All notable changes to the Conductor Framework will be documented in this file.
 - The Designer persona pointed at skills that no longer exist (`enhance-prompt`, `stitch-loop`, `design-md`).
 - Technical Vision pointed at `personas/CTO.md`, which does not exist on a case-sensitive filesystem.
 
+### Fixed — Build reads the screen design
+
+- Build never read the UX/UI Design Brief: screens, layout order, hierarchy and interactions reached the code only through the feature spec's summary. Build's Phase 0 now reads the brief for the screens it touches, and `DESIGN.md`. The Designer's Review Lens checks each screen against the brief's layout order and primary action.
+
+### Measured — agents follow the persona step
+
+- `test/evals/persona-eval.mjs` (real Build runs, `master` against this release): the Designer and the design rules are read before the first write 9/9, against 0/9 on `master`. Cutting the step from `build.md` drops it to 0/3, so the eval detects what it grades. CSS quality did not differ: both wrote token-only CSS in every scenario. Not measured yet: layout, hierarchy and flow (see `test/evals/README.md`).
+
 ### Added — the documentation is checked
 
 - `test/docs-drift.test.js`: README counts match what ships, every CLI command appears in README and CLAUDE.md, and how-it-works lists exactly the personas and skills that ship.

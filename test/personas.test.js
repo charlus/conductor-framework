@@ -58,6 +58,12 @@ describe("matching", () => {
     assert.deepEqual(names(matchPersonas(["src/cache/redisCache.ts"], rules)), ["performance-optimizer"]);
   });
 
+  test("a dependency manifest gets the Architect: that is where coupling and lock-in enter", () => {
+    assert.deepEqual(names(matchPersonas(["package.json"], rules)), ["architect"]);
+    assert.deepEqual(names(matchPersonas(["services/api/pyproject.toml", "go.mod"], rules)), ["architect"]);
+    assert.deepEqual(matchPersonas(["src/config/settings.json"], rules), []);
+  });
+
   test("plain logic and documentation get no persona", () => {
     assert.deepEqual(matchPersonas(["src/billing/invoice.js", "README.md", "docs/auth.md"], rules), []);
   });
@@ -94,10 +100,10 @@ describe("the shipped persona files", () => {
 
   test("the redundant personas are gone and no template points at them", async () => {
     const files = await readdir(join(TEMPLATES, ".agents", "personas"));
-    for (const gone of ["maker.md", "tech-lead.md", "architect.md"]) {
+    for (const gone of ["maker.md", "tech-lead.md"]) {
       assert.ok(!files.includes(gone), `${gone} still shipped`);
     }
-    const r = spawnSync("grep", ["-rlE", "personas/(maker|tech-lead|architect)\\.md|personas/CTO\\.md|Load the \\*\\*Maker\\*\\* persona", TEMPLATES], {
+    const r = spawnSync("grep", ["-rlE", "personas/(maker|tech-lead)\\.md|personas/CTO\\.md|Load the \\*\\*Maker\\*\\* persona", TEMPLATES], {
       encoding: "utf8",
     });
     assert.equal(r.stdout, "");

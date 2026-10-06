@@ -71,3 +71,9 @@ The specific **jobs** this feature must perform to deliver the "After" in the Be
 | [Problem 2] | [Capability Area]: [Job name(s)] |
 | [Problem 3] | [Capability Area]: [Job name(s)] |
 | [Problem 4] | [Capability Area]: [Job name(s)] |
+
+## Lens decisions
+
+*Engineering decisions the personas' Lens Pass took alone, one line each. Product questions went to the human and are recorded above.*
+
+- **[persona]:** [decision], because [reason]

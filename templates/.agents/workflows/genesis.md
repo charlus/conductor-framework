@@ -73,7 +73,8 @@ Everything about *how* to interview lives in the Grilling primitive. This file o
 1.  **Lead with a draft (recommend-per-question at scale):** From the problem and before-and-after documents, synthesize a comprehensive list of functional jobs organized by capability area. Ensure every symptom from Phase 1 maps to a Job, and include the Symptoms → Jobs mapping table. Present it as the starting point, not a questionnaire.
 2.  **Refine:** "What's missing? What doesn't belong? What needs to change?" Iterate one thread at a time.
 3.  **Non-Goals:** Propose what to explicitly exclude — things that seem related but are out of scope — and confirm. Capture as Non-Goals.
-4.  **Draft & approve:** Present the final `functional-animator.md` (template structure). **STOP** for approval, then write it.
+4.  **Lens Pass:** Run Grilling's Lens Pass with `.agents/personas/product-manager.md` only: is each Job worth building, and what is the smallest version that delivers the After? No technical persona here, the Technical Ban holds.
+5.  **Draft & approve:** Present the final `functional-animator.md` (template structure). **STOP** for approval, then write it.
 
 ---
 

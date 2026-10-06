@@ -159,6 +159,24 @@ describe("the command", () => {
     assert.deepEqual(names(JSON.parse(s.out).personas), ["database-architect", "designer"]);
   });
 
+  test("with several code repositories, the Designer gets the DESIGN.md of the repository it touches", async () => {
+    // One install, two products (a public site and a CMS) with different designs.
+    const root = await repo();
+    const git = (cwd, ...a) => execFileSync("git", a, { cwd, stdio: "pipe" });
+    git(root, "init", "-q");
+    await writeFile(join(root, ".gitignore"), "site/\ncms/\n");
+    for (const r of ["site", "cms"]) {
+      await mkdir(join(root, r), { recursive: true });
+      git(join(root, r), "init", "-q");
+    }
+    const s = io();
+    await personasCommand(["--json", "cms/src/components/Editor.tsx"], { cwd: root, ...s });
+    const designer = JSON.parse(s.out).personas.find((p) => p.name === "designer");
+    assert.ok(designer.context.includes("cms/DESIGN.md"), designer.context.join(", "));
+    assert.ok(!designer.context.includes("site/DESIGN.md"));
+    assert.ok(!designer.context.includes("DESIGN.md"), "the bare, ambiguous path is still listed");
+  });
+
   test("nothing matched says so and exits 0", async () => {
     const root = await repo();
     const s = io();

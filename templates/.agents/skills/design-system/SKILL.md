@@ -10,7 +10,7 @@ category: core
 
 ## Where it lives
 
-`DESIGN.md` at the root of the **code repository**: the nested repository in the outer layout, otherwise the project root. It travels with the code, so a teammate or a harness that never sees `conductor/` still finds it. One file. Do not split it.
+`DESIGN.md` at the root of the **code repository**: the nested repository in the outer layout, otherwise the project root. It travels with the code, so a teammate or a harness that never sees `conductor/` still finds it. One file per code repository. Do not split it. An install whose outer layout holds several code repositories (a public site and a CMS, say) has one DESIGN.md in each: different products, different audiences, different designs. `conductor personas` hands the Designer the one of the repository a change touches, and `conductor design migrate --repo <path>` says which one receives the old notes.
 
 ## The structure
 

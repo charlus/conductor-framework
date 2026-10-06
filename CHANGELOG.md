@@ -8,6 +8,14 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.8.3] — 2026-10-06 — One DESIGN.md per code repository
+
+### Fixed
+
+- With several code repositories in one install (a public site and a CMS, say), `conductor personas` handed the Designer a bare `DESIGN.md`. It now names the `DESIGN.md` of each repository the change touches: one per product, since different audiences get different designs. `conductor design migrate --repo <path>` chooses which one receives the old notes.
+
+---
+
 ## [6.8.2] — 2026-10-06 — design migrate and upgrade leave a clean repository
 
 ### Fixed

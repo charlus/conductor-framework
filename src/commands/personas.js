@@ -10,6 +10,7 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { resolveRules, matchPersonas, extractReviewLens } from "../personas.js";
+import { ignoredNestedRepos } from "../nested-repos.js";
 
 function parseArgs(args) {
   const opts = { json: false, base: null, paths: [] };
@@ -64,6 +65,16 @@ export async function personasCommand(args, { cwd, stdout, stderr }) {
   const config = await readJson(join(root, "conductor.config.json"));
   const paths = opts.paths.length ? opts.paths : changedPaths(root, opts.base);
 
+  // In the outer layout each nested code repository has its own DESIGN.md:
+  // one install can hold two products with two designs.
+  const nested = (await ignoredNestedRepos(root)).map((d) => d.replace(/\/$/, ""));
+  const localise = (context, files) => {
+    if (!nested.length || !context.includes("DESIGN.md")) return context;
+    const repos = [...new Set(files.map((f) => nested.find((r) => f.startsWith(`${r}/`))).filter(Boolean))];
+    if (!repos.length) return context;
+    return context.flatMap((c) => (c === "DESIGN.md" ? repos.map((r) => `${r}/DESIGN.md`) : [c]));
+  };
+
   const personas = [];
   for (const m of matchPersonas(paths, resolveRules(config))) {
     const file = `.agents/personas/${m.name}.md`;
@@ -73,7 +84,7 @@ export async function personasCommand(args, { cwd, stdout, stderr }) {
     } catch {
       stderr.write(`⚠️  ${file} is missing: run \`conductor upgrade\`\n`);
     }
-    personas.push({ name: m.name, persona: file, context: m.context, files: m.files, review });
+    personas.push({ name: m.name, persona: file, context: localise(m.context, m.files), files: m.files, review });
   }
 
   if (opts.json) {

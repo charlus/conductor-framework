@@ -225,9 +225,7 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
     * Cross-reference every screen from UX/UI Brief — does the data model serve it?
     * If gaps: go back and fill them before saving
 
-3.  **Persona Review (Optional):**
-    * *"Want me to put on the CTO hat and stress-test the long-term viability of these decisions?"*
-    * If yes: invoke `.agents/personas/cto.md` for strategic review
+3.  **Lens Pass:** Run Grilling's Lens Pass (`.agents/skills/grilling/SKILL.md`) with `.agents/personas/database-architect.md` on the Data Model, `.agents/personas/security-auditor.md` on the security model, and `.agents/personas/performance-optimizer.md` on the Non-Functional Requirements. Add `.agents/personas/cto.md` when the Tech Stack adds a new vendor, service or framework. Skip a persona whose section is empty for this project, and say so. Their decisions go in a **Lens decisions** section of the document.
 
 4.  **Independent Review (Fresh-Context Gate):**
     * Run `.agents/skills/independent-review/SKILL.md` with the **Technical Vision** lens: a reviewer that did not author the architecture confirms it supports every Epic and serves every screen, that no complexity is unjustified (deep-module / deletion test), that the ADRs are sound and the data model consistent, and that the named risks are the real ones.

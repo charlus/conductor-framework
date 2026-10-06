@@ -95,3 +95,9 @@ The following are explicitly out of scope for this project:
 - **[Non-goal 1]** - [Why it's out of scope]
 - **[Non-goal 2]** - [Why it's out of scope]
 - **[Non-goal 3]** - [Why it's out of scope]
+
+## Lens decisions
+
+*Engineering decisions the personas' Lens Pass took alone, one line each. Product questions went to the human and are recorded above.*
+
+- **[persona]:** [decision], because [reason]

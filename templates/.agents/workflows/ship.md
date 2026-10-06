@@ -146,7 +146,7 @@ conductor review-log append '{"round":1,"severity":"BLOCKER","category":"error-h
 Then re-review **once**: a fresh reviewer, given round-1 findings *plus your disposition of each*, and `git diff` of the **fix commits only**. Its only job is whether the named classes are closed and whether the fix introduced a new blocker.
 
 - Delta round returns `APPROVE` → Phase 5.
-- Blockers remain → **stop and ask the human once**, batching every remaining blocker into a **single question** with its quote, your recommendation per item, and an overall recommendation. Do not spawn a third reviewer.
+- Blockers remain → only **security and data-loss blockers** go to the human, batched into a **single question** with each quote, your recommendation per item, and an overall recommendation. Fix every other remaining blocker or record it under **Known gaps** in the PR body. Do not spawn a third reviewer.
 - **Never escalate an unreviewed fix round** — if you fixed blockers, the delta review runs before you report anything back, or you are handing back work you never looked at.
 - Other brakes (stop and surface): the fix has grown the diff past ~2× its frozen scope, or the best fix needs a canonical-contract change first.
 

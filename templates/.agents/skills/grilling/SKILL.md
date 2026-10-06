@@ -60,6 +60,19 @@ Before convergence, check the brief against four conditions and state what you f
 
 **Bounded on purpose.** You are never asked "is this a good idea?". C1–C4 are facts about consistency, breakage, cost and access — none of them need you to have taste. Anything outside them is an opinion, and you keep it.
 
+## Lens Pass
+
+A team reviews a plan from several expert angles before it commits. You do it alone, one persona at a time, just before Challenge the Brief. The calling workflow names the personas.
+
+For each persona:
+
+1. Read its file in `.agents/personas/` and put its Core Questions to the draft, silently.
+2. Sort each question by *Whose Decision Is It*. A fact: look it up. An engineering decision: decide it and write one line in the document's **Lens decisions** section, `<persona>: <decision>, because <reason>`. A product decision: ask the human, by the Five Laws.
+3. Ask at most two questions per persona. Keep the ones that change scope or what the user sees, drop the rest.
+4. When two personas want opposite things, settle it in the order of `.agents/skills/independent-review/SKILL.md` (*Conflicting findings*), and ask only if every option changes what the user sees or does.
+
+Report it out loud in one line: `Lens pass: <personas>, <N> decisions recorded, <M> questions asked.` A silent pass cannot be told apart from no pass.
+
 ## Active Listening (during the loop)
 
 - **Reflect** to check comprehension: "I'm hearing [X]. Is that right?"

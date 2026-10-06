@@ -24,6 +24,7 @@
 
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
+import { PRECEDENCE, outranks } from "../personas.js";
 
 export const REVIEW_LOG_REL = "conductor/1-workbench/review-log.jsonl";
 
@@ -57,6 +58,29 @@ export function normalizeFinding(raw, { now = () => Date.now() } = {}) {
       return { ok: false, error: "a BLOCKER needs the quoted line that proves it (rubric v2)" };
     }
   }
+  // D1: a finding a higher-ranked one overrode. The ledger refuses a reversed
+  // order unless the product owner made that call, so the precedence cannot
+  // drift one quiet dismissal at a time.
+  const persona = raw.persona ? String(raw.persona) : null;
+  const overriddenBy = raw.overridden_by ? String(raw.overridden_by) : null;
+  const poDecision = raw.po_decision === true;
+  if (persona && (!PRECEDENCE.includes(persona) || persona === "acceptance-criteria")) {
+    return { ok: false, error: `persona must be one of ${PRECEDENCE.filter((p) => p !== "acceptance-criteria").join(", ")}` };
+  }
+  if (overriddenBy) {
+    if (!persona) return { ok: false, error: "overridden_by needs the persona whose finding lost" };
+    if (action !== "dismissed") return { ok: false, error: "an overridden finding is recorded as dismissed" };
+    if (!PRECEDENCE.includes(overriddenBy)) {
+      return { ok: false, error: `overridden_by must be one of ${PRECEDENCE.join(", ")}` };
+    }
+    if (!outranks(overriddenBy, persona) && !poDecision) {
+      return {
+        ok: false,
+        error: `${overriddenBy} cannot override ${persona}: that reverses the precedence. ` +
+          "It is a product decision: ask the product owner, then record po_decision: true",
+      };
+    }
+  }
   return {
     ok: true,
     record: {
@@ -77,6 +101,9 @@ export function normalizeFinding(raw, { now = () => Date.now() } = {}) {
         : `${raw.file ?? "?"}:${raw.line ?? "?"}:${raw.category ?? "?"}`,
       brief_bytes: Number.isFinite(Number(raw.brief_bytes)) ? Number(raw.brief_bytes) : null,
       artifact: raw.artifact ? String(raw.artifact) : "diff",
+      persona,
+      overridden_by: overriddenBy,
+      po_decision: poDecision,
     },
   };
 }
@@ -88,8 +115,14 @@ export function summarise(records) {
   let blockers = 0;
   let dismissed = 0;
   const rounds = new Set();
+  const byPersona = {};
 
   for (const r of records) {
+    if (r.persona) {
+      const p = (byPersona[r.persona] ??= { total: 0, overridden: 0 });
+      p.total += 1;
+      if (r.overridden_by) p.overridden += 1;
+    }
     bySeverity[r.severity] = (bySeverity[r.severity] ?? 0) + 1;
     const c = (byClass[r.category] ??= { total: 0, dismissed: 0, blockers: 0 });
     c.total += 1;
@@ -112,6 +145,10 @@ export function summarise(records) {
     }))
     .sort((a, b) => b.total - a.total);
 
+  const personas = Object.entries(byPersona)
+    .map(([name, p]) => ({ name, ...p, overrideRate: p.overridden / p.total }))
+    .sort((a, b) => b.total - a.total);
+
   return {
     findings: records.length,
     bySeverity,
@@ -123,6 +160,10 @@ export function summarise(records) {
     // A class dismissed most of the time is the reviewer being wrong repeatedly
     // in one place — a rubric defect, fixable in calibration.md.
     rubricSuspects: classes.filter((c) => c.total >= 3 && c.dismissalRate > 0.5),
+    personas,
+    // A persona whose findings lose most conflicts asks for the wrong thing:
+    // fix its Review Lens, not the code (D4).
+    lensSuspects: personas.filter((p) => p.overridden >= 3 && p.overrideRate > 0.5),
   };
 }
 
@@ -196,6 +237,18 @@ export async function reviewLogCommand(args, { cwd, stdout, stderr }) {
         stdout.write(`  ${c.name} — add a worked case to skills/independent-review/calibration.md\n`);
       }
     }
+    if (s.personas.length) {
+      stdout.write("\nBy persona (findings, lost to a higher-ranked one):\n");
+      for (const p of s.personas) {
+        stdout.write(`  ${String(p.total).padStart(4)}  ${String(p.overridden).padStart(3)} lost  ${p.name}\n`);
+      }
+    }
+    if (s.lensSuspects.length) {
+      stdout.write("\nLens suspects (lose >50% of their conflicts, n>=3):\n");
+      for (const p of s.lensSuspects) {
+        stdout.write(`  ${p.name} — recalibrate the Review Lens in .agents/personas/${p.name}.md\n`);
+      }
+    }
     return 0;
   }
 
@@ -204,7 +257,8 @@ export async function reviewLogCommand(args, { cwd, stdout, stderr }) {
       "  append '<json>'   record one finding + its disposition\n" +
       "  summary [--since <ISO date>]\n\n" +
       "Fields: severity (BLOCKER|IMPORTANT|NIT|SCOPE), action (fixed|dismissed|known-gap|deferred),\n" +
-      "        category, file, line, quote, confidence, reason, round, brief_bytes.\n" +
+      "        category, file, line, quote, confidence, reason, round, brief_bytes,\n" +
+      "        persona, overridden_by, po_decision (a conflict between two personas' findings).\n" +
       "A BLOCKER requires confidence >= 7 and a quote — the same bar as rubric v2.\n",
   );
   return sub ? 1 : 0;

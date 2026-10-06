@@ -120,3 +120,9 @@
 
 - **Verified:** [fact] — [how: the call made, the query run, or the config file read]
 - **Assumed:** [belief] — [what would prove it, and when that check happens]
+
+## Lens decisions
+
+*Engineering decisions the personas' Lens Pass took alone, one line each. Product questions went to the human and are recorded above.*
+
+- **[persona]:** [decision], because [reason]

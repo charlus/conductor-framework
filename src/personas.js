@@ -38,6 +38,23 @@ export const DEFAULT_RULES = {
   },
 };
 
+// How the author settles two findings that pull opposite ways (D1): the earlier
+// entry wins. Reversing it changes what the product owner gets, so only the
+// product owner can (`po_decision` in the review log).
+export const PRECEDENCE = [
+  "security-auditor",
+  "database-architect",
+  "acceptance-criteria",
+  "performance-optimizer",
+  "designer",
+];
+
+export function outranks(winner, loser) {
+  const w = PRECEDENCE.indexOf(winner);
+  const l = PRECEDENCE.indexOf(loser);
+  return w >= 0 && l >= 0 && w < l;
+}
+
 // Prose never triggers a persona: `docs/auth.md` is not auth code.
 const IGNORED_EXTENSIONS = new Set(["md", "mdx", "txt", "rst", "lock"]);
 

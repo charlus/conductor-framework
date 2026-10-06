@@ -123,7 +123,7 @@ Route its model tier by stakes (`skills/model-routing/SKILL.md`).
 
 1. **`skills/independent-review/reviewer.md`** — verbatim.
 2. **`skills/independent-review/calibration.md`** — a shippable diff is consequential, so include it.
-3. **The definition of done + the diff:** the spec's acceptance criteria (or `goal_description` if this ran from the loop), every item of `conductor/0-compass/architecture-checklist.md` if it exists, and `git diff <merge-base>...HEAD`. Not the whole repo.
+3. **The definition of done + the diff:** the spec's acceptance criteria (or `goal_description` if this ran from the loop), every item of `conductor/0-compass/architecture-checklist.md` if it exists, the **Review Lens** lines that `conductor personas` prints for this diff (the lines only, not the persona files, so the brief stays one file), and `git diff <merge-base>...HEAD`. Not the whole repo.
 
 **When the change has a runtime surface,** behavior-validate the running artifact yourself, source-blind, with adversarial inputs (`skills/behavior-validator/SKILL.md`), and hand the reviewer that output as evidence. Green tests can themselves be wrong or reward-hacked; only observed behavior settles it. The reviewer reads the evidence — it does not run the app.
 

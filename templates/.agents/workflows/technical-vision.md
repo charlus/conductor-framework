@@ -227,7 +227,7 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
 
 3.  **Persona Review (Optional):**
     * *"Want me to put on the CTO hat and stress-test the long-term viability of these decisions?"*
-    * If yes: invoke `.agents/personas/CTO.md` for strategic review
+    * If yes: invoke `.agents/personas/cto.md` for strategic review
 
 4.  **Independent Review (Fresh-Context Gate):**
     * Run `.agents/skills/independent-review/SKILL.md` with the **Technical Vision** lens: a reviewer that did not author the architecture confirms it supports every Epic and serves every screen, that no complexity is unjustified (deep-module / deletion test), that the ADRs are sound and the data model consistent, and that the named risks are the real ones.

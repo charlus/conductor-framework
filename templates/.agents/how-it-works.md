@@ -172,7 +172,7 @@ task-backlog.md → Do it → ship-log.md
 | "Loop", "Unattended", "Autonomous", "Loop-ready" | Autonomous Loop | → `workflows/unattended-loop.md` |
 | "Update the project card", "Refresh AGENTS.md" | Project card | → `workflows/agents-md.md` (also when `conductor status` says the card is a draft or stale) |
 | "Brain dump", "Refine my ideas" | Skill | → `skills/brain-dump-to-epics/` |
-| "CTO mode", "Architect mode", "PM mode", etc. | Thinking Partner | → load matching persona from `personas/` |
+| "CTO mode", "Designer mode", "PM mode", etc. | Thinking Partner | → load matching persona from `personas/` |
 | "How does this framework work?" | Navigation | → load `conductor-assistant` persona |
 | "Inbox: X", "Add to inbox: X" | Capture | → `conductor inbox add "X"`, else append verbatim to `conductor/1-workbench/inbox.md`, no workflow |
 | "Scratchpad: X" | Capture | → append verbatim to `conductor/1-workbench/scratchpad.md`, no workflow |
@@ -429,17 +429,16 @@ Not skills — on-demand reference docs in `.agents/references/`. They carry adv
 | Persona | Trigger | Thinks About |
 |---|---|---|
 | **CTO** | "CTO mode" | Long-term tech strategy, build vs. buy, technical debt |
-| **Architect** | "Architect mode" | System structure, data models, interfaces, boundaries |
 | **Product Manager** | "PM mode" | User value, prioritization, outcomes over outputs |
-| **Tech Lead** | "Tech Lead mode" | Code quality, patterns, pragmatic implementation |
 | **Designer** | "Designer mode", "Make it look premium" | Visual quality, design systems, `4-context/design/` |
 | **Code Archaeologist** | "Archaeologist mode", "Explain this codebase", "Deepen the architecture" | Legacy code, refactoring strategy, Chesterton's Fence, deep modules / narrow interfaces (drives the `deepen` workflow) |
 | **Security Auditor** | "Security mode", "Check security" | OWASP Top 10, supply chain, zero trust, pentest methodology |
 | **Database Architect** | "Database mode", "Design the schema" | Schema design, query optimization, migrations |
 | **Performance Optimizer** | "Performance mode", "Make it faster" | Core Web Vitals, profiling, bundle size |
-| **Maker** | "Maker mode" | Spec-compliant, sandboxed TDD code generation |
 | **Checker** | "Checker mode" | Independent skeptical audits, programmatic testing, anti-reward hacking |
 | **Conductor Assistant** | "How does this work?" | Framework navigation, workflow selection, process guidance |
+
+**Domain personas load themselves.** `conductor personas [paths…]` maps the files a change touches to the Designer, Security Auditor, Database Architect and Performance Optimizer, and prints each one's Review Lens. Build loads them per task, the reviewer in Build, Ship and the loop Checker gets the Review Lens lines. A project changes the path rules under `personas` in `conductor.config.json` (`{"designer": {"extensions": [...], "words": [...]}}`, or `false` to switch one off).
 
 ---
 

@@ -86,3 +86,11 @@ What's slow?
 - Memory leaks and retention issues
 - Database query optimization
 - Pre-launch performance audits
+
+---
+
+## Review Lens
+
+- No new work in a hot path (per request, per render, per item) that can run once or be cached.
+- Caches have an explicit invalidation rule and a bound on their size.
+- A claim that a change is faster cites a before and after measurement.

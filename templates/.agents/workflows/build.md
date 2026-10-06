@@ -74,7 +74,10 @@ If either is missing:
 
     * **Eval surface (Eval-Driven Law):** If any task calls an LLM provider (`openai`, `anthropic`, `langchain`, …), that feature's non-deterministic output needs an **evalset**, not just a test — load the `writing-evals` skill (`.agents/skills/writing-evals/SKILL.md`) for the three grading modes. The `pre-commit` hook enforces this: provider-calling code staged without an eval is blocked. Fold the evalset into that task's RED step alongside its test.
 
-6.  **Confirm:** *"Context loaded. [X] tasks identified, test strategy set. Ready to build?"*
+6.  **Domain personas:** Run `conductor personas <every file the plan names>`. It lists the personas this implementation needs (Designer, Security Auditor, Database Architect, Performance Optimizer). Note them in the tracker header.
+    * **Design system first:** if the Designer is listed and `conductor/4-context/design/design-system.md` still holds only template placeholders, load the Designer persona and `.agents/skills/frontend-design/SKILL.md`, propose the design system (colours, typography, spacing, radius, core components), and save it after the human confirms. Every UI task builds on it. Without it, each screen invents its own style.
+
+7.  **Confirm:** *"Context loaded. [X] tasks identified, test strategy set. Ready to build?"*
     * Wait for user confirmation before proceeding.
 
 ---
@@ -92,6 +95,7 @@ For each task in the batch:
 #### Step 1 — Announce & Mark
 * Announce: *"Task [N]: [name]"*
 * Mark `in_progress` in the tracker
+* **Load the domain personas:** run `conductor personas <the files this task will create or change>`. Read each persona file and context path it lists before RED, and apply them while you implement. The UI, auth and schema code is written with that judgement, not reviewed into it afterwards.
 
 #### Step 2 — Implement: RED → GREEN → REFACTOR
 
@@ -122,6 +126,7 @@ For each task in the batch:
 **b) Code Quality** — "Is it well-built?"
 * Is the code clean, readable, and following project patterns?
 * Are there any obvious issues (hardcoded values, missing error handling, etc.)?
+* Does the diff meet every **Review Lens** line that `conductor personas` prints for it?
 * If issues: fix them, then re-check
 
 > **Order matters:** Always spec first, then quality. No point reviewing quality if the spec is wrong.
@@ -153,7 +158,7 @@ After completing a batch:
 2.  **Show Tracker:** Display the current state of the full task tracker
 
 3.  **Independent Review (fresh-context gate — one per batch, not per task):**
-    * Run `.agents/skills/independent-review/SKILL.md` with the **Diff** lens on this batch's changes (`git diff` for the batch). Hand the reviewer `skills/independent-review/reviewer.md` verbatim plus the batch's acceptance criteria; it returns findings and one verdict line. Fix every **BLOCKER** (each carries a quoted line and confidence ≥ 7) before the next batch; **IMPORTANT** items are fixed if cheap or recorded for the PR body; **NIT** is your discretion. `APPROVE` means zero blockers — it does not mean zero findings.
+    * Run `.agents/skills/independent-review/SKILL.md` with the **Diff** lens on this batch's changes (`git diff` for the batch). Hand the reviewer `skills/independent-review/reviewer.md` verbatim plus the batch's acceptance criteria and the **Review Lens** lines from `conductor personas` on the batch diff; it returns findings and one verdict line. Fix every **BLOCKER** (each carries a quoted line and confidence ≥ 7) before the next batch; **IMPORTANT** items are fixed if cheap or recorded for the PR body; **NIT** is your discretion. `APPROVE` means zero blockers — it does not mean zero findings.
     * **Proportionality:** apply the gate's skip rule — under 50 changed non-test lines *and* no risk path touched (auth, payments, migrations, API contracts, security, CI, hooks) means the human reviewing the report below *is* the fresh set of eyes; say so and skip the subagent. One gate per batch keeps this from becoming a per-task ceremony.
     * **One delta round, then stop.** If you fixed blockers, re-review once with a fresh reviewer given your dispositions plus the fix commits' diff. If blockers remain after that, ask the user once with everything batched into a single question — do not spawn a third reviewer.
     * **In the autonomous loop, don't double up:** at L3 the driver already runs an independent Checker out-of-process per beat (`.agents/workflows/loop-checker.md`, verdict via `checker-verdict.json`) above the green-verify floor. This checkpoint gate is the *interactive* Build's equivalent; when the loop's Checker is active it already covers this.

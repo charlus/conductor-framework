@@ -17,6 +17,7 @@ import { inboxCommand } from "./commands/inbox.js";
 import { viewCommand } from "./commands/view.js";
 import { reviewCommand } from "./commands/review.js";
 import { surveyCommand } from "./commands/survey.js";
+import { personasCommand } from "./commands/personas.js";
 
 function helpText() {
   return [
@@ -39,6 +40,7 @@ function helpText() {
     "    conductor verify [--set <cmd> | --detect | --none] [--no-run]",
     "    conductor review <file.md> [--timeout <min>]",
     "    conductor survey [dir] [--json] [--out <file>]",
+    "    conductor personas [paths…] [--base <ref>] [--json]",
     "    conductor install-hooks [--uninstall]",
     "    conductor trust-verify [--revoke] [--list]",
     "    conductor evidence <run|check|list> …",
@@ -61,6 +63,7 @@ function helpText() {
     "    verify          Show or set the command `git push` must pass (the push gate)",
     "    review          Render a document in the browser and wait for approve / request-changes",
     "    survey          Collect the facts about an existing codebase you have inherited",
+    "    personas        Which domain personas (Designer, Security…) a change needs",
     "    install-hooks   Enable deterministic TDD/verification git hooks",
     "    trust-verify    Record operator consent for this repo's verify command",
     "    evidence        Record/grade verification evidence against the working tree",
@@ -123,6 +126,8 @@ export async function runCli(args, io = process) {
       return reviewCommand(rest, context);
     case "survey":
       return surveyCommand(rest, context);
+    case "personas":
+      return personasCommand(rest, context);
     case "init":
       return initCommand(rest, context);
     case "upgrade":

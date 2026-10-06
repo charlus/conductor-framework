@@ -108,10 +108,9 @@ echo ""
 echo "4. Personas..."
 
 personas=(
-  "cto" "architect" "product-manager" "tech-lead"
-  "designer" "conductor-assistant" "code-archaeologist"
-  "security-auditor" "database-architect" "performance-optimizer"
-  "maker" "checker"
+  "cto" "product-manager" "designer" "conductor-assistant"
+  "code-archaeologist" "security-auditor" "database-architect"
+  "performance-optimizer" "checker"
 )
 
 for persona in "${personas[@]}"; do

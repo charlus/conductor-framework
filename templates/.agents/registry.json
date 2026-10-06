@@ -64,6 +64,13 @@
       "default": true
     },
     {
+      "name": "Design-System",
+      "dir": "design-system",
+      "description": "Create, extract or maintain DESIGN.md, the one file that keeps a product's UI coherent. Use at the end of the UX/UI Design Brief, before the first UI task in Build when DESIGN.md is missing, and whenever a screen needs a pattern DESIGN.md does not cover.",
+      "category": "core",
+      "default": true
+    },
+    {
       "name": "frontend-design",
       "dir": "frontend-design",
       "description": "Design thinking and decision-making for web UI. Use when designing components, layouts, color schemes, typography, or creating aesthetic interfaces. Teaches principles, not fixed values.",
@@ -390,6 +397,7 @@
         "Context-Engineering",
         "Context-Updater",
         "Domain-Modeling",
+        "Design-System",
         "frontend-design",
         "GitHub-CLI",
         "GitLab-CLI",

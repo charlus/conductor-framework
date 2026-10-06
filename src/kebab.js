@@ -99,6 +99,10 @@ const WORKFLOW_OUTPUT_NAMES = [
   "implementation-plan.md", "task-tracker.md", "project-documentation.md", "trace.md",
 ];
 
+// Names Conductor once scaffolded and no longer ships. An old install still has
+// them in Title-Case, and `conductor design migrate` reads them by exact path.
+const RETIRED_SCAFFOLD_NAMES = ["design", "design-system.md", "ui-components.md", "brand-assets.md"];
+
 // `[ProjectName]-documentation/` and `[area]-epics.md` etc.: only the
 // framework suffix is lowercased; the user's part keeps its name.
 const FRAMEWORK_SUFFIXES = [
@@ -147,6 +151,7 @@ export async function renameFrameworkNames(conductorDir, templateConductorDir, s
   if (!(await exists(conductorDir))) return 0;
   const known = await segmentsOf(templateConductorDir);
   for (const n of WORKFLOW_OUTPUT_NAMES) known.add(n);
+  for (const n of RETIRED_SCAFFOLD_NAMES) known.add(n);
 
   const target = (entry) => {
     const parsed = parse(entry);

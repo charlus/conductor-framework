@@ -22,6 +22,15 @@ No workflow loaded a persona file except Deepen (Code Archaeologist), the loop C
 | D4 | `conductor review-log summary` shows per persona how many findings lost a conflict. A lens that loses more than half (n ≥ 3) is a calibration defect. |
 | R1 | After the delta round, only security and data-loss blockers go to the human. Others are fixed or recorded as known gaps in the PR. The autonomous loop is unchanged: its Checker verdict and fail-safe are as before. |
 
+## DESIGN.md (change 3, `feat/design-md`)
+
+| | Decision |
+|---|---|
+| D5 | One `DESIGN.md` at the code repository root (the nested repo in the outer layout) replaces `conductor/4-context/design/` and its three files. It travels with the code. Values live once in the token file that DESIGN.md names. |
+| D6 | The UX/UI Brief creates it (Phase 8), approved by the product owner with the brief. Build creates it as a fallback (brownfield: extracted from the code). |
+| Skill | `design-system`: greenfield, brownfield and migration modes. Tool-agnostic successor of the Stitch `design-md` skill, which came from google-labs-code/stitch-skills and was removed in `2886fab`. |
+| Migration | `conductor design migrate` maps every section of the old files to the DESIGN.md structure by heading, drops sections still equal to the shipped template (`src/retired-design-templates.json`), refuses to overwrite a DESIGN.md, and turns each migrated file into a pointer. Upgrade never touches `conductor/`: it prints a hint. |
+
 ## Open
 
 - A live eval (`test/evals/`) that an agent in Build actually runs `conductor personas` and reads the listed personas.

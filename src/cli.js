@@ -18,6 +18,7 @@ import { viewCommand } from "./commands/view.js";
 import { reviewCommand } from "./commands/review.js";
 import { surveyCommand } from "./commands/survey.js";
 import { personasCommand } from "./commands/personas.js";
+import { designCommand } from "./commands/design.js";
 
 function helpText() {
   return [
@@ -41,6 +42,7 @@ function helpText() {
     "    conductor review <file.md> [--timeout <min>]",
     "    conductor survey [dir] [--json] [--out <file>]",
     "    conductor personas [paths…] [--base <ref>] [--json]",
+    "    conductor design migrate [dir] [--repo <path>] [--dry-run]",
     "    conductor install-hooks [--uninstall]",
     "    conductor trust-verify [--revoke] [--list]",
     "    conductor evidence <run|check|list> …",
@@ -64,6 +66,7 @@ function helpText() {
     "    review          Render a document in the browser and wait for approve / request-changes",
     "    survey          Collect the facts about an existing codebase you have inherited",
     "    personas        Which domain personas (Designer, Security…) a change needs",
+    "    design          Combine conductor/4-context/design/ into one DESIGN.md (`migrate`)",
     "    install-hooks   Enable deterministic TDD/verification git hooks",
     "    trust-verify    Record operator consent for this repo's verify command",
     "    evidence        Record/grade verification evidence against the working tree",
@@ -128,6 +131,8 @@ export async function runCli(args, io = process) {
       return surveyCommand(rest, context);
     case "personas":
       return personasCommand(rest, context);
+    case "design":
+      return designCommand(rest, context);
     case "init":
       return initCommand(rest, context);
     case "upgrade":

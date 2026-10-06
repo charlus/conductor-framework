@@ -72,6 +72,7 @@ Upgrade works from **any prior version** (V4, V5, or a hand-copied install) on a
 - **Refresh `conductor/5-templates/`** — the framework document scaffolding — while leaving all your knowledge in `0-compass`, `2-backlog`, `3-product-areas`, `4-context`, `6-archive` untouched.
 - **Migrate structure & schema** — legacy `.agent/` / `.conductor/` / root numbered folders → the `conductor/` dashboard; `loop-state.json` → the current schema.
 - **Write the root `AGENTS.md`** — its framework block is regenerated from `.agents/`; your own text in it is kept. The old `CLAUDE.md` / `GEMINI.md` stubs are removed, and any notes you wrote in them move into `AGENTS.md`. Claude Code reads `AGENTS.md` from v2.1.277, when no `CLAUDE.md` is present; `upgrade` and `status` warn otherwise. Your `CHANGELOG.md` is never touched.
+- **Point at DESIGN.md** — if `conductor/4-context/design/` still holds your design notes, `upgrade` tells you to run `conductor design migrate`. It never moves them itself.
 - **Stamp the version** — records the framework version for idempotent future upgrades.
 - **Commit itself** — in a git repo, it commits exactly the framework files it wrote, and nothing of yours. Then `git push` as usual. If you had uncommitted edits in those files, or pass `--no-commit`, it prints the one command to run instead.
 
@@ -143,6 +144,27 @@ Run each planning step in a fresh session. Every step ends with the exact next c
 Full reference: [`how-it-works.md`](templates/.agents/how-it-works.md) (installed as `.agents/how-it-works.md`, read on demand).
 
 *Conductor uses **Progressive Disclosure**: every session loads only the root `AGENTS.md` (about 6 KB of framework plus the project card) and the skills' one-line descriptions. Workflows, skill bodies, personas and the full reference load when they are used.*
+
+---
+
+## An Engineering Team, With You as Product Owner
+
+The personas are not decoration you have to remember to call. They are loaded from what the work touches:
+
+```bash
+conductor personas src/auth/LoginForm.tsx db/migrations/004.sql   # → designer, security-auditor, database-architect
+conductor personas                                                 # the same, for everything this branch changed
+```
+
+- **Build** loads each listed persona before writing the first test of a task. The reviewer in Build, Ship and the loop gets each persona's **Review Lens**: 3 to 5 checks, such as "every colour comes from the tokens" or "a failed permission check denies access".
+- **Upstream**, Spec-It turns those checks into acceptance criteria, and a **Lens Pass** lets the Architect, Database Architect, Security Auditor and Performance Optimizer challenge the Technical Vision, and the Product Manager challenge Genesis and the Grand PRD. Engineering answers are recorded as decisions, not asked.
+- **Conflicts are settled by the team**, in a fixed order: security and data integrity, acceptance criteria, architecture, performance, design. You are asked only when every option changes what the user sees or does. `conductor review-log` refuses an override that reverses that order without your decision.
+
+### DESIGN.md keeps the UI coherent
+
+One `DESIGN.md` at the root of the code repository holds the visual identity: theme, colour roles, typography, layout, component styling, and the file that holds the token values. The UX/UI Design Brief drafts it for your approval. Build extracts it from existing code when it is missing. The Designer reads it before every UI change, and a new pattern is added to it in the same change, so a screen built months later still belongs.
+
+Projects that kept their design notes in the old `conductor/4-context/design/` folder combine them with `conductor design migrate` (`--dry-run` to preview). It never overwrites an existing `DESIGN.md` and leaves a pointer in each old file.
 
 ---
 
@@ -234,6 +256,8 @@ Conductor backs its laws with **code, not just prose** — deterministic git hoo
 - **Goodhart boundary** — the cheapest way to make tests pass is to remove them. `pre-commit` blocks a commit that deletes a test file, adds a skip marker (`.skip`, `.only`, `@pytest.mark.skip`, `#[ignore]`…) or net-loses assertions.
 - **Protected paths** — the change being built does not edit what judges it. Edits to `.agents/hooks/`, `.agents/rules/`, `.agents/sandbox/` and the reviewer brief are blocked, and the hooks judge each change with the library already committed, so deleting or rewriting it switches nothing off. `conductor upgrade` commits its own framework changes, so an upgrade needs no extra step.
 - **Eval-Driven Law** — tests verify the deterministic surface; **evals** verify the non-deterministic LLM-output surface of the apps you build. If a feature calls an LLM provider, a `pre-commit` gate requires an evalset alongside it and a `pre-push` gate runs it — see the `writing-evals` skill (three grading modes). The **ship-contract** extends this: `architecture-checklist` turns "follow the architecture" into checkable items the Checker verifies. Every escape hatch is logged, never silent.
+
+The push gate runs one command per repository: `conductor verify` shows it, `conductor verify --set "npm test"` sets it, and `conductor trust-verify` records your consent to that command before the agent's Stop hook may run it: a cloned repository can name any command it likes.
 
 Every escape hatch is an environment variable with a reason (`CONDUCTOR_NO_BOUNDARY="why"`), logged to `conductor/0-compass/ship-log.md`.
 

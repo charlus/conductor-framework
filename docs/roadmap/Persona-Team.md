@@ -1,6 +1,6 @@
 # Personas as an engineering team
 
-> **Status (2026-10-06):** built on `feat/persona-lens-map` (change 1) and `feat/persona-team` (change 2, stacked). Unit and self-test suites green. **Not verified in a live agent run**: no eval proves an agent follows the new workflow steps.
+> **Status (2026-10-06):** shipped in 6.8.0 (#53 `conductor personas`, #54 team behaviour and the Architect, #55 DESIGN.md). Measured by `test/evals/persona-eval.mjs`: results below.
 
 ## Problem
 

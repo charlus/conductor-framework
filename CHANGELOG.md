@@ -8,6 +8,48 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.8.0] — 2026-10-06 — Personas as an Engineering Team, DESIGN.md
+
+### Note — upgrading
+
+- The **Maker** and **Tech Lead** personas are removed. `upgrade` deletes them from `.agents/personas/`. Build and the `code-review` skill already carry what they said.
+- New projects no longer get `conductor/4-context/design/`. If yours holds design notes, `upgrade` tells you to run `conductor design migrate`: it combines them into one `DESIGN.md` at the root of the code repository and leaves a pointer in each old file. Nothing is deleted.
+
+### Added — personas load themselves (#53)
+
+- `conductor personas [paths…]` maps the files a change touches to the Architect, Designer, Security Auditor, Database Architect and Performance Optimizer, and prints each one's **Review Lens** (3 to 5 checks in the persona file). With no paths it reads the branch diff. Projects tune the path rules under `personas` in `conductor.config.json`.
+- Build loads the listed personas before each task. The reviewer in Build, Ship and the loop Checker gets the Review Lens lines only, so the reviewer brief stays one file and Rubric v2 is unchanged.
+
+### Added — the personas work as one team (#54)
+
+- Spec-It turns each triggered persona's Review Lens into acceptance criteria.
+- Grilling gains a **Lens Pass**: one persona at a time, at most two questions each, engineering answers recorded as **Lens decisions**. Technical Vision runs it with the Architect, Database Architect, Security Auditor and Performance Optimizer (and the CTO when the stack adds a vendor), and reads `architecture-patterns`. Genesis and Grand PRD run it with the Product Manager only.
+- Conflicting findings are settled in a fixed order: security and data integrity, acceptance criteria, architecture, performance, design. The product owner is asked only when every option changes what the user sees or does. `conductor review-log` records `persona` and `overridden_by`, refuses a reversed override without `po_decision`, and its summary flags a persona that loses most of its conflicts.
+- After the delta review round, only security and data-loss blockers go to the human. Other remaining blockers are fixed or recorded as known gaps in the PR.
+
+### Added — DESIGN.md keeps the UI coherent (#55)
+
+- One `DESIGN.md` at the code repository root (the nested repository in the outer layout) holds the visual theme, colour roles, typography, layout, component styling and the token file.
+- New `design-system` skill: greenfield, brownfield (extracted from the code) and migration modes. The UX/UI Design Brief drafts DESIGN.md for approval with the brief. Build creates it as a fallback. The Designer always gets it from `conductor personas`.
+- `conductor design migrate [dir] [--repo <path>] [--dry-run]` combines `conductor/4-context/design/` into DESIGN.md.
+
+### Removed
+
+- Personas **Maker** and **Tech Lead**.
+- `conductor/4-context/design/` (`design-system.md`, `ui-components.md`, `brand-assets.md`) from new installs.
+- The Stitch detector in `src/detect.js`: a `DESIGN.md` no longer implies Google Stitch.
+
+### Fixed
+
+- The Designer persona pointed at skills that no longer exist (`enhance-prompt`, `stitch-loop`, `design-md`).
+- Technical Vision pointed at `personas/CTO.md`, which does not exist on a case-sensitive filesystem.
+
+### Added — the documentation is checked
+
+- `test/docs-drift.test.js`: README counts match what ships, every CLI command appears in README and CLAUDE.md, and how-it-works lists exactly the personas and skills that ship.
+
+---
+
 ## [6.7.0] — 2026-10-05 — One AGENTS.md, the Project Card, Loop Fixes
 
 ### Note — upgrading

@@ -70,6 +70,9 @@ conductor_is_ship_log() {
 conductor_newest_entry_has_for_you() {
   local f="$1"
   [ -f "$f" ] || return 0
+  # A staged change that only appends "Hook waiver" lines is the hooks' own
+  # bookkeeping, not a ship report: conductor upgrade writes one on every run.
+  conductor_staged_only_waiver_lines "$f" && return 0
   local newest
   newest="$(grep -Eo '^## [0-9]{4}-[0-9]{2}-[0-9]{2}' "$f" | sort | tail -1)"
   [ -z "$newest" ] && return 0
@@ -268,6 +271,18 @@ conductor_protected_changes() {
           printf '%s (%s)\n' "$candidate" "$(printf '%s' "$status" | cut -c1)"
       done
     done
+}
+
+# True (0) if the staged diff of file $1 (absolute) only ADDS waiver lines.
+conductor_staged_only_waiver_lines() {
+  local f="$1" dir root rel diff
+  dir="$(dirname "$f")"
+  root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  rel="${f#"$root"/}"
+  diff="$(git -C "$root" diff --cached -U0 -- "$rel" 2>/dev/null | grep -E '^[+-]' | grep -Ev '^(\+\+\+|---) ')"
+  [ -n "$diff" ] || return 1
+  printf '%s\n' "$diff" | grep -Evq '^\+- \[[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}\] Hook waiver \(' && return 1
+  return 0
 }
 
 # Append a waiver line to the ship-log so bypasses are auditable, never silent.

@@ -8,11 +8,12 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
-## [6.8.2] — 2026-10-06 — design migrate leaves untouched templates alone
+## [6.8.2] — 2026-10-06 — design migrate and upgrade leave a clean repository
 
 ### Fixed
 
 - `conductor design migrate` wrote an empty `DESIGN.md` skeleton when `conductor/4-context/design/` held only the untouched templates. Build then saw a `DESIGN.md` and skipped extracting the real one from the code. It now writes nothing, changes nothing, and says to run the `design-system` skill. `upgrade` no longer prints the migration hint for untouched templates.
+- `upgrade` left every repository dirty: its commit's waiver line was logged to the ship-log after the commit, and the report gate then refused to commit that line on a ship-log whose newest entry predates the For-you rule. The report gate now lets through a change that only adds the hooks' own waiver lines, and `upgrade` commits that line itself, so it ends on a clean tree.
 
 ---
 

@@ -121,6 +121,22 @@ async function commitUpgrade({ targetDir, version, snap, noCommit, structural, e
   }
   const sha = (await git(["rev-parse", "--short", "HEAD"], targetDir)).stdout;
   stdout.write(`\n   ✅ Committed the upgrade as ${sha}. Push as usual — no waiver needed.\n`);
+  await commitWaiverLine(targetDir, version);
+}
+
+/**
+ * The upgrade commit runs with a waiver, and the hook logs that waiver to the
+ * ship-log AFTER the commit is staged, so the line is left uncommitted. Commit
+ * it, but only when it is the ship-log's sole change: anything else there is
+ * the user's, and stays theirs.
+ */
+async function commitWaiverLine(targetDir, version) {
+  const log = "conductor/0-compass/ship-log.md";
+  const diff = await git(["diff", "-U0", "--", log], targetDir);
+  if (!diff.ok) return;
+  const changed = diff.stdout.split("\n").filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---) /.test(l));
+  if (!changed.length || !changed.every((l) => /^\+- \[[\d-]+ [\d:]+\] Hook waiver \(/.test(l))) return;
+  await git(["commit", "-q", "-m", `chore: log the Conductor ${version} upgrade waiver`, "--", log], targetDir);
 }
 
 function getTemplateDir() {

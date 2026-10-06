@@ -56,13 +56,15 @@ async function isDir(p) {
 export async function designMigrationHint(root) {
   const dir = join(root, SOURCE_REL);
   if (!(await isDir(dir))) return null;
+  const files = {};
   for (const n of (await listFiles(dir)).filter((f) => /\.(md|markdown|txt)$/i.test(f))) {
     const text = await readFile(join(dir, n), "utf8").catch(() => "");
-    if (!text.startsWith("# Moved to `DESIGN.md`")) {
-      return `   Design: ${SOURCE_REL}/ is replaced by one DESIGN.md. Run \`conductor design migrate\` to combine it.\n`;
-    }
+    if (!text.startsWith("# Moved to `DESIGN.md`")) files[n] = text;
   }
-  return null;
+  // Untouched templates hold nothing to carry over: no hint for them.
+  const { migrated } = buildDesignMd(files, { legacy: LEGACY, source: SOURCE_REL });
+  if (!migrated.length) return null;
+  return `   Design: ${SOURCE_REL}/ is replaced by one DESIGN.md. Run \`conductor design migrate\` to combine it.\n`;
 }
 
 export async function designCommand(args, { cwd, stdout, stderr }) {
@@ -103,6 +105,16 @@ export async function designCommand(args, { cwd, stdout, stderr }) {
   const files = {};
   for (const n of names) files[n] = await readFile(join(sourceDir, n), "utf8");
   const { markdown, migrated, templateOnly } = buildDesignMd(files, { legacy: LEGACY, source: SOURCE_REL });
+
+  // Only untouched templates: an empty skeleton would make Build believe a
+  // design system exists and skip extracting the real one from the code.
+  if (!migrated.length) {
+    stdout.write(
+      `Nothing to migrate: ${SOURCE_REL}/ holds only the untouched templates. No DESIGN.md written.\n` +
+        "  Create it from the code with the design-system skill (brownfield mode), or let Build do it before the first UI task.\n",
+    );
+    return 0;
+  }
 
   if (opts.dryRun) {
     stdout.write(markdown);

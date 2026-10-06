@@ -86,6 +86,33 @@ else
 fi
 rm -rf "$D"
 
+# ---- R7: a staged change that only adds waiver lines is bookkeeping -------
+# The hooks append "Hook waiver" lines themselves (conductor upgrade does it on
+# every run). Blocking the commit of that line, on a log whose newest entry
+# predates the For-you rule, left every upgraded repository dirty.
+D="$(fresh_repo)"; printf '%s' "$NO_BLOCK" > "$D/$LOG"
+git -C "$D" add -A >/dev/null 2>&1; CONDUCTOR_HOOKS=off git -C "$D" commit -q -m "old entry" >/dev/null 2>&1
+printf -- '- [2026-10-06 14:43] Hook waiver (Protected): conductor upgrade to 6.8.2\n' >> "$D/$LOG"
+git -C "$D" add -A >/dev/null 2>&1
+if git -C "$D" commit -q -m "log waiver" >/dev/null 2>&1; then
+  ok "R7: a waiver-line-only change to the ship-log commits"
+else
+  no "R7: the gate blocked a waiver line the hooks wrote themselves"
+fi
+rm -rf "$D"
+
+# ---- R8: a waiver line does not smuggle in a report without For you -------
+D="$(fresh_repo)"; printf '%s' "$NO_BLOCK" > "$D/$LOG"
+git -C "$D" add -A >/dev/null 2>&1; CONDUCTOR_HOOKS=off git -C "$D" commit -q -m "old entry" >/dev/null 2>&1
+printf -- '- [2026-10-06 14:43] Hook waiver (Protected): x\n- **What:** a real change\n' >> "$D/$LOG"
+git -C "$D" add -A >/dev/null 2>&1
+if git -C "$D" commit -q -m "waiver plus report" >/dev/null 2>&1; then
+  no "R8: a report line rode in with a waiver line"
+else
+  ok "R8: a waiver line plus any other line is still gated"
+fi
+rm -rf "$D"
+
 # ---- R6: hooks off → gate silent ------------------------------------------
 D="$(fresh_repo)"; printf '%s' "$NO_BLOCK" > "$D/$LOG"
 git -C "$D" add -A >/dev/null 2>&1

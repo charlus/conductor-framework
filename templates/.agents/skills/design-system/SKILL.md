@@ -31,7 +31,7 @@ A philosophy is not a system. "Restraint" and "progressive density" do not tell 
 
 **Brownfield (code exists, no DESIGN.md).** Extract, do not invent. Read the token file, global stylesheets, the component library configuration, and 3 to 5 representative screens. Describe what is there, with the role each value plays. Where the code is inconsistent (four greys used for body text), propose one choice and list the others as debt in **Other Notes**. Name the most coherent existing screens under **Reference Screens**.
 
-**Migration (an old `conductor/4-context/design/` folder).** Run `conductor design migrate`. It writes DESIGN.md from the old files, drops untouched template sections, and turns each old file into a pointer. Then rewrite each migrated section into the format above, and delete placeholder rows the old template left (`#000000`, "(e.g., …)").
+**Migration (an old `conductor/4-context/design/` folder).** Run `conductor design migrate`. When the folder holds only the untouched templates it writes nothing: use the brownfield mode instead. It writes DESIGN.md from the old files, drops untouched template sections, and turns each old file into a pointer. Then rewrite each migrated section into the format above, and delete placeholder rows the old template left (`#000000`, "(e.g., …)").
 
 ## Who decides
 

@@ -187,6 +187,10 @@ import { initCommand } from "../src/commands/init.js";
 const g = (dir, ...a) => execFileSync("git", ["-C", dir, ...a], { encoding: "utf8", env: { ...process.env, CONDUCTOR_HOOKS: "off" } }).trim();
 
 /** A git repo holding an OLDER install: current templates with lib.sh edited, committed. */
+// The upgrade commit, wherever it sits: upgrade may follow it with a commit of
+// the waiver line its own hooks logged.
+const upgradeCommit = (dir) => g(dir, "log", "-1", "--format=%H", "--grep=^chore: upgrade Conductor");
+
 async function makeGitInstall() {
   const dir = mkdtempSync(join(tmpdir(), "cond-git-"));
   execFileSync("git", ["-C", dir, "init", "-q"]);
@@ -206,9 +210,22 @@ test("upgrade commits the framework files itself, with the waiver", async () => 
   const { code, stdout } = await runUpgrade(dir);
   assert.equal(code, 0, stdout);
   assert.notEqual(g(dir, "rev-parse", "HEAD"), before, "no commit was made");
-  assert.match(g(dir, "log", "-1", "--format=%s"), new RegExp(`^chore: upgrade Conductor to ${packageVersion()}`));
+  assert.match(g(dir, "log", "-1", "--format=%s", upgradeCommit(dir)), new RegExp(`^chore: upgrade Conductor to ${packageVersion()}`));
   assert.equal(g(dir, "status", "--porcelain", "--", ".agents"), "", "framework files left uncommitted");
   assert.match(stdout, /Push as usual/);
+});
+
+test("upgrade leaves a clean tree: it commits the waiver line its own commit logged", async () => {
+  const dir = await makeGitInstall();
+  // A real ship-log whose newest entry predates the For-you rule: the report
+  // gate used to block committing the waiver line, leaving the repo dirty.
+  writeFileSync(join(dir, "conductor/0-compass/ship-log.md"), "# Ship Log\n\n## 2026-09-16 — Thing\n- **What:** something\n");
+  g(dir, "add", "-A");
+  g(dir, "commit", "-q", "-m", "an old ship-log");
+  const { code, stdout } = await runUpgrade(dir);
+  assert.equal(code, 0, stdout);
+  assert.equal(g(dir, "status", "--porcelain"), "", "upgrade left uncommitted changes");
+  assert.match(readFileSync(join(dir, "conductor/0-compass/ship-log.md"), "utf8"), /Hook waiver \(Protected\): conductor upgrade/);
 });
 
 test("upgrade never sweeps the user's own staged work into its commit", async () => {
@@ -216,7 +233,7 @@ test("upgrade never sweeps the user's own staged work into its commit", async ()
   writeFileSync(join(dir, "mine.txt"), "my work in progress\n");
   g(dir, "add", "mine.txt");
   await runUpgrade(dir);
-  assert.ok(!g(dir, "show", "--name-only", "--format=", "HEAD").split("\n").includes("mine.txt"), "user file was committed");
+  assert.ok(!g(dir, "show", "--name-only", "--format=", upgradeCommit(dir)).split("\n").includes("mine.txt"), "user file was committed");
   assert.match(g(dir, "status", "--porcelain", "--", "mine.txt"), /^A /, "user file is no longer staged");
 });
 
@@ -246,7 +263,7 @@ test("upgrade migrates a tracked CLAUDE.md and GEMINI.md: notes into AGENTS.md, 
   assert.match(agentsMd, /## Notes moved from CLAUDE\.md[\s\S]*Use plan mode for billing\./);
   assert.doesNotMatch(agentsMd, /Notes moved from GEMINI\.md/, "a stub with no user text moves nothing");
   assert.equal(g(dir, "status", "--porcelain", "--", "AGENTS.md", "CLAUDE.md", "GEMINI.md"), "", "the deletions and AGENTS.md were committed");
-  assert.match(g(dir, "show", "--name-status", "--format=", "HEAD"), /D\tCLAUDE\.md/);
+  assert.match(g(dir, "show", "--name-status", "--format=", upgradeCommit(dir)), /D\tCLAUDE\.md/);
 });
 
 test("upgrade keeps every byte of a team-written AGENTS.md, below the framework block", async () => {
@@ -294,7 +311,7 @@ test("R1: the upgrade commit includes the .claude/skills shims it generated, and
 
   const { code, stdout } = await runUpgrade(dir);
   assert.equal(code, 0, stdout);
-  assert.match(g(dir, "log", "-1", "--format=%s"), /^chore: upgrade Conductor/);
+  assert.ok(upgradeCommit(dir), "no upgrade commit");
   assert.equal(g(dir, "status", "--porcelain", "--", ".claude/skills/handoff"), "", "generated shim left uncommitted");
   assert.match(g(dir, "status", "--porcelain", "--", ".claude/skills/my-own"), /^\?\? /, "the user's own skill was swept into the upgrade commit");
 });

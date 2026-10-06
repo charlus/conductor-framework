@@ -30,16 +30,19 @@ const read = (...p) => readFileSync(join(AGENTS, ...p), "utf8");
 const at = () => 0;
 
 describe("D1 — the precedence order", () => {
-  test("security and data integrity, then acceptance criteria, then performance, then design", () => {
+  test("security and data integrity, then acceptance criteria, then architecture, then performance, then design", () => {
     assert.deepEqual(PRECEDENCE, [
       "security-auditor",
       "database-architect",
       "acceptance-criteria",
+      "architect",
       "performance-optimizer",
       "designer",
     ]);
     assert.ok(outranks("security-auditor", "designer"));
     assert.ok(!outranks("designer", "performance-optimizer"));
+    assert.ok(outranks("architect", "performance-optimizer"));
+    assert.ok(!outranks("architect", "acceptance-criteria"));
   });
 });
 
@@ -101,7 +104,7 @@ describe("D2 + R1 — the review skill's conflict and escalation rules", () => {
 
   test("conflicting findings are settled by the author in the D1 order", () => {
     assert.match(SKILL, /## Conflicting findings/);
-    assert.match(SKILL, /security and data integrity.*acceptance criteria.*performance.*design/is);
+    assert.match(SKILL, /security and data integrity.*acceptance criteria.*architecture.*performance.*design/is);
   });
 
   test("the product owner is asked only when every option changes what the user sees or does", () => {
@@ -129,9 +132,10 @@ describe("O1–O4 + D3 — the personas upstream", () => {
     assert.match(spec, /Review Lens[^.]*acceptance criteria/i);
   });
 
-  test("Technical Vision runs the lens pass with the three technical personas", () => {
+  test("Technical Vision runs the lens pass with the Architect and the three specialists", () => {
     const tv = read("workflows", "technical-vision.md");
-    for (const p of ["database-architect", "security-auditor", "performance-optimizer"]) {
+    assert.match(tv, /skills\/architecture-patterns\/SKILL\.md/, "technical-vision never loads architecture-patterns");
+    for (const p of ["architect", "database-architect", "security-auditor", "performance-optimizer"]) {
       assert.match(tv, new RegExp(`personas/${p}\\.md`), `technical-vision does not load ${p}`);
     }
     assert.match(tv, /Lens Pass/);
@@ -141,7 +145,7 @@ describe("O1–O4 + D3 — the personas upstream", () => {
     for (const wf of ["genesis.md", "grand-prd.md"]) {
       const text = read("workflows", wf);
       assert.match(text, /personas\/product-manager\.md/, `${wf} does not load the Product Manager`);
-      assert.doesNotMatch(text, /personas\/(security-auditor|database-architect|performance-optimizer)\.md/,
+      assert.doesNotMatch(text, /personas\/(architect|security-auditor|database-architect|performance-optimizer)\.md/,
         `${wf} brings a technical persona into product discovery`);
     }
   });

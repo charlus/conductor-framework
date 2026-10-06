@@ -108,7 +108,7 @@ echo ""
 echo "4. Personas..."
 
 personas=(
-  "cto" "product-manager" "designer" "conductor-assistant"
+  "cto" "architect" "product-manager" "designer" "conductor-assistant"
   "code-archaeologist" "security-auditor" "database-architect"
   "performance-optimizer" "checker"
 )

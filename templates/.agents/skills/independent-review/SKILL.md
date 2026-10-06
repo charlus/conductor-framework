@@ -54,7 +54,7 @@ Freeze a baseline before the first cycle: the original request, the artifact's i
 
 ## Conflicting findings
 
-The reviewer reads the Review Lens of every persona `conductor personas` listed, so two findings can pull opposite ways: the Security Auditor wants a re-authentication step, the Designer wants no extra step. You are the accountable engineer of a team, and the human is its product owner. Settle the conflict yourself, in this order: **security and data integrity, then acceptance criteria, then performance, then design**. The higher one wins. Record the losing finding as dismissed with `persona` and `overridden_by`; the ledger refuses an override that reverses the order.
+The reviewer reads the Review Lens of every persona `conductor personas` listed, so two findings can pull opposite ways: the Security Auditor wants a re-authentication step, the Designer wants no extra step. You are the accountable engineer of a team, and the human is its product owner. Settle the conflict yourself, in this order: **security and data integrity, then acceptance criteria, then architecture, then performance, then design**. The higher one wins. Record the losing finding as dismissed with `persona` and `overridden_by`; the ledger refuses an override that reverses the order.
 
 Ask the product owner only when **every option changes what the user sees or does** (an extra step, a slower screen, a dropped behaviour). Then it is a product decision: one question, both options in one line each, your recommendation first. Record their answer with `po_decision: true`. A conflict whose resolution the user cannot see is never theirs.
 

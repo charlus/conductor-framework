@@ -429,6 +429,7 @@ Not skills — on-demand reference docs in `.agents/references/`. They carry adv
 | Persona | Trigger | Thinks About |
 |---|---|---|
 | **CTO** | "CTO mode" | Long-term tech strategy, build vs. buy, technical debt |
+| **Architect** | "Architect mode" | Modularity, coupling, portability, failure modes; challenges Technical Vision, triggered by dependency manifests |
 | **Product Manager** | "PM mode" | User value, prioritization, outcomes over outputs |
 | **Designer** | "Designer mode", "Make it look premium" | Visual quality, design systems, `4-context/design/` |
 | **Code Archaeologist** | "Archaeologist mode", "Explain this codebase", "Deepen the architecture" | Legacy code, refactoring strategy, Chesterton's Fence, deep modules / narrow interfaces (drives the `deepen` workflow) |
@@ -438,7 +439,7 @@ Not skills — on-demand reference docs in `.agents/references/`. They carry adv
 | **Checker** | "Checker mode" | Independent skeptical audits, programmatic testing, anti-reward hacking |
 | **Conductor Assistant** | "How does this work?" | Framework navigation, workflow selection, process guidance |
 
-**Domain personas load themselves.** `conductor personas [paths…]` maps the files a change touches to the Designer, Security Auditor, Database Architect and Performance Optimizer, and prints each one's Review Lens. Build loads them per task, the reviewer in Build, Ship and the loop Checker gets the Review Lens lines. A project changes the path rules under `personas` in `conductor.config.json` (`{"designer": {"extensions": [...], "words": [...]}}`, or `false` to switch one off).
+**Domain personas load themselves.** `conductor personas [paths…]` maps the files a change touches to the Architect, Designer, Security Auditor, Database Architect and Performance Optimizer, and prints each one's Review Lens. Build loads them per task, the reviewer in Build, Ship and the loop Checker gets the Review Lens lines. A project changes the path rules under `personas` in `conductor.config.json` (`{"designer": {"extensions": [...], "words": [...]}}`, or `false` to switch one off).
 
 ---
 

@@ -139,6 +139,8 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
 
 **Announce:** *"We're in Phase 3: Architecture. I'll propose the structure and we'll validate it against the UX flows."*
 
+**Patterns:** read `.agents/skills/architecture-patterns/SKILL.md` and the files its content map names for this decision (pattern selection, trade-off analysis) before you propose a structure.
+
 **Method — one proposal, or a judge panel?** Before drafting, decide how to reach the architecture:
 * **Wide, hard-to-reverse solution space** (more than one structural shape a competent engineer would defend, and the choice is expensive to undo) → run `.agents/skills/judge-panel/SKILL.md`: generate ~3 candidate architectures from different angles (simplest-that-works, risk-first, leverage-first), score them with independent judges against fit / simplicity (deletion test) / risk / evolvability, then synthesize the winner and graft the best of the runners-up. The synthesized architecture then feeds the steps below.
 * **Obvious shape** (CRUD over a boring stack; you'd struggle to name a serious second candidate) → skip the panel and propose the single architecture directly. Don't manufacture alternatives.
@@ -225,7 +227,7 @@ You are the Conductor wearing the **Architect hat**. You think in systems — bo
     * Cross-reference every screen from UX/UI Brief — does the data model serve it?
     * If gaps: go back and fill them before saving
 
-3.  **Lens Pass:** Run Grilling's Lens Pass (`.agents/skills/grilling/SKILL.md`) with `.agents/personas/database-architect.md` on the Data Model, `.agents/personas/security-auditor.md` on the security model, and `.agents/personas/performance-optimizer.md` on the Non-Functional Requirements. Add `.agents/personas/cto.md` when the Tech Stack adds a new vendor, service or framework. Skip a persona whose section is empty for this project, and say so. Their decisions go in a **Lens decisions** section of the document.
+3.  **Lens Pass:** Run Grilling's Lens Pass (`.agents/skills/grilling/SKILL.md`) with `.agents/personas/architect.md` first, on the whole architecture (modularity, coupling, portability, failure modes), then `.agents/personas/database-architect.md` on the Data Model, `.agents/personas/security-auditor.md` on the security model, and `.agents/personas/performance-optimizer.md` on the Non-Functional Requirements. Add `.agents/personas/cto.md` when the Tech Stack adds a new vendor, service or framework. Skip a persona whose section is empty for this project, and say so. Their decisions go in a **Lens decisions** section of the document.
 
 4.  **Independent Review (Fresh-Context Gate):**
     * Run `.agents/skills/independent-review/SKILL.md` with the **Technical Vision** lens: a reviewer that did not author the architecture confirms it supports every Epic and serves every screen, that no complexity is unjustified (deep-module / deletion test), that the ADRs are sound and the data model consistent, and that the named risks are the real ones.

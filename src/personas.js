@@ -9,6 +9,15 @@
 // in conductor.config.json.
 
 export const DEFAULT_RULES = {
+  // A dependency manifest is where coupling and lock-in enter a codebase.
+  architect: {
+    extensions: [],
+    words: [],
+    files: ["package.json", "pyproject.toml", "requirements.txt", "pipfile", "setup.py", "setup.cfg",
+      "go.mod", "cargo.toml", "pom.xml", "build.gradle", "build.gradle.kts", "gemfile", "composer.json",
+      "pubspec.yaml"],
+    context: [".agents/skills/architecture-patterns/SKILL.md"],
+  },
   designer: {
     extensions: ["css", "scss", "sass", "less", "styl", "vue", "svelte", "html", "htm", "jsx", "tsx"],
     words: ["component", "components", "page", "pages", "layout", "layouts", "ui", "style", "styles",
@@ -45,6 +54,7 @@ export const PRECEDENCE = [
   "security-auditor",
   "database-architect",
   "acceptance-criteria",
+  "architect",
   "performance-optimizer",
   "designer",
 ];
@@ -79,7 +89,7 @@ export function resolveRules(config) {
   for (const [name, rule] of Object.entries(DEFAULT_RULES)) {
     const o = overrides[name];
     if (o === false) continue;
-    rules[name] = o ? { extensions: [], words: [], context: rule.context, ...o } : rule;
+    rules[name] = o ? { extensions: [], words: [], files: [], context: rule.context, ...o } : rule;
   }
   return rules;
 }
@@ -90,9 +100,11 @@ export function matchPersonas(paths, rules) {
   for (const [name, rule] of Object.entries(rules)) {
     const exts = new Set(rule.extensions);
     const words = new Set(rule.words);
+    const basenames = new Set(rule.files ?? []);
     const files = paths.filter((p) => {
       const ext = extensionOf(p);
       if (IGNORED_EXTENSIONS.has(ext)) return false;
+      if (basenames.has(p.split("/").pop().toLowerCase())) return true;
       return exts.has(ext) || pathWords(p).some((w) => words.has(w));
     });
     if (files.length) out.push({ name, files, context: rule.context });

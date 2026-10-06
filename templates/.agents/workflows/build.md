@@ -75,7 +75,7 @@ If either is missing:
     * **Eval surface (Eval-Driven Law):** If any task calls an LLM provider (`openai`, `anthropic`, `langchain`, …), that feature's non-deterministic output needs an **evalset**, not just a test — load the `writing-evals` skill (`.agents/skills/writing-evals/SKILL.md`) for the three grading modes. The `pre-commit` hook enforces this: provider-calling code staged without an eval is blocked. Fold the evalset into that task's RED step alongside its test.
 
 6.  **Domain personas:** Run `conductor personas <every file the plan names>`. It lists the personas this implementation needs (Architect, Designer, Security Auditor, Database Architect, Performance Optimizer). Note them in the tracker header.
-    * **Design system first:** if the Designer is listed and `conductor/4-context/design/design-system.md` still holds only template placeholders, load the Designer persona and `.agents/skills/frontend-design/SKILL.md`, propose the design system (colours, typography, spacing, radius, core components), and save it after the human confirms. Every UI task builds on it. Without it, each screen invents its own style.
+    * **Design system first:** if the Designer is listed and there is no `DESIGN.md` at the code repository root, run `.agents/skills/design-system/SKILL.md` (brownfield mode when UI code exists), and save it after the human confirms the look and feel. Every UI task builds on it. Without it, each screen invents its own style.
 
 7.  **Confirm:** *"Context loaded. [X] tasks identified, test strategy set. Ready to build?"*
     * Wait for user confirmation before proceeding.

@@ -22,7 +22,7 @@ export const DEFAULT_RULES = {
     extensions: ["css", "scss", "sass", "less", "styl", "vue", "svelte", "html", "htm", "jsx", "tsx"],
     words: ["component", "components", "page", "pages", "layout", "layouts", "ui", "style", "styles",
       "screen", "screens", "widget", "widgets", "theme", "themes", "tailwind"],
-    context: [".agents/skills/frontend-design/SKILL.md", "conductor/4-context/design/"],
+    context: ["DESIGN.md", ".agents/skills/design-system/SKILL.md", ".agents/skills/frontend-design/SKILL.md"],
   },
   "security-auditor": {
     extensions: [],

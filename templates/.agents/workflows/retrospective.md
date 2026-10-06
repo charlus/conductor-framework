@@ -71,7 +71,7 @@ For each answer, capture a concrete lesson — not vague feelings.
 
 ### Context Updates
 * **Technical context:** Update `conductor/4-context/technical/` with new patterns, conventions, or stack decisions
-* **Design context:** Update `conductor/4-context/design/` if new design patterns emerged
+* **Design context:** Update `DESIGN.md` if new design patterns emerged (`.agents/skills/design-system/SKILL.md`)
 * **Product context:** Update `conductor/4-context/product/` if user insights were gained
 
 ### Process Updates

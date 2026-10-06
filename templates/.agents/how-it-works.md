@@ -78,7 +78,6 @@ The Product Map, organized by domain. Each area has three standard files, kept a
 ### 4-context
 Tribal knowledge specific to your product — not the framework's, yours.
 - **identity/** — Problem, Vision, Target User, Brand Voice
-- **design/** — Design System, UI Components, Brand Assets
 - **technical/** — Tech Stack, Architecture, Coding Patterns
 - **product/** — Growth Strategy, Future Plans
 - **meta/** — Decision Log, Glossary
@@ -387,6 +386,7 @@ The reusable "how" that discovery/blueprint/spec workflows load instead of re-im
 |---|---|
 | `systematic-debugging` | 4-phase root-cause debugging — build a command that goes red on *this* bug first, then rank falsifiable hypotheses |
 | `frontend-design` | Design thinking for web UI |
+| `design-system` | Create, extract or maintain `DESIGN.md` at the code repository root (`conductor design migrate` moves an old `4-context/design/` folder into it) |
 | `i18n-localization` | Internationalization and translation management |
 | `git-worktrees` | Isolated parallel development |
 | `architecture-patterns` | Architectural trade-off analysis and ADRs |
@@ -431,7 +431,7 @@ Not skills — on-demand reference docs in `.agents/references/`. They carry adv
 | **CTO** | "CTO mode" | Long-term tech strategy, build vs. buy, technical debt |
 | **Architect** | "Architect mode" | Modularity, coupling, portability, failure modes; challenges Technical Vision, triggered by dependency manifests |
 | **Product Manager** | "PM mode" | User value, prioritization, outcomes over outputs |
-| **Designer** | "Designer mode", "Make it look premium" | Visual quality, design systems, `4-context/design/` |
+| **Designer** | "Designer mode", "Make it look premium" | Visual quality, design systems, `DESIGN.md` |
 | **Code Archaeologist** | "Archaeologist mode", "Explain this codebase", "Deepen the architecture" | Legacy code, refactoring strategy, Chesterton's Fence, deep modules / narrow interfaces (drives the `deepen` workflow) |
 | **Security Auditor** | "Security mode", "Check security" | OWASP Top 10, supply chain, zero trust, pentest methodology |
 | **Database Architect** | "Database mode", "Design the schema" | Schema design, query optimization, migrations |

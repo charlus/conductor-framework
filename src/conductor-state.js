@@ -23,6 +23,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { harvestWorkQueue, parseInbox } from "./loop/harvester.js";
 import { gateStateFrom, NONE } from "./verify-config.js";
+import { ignoredNestedRepos } from "./nested-repos.js";
 import {
   renderMarkdown,
   renderInline,
@@ -543,9 +544,32 @@ function guardsIn(raw) {
  * `core.hooksPath` resolves to `.agents/hooks` and both entry scripts are
  * executable. Anything less and every law is prose.
  *
- * @returns {Promise<{hooks: "on"|"off"|"custom"|"missing"|"not-git", customPath?: string, guards: {bypass: boolean, factGate: boolean}}>}
+ * In the outer layout, `nested` lists each nested code repository and whether
+ * its core.hooksPath points at this `.agents/hooks`: "on" for the outer
+ * repository alone guards no code.
+ *
+ * @returns {Promise<{hooks: "on"|"off"|"custom"|"missing"|"not-git", customPath?: string, nested?: Array<{repo: string, hooks: "on"|"off"|"custom"}>, guards: {bypass: boolean, factGate: boolean}}>}
  */
 export async function readGateWiring(root) {
+  const wiring = await readOwnGateWiring(root);
+  if (wiring.hooks === "not-git") return wiring;
+  const nested = [];
+  const ours = join(root, HOOKS_REL);
+  for (const entry of await ignoredNestedRepos(root)) {
+    const repo = entry.replace(/\/+$/, "");
+    let path = "";
+    try {
+      ({ stdout: path } = await execFileP("git", ["config", "--local", "--get", "core.hooksPath"], { cwd: join(root, repo) }));
+    } catch {
+      path = "";
+    }
+    path = path.trim().replace(/\/+$/, "");
+    nested.push({ repo, hooks: path === ours ? "on" : path ? "custom" : "off" });
+  }
+  return nested.length ? { ...wiring, nested } : wiring;
+}
+
+async function readOwnGateWiring(root) {
   const settings = await Promise.all(
     ["settings.json", "settings.local.json"].map((f) => readIfPresent(join(root, ".claude", f))),
   );

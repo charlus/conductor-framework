@@ -123,7 +123,11 @@ function gatesLine(gates, c) {
       const guards = names.length
         ? `agent guard${names.length > 1 ? "s" : ""}: ${names.join(", ")}`
         : "agent guards: none (opt-in)";
-      return `on · commit + push · ${c(guards, "dim")}`;
+      const unguarded = (gates.nested || []).filter((n) => n.hooks !== "on").map((n) => `${n.repo}/`);
+      if (unguarded.length)
+        return c(`code NOT gated in ${unguarded.join(", ")} · fix: conductor install-hooks`, "red");
+      const scope = gates.nested?.length ? ` (${gates.nested.map((n) => `${n.repo}/`).join(", ")} too)` : "";
+      return `on · commit + push${scope} · ${c(guards, "dim")}`;
     }
     default:
       return c("OFF — commits and pushes are not checked · fix: conductor install-hooks", "red");

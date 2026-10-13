@@ -80,6 +80,14 @@ conductor install-hooks --uninstall
 
 If you already use a custom `core.hooksPath`, install-hooks won't override it — wire these in yourself.
 
+**Outer layout** (Conductor in an outer folder, the team's code in a gitignored nested repository): install-hooks also sets each nested repository's `core.hooksPath` to this folder by absolute path, in local git config only. The gates then judge the code commits. The library, the config and the ship-log come from the outer repository, and the library from its *committed* copy, which no commit in the code repository can change. Each code repository has its own push check, in `conductor.config.json`:
+
+```json
+{ "verify": "none", "repos": { "website-cms": { "verify": "npm test", "eval": "npm run eval" } } }
+```
+
+Set it with `conductor verify --repo website-cms --set "npm test"`. A nested repository that already has a `core.hooksPath` or live files in `.git/hooks` is left alone and reported, and `conductor status` says which code is not gated. The path is absolute: run `conductor install-hooks` again after moving the folder.
+
 ## Configuring verification
 
 `pre-push` (and the optional Stop hook) run your **verification command**. One command reads and sets it:

@@ -14,20 +14,31 @@
 // reach for CONDUCTOR_SKIP_VERIFY.
 
 import { spawn } from "node:child_process";
+import { statSync } from "node:fs";
+import { join } from "node:path";
 import { suggestVerifyCommand } from "../detect.js";
 import { CONFIG_FILE, NONE, readGateState, writeVerify } from "../verify-config.js";
 
 function parseArgs(args) {
-  const opts = { dir: null, set: null, none: false, detect: false, run: true };
+  const opts = { dir: null, repo: null, set: null, none: false, detect: false, run: true };
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg === "--set") opts.set = args[++i] ?? "";
     else if (arg === "--none" || arg === "--off") opts.none = true;
     else if (arg === "--detect") opts.detect = true;
     else if (arg === "--no-run") opts.run = false;
+    else if (arg === "--repo") opts.repo = (args[++i] ?? "").replace(/\/+$/, "");
     else if (!arg.startsWith("-") && !opts.dir) opts.dir = arg;
   }
   return opts;
+}
+
+function isDirectory(path) {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 /** Run a command exactly as the hook will: through a shell, at the repo root. */
@@ -54,7 +65,7 @@ function showState(gate, out) {
         `  Source:    ${gate.source}\n` +
         "  Every `git push` runs this and blocks if it fails.\n" +
         '\n  Change it:    conductor verify --set "<command>"\n' +
-        "  Prove it now: conductor verify --run\n",
+        "  Prove it now: run the command above, or set it again (it runs once first)\n",
     );
     return;
   }
@@ -71,9 +82,17 @@ export async function verifyCommand(args, context) {
   const opts = parseArgs(args);
   const root = opts.dir ?? context.cwd;
   const { stdout, stderr } = context;
+  // Outer layout: the gate of one nested code repository, stored as
+  // repos.<dir>.verify and run inside that repository.
+  const repo = opts.repo || null;
+  const workDir = repo ? join(root, repo) : root;
+  if (repo !== null && (repo.includes("/") || !isDirectory(workDir))) {
+    stderr.write(`\n  --repo needs a code repository folder at the top of this project; '${opts.repo}' is not one.\n`);
+    return 1;
+  }
 
   if (opts.none) {
-    await writeVerify(root, NONE);
+    await writeVerify(root, NONE, repo);
     stdout.write(
       `\n  Push gate: OFF, recorded in ${CONFIG_FILE}.\n` +
         "  Conductor will stop asking. `git push` verifies nothing here.\n" +
@@ -84,7 +103,7 @@ export async function verifyCommand(args, context) {
 
   let command = opts.set;
   if (opts.detect) {
-    command = await suggestVerifyCommand(root);
+    command = await suggestVerifyCommand(workDir);
     if (!command) {
       stderr.write(
         "\n  Nothing derivable from this project's files.\n" +
@@ -97,7 +116,7 @@ export async function verifyCommand(args, context) {
   }
 
   if (command === null) {
-    showState(await readGateState(root), stdout);
+    showState(await readGateState(root, repo), stdout);
     return 0;
   }
 
@@ -108,7 +127,7 @@ export async function verifyCommand(args, context) {
 
   if (opts.run) {
     stdout.write(`\n  Running it once to prove it works: ${command}\n\n`);
-    const code = await runOnce(command, root);
+    const code = await runOnce(command, workDir);
     if (code !== 0) {
       stderr.write(
         `\n  ✗ Exit ${code}. Nothing was written — a gate that cannot pass blocks every push.\n` +
@@ -120,7 +139,7 @@ export async function verifyCommand(args, context) {
     stdout.write("\n  ✓ Passed.\n");
   }
 
-  const { created } = await writeVerify(root, command);
+  const { created } = await writeVerify(root, command, repo);
   stdout.write(
     `  Push gate: ${command}\n` +
       `  ${created ? "Created" : "Updated"} ${CONFIG_FILE}. Every \`git push\` runs it from now on.\n`,

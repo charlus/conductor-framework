@@ -78,12 +78,25 @@ async function readIfPresent(path) {
   }
 }
 
-/** `gateStateFrom` for a directory on disk. */
-export async function readGateState(targetDir) {
-  return gateStateFrom(
-    await readIfPresent(join(targetDir, CONFIG_FILE)),
-    await readIfPresent(join(targetDir, "package.json")),
-  );
+/**
+ * `gateStateFrom` for a directory on disk. With `repo` (outer layout), the gate
+ * of that nested code repository: `repos.<repo>.verify`, then its own
+ * package.json, the same order as lib.sh `conductor_verify_cmd`.
+ */
+export async function readGateState(targetDir, repo = null) {
+  if (!repo) {
+    return gateStateFrom(
+      await readIfPresent(join(targetDir, CONFIG_FILE)),
+      await readIfPresent(join(targetDir, "package.json")),
+    );
+  }
+  let verify;
+  try {
+    verify = JSON.parse((await readIfPresent(join(targetDir, CONFIG_FILE))) ?? "{}")?.repos?.[repo]?.verify;
+  } catch {
+    verify = undefined;
+  }
+  return gateStateFrom(JSON.stringify({ verify }), await readIfPresent(join(targetDir, repo, "package.json")));
 }
 
 /**
@@ -95,7 +108,7 @@ export async function readGateState(targetDir) {
  *
  * @returns {Promise<{created: boolean, path: string}>}
  */
-export async function writeVerify(targetDir, command) {
+export async function writeVerify(targetDir, command, repo = null) {
   const cfgPath = join(targetDir, CONFIG_FILE);
   const raw = await readIfPresent(cfgPath);
   let cfg = {};
@@ -105,7 +118,12 @@ export async function writeVerify(targetDir, command) {
   } catch {
     cfg = {};
   }
-  cfg.verify = command;
+  if (repo) {
+    const repos = cfg.repos && typeof cfg.repos === "object" ? cfg.repos : {};
+    cfg.repos = { ...repos, [repo]: { ...(repos[repo] || {}), verify: command } };
+  } else {
+    cfg.verify = command;
+  }
   await writeFile(cfgPath, `${JSON.stringify(cfg, null, 2)}\n`);
   return { created: raw === null, path: cfgPath };
 }

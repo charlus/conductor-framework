@@ -15,6 +15,31 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [ -z "$ROOT" ] && exit 0
 [ "${CONDUCTOR_HOOKS:-on}" = "off" ] && exit 0
 
+# ---- The project root: where .agents/, conductor/ and the config live -------
+# It is ROOT, except in the outer layout. There a gitignored nested code
+# repository has core.hooksPath set to the outer .agents/hooks by absolute path
+# (`conductor install-hooks`). The gates then judge the code repository's diff,
+# and the library, the config and the ship-log come from the outer repository.
+# The library is read from the outer repository's COMMITTED copy, which no
+# commit or push in the code repository can rewrite.
+PROJECT_ROOT="$ROOT"
+NESTED_REPO=""
+conductor_find_project_root() {
+  local home common main rel
+  home="$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd -P)" || return 0
+  [ -n "$home" ] && [ "$home" != "$(cd "$ROOT" && pwd -P)" ] || return 0
+  [ -d "$home/.agents/hooks" ] && [ -d "$home/conductor" ] || return 0
+  common="$(git -C "$ROOT" rev-parse --git-common-dir 2>/dev/null)" || return 0
+  case "$common" in /*) ;; *) common="$ROOT/$common" ;; esac
+  main="$(cd "$common/.." 2>/dev/null && pwd -P)" || return 0
+  rel="${main#"$home"/}"
+  [ "$rel" != "$main" ] || return 0             # not inside the project
+  case "$rel" in */*|.git|"") return 0 ;; esac  # top-level directories only, never .git/modules
+  PROJECT_ROOT="$home"
+  NESTED_REPO="$rel"
+}
+conductor_find_project_root
+
 # ---- Load the shared library from a copy the change cannot rewrite ----------
 # Both hooks source lib.sh, which makes it the single point that switches every
 # gate off. Two versions of this got it wrong, both found by independent review:
@@ -35,9 +60,9 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 # loop's Checker, not this file.
 conductor_load_lib() {
   local ref="$1" tmp
-  if [ -n "$ref" ] && git -C "$ROOT" cat-file -e "$ref:.agents/hooks/lib.sh" 2>/dev/null; then
+  if [ -n "$ref" ] && git -C "$PROJECT_ROOT" cat-file -e "$ref:.agents/hooks/lib.sh" 2>/dev/null; then
     tmp="$(mktemp 2>/dev/null)" || return 1
-    if ! git -C "$ROOT" show "$ref:.agents/hooks/lib.sh" > "$tmp" 2>/dev/null; then
+    if ! git -C "$PROJECT_ROOT" show "$ref:.agents/hooks/lib.sh" > "$tmp" 2>/dev/null; then
       rm -f "$tmp"
       return 1
     fi
@@ -46,9 +71,9 @@ conductor_load_lib() {
     rm -f "$tmp"
     return 0
   fi
-  [ -f "$ROOT/.agents/hooks/lib.sh" ] || return 1
+  [ -f "$PROJECT_ROOT/.agents/hooks/lib.sh" ] || return 1
   # shellcheck source=/dev/null
-  . "$ROOT/.agents/hooks/lib.sh"
+  . "$PROJECT_ROOT/.agents/hooks/lib.sh"
 }
 
 # Every helper `$1` needs, or the names that are missing. A committed lib.sh
@@ -65,13 +90,13 @@ conductor_missing_helpers() {
 # Minimal ship-log writer for the one path where lib.sh could not be loaded,
 # so even that waiver is recorded rather than silent.
 conductor_log_waiver_fallback() {
-  local log="$ROOT/conductor/0-compass/ship-log.md"
+  local log="$PROJECT_ROOT/conductor/0-compass/ship-log.md"
   [ -f "$log" ] || return 0
   printf -- '- [%s] Hook waiver (%s): %s\n' "$(date '+%Y-%m-%d %H:%M')" "$1" "$2" >> "$log"
 }
 
 TRUSTED_REF=""
-git -C "$ROOT" rev-parse --verify -q HEAD >/dev/null 2>&1 && TRUSTED_REF="HEAD"
+git -C "$PROJECT_ROOT" rev-parse --verify -q HEAD >/dev/null 2>&1 && TRUSTED_REF="HEAD"
 
 REQUIRED="conductor_is_test_file conductor_is_impl_file conductor_is_eval_file conductor_is_llm_feature_file conductor_is_brief_doc conductor_has_brief_check conductor_is_ship_log conductor_newest_entry_has_for_you conductor_deleted_test_files conductor_staged_test_paths conductor_added_skip_markers conductor_assertion_delta conductor_protected_changes conductor_log_waiver"
 lib_ok=1
@@ -82,7 +107,7 @@ if [ "$lib_ok" = "0" ] || [ -n "$missing" ]; then
   # Enforcement is installed but its library is unavailable or incomplete: fail
   # CLOSED. Failing open here is exactly the hole — it is what let one deleted
   # file disable every gate at once.
-  if [ -n "$TRUSTED_REF" ] && git -C "$ROOT" cat-file -e "HEAD:.agents/hooks/lib.sh" 2>/dev/null; then
+  if [ -n "$TRUSTED_REF" ] && git -C "$PROJECT_ROOT" cat-file -e "HEAD:.agents/hooks/lib.sh" 2>/dev/null; then
     if [ -n "${CONDUCTOR_NO_PROTECTED:-}" ]; then
       conductor_log_waiver_fallback "Protected" "$CONDUCTOR_NO_PROTECTED"
       echo "⚠️  Conductor enforcement library unavailable — WAIVED: $CONDUCTOR_NO_PROTECTED"
@@ -159,7 +184,7 @@ blocked=0
 # ---- Test-Driven Law ------------------------------------------------------
 if [ "$impl" = "1" ] && [ "$tests" = "0" ]; then
   if [ -n "${CONDUCTOR_NO_TEST:-}" ]; then
-    conductor_log_waiver "$ROOT" "TDD" "$CONDUCTOR_NO_TEST"
+    conductor_log_waiver "$PROJECT_ROOT" "TDD" "$CONDUCTOR_NO_TEST"
     echo "⚠️  Conductor Test-Driven Law WAIVED: $CONDUCTOR_NO_TEST"
     echo "    (logged to conductor/0-compass/ship-log.md)"
   else
@@ -201,7 +226,7 @@ fi
 
 if [ -n "$boundary_why" ]; then
   if [ -n "${CONDUCTOR_NO_BOUNDARY:-}" ]; then
-    conductor_log_waiver "$ROOT" "Boundary" "$CONDUCTOR_NO_BOUNDARY"
+    conductor_log_waiver "$PROJECT_ROOT" "Boundary" "$CONDUCTOR_NO_BOUNDARY"
     echo "⚠️  Conductor Goodhart boundary WAIVED: $CONDUCTOR_NO_BOUNDARY"
     echo "    (logged to conductor/0-compass/ship-log.md)"
   else
@@ -232,7 +257,7 @@ done <<< "$(conductor_protected_changes "$ROOT")"
 
 if [ -n "$protected_files" ]; then
   if [ -n "${CONDUCTOR_NO_PROTECTED:-}" ]; then
-    conductor_log_waiver "$ROOT" "Protected" "$CONDUCTOR_NO_PROTECTED"
+    conductor_log_waiver "$PROJECT_ROOT" "Protected" "$CONDUCTOR_NO_PROTECTED"
     echo "⚠️  Conductor protected paths WAIVED: $CONDUCTOR_NO_PROTECTED"
     echo "    (logged to conductor/0-compass/ship-log.md)"
   else
@@ -257,7 +282,7 @@ fi
 # ---- Eval-Driven Law ------------------------------------------------------
 if [ "$llm" = "1" ] && [ "$evals" = "0" ]; then
   if [ -n "${CONDUCTOR_NO_EVAL:-}" ]; then
-    conductor_log_waiver "$ROOT" "Eval" "$CONDUCTOR_NO_EVAL"
+    conductor_log_waiver "$PROJECT_ROOT" "Eval" "$CONDUCTOR_NO_EVAL"
     echo "⚠️  Conductor Eval-Driven Law WAIVED: $CONDUCTOR_NO_EVAL"
     echo "    (logged to conductor/0-compass/ship-log.md)"
   else
@@ -282,7 +307,7 @@ fi
 # ---- Outward Rigour: the brief check ---------------------------------------
 if [ "$brief" = "1" ]; then
   if [ -n "${CONDUCTOR_NO_BRIEF:-}" ]; then
-    conductor_log_waiver "$ROOT" "Brief" "$CONDUCTOR_NO_BRIEF"
+    conductor_log_waiver "$PROJECT_ROOT" "Brief" "$CONDUCTOR_NO_BRIEF"
     echo "⚠️  Conductor brief check WAIVED: $CONDUCTOR_NO_BRIEF"
     echo "    (logged to conductor/0-compass/ship-log.md)"
   else
@@ -310,7 +335,7 @@ fi
 # ---- The report shape: what the human actually reads ----------------------
 if [ "$report" = "1" ]; then
   if [ -n "${CONDUCTOR_NO_REPORT:-}" ]; then
-    conductor_log_waiver "$ROOT" "Report" "$CONDUCTOR_NO_REPORT"
+    conductor_log_waiver "$PROJECT_ROOT" "Report" "$CONDUCTOR_NO_REPORT"
     echo "⚠️  Conductor report shape WAIVED: $CONDUCTOR_NO_REPORT"
     echo "    (logged to conductor/0-compass/ship-log.md)"
   else

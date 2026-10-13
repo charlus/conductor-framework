@@ -3,6 +3,7 @@ import { constants as fsConstants } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { join, resolve } from "node:path";
+import { ignoredNestedRepos } from "../nested-repos.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -37,9 +38,74 @@ async function git(args, cwd) {
   }
 }
 
+/** Hook files in the repository's own hooks folder that git would run (not `*.sample`). */
+async function liveGitHooks(repoDir) {
+  const dir = await git(["rev-parse", "--path-format=absolute", "--git-path", "hooks"], repoDir);
+  if (!dir.ok) return [];
+  let names;
+  try {
+    names = await readdir(dir.stdout);
+  } catch {
+    return [];
+  }
+  return names.filter((n) => !n.endsWith(".sample"));
+}
+
+/**
+ * The outer layout: each gitignored nested code repository gets core.hooksPath
+ * set to the outer `.agents/hooks` by absolute path, so the gates judge the
+ * code commits too. The hooks then read the library, the config ("repos") and
+ * the ship-log from the outer repository. Local git config only: nothing is
+ * committed to the team's repository. A repository with its own hooks (a
+ * foreign hooksPath, or live files in .git/hooks) is left alone and reported.
+ *
+ * @returns {Promise<Array<{repo: string, state: "wired"|"unwired"|"custom"|"own-hooks", detail?: string}>>}
+ */
+export async function wireNestedRepos(targetDir, { uninstall = false } = {}) {
+  const ours = join(resolve(targetDir), HOOKS_REL);
+  const results = [];
+  for (const entry of await ignoredNestedRepos(targetDir)) {
+    const repo = entry.replace(/\/+$/, "");
+    const dir = join(targetDir, repo);
+    const current = await git(["config", "--local", "--get", "core.hooksPath"], dir);
+    const path = current.ok ? current.stdout.replace(/\/+$/, "") : "";
+    if (uninstall) {
+      if (path === ours) await git(["config", "--local", "--unset", "core.hooksPath"], dir);
+      results.push({ repo, state: "unwired" });
+    } else if (path && path !== ours) {
+      results.push({ repo, state: "custom", detail: path });
+    } else if (!path && (await liveGitHooks(dir)).length) {
+      results.push({ repo, state: "own-hooks", detail: (await liveGitHooks(dir)).join(", ") });
+    } else {
+      const set = path === ours ? { ok: true } : await git(["config", "--local", "core.hooksPath", ours], dir);
+      results.push({ repo, state: set.ok ? "wired" : "unwired" });
+    }
+  }
+  return results;
+}
+
+function reportNested(results, stdout) {
+  for (const r of results) {
+    if (r.state === "wired") stdout.write(`✅ ${r.repo}/: code commits and pushes are gated (core.hooksPath → outer ${HOOKS_REL}).\n`);
+    else if (r.state === "custom")
+      stdout.write(`⚠️  ${r.repo}/: core.hooksPath is already '${r.detail}'. Left as-is, so its code is NOT gated.\n`);
+    else if (r.state === "own-hooks")
+      stdout.write(
+        `⚠️  ${r.repo}/: has its own git hooks (${r.detail}). Left as-is, so its code is NOT gated.\n` +
+          `   To gate it anyway: git -C ${r.repo} config core.hooksPath <this folder>/${HOOKS_REL}\n`,
+      );
+  }
+  if (results.some((r) => r.state === "wired"))
+    stdout.write(
+      `   Set each repository's push check in conductor.config.json: conductor verify --repo <dir> --set "<command>".\n` +
+        "   The path is absolute: run `conductor install-hooks` again if you move this folder.\n",
+    );
+}
+
 /**
  * Install (or uninstall) Conductor's deterministic git hooks by pointing
  * git's core.hooksPath at .agents/hooks. Never clobbers a foreign hooksPath.
+ * In the outer layout, the nested code repositories are wired too.
  */
 export async function installHooksCommand(args, { cwd, stdout, stderr }) {
   const uninstall = args.includes("--uninstall");
@@ -68,6 +134,7 @@ export async function installHooksCommand(args, { cwd, stdout, stderr }) {
     } else {
       stdout.write("ℹ️  Conductor hooks were not the active hooksPath; nothing changed.\n");
     }
+    for (const r of await wireNestedRepos(targetDir, { uninstall: true })) stdout.write(`✅ ${r.repo}/: hooks unwired.\n`);
     return 0;
   }
 
@@ -89,6 +156,7 @@ export async function installHooksCommand(args, { cwd, stdout, stderr }) {
         `   To use Conductor's hooks, wire them into that path, or run:\n` +
         `     git config --local core.hooksPath ${HOOKS_REL}\n`
     );
+    reportNested(await wireNestedRepos(targetDir), stdout);
     return 0;
   }
 
@@ -104,5 +172,6 @@ export async function installHooksCommand(args, { cwd, stdout, stderr }) {
     `✅ Conductor enforcement hooks enabled (core.hooksPath → ${HOOKS_REL}): ${wired.join(", ")}\n` +
       `   Test-Driven Law on commit, Verification Iron Law on push. Bypass is logged; see ${HOOKS_REL}/README.md.\n`
   );
+  reportNested(await wireNestedRepos(targetDir), stdout);
   return 0;
 }

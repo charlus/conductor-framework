@@ -10,11 +10,36 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [ -z "$ROOT" ] && exit 0
 [ "${CONDUCTOR_HOOKS:-on}" = "off" ] && exit 0
 
+# ---- The project root: where .agents/, conductor/ and the config live -------
+# It is ROOT, except in the outer layout. There a gitignored nested code
+# repository has core.hooksPath set to the outer .agents/hooks by absolute path
+# (`conductor install-hooks`). The gates then judge the code repository's diff,
+# and the library, the config and the ship-log come from the outer repository.
+# The library is read from the outer repository's COMMITTED copy, which no
+# commit or push in the code repository can rewrite.
+PROJECT_ROOT="$ROOT"
+NESTED_REPO=""
+conductor_find_project_root() {
+  local home common main rel
+  home="$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd -P)" || return 0
+  [ -n "$home" ] && [ "$home" != "$(cd "$ROOT" && pwd -P)" ] || return 0
+  [ -d "$home/.agents/hooks" ] && [ -d "$home/conductor" ] || return 0
+  common="$(git -C "$ROOT" rev-parse --git-common-dir 2>/dev/null)" || return 0
+  case "$common" in /*) ;; *) common="$ROOT/$common" ;; esac
+  main="$(cd "$common/.." 2>/dev/null && pwd -P)" || return 0
+  rel="${main#"$home"/}"
+  [ "$rel" != "$main" ] || return 0             # not inside the project
+  case "$rel" in */*|.git|"") return 0 ;; esac  # top-level directories only, never .git/modules
+  PROJECT_ROOT="$home"
+  NESTED_REPO="$rel"
+}
+conductor_find_project_root
+
 # The fingerprint of the pre-commit released WITH this pre-push. An edit to
 # pre-commit that lands on exactly this content is an upgrade, not a neutering,
 # and needs no waiver at push. Forging a match means editing pre-push as well —
 # both entry scripts, the stated limit. Pinned by test/hooks-registry-drift.test.js.
-CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256="a4cb60533f1a3da177e70e114353e0c67e925b71c1e57e5b54e0fab9517fd50e"
+CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256="0ad85318ea2f3405fe8b12b485e8e4694cef5e532e934518cb1e6e1d555ff138"
 
 # git feeds one line per pushed ref: <local ref> <local sha> <remote ref> <remote sha>.
 PUSH_LINES="$(cat)"
@@ -40,9 +65,9 @@ ZERO="0000000000000000000000000000000000000000"
 # loop's Checker, not this file.
 conductor_load_lib() {
   local ref="$1" tmp
-  if [ -n "$ref" ] && git -C "$ROOT" cat-file -e "$ref:.agents/hooks/lib.sh" 2>/dev/null; then
+  if [ -n "$ref" ] && git -C "$PROJECT_ROOT" cat-file -e "$ref:.agents/hooks/lib.sh" 2>/dev/null; then
     tmp="$(mktemp 2>/dev/null)" || return 1
-    if ! git -C "$ROOT" show "$ref:.agents/hooks/lib.sh" > "$tmp" 2>/dev/null; then
+    if ! git -C "$PROJECT_ROOT" show "$ref:.agents/hooks/lib.sh" > "$tmp" 2>/dev/null; then
       rm -f "$tmp"
       return 1
     fi
@@ -51,9 +76,9 @@ conductor_load_lib() {
     rm -f "$tmp"
     return 0
   fi
-  [ -f "$ROOT/.agents/hooks/lib.sh" ] || return 1
+  [ -f "$PROJECT_ROOT/.agents/hooks/lib.sh" ] || return 1
   # shellcheck source=/dev/null
-  . "$ROOT/.agents/hooks/lib.sh"
+  . "$PROJECT_ROOT/.agents/hooks/lib.sh"
 }
 
 # Every helper `$1` needs, or the names that are missing. A committed lib.sh
@@ -70,7 +95,7 @@ conductor_missing_helpers() {
 # Minimal ship-log writer for the one path where lib.sh could not be loaded,
 # so even that waiver is recorded rather than silent.
 conductor_log_waiver_fallback() {
-  local log="$ROOT/conductor/0-compass/ship-log.md"
+  local log="$PROJECT_ROOT/conductor/0-compass/ship-log.md"
   [ -f "$log" ] || return 0
   printf -- '- [%s] Hook waiver (%s): %s\n' "$(date '+%Y-%m-%d %H:%M')" "$1" "$2" >> "$log"
 }
@@ -93,14 +118,22 @@ if [ -z "$TRUSTED_REF" ]; then
 fi
 [ -z "$TRUSTED_REF" ] && git -C "$ROOT" rev-parse --verify -q HEAD >/dev/null 2>&1 && TRUSTED_REF="HEAD"
 
+# In the outer layout the library comes from the outer repository's HEAD: the
+# refs being pushed belong to the code repository and hold no library.
+LIB_REF="$TRUSTED_REF"
+if [ -n "$NESTED_REPO" ]; then
+  LIB_REF=""
+  git -C "$PROJECT_ROOT" rev-parse --verify -q HEAD >/dev/null 2>&1 && LIB_REF="HEAD"
+fi
+
 REQUIRED="conductor_verify_cmd conductor_eval_cmd conductor_has_eval_files conductor_log_waiver"
 lib_ok=1
-conductor_load_lib "$TRUSTED_REF" || lib_ok=0
+conductor_load_lib "$LIB_REF" || lib_ok=0
 missing="$(conductor_missing_helpers "$REQUIRED")"
 
 if [ "$lib_ok" = "0" ] || [ -n "$missing" ]; then
   # Nothing loadable. If the remote had Conductor, this push is removing it.
-  if [ -n "$TRUSTED_REF" ] && git -C "$ROOT" cat-file -e "$TRUSTED_REF:.agents/hooks/lib.sh" 2>/dev/null; then
+  if [ -n "$LIB_REF" ] && git -C "$PROJECT_ROOT" cat-file -e "$LIB_REF:.agents/hooks/lib.sh" 2>/dev/null; then
     if [ -n "${CONDUCTOR_NO_PROTECTED:-}" ]; then
       conductor_log_waiver_fallback "Protected" "$CONDUCTOR_NO_PROTECTED"
       echo "⚠️  Conductor enforcement library unavailable — WAIVED: $CONDUCTOR_NO_PROTECTED"
@@ -173,7 +206,7 @@ done <<< "$PUSH_LINES"
 
 if [ -n "$removed_hooks" ]; then
   if [ -n "${CONDUCTOR_NO_PROTECTED:-}" ]; then
-    conductor_log_waiver "$ROOT" "Protected" "$CONDUCTOR_NO_PROTECTED"
+    conductor_log_waiver "$PROJECT_ROOT" "Protected" "$CONDUCTOR_NO_PROTECTED"
     echo "⚠️  Conductor hook removal WAIVED: $CONDUCTOR_NO_PROTECTED"
     echo "    (logged to conductor/0-compass/ship-log.md)"
   else
@@ -190,7 +223,7 @@ if [ -n "$removed_hooks" ]; then
 fi
 
 # ---- Verification Iron Law ------------------------------------------------
-cmd="$(conductor_verify_cmd "$ROOT")"
+cmd="$(conductor_verify_cmd "$ROOT" "$PROJECT_ROOT" "$NESTED_REPO")"
 if [ "$cmd" = "none" ]; then
   # A DECLARED off (`conductor verify --none`). Silent on purpose: a docs or
   # state repo has nothing to run, and a warning it can never clear is how a
@@ -198,10 +231,16 @@ if [ "$cmd" = "none" ]; then
   :
 elif [ -z "$cmd" ]; then
   echo "ℹ️  Conductor: push gate OFF — no verification command, so this push proves nothing."
-  echo "    Set it:        conductor verify --set \"npm test\"    (the command that proves this project works)"
-  echo "    Or declare it: conductor verify --none               (nothing to verify in this repo)"
+  if [ -n "$NESTED_REPO" ]; then
+    echo "    Set it, in $PROJECT_ROOT:"
+    echo "      conductor verify --repo $NESTED_REPO --set \"npm test\"   (the command that proves this repository works)"
+    echo "      conductor verify --repo $NESTED_REPO --none"
+  else
+    echo "    Set it:        conductor verify --set \"npm test\"    (the command that proves this project works)"
+    echo "    Or declare it: conductor verify --none               (nothing to verify in this repo)"
+  fi
 elif [ -n "${CONDUCTOR_SKIP_VERIFY:-}" ]; then
-  conductor_log_waiver "$ROOT" "VERIFY" "$CONDUCTOR_SKIP_VERIFY"
+  conductor_log_waiver "$PROJECT_ROOT" "VERIFY" "$CONDUCTOR_SKIP_VERIFY"
   echo "⚠️  Conductor Verification Iron Law WAIVED: $CONDUCTOR_SKIP_VERIFY"
   echo "    (logged to conductor/0-compass/ship-log.md)"
 else
@@ -254,11 +293,11 @@ fi
 # Presence was enforced at commit; here the evalsets must actually pass. Only
 # engages when the repo has evalsets — non-LLM projects never see it.
 if conductor_has_eval_files "$ROOT"; then
-  eval_cmd="$(conductor_eval_cmd "$ROOT")"
+  eval_cmd="$(conductor_eval_cmd "$ROOT" "$PROJECT_ROOT" "$NESTED_REPO")"
   if [ -z "$eval_cmd" ]; then
     echo "ℹ️  Conductor: evalsets exist but no eval command is configured — the Eval-Driven Law run-gate is NOT enforced on this push. Add \"eval\" to conductor.config.json (e.g. \"eval\": \"python -m pytest evals/ -q\") or an \"eval\" npm script."
   elif [ -n "${CONDUCTOR_SKIP_EVAL:-}" ]; then
-    conductor_log_waiver "$ROOT" "EVAL" "$CONDUCTOR_SKIP_EVAL"
+    conductor_log_waiver "$PROJECT_ROOT" "EVAL" "$CONDUCTOR_SKIP_EVAL"
     echo "⚠️  Conductor Eval-Driven Law (run) WAIVED: $CONDUCTOR_SKIP_EVAL"
     echo "    (logged to conductor/0-compass/ship-log.md)"
   else

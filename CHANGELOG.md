@@ -8,6 +8,26 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.10.0] — 2026-10-13 — The gates guard nested code repositories
+
+### Fixed
+
+- In the outer layout (Conductor in an outer folder, the team's code in a gitignored nested repository), no TDD, eval or verify gate ever ran on a code commit: `install-hooks` wired only the outer repository. `conductor status` still printed "Gates on". Seen on two real installs.
+
+### Changed
+
+- `conductor install-hooks` (and so `init` and `upgrade`) also sets each nested code repository's `core.hooksPath` to the outer `.agents/hooks`, in local git config only. A repository with its own hooks is left alone and reported. `--uninstall` unwires them.
+- The hooks find the project root from their own location. In a nested repository, or a worktree of one, they judge the code diff and read the library from the outer repository's committed copy, the config from the outer `conductor.config.json`, and log waivers to the outer ship-log.
+- `conductor.config.json` takes a push check per code repository: `"repos": { "<dir>": { "verify": "…", "eval": "…" } }`. `conductor verify --repo <dir> --set "<cmd>"` sets it.
+- `conductor status` names each nested repository whose code is not gated.
+- `conductor verify` no longer suggests `--run`, a flag that did not exist.
+
+### Note — upgrading
+
+- Outer-layout installs: after `conductor upgrade`, set each code repository's check: `conductor verify --repo <dir> --set "<command>"`. Until then its pushes run no test, and say so. Its commits are gated at once.
+
+---
+
 ## [6.9.0] — 2026-10-13 — Build runs to ship-ready
 
 ### Changed

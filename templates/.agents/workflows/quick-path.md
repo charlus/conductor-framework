@@ -102,7 +102,12 @@ Draft a Feature Spec with only these sections:
 
 ## Out of Scope
 - [What we're NOT building]
+
+## Brief check
+[The Phase 1 result: each hit with its source, or "None found."]
 ```
+
+The `## Brief check` heading is required: the `pre-commit` hook rejects a `feature-spec.md` without it.
 
 ### Discussion Round
 * *"Does this spec capture what you want? Anything to add or remove?"*
@@ -146,8 +151,8 @@ Draft an Implementation Plan:
 * Every test step has an exact command
 * Keep it SHORT — Quick-Path should stay quick
 
-### Confirm
-* *"Plan ready. Want to review it or shall I start building?"*
+### No confirm
+The plan is an engineering artefact. Save it as `implementation-plan.md` next to the spec and start Phase 4.
 
 ---
 
@@ -157,19 +162,19 @@ Draft an Implementation Plan:
 
 **Announce:** *"Starting build."*
 
-* Follow the **Build** workflow (`.agents/workflows/build.md`) with one adjustment:
-  * **Batch size = all tasks** (since Quick-Path implementations are small)
-  * Still do per-task verification
-  * Still do the two-stage review (spec compliance → code quality)
-  * Still update the task tracker
+* Read `.agents/workflows/build.md` whole, then follow it with one adjustment: **batch size = all tasks** (Quick-Path implementations are small). Reading only its first lines skips the steps below, and real builds lost all three.
+* These Build steps are not optional on the quick path:
+  1. **Personas:** before each task's RED, run `conductor personas <the files the task creates or changes>` and read every persona and context path it lists. The Designer for UI files, the Security Auditor for auth, the Database Architect for schema.
+  2. **Per task:** RED → GREEN → REFACTOR, full verification, the two-stage self-review, a commit, and the task tracker updated.
+  3. **Independent review:** run `.agents/skills/independent-review/SKILL.md` on the whole diff. Hand the reviewer `.agents/skills/independent-review/reviewer.md` verbatim, plus the acceptance criteria and the Review Lens lines from `conductor personas` on the diff. Never an improvised reviewer prompt. Record every finding and its disposition with `conductor review-log append '{…}'`.
 
 ---
 
 ## Completion
 
-* Verify all acceptance criteria from Phase 2
-* Update Ship-Log if applicable
-* *"Done. [Feature name] is built and verified."*
+* Verify all acceptance criteria from Phase 2.
+* Quick-Path ends in **Ship** (`.agents/workflows/ship.md`): Quick-Path → Build → Ship. Never open a PR or MR outside Ship. Ship opens it and writes the ship-log entry, so a PR opened here leaves the product owner with no record.
+* *"Done. [Feature name] is built and verified. Next: `/ship <implementation folder>`."*
 
 ---
 

@@ -38,7 +38,7 @@ function helpText() {
     "    conductor remove <skill-name> [--force]",
     "    conductor list [--remote] [--tier <tier>]",
     "    conductor search <query> [--tag <tag>]",
-    "    conductor verify [--set <cmd> | --detect | --none] [--no-run]",
+    "    conductor verify [--repo <dir>] [--set <cmd> | --detect | --none] [--no-run]",
     "    conductor review <file.md> [--timeout <min>]",
     "    conductor survey [dir] [--json] [--out <file>]",
     "    conductor personas [paths…] [--base <ref>] [--json]",

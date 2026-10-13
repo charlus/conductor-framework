@@ -141,6 +141,6 @@ describe("A4 — the For-you block is enforced, not requested", () => {
   test("pre-commit gates it with a logged waiver", () => {
     assert.match(PRECOMMIT, /conductor_is_ship_log/, "pre-commit does not use the helper");
     assert.match(PRECOMMIT, /CONDUCTOR_NO_REPORT/, "no waiver for the report gate");
-    assert.match(PRECOMMIT, /conductor_log_waiver "\$ROOT" "Report"/, "the report waiver is not logged");
+    assert.match(PRECOMMIT, /conductor_log_waiver "\$(PROJECT_)?ROOT" "Report"/, "the report waiver is not logged");
   });
 });

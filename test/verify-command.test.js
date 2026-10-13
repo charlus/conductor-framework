@@ -226,3 +226,43 @@ describe("the messages that led here", () => {
     assert.match(shown, /OFF/, "and it says plainly that nothing is enforced");
   });
 });
+
+describe("--repo: the push check of a nested code repository (outer layout)", () => {
+  test("--set writes repos.<dir>.verify and keeps the outer verify", async () => {
+    const root = dir();
+    write(root, "conductor.config.json", '{ "verify": "none" }\n');
+    mkdirSync(join(root, "app"));
+    const r = await run(["--repo", "app", "--set", "true"], root);
+    assert.equal(r.code, 0, r.out);
+    assert.deepEqual(config(root), { verify: "none", repos: { app: { verify: "true" } } });
+  });
+
+  test("--set runs the command inside the nested repository", async () => {
+    const root = dir();
+    mkdirSync(join(root, "app"));
+    write(root, "app/marker", "x");
+    const r = await run(["--repo", "app", "--set", "test -f marker"], root);
+    assert.equal(r.code, 0, r.out);
+  });
+
+  test("--none declares that repository has nothing to verify", async () => {
+    const root = dir();
+    mkdirSync(join(root, "app"));
+    await run(["--repo", "app", "--none"], root);
+    assert.equal(config(root).repos.app.verify, "none");
+  });
+
+  test("showing the state reads the repository's own command", async () => {
+    const root = dir();
+    write(root, "conductor.config.json", '{ "verify": "none", "repos": { "app": { "verify": "make check" } } }\n');
+    mkdirSync(join(root, "app"));
+    const r = await run(["--repo", "app"], root);
+    assert.match(r.out, /make check/);
+  });
+
+  test("an unknown directory is refused", async () => {
+    const root = dir();
+    const r = await run(["--repo", "nope", "--set", "true"], root);
+    assert.equal(r.code, 1);
+  });
+});

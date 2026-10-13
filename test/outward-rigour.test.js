@@ -90,6 +90,6 @@ describe("A5 — D1: presence is enforced in code, not prose", () => {
   test("pre-commit gates on it and offers a logged waiver", () => {
     assert.match(PRECOMMIT, /conductor_is_brief_doc/, "pre-commit does not use the brief-doc helper");
     assert.match(PRECOMMIT, /CONDUCTOR_NO_BRIEF/, "no waiver escape hatch for the brief gate");
-    assert.match(PRECOMMIT, /conductor_log_waiver "\$ROOT" "Brief"/, "the brief waiver is not logged");
+    assert.match(PRECOMMIT, /conductor_log_waiver "\$(PROJECT_)?ROOT" "Brief"/, "the brief waiver is not logged");
   });
 });

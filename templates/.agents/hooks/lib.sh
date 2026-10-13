@@ -84,12 +84,27 @@ conductor_newest_entry_has_for_you() {
   ' "$f"
 }
 
+# Echo `"repos": { "<dir>": { "<key>": … } }` from the project's
+# conductor.config.json, for the nested code repository <dir>. Empty when unset.
+conductor_repo_setting() {
+  local project="$1" repo="$2" key="$3"
+  [ -f "$project/conductor.config.json" ] || return 0
+  node -e 'try{const c=require(process.argv[1]);const v=((c.repos||{})[process.argv[2]]||{})[process.argv[3]];if(v!=null)process.stdout.write(String(v))}catch(e){}' \
+    "$project/conductor.config.json" "$repo" "$key" 2>/dev/null || true
+}
+
 # Echo the project's verification command.
 # Priority: conductor.config.json "verify" → package.json "test" script → empty.
+# In the outer layout ($1 = the code repository's work tree, $2 = the project
+# root, $3 = the nested repository's directory name in the project):
+# "repos" → "<dir>" → "verify" first, then the code repository's package.json.
+# The project's own top-level "verify" is the outer repository's and is not used.
 conductor_verify_cmd() {
-  local root="$1"
+  local root="$1" project="${2:-$1}"
   local cmd=""
-  if [ -f "$root/conductor.config.json" ]; then
+  if [ "$project" != "$root" ]; then
+    cmd="$(conductor_repo_setting "$project" "${3:-${root##*/}}" verify)"
+  elif [ -f "$root/conductor.config.json" ]; then
     cmd="$(node -e "try{process.stdout.write((require('$root/conductor.config.json').verify||'').toString())}catch(e){}" 2>/dev/null || true)"
   fi
   if [ -z "$cmd" ] && [ -f "$root/package.json" ]; then
@@ -102,10 +117,13 @@ conductor_verify_cmd() {
 
 # Echo the project's EVAL command (Eval-Driven Law run-gate).
 # Priority: conductor.config.json "eval" → package.json "eval" script → empty.
+# In the outer layout: "repos" → "<dir>" → "eval", as for the verify command.
 conductor_eval_cmd() {
-  local root="$1"
+  local root="$1" project="${2:-$1}"
   local cmd=""
-  if [ -f "$root/conductor.config.json" ]; then
+  if [ "$project" != "$root" ]; then
+    cmd="$(conductor_repo_setting "$project" "${3:-${root##*/}}" eval)"
+  elif [ -f "$root/conductor.config.json" ]; then
     cmd="$(node -e "try{process.stdout.write((require('$root/conductor.config.json').eval||'').toString())}catch(e){}" 2>/dev/null || true)"
   fi
   if [ -z "$cmd" ] && [ -f "$root/package.json" ]; then

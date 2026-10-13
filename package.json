@@ -33,7 +33,8 @@
     "eval:factgate:sensitivity": "node test/evals/fact-gate-eval.mjs --sensitivity",
     "test:survey": "node --test test/survey.test.js",
     "test:hooks:waivers": "bash test/hooks-waiver-logging.sh",
-    "test:hooks:nested": "bash test/hooks-nested-repos.sh"
+    "test:hooks:nested": "bash test/hooks-nested-repos.sh",
+    "test:hooks:nocode": "bash test/hooks-no-code.sh"
   },
   "keywords": [
     "conductor",

@@ -360,4 +360,17 @@ if [ "$report" = "1" ]; then
   fi
 fi
 
+# A commit that goes through carries its own waiver lines, and any a push left
+# behind. Only in the repository that holds the ship-log, and never in a
+# partial commit (`git commit -- <paths>`): that commits a temporary index, and
+# a line staged there would end in HEAD but not in the real index.
+case "${GIT_INDEX_FILE:-}" in
+  *next-index-*) ;;
+  *)
+    if [ "$blocked" = "0" ] && [ "$PROJECT_ROOT" = "$ROOT" ] && type conductor_stage_waiver_lines >/dev/null 2>&1; then
+      conductor_stage_waiver_lines "$ROOT"
+    fi
+    ;;
+esac
+
 exit "$blocked"

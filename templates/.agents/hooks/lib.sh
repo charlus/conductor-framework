@@ -12,9 +12,12 @@ conductor_is_test_file() {
   printf '%s\n' "$1" | grep -Eiq '(\.|_)(test|spec)\.|(^|/)(tests?|__tests__|specs?)/|(^|/)test_[^/]*$'
 }
 
-# True (0) for implementation source files (and NOT test files).
+# True (0) for implementation source files (and NOT test files). Nothing under
+# conductor/ is: it holds project state, and a one-off script archived there is
+# a record, not product code.
 conductor_is_impl_file() {
   conductor_is_test_file "$1" && return 1
+  case "$1" in conductor/*) return 1 ;; esac
   printf '%s\n' "$1" | grep -Eiq '\.(js|jsx|ts|tsx|mjs|cjs|py|go|rs|java|rb|php|c|h|cc|cpp|hpp|cs|swift|kt|kts|scala|ex|exs|dart|m|mm|vue|svelte)$'
 }
 
@@ -301,6 +304,19 @@ conductor_staged_only_waiver_lines() {
   [ -n "$diff" ] || return 1
   printf '%s\n' "$diff" | grep -Evq '^\+- \[[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}\] Hook waiver \(' && return 1
   return 0
+}
+
+# Stage the ship-log when its only unstaged change is waiver lines, so a waiver
+# is recorded in the commit it belongs to (or, for a push waiver, the next one)
+# instead of leaving the tree dirty and needing a chore commit. A hand-written
+# ship-log edit is never staged: then nothing is.
+conductor_stage_waiver_lines() {
+  local root="$1" rel="conductor/0-compass/ship-log.md" diff
+  [ -f "$root/$rel" ] || return 0
+  diff="$(git -C "$root" diff -U0 -- "$rel" 2>/dev/null | grep -E '^[+-]' | grep -Ev '^(\+\+\+|---) ')"
+  [ -n "$diff" ] || return 0
+  printf '%s\n' "$diff" | grep -Evq '^\+- \[[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}\] Hook waiver \(' && return 0
+  git -C "$root" add -- "$rel" 2>/dev/null || true
 }
 
 # Append a waiver line to the ship-log so bypasses are auditable, never silent.

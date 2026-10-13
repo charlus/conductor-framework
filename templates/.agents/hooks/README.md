@@ -145,7 +145,9 @@ CONDUCTOR_SKIP_EVAL="eval infra down" git push …         # Eval run-gate (pre-
 CONDUCTOR_HOOKS=off git commit …                         # disable all Conductor hooks
 ```
 
-Every named reason is appended to `conductor/0-compass/ship-log.md`, so a bypass stays auditable. The rule is not *never bypass* — it is *every bypass is logged*. Prefer these over `git commit --no-verify`, which silently skips **every** hook and leaves no trail.
+Every named reason is appended to `conductor/0-compass/ship-log.md`, so a bypass stays auditable. The rule is not *never bypass* — it is *every bypass is logged*. A commit carries its own waiver line, and any line a push waiver left behind, so a waiver needs no extra commit. The hook stages the ship-log only when waiver lines are its sole change, and never in a partial commit (`git commit -- <paths>`).
+
+**What is not code.** Files under `conductor/` are project state: the TDD and eval presence gates ignore them, and a push that changes only `conductor/` runs neither the verify command nor the evals. Prefer these over `git commit --no-verify`, which silently skips **every** hook and leaves no trail.
 
 ## Optional: the fact gate (Claude Code)
 

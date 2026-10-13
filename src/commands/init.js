@@ -9,6 +9,7 @@ import { runInteractiveSetup } from "../prompt.js";
 import { selectiveCopy, syncSelections, readSelections } from "../selective-copy.js";
 import { generateClaudeCommands, generateClaudeSkills } from "../claude-commands.js";
 import { installHooksCommand } from "./install-hooks.js";
+import { ensureUnionMerge } from "../gitattributes.js";
 import { writeVersionStamp, packageVersion } from "../version.js";
 import { ensureVerifyCommand } from "../verify-config.js";
 import { buildFrameworkBlock, renderRootAgentsMd } from "../agents-md.js";
@@ -212,6 +213,7 @@ export async function initCommand(args, { cwd, stdout, stderr }) {
       if (await exists(join(targetDir, ".git"))) {
         stdout.write("\n🔒 Enabling deterministic enforcement hooks...\n");
         await installHooksCommand([targetDir], { cwd, stdout, stderr });
+        ensureUnionMerge(targetDir);
       }
 
       if (!parsed.noDetect) {

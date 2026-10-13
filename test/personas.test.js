@@ -177,6 +177,36 @@ describe("the command", () => {
     assert.ok(!designer.context.includes("DESIGN.md"), "the bare, ambiguous path is still listed");
   });
 
+  test("no paths, outer layout: reads each nested code repository's diff too (F6)", async () => {
+    // website, 2026-10: `conductor personas` at Ship printed "No domain persona
+    // for these 0 path(s)" because the change lived in a nested repository.
+    const root = await repo();
+    const git = (cwd, ...a) => execFileSync("git", a, { cwd, stdio: "pipe" });
+    git(root, "init", "-q", "-b", "main");
+    await writeFile(join(root, ".gitignore"), "cms/\n");
+    git(root, "add", ".");
+    git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "outer");
+    await mkdir(join(root, "cms"), { recursive: true });
+    git(join(root, "cms"), "init", "-q", "-b", "main");
+    git(join(root, "cms"), "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "base");
+    git(join(root, "cms"), "checkout", "-q", "-b", "feat");
+    await mkdir(join(root, "cms", "src", "components"), { recursive: true });
+    await writeFile(join(root, "cms", "src", "components", "InlinePdfUpload.tsx"), "export {}\n");
+    const s = io();
+    await personasCommand(["--json"], { cwd: root, ...s });
+    const data = JSON.parse(s.out);
+    const designer = data.personas.find((p) => p.name === "designer");
+    assert.ok(designer, `no Designer for a nested UI change: ${s.out}`);
+    assert.deepEqual(designer.files, ["cms/src/components/InlinePdfUpload.tsx"]);
+    assert.ok(designer.context.includes("cms/DESIGN.md"));
+  });
+
+  test("a server-side template gets the Designer (F6)", () => {
+    for (const p of ["src/api/templates/usage.jinja2", "views/report.hbs", "app/views/home.html.erb", "src/emails/digest.njk"]) {
+      assert.ok(names(matchPersonas([p], resolveRules({}))).includes("designer"), p);
+    }
+  });
+
   test("nothing matched says so and exits 0", async () => {
     const root = await repo();
     const s = io();

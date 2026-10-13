@@ -278,6 +278,16 @@ conductor_enforcement_installed() {
 # Echo staged changes to protected paths, whatever their status. Deletions and
 # renames matter as much as edits here: removing pre-commit disables the gate
 # just as surely as rewriting it, and only a full name-status scan sees that.
+# True (0) during a merge when the staged version of $2 (or its absence) is
+# exactly MERGE_HEAD's.
+conductor_same_as_merge_head() {
+  local root="$1" path="$2" staged theirs
+  git -C "$root" rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1 || return 1
+  staged="$(git -C "$root" rev-parse -q --verify ":$path" 2>/dev/null || echo absent)"
+  theirs="$(git -C "$root" rev-parse -q --verify "MERGE_HEAD:$path" 2>/dev/null || echo absent)"
+  [ "$staged" = "$theirs" ]
+}
+
 conductor_protected_changes() {
   local root="$1" line status path
   conductor_enforcement_installed "$root" || return 0
@@ -288,8 +298,11 @@ conductor_protected_changes() {
       # is a change to the enforcement surface.
       for candidate in "$path" "${dest:-}"; do
         [ -z "$candidate" ] && continue
-        conductor_is_protected_path "$candidate" &&
-          printf '%s (%s)\n' "$candidate" "$(printf '%s' "$status" | cut -c1)"
+        conductor_is_protected_path "$candidate" || continue
+        # During a merge, a protected file staged exactly as the merged branch
+        # committed it was judged on that branch: this change did not write it.
+        conductor_same_as_merge_head "$root" "$candidate" && continue
+        printf '%s (%s)\n' "$candidate" "$(printf '%s' "$status" | cut -c1)"
       done
     done
 }

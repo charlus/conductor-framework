@@ -69,6 +69,14 @@ git -C "$D" add -A; gitq -C "$D" commit -q -m e
 if CONDUCTOR_EVIDENCE=off git -C "$D" push -q origin HEAD:main >/dev/null 2>&1; then no "a push with code skipped the failing evals"; else ok "a push with code still runs the evals"; fi
 rm -rf "$D" "$B"
 
+echo "=== \"eval\": \"none\" is a declared opt-out ==="
+D="$(repo true none)"; B="$(remote "$D")"
+printf 'export const n = 1;\n' > "$D/src/n.js"; printf 'test("n", () => { expect(1).toBe(1); });\n' > "$D/test/n.test.js"
+git -C "$D" add -A; gitq -C "$D" commit -q -m n
+out="$(CONDUCTOR_EVIDENCE=off git -C "$D" push -q origin HEAD:main 2>&1)"; rc=$?
+if [ "$rc" = "0" ] && ! printf '%s' "$out" | grep -q "NOT enforced"; then ok "eval none: the push passes without the not-enforced notice"; else no "eval none was not honoured: $out"; fi
+rm -rf "$D" "$B"
+
 echo "=== waiver lines ride the commit ==="
 D="$(repo)"
 printf 'export const f = 6;\n' > "$D/src/f.js"; git -C "$D" add -A

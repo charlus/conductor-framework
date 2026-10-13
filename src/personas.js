@@ -19,7 +19,9 @@ export const DEFAULT_RULES = {
     context: [".agents/skills/architecture-patterns/SKILL.md"],
   },
   designer: {
-    extensions: ["css", "scss", "sass", "less", "styl", "vue", "svelte", "html", "htm", "jsx", "tsx"],
+    // Server-side templates render screens too: a page built in Jinja is UI.
+    extensions: ["css", "scss", "sass", "less", "styl", "vue", "svelte", "html", "htm", "jsx", "tsx",
+      "jinja", "jinja2", "j2", "hbs", "handlebars", "ejs", "njk", "erb", "twig", "mustache"],
     words: ["component", "components", "page", "pages", "layout", "layouts", "ui", "style", "styles",
       "screen", "screens", "widget", "widgets", "theme", "themes", "tailwind"],
     context: ["DESIGN.md", ".agents/skills/design-system/SKILL.md", ".agents/skills/frontend-design/SKILL.md"],

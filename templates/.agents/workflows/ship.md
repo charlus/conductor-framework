@@ -185,7 +185,7 @@ Then re-review **once**: a fresh reviewer, given round-1 findings *plus your dis
     * Update `conductor/3-product-areas/[area]/[area]-features.md` or `[area]-technical.md` with the newly shipped capabilities.
 
 3.  **Archive:**
-    * Move the completed Implementation folder from `conductor/1-workbench/` to `conductor/6-archive/completed-implementations/`.
+    * Move the completed Implementation folder to `conductor/6-archive/completed-implementations/`, from wherever it lives: `conductor/1-workbench/`, or `conductor/2-backlog/project-backlog/<Project>/implementations/` for a carved slice. When the Project's last slice ships, move the Project folder to `conductor/6-archive/completed-projects/`.
 
 ---
 
@@ -195,6 +195,7 @@ Then re-review **once**: a fresh reviewer, given round-1 findings *plus your dis
 
 **Announce:** *"Integrating with Git and creating the release."*
 
+0.  **Branch in a worktree:** never switch the branch of a shared checkout: another session may be working in it. Create the branch in its own worktree (`.agents/skills/git-worktrees/SKILL.md`), the `conductor/` bookkeeping too.
 1.  **Platform Discovery:**
     * Before creating a Pull Request (PR) or Merge Request (MR), determine the current platform and available CLI tools.
     * Check if `gh` (GitHub CLI) or `glab` (GitLab CLI) is installed and authenticated (`gh auth status` or `glab auth status`).

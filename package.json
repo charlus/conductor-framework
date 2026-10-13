@@ -1,6 +1,6 @@
 {
   "name": "conductor-framework",
-  "version": "6.11.0",
+  "version": "6.12.0",
   "description": "The Conductor — an AI Software Engineering framework for the full development lifecycle. Workflows, skills, and personas for AI-assisted product engineering.",
   "type": "module",
   "bin": {
@@ -34,7 +34,8 @@
     "test:survey": "node --test test/survey.test.js",
     "test:hooks:waivers": "bash test/hooks-waiver-logging.sh",
     "test:hooks:nested": "bash test/hooks-nested-repos.sh",
-    "test:hooks:nocode": "bash test/hooks-no-code.sh"
+    "test:hooks:nocode": "bash test/hooks-no-code.sh",
+    "test:hooks:merge": "bash test/hooks-merge-upgrade.sh"
   },
   "keywords": [
     "conductor",

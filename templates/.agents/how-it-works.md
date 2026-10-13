@@ -181,7 +181,7 @@ task-backlog.md → Do it → ship-log.md
 **Not sure what you need?**
 - *"I'm starting a brand new app"* or *"a major new feature area"* → **Genesis**. New problem space = needs discovery.
 - *"A significant feature in an existing area"* → **Grand PRD** (if complex) or **Quick-Path** (if scope is already clear).
-- *"I know exactly what to build"* → **Quick-Path** or **Spec-It**.
+- *"I know exactly what to build"* → **Quick-Path**. Spec-It is for a slice Carve already made.
 - *"I have a spec, let's go"* → **Build**.
 - *"I don't know where to start"* → **Genesis**. It'll help you find the problem.
 
@@ -230,7 +230,7 @@ The other commands, for setup, gates and measurement:
 | `conductor install-hooks` | Wire the git hooks in `.agents/hooks/` (TDD and eval presence, Goodhart boundary, protected paths on commit; verify and evals on push) |
 | `conductor verify [--set <cmd>]` | Show or set the command `git push` must pass |
 | `conductor evidence run\|check\|list` | Run the verify command and record the result against the exact working tree; `pre-push` accepts fresh evidence instead of re-running |
-| `conductor review-log append\|summary` | Record review findings and how each was handled. A finding class dismissed more than half the time is a rubric defect |
+| `conductor review-log append\|summary` | Record review findings and how each was handled, in 13 fixed classes. A class dismissed more than half the time is a rubric defect |
 | `conductor context-bill` | What the framework costs every session before an agent reads project code (always-on vs on-demand bytes) |
 | `conductor agents-md facts\|write\|check` | The project card in `AGENTS.md`: print the facts the code states, refresh them in the card, check the card (exit 0 = complete and current, then stamped) |
 | `conductor trust-verify` | Record your consent to this repo's verify command. The opt-in Claude Code Stop hook runs it only after that, because the command comes from a file anyone can edit |

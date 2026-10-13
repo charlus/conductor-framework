@@ -15,6 +15,7 @@ import { instructionWarningsFor } from "../claude-instructions.js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { designMigrationHint } from "./design.js";
+import { ensureUnionMerge } from "../gitattributes.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -25,7 +26,7 @@ const execFileAsync = promisify(execFile);
 const FRAMEWORK_PATHS = [
   ".agents", "AGENTS.md", "CLAUDE.md", "GEMINI.md", "CHANGELOG.md", ".claude/commands",
   "conductor/5-templates", "conductor/1-workbench/loop-state.json",
-  "conductor.config.json", ".gitignore",
+  "conductor.config.json", ".gitignore", ".gitattributes",
 ];
 
 async function git(args, cwd, env) {
@@ -468,6 +469,7 @@ export async function upgradeCommand(args, { cwd, stdout, stderr }) {
       stdout.write("\nStep 8: Enforcement hooks...\n");
       if (await exists(join(targetDir, ".git"))) {
         await installHooksCommand([targetDir], { cwd, stdout, stderr });
+        if (ensureUnionMerge(targetDir)) stdout.write("  ✅ .gitattributes: the ship-log, inbox and review-log merge without conflicts (merge=union)\n");
       } else {
         stdout.write("  ⏭️  Not a git repo; skipped hook wiring.\n");
       }

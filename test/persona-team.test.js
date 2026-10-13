@@ -47,10 +47,10 @@ describe("D1 — the precedence order", () => {
 });
 
 describe("D1 + D4 — the ledger records conflicts and refuses a reversed order", () => {
-  const loser = { severity: "IMPORTANT", category: "extra-step", action: "dismissed", persona: "designer" };
+  const loser = { severity: "IMPORTANT", category: "ui", action: "dismissed", persona: "designer" };
 
   test("a finding records the persona whose lens raised it", () => {
-    const r = normalizeFinding({ severity: "NIT", category: "x", action: "fixed", persona: "designer" }, { now: at });
+    const r = normalizeFinding({ severity: "NIT", category: "ui", action: "fixed", persona: "designer" }, { now: at });
     assert.equal(r.record.persona, "designer");
   });
 

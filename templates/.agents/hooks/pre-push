@@ -39,7 +39,7 @@ conductor_find_project_root
 # pre-commit that lands on exactly this content is an upgrade, not a neutering,
 # and needs no waiver at push. Forging a match means editing pre-push as well —
 # both entry scripts, the stated limit. Pinned by test/hooks-registry-drift.test.js.
-CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256="b4b373390e572cccce592d94a1b4222078d874484a4e769a588e6ef97afcc2ed"
+CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256="ce23c57317efaeec3fd18696ae26876925b1677102026eb0c8f70fd9fb4ee6de"
 
 # git feeds one line per pushed ref: <local ref> <local sha> <remote ref> <remote sha>.
 PUSH_LINES="$(cat)"
@@ -315,7 +315,9 @@ fi
 # engages when the repo has evalsets — non-LLM projects never see it.
 if conductor_has_eval_files "$ROOT"; then
   eval_cmd="$(conductor_eval_cmd "$ROOT" "$PROJECT_ROOT" "$NESTED_REPO")"
-  if [ -z "$eval_cmd" ]; then
+  if [ "$eval_cmd" = "none" ]; then
+    :   # declared: these evals are run by hand, not on push
+  elif [ -z "$eval_cmd" ]; then
     echo "ℹ️  Conductor: evalsets exist but no eval command is configured — the Eval-Driven Law run-gate is NOT enforced on this push. Add \"eval\" to conductor.config.json (e.g. \"eval\": \"python -m pytest evals/ -q\") or an \"eval\" npm script."
   elif [ -n "${CONDUCTOR_SKIP_EVAL:-}" ]; then
     conductor_log_waiver "$PROJECT_ROOT" "EVAL" "$CONDUCTOR_SKIP_EVAL"

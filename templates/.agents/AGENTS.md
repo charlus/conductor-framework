@@ -12,6 +12,7 @@ description: "Source of the framework block in the root AGENTS.md. Edit here, th
 > **ALWAYS** use the verification gate before claiming a task is completed. NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE.
 > **ALWAYS** write a failing test before implementation code during Build. See the Test-Driven Law below.
 > **ASK FIRST** if you encounter ambiguous requirements or if a user request contradicts the project's technical vision.
+> **LESSONS GO TO `conductor/`**, never only to your harness memory: a convention to `4-context/technical/coding-patterns.md`, a decision and its reason to `4-context/meta/decision-log.md`.
 > **PRECEDENCE:** when the code lives in a team repository with its own instructions (an `AGENTS.md` or `CLAUDE.md` inside it), those win for code style and repository process: branches, commit format, review. Conductor's rules win for its own process: TDD, verification, `conductor/` state.
 
 ## Request Classifier
@@ -42,9 +43,9 @@ Classify what the user needs before acting:
 | Small fix, bug, quick task (already well-scoped) | Add to `conductor/2-backlog/task-backlog.md` |
 | Not sure? | Default to `workflows/genesis.md` — it will help find the right scope |
 
-Capture and status are zero-judgment: no workflow, no questions, no rewording. Claude Code and Antigravity 2.0 have no file browser, so chat and the CLI are the human's only way into `conductor/`. Prefer the `conductor` commands: deterministic. Triage later, on purpose. Rendered docs: `conductor view --open`.
+Capture and status are zero-judgment: no workflow, no questions, no rewording. Prefer the `conductor` commands: deterministic. Triage later, on purpose. Rendered docs: `conductor view --open`.
 
-Full classifier (with the "not sure what you need" decision guide) and everything else — folder purposes, workflow/skill/persona registries, adoption levels — lives in **`.agents/how-it-works.md`**. Read it when this table isn't enough.
+The full classifier, folder purposes and registries live in **`.agents/how-it-works.md`**. Read it when this table is not enough.
 
 > [!IMPORTANT]
 > **Skill Discovery:** Use Progressive Disclosure to find capabilities beyond this table. Check the YAML frontmatter in `.agents/skills/` for triggers on demand — don't load every skill up front.

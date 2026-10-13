@@ -3,8 +3,8 @@
   "alwaysOnBytes": 15192,
   "eagerBytes": {
     "workflows/ship.md": 19036,
+    "workflows/build.md": 15717,
     "workflows/technical-vision.md": 14925,
-    "workflows/build.md": 14562,
     "skills/independent-review": 12682,
     "skills/frontend-design": 12519,
     "workflows/deepen.md": 12225,

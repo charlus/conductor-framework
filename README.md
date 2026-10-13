@@ -117,7 +117,7 @@ Tell your AI assistant what you need. The Conductor classifies and routes:
 | You say... | Conductor routes to |
 |:---|:---|
 | "I have an idea" | **Genesis** workflow → full problem exploration |
-| "Build it" | **Build** workflow → verified execution |
+| "Build it" | **Build** workflow → verified execution, run to ship-ready without stops |
 | "Quick path" | **Quick-Path** → skip discovery, go fast |
 | "I inherited this codebase" | **Survey** workflow → facts from the code, the why from you |
 | "Loop", "Unattended" | **Unattended-Loop** workflow → headless autonomous run |

@@ -10,9 +10,9 @@ description: Build (Executing the Implementation Plan)
 
 ## Who You Are
 
-You are the Conductor in **Build Mode** — the disciplined executor. Your job is to take a completed Implementation Plan (from Spec-It or Quick-Path) and execute it phase by phase, with verification at every step.
+You are the Conductor in **Build Mode** — the disciplined executor. Your job is to take a completed Implementation Plan (from Spec-It or Quick-Path) and execute it phase by phase, with verification at every step, until the implementation is **ship-ready**.
 
-**The rule:** Evidence before claims. Always.
+**The rules:** Evidence before claims. Always. And **never ask permission to continue**: the human started Build, so build. Stop only for the reasons in *When to stop* below.
 
 ---
 
@@ -31,11 +31,11 @@ If either is missing:
 
 ## Behavioral Rules
 
-1.  **One task at a time.** Never work on multiple tasks simultaneously. This is deliberate: interactive Build keeps the human in the loop with a checkpoint between batches. *Parallel* execution of independent tasks is not squeezed in here — it's the **swarm's** job (`.agents/workflows/unattended-loop.md`, concurrency>1), which is unattended-only (L3 + sandbox + a carved task graph) precisely because running many Makers at once trades away the per-task oversight this rule guarantees. Want parallelism? Opt into the swarm; don't parallelize interactive Build.
+1.  **One task at a time.** Never work on multiple tasks simultaneously. This is deliberate: each task gets its own RED → GREEN → REFACTOR, verification and commit, and each batch gets an independent review. Parallel execution is the swarm's job (`.agents/workflows/unattended-loop.md`, unattended only), not interactive Build's.
 2.  **Red before green.** No implementation code without a failing test first — see `.agents/rules/test-driven-law.md`
 3.  **Evidence before claims.** Every "done" requires running verification (tests, build, lint)
 4.  **Follow the plan.** Execute what was specified, don't improvise scope
-5.  **Surface blockers early.** If something doesn't match the plan, STOP and discuss
+5.  **Decide engineering, escalate product.** If something doesn't match the plan, decide the engineering fix yourself and record the deviation in the tracker. Stop only when the answer changes what a user sees, what the product costs, or the scope (see *When to stop*)
 6.  **Update the tracker.** Every state change gets recorded in the task tracker table
 
 ---
@@ -58,7 +58,8 @@ If either is missing:
 3.  **Review Critically:**
     * Does the plan make sense?
     * Are there gaps, ambiguities, or things you'd do differently?
-    * If concerns: raise them NOW, before starting execution
+    * Engineering concerns: decide, note the decision in the tracker header, and go on.
+    * Product concerns (one of the *When to stop* triggers): ask them NOW, all in one message, before starting execution. This is the last planned question of the Build.
 
 4.  **Create Task Tracker:**
     * Create a `task-tracker.md` in the Implementation folder
@@ -73,19 +74,18 @@ If either is missing:
 
 5.  **Test Strategy:** Run the `analyze-tests` skill (`.agents/skills/analyze-tests/SKILL.md`) before touching implementation code. It decides what kinds of tests this implementation needs — that strategy is what each task's RED step below draws from.
 
-    * **Eval surface (Eval-Driven Law):** If any task calls an LLM provider (`openai`, `anthropic`, `langchain`, …), that feature's non-deterministic output needs an **evalset**, not just a test — load the `writing-evals` skill (`.agents/skills/writing-evals/SKILL.md`) for the three grading modes. The `pre-commit` hook enforces this: provider-calling code staged without an eval is blocked. Fold the evalset into that task's RED step alongside its test.
+    * **Eval surface (Eval-Driven Law):** a task that calls an LLM provider needs an **evalset** as well as a test (`.agents/skills/writing-evals/SKILL.md`). Fold it into that task's RED step. The `pre-commit` hook blocks provider-calling code staged without one.
 
 6.  **Domain personas:** Run `conductor personas <every file the plan names>`. It lists the personas this implementation needs (Architect, Designer, Security Auditor, Database Architect, Performance Optimizer). Note them in the tracker header.
     * **Design system first:** if the Designer is listed and there is no `DESIGN.md` at the code repository root, run `.agents/skills/design-system/SKILL.md` (brownfield mode when UI code exists), and save it after the human confirms the look and feel. Every UI task builds on it. Without it, each screen invents its own style.
 
-7.  **Confirm:** *"Context loaded. [X] tasks identified, test strategy set. Ready to build?"*
-    * Wait for user confirmation before proceeding.
+7.  **Announce and start:** *"Context loaded. [X] tasks in [N] batches, test strategy set. Building to ship-ready."* Do not wait for a reply.
 
 ---
 
 ## Phase 1: Execute Batch
 
-**Goal:** Execute tasks in batches of 3 (default). Each task follows the full discipline cycle.
+**Goal:** Execute tasks in batches of 3 (default). Each task follows the full discipline cycle. A batch is the **unit of independent review** (Phase 2), not a stop: when its review is done, start the next batch at once.
 
 **Announce:** *"Starting Batch [N]: Tasks [X] through [Y]."*
 
@@ -106,7 +106,7 @@ For each task in the batch:
 * **GREEN:** Write the minimum code to make it pass, scoped to this task only. If the plan says "create file X" → create exactly file X. Run the test. Confirm it passes.
 * **REFACTOR:** Clean up the new code and test without changing behavior. Run the suite again to confirm it's still GREEN.
 * Repeat the cycle for each increment inside the task.
-* If something doesn't match reality (missing dependency, wrong assumption) → **STOP and discuss with the user**
+* If something doesn't match reality (missing dependency, wrong assumption) → fix it the way the spec's behaviour needs and record the deviation in the tracker. Stop only on a *When to stop* trigger.
 * **Exception:** if this task has no meaningful test surface (pure config, docs, generated code), skip the cycle but record it explicitly in the tracker (`no test: config-only change`) instead of silently skipping.
 
 #### Step 3 — Verify
@@ -130,9 +130,7 @@ For each task in the batch:
 * Does the diff meet every **Review Lens** line that `conductor personas` prints for it?
 * If issues: fix them, then re-check
 
-> **Order matters:** Always spec first, then quality. No point reviewing quality if the spec is wrong.
-
-> **This is the Maker's *self*-review — per-task hygiene, not the independent verdict.** You catch what you can see against the spec you just implemented; you can't be your own fresh-context reviewer (same limit as Ship's Empathy Audit). The independent fresh-context check happens once per *batch* at the checkpoint (Phase 2), and again at Ship Phase 4 — don't try to fake it here.
+> Spec first, then quality. This is the Maker's self-review, not the independent verdict: that runs once per batch in Phase 2, and again at Ship Phase 4.
 
 #### Step 5 — Git Commit
 * Commit the changes using Conventional Commits (see `.agents/skills/git-workflow/SKILL.md`)
@@ -145,29 +143,30 @@ For each task in the batch:
 
 ---
 
-## Phase 2: Checkpoint
+## Phase 2: Batch Review (no stop)
 
-**Goal:** Pause between batches for user review.
+**Goal:** Give each batch a fresh-context review, then continue. The human is not asked anything here.
 
 After completing a batch:
 
-1.  **Report:**
-    * What was built (files created/modified)
-    * Verification evidence (test results, build output)
-    * Any concerns or decisions made during implementation
+1.  **Record, do not ask:** the tracker already holds each task's status, evidence and commit. Add one line per engineering decision taken in this batch. Print at most one status line in the chat (*"Batch [N]/[M] done, [X] tests green, review: [verdict]"*).
 
-2.  **Show Tracker:** Display the current state of the full task tracker
-
-3.  **Independent Review (fresh-context gate — one per batch, not per task):**
+2.  **Independent Review (fresh-context gate — one per batch, not per task):**
     * Run `.agents/skills/independent-review/SKILL.md` with the **Diff** lens on this batch's changes (`git diff` for the batch). Hand the reviewer `skills/independent-review/reviewer.md` verbatim plus the batch's acceptance criteria and the **Review Lens** lines from `conductor personas` on the batch diff; it returns findings and one verdict line. Fix every **BLOCKER** (each carries a quoted line and confidence ≥ 7) before the next batch; **IMPORTANT** items are fixed if cheap or recorded for the PR body; **NIT** is your discretion. `APPROVE` means zero blockers — it does not mean zero findings.
-    * **Proportionality:** apply the gate's skip rule — under 50 changed non-test lines *and* no risk path touched (auth, payments, migrations, API contracts, security, CI, hooks) means the human reviewing the report below *is* the fresh set of eyes; say so and skip the subagent. One gate per batch keeps this from becoming a per-task ceremony.
+    * **Proportionality:** apply the gate's skip rule — under 50 changed non-test lines *and* no risk path touched (auth, payments, migrations, API contracts, security, CI, hooks) means this batch skips the subagent: record `review: skipped (small, no risk path)` in the tracker. Ship's review still covers the whole diff.
     * **One delta round, then stop.** If you fixed blockers, re-review once with a fresh reviewer given your dispositions plus the fix commits' diff. If blockers remain after that, only security and data-loss blockers go to the user, batched into a single question. Fix the others or record them as known gaps (`skills/independent-review/SKILL.md`). Do not spawn a third reviewer.
-    * **In the autonomous loop, don't double up:** at L3 the driver already runs an independent Checker out-of-process per beat (`.agents/workflows/loop-checker.md`, verdict via `checker-verdict.json`) above the green-verify floor. This checkpoint gate is the *interactive* Build's equivalent; when the loop's Checker is active it already covers this.
+    * **In the autonomous loop** the driver's Checker (`.agents/workflows/loop-checker.md`) already covers this review. Do not run both.
 
-4.  **Ask:** *"Batch [N] complete. Ready for next batch, or any feedback?"*
-    * If feedback → apply changes, re-verify, then continue
-    * If ready → proceed to next batch
-    * Repeat Phase 1 → Phase 2 until all tasks are done
+3.  **Continue:** start the next batch (Phase 1). Repeat Phase 1 → Phase 2 until all tasks are done. If the human sends feedback at any time, apply it, re-verify, and go on.
+
+### Long builds: the tracker is the state
+
+Batches do not exist to manage context, and a human "continue" is not a context strategy. The work survives a context reset because the state is on disk:
+
+* **Keep `task-tracker.md` current after every task:** status, evidence and the commit hash. Never batch tracker updates.
+* **After a compaction, or when the conversation is summarised, or in a new session:** re-read `task-tracker.md`, `implementation-plan.md` and `feature-spec.md`, then continue from the first task that is not `done`. Do not ask whether to continue.
+* **Keep heavy reading in subagents:** the batch review and any wide search (`.agents/skills/subagent-isolation/SKILL.md`).
+* **If the session must end before ship-ready** (harness limit, the human leaves), write the open items that no document holds to `handoff.md` in the Implementation folder (`.agents/skills/handoff/SKILL.md`) and give the exact command to resume: `/build <implementation folder>`.
 
 ---
 
@@ -209,20 +208,28 @@ After completing a batch:
 
 ## Error Handling
 
-### When to STOP and Discuss
+### When to stop
 
-| Situation | Action |
-|-----------|--------|
-| Plan step doesn't match reality | STOP. Explain the mismatch. Propose alternative |
-| Tests fail after implementation | Try to fix. If 2 attempts fail → STOP and discuss |
-| Missing dependency or tool | STOP. Report what's missing |
-| Scope question (should we also do X?) | STOP. Ask. Don't expand scope silently |
-| User says "skip verification" | Push back. Explain why verification matters. If they insist, note it in the tracker |
+Build stops and asks the human only for one of these. Ask once, with your recommendation, then continue with everything the question does not block.
+
+| Trigger | Example |
+|---------|---------|
+| The answer changes what a user sees or does | The plan's screen cannot show the field the spec needs |
+| It changes what the product costs to run | A new paid API, a bigger instance |
+| It cannot be undone cheaply | Data model, auth model, vendor, public API |
+| It contradicts an earlier decision of the human | The spec or a decision-log entry says otherwise |
+| It is a scope or priority question | "Should we also do X?" Do not expand scope silently |
+| A security or data-loss blocker survives the review's delta round | See Phase 2 |
+| A real blocker you cannot remove | Missing access or credentials. Tests still red after `.agents/skills/systematic-debugging/SKILL.md` |
+
+Everything else is an engineering decision: a plan step that does not match reality, a missing dependency you can install, a failing test. Decide it, record the deviation in the tracker, and continue.
+
+If the human says "skip verification": push back once, and if they insist, note it in the tracker.
 
 ### Backtracking
 
-* If Phase 3 reveals a failed criterion → go back to Phase 1 with a targeted fix batch
-* If the whole approach is wrong → STOP. This may need a plan revision (return to Spec-It)
+* A failed criterion in Phase 3 → a targeted fix batch in Phase 1.
+* The whole approach is wrong → stop: the plan needs revision in Spec-It.
 
 ---
 
@@ -232,21 +239,13 @@ Before claiming this implementation is done:
 
 - [ ] All tasks in tracker are `done` with evidence
 - [ ] Every task followed RED → GREEN → REFACTOR, or has an explicit `no test:` reason recorded
-- [ ] Each non-trivial batch passed an independent fresh-context review at its checkpoint (or the loop's Checker), findings addressed
+- [ ] Each non-trivial batch passed an independent fresh-context review in Phase 2 (or the loop's Checker), findings addressed
 - [ ] Full test suite passes (fresh run)
 - [ ] Production build succeeds
 - [ ] All Feature Spec acceptance criteria verified
 - [ ] All changes committed with Conventional Commits
 
 **The Verification Iron Law applies.** No completion claims without fresh evidence.
-
----
-
-## Next Steps After Build
-
-* **Ready to Ship?** → Trigger the **Ship** workflow (`.agents/workflows/ship.md`)
-* **Found a bug?** → Fix it in the current phase
-* **Scope changed?** → Update the plan and tracker
 
 ---
 

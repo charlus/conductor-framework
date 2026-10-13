@@ -41,13 +41,13 @@ export const CATEGORIES = [
 ];
 const ALIASES = {
   acceptance: ["spec", "spec-gap", "spec-contradiction", "spec-ambiguity", "ambiguity", "completeness",
-    "undefined-precedence", "unsatisfiable-criterion", "acceptance-criteria", "requirements", "external-api-answers"],
-  correctness: ["bug", "logic", "edge-case", "ordering", "timezone", "validation", "type-safety", "stale-state", "regression"],
+    "undefined-precedence", "unsatisfiable-criterion", "ambiguous-criterion", "spec-wording", "acceptance-criteria", "requirements", "external-api-answers"],
+  correctness: ["bug", "logic", "edge-case", "ordering", "timezone", "validation", "type-safety", "stale-state", "regression", "accuracy"],
   security: ["info-leak", "auth", "authz", "injection", "sql-injection", "xss", "csrf", "secrets", "privacy"],
-  "data-integrity": ["data-loss", "data", "migration", "db-constraint", "data-constraint", "schema"],
+  "data-integrity": ["data-loss", "data", "migration", "db-constraint", "data-constraint", "schema", "data-model"],
   "test-quality": ["testing", "tests", "test-coverage", "coverage", "testability", "vacuous-test",
     "test-cannot-detect-subject", "wrong-test-seam", "test-structure"],
-  "error-handling": ["logging", "errors", "resilience"],
+  "error-handling": ["logging", "errors", "resilience", "robustness"],
   concurrency: ["race", "race-condition", "locking"],
   performance: ["n-plus-one", "perf", "efficiency"],
   ui: ["ui-state", "accessibility", "a11y", "design-system", "missing-asset", "ux", "design"],

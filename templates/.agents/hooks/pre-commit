@@ -103,6 +103,16 @@ lib_ok=1
 conductor_load_lib "$TRUSTED_REF" || lib_ok=0
 missing="$(conductor_missing_helpers "$REQUIRED")"
 
+# A merge that brings in a newer Conductor (main merged into a branch cut before
+# the upgrade): HEAD holds the old library, the branch being merged the new one.
+# Both are committed, so neither is the change judging itself: use MERGE_HEAD's.
+if { [ "$lib_ok" = "0" ] || [ -n "$missing" ]; } && git -C "$PROJECT_ROOT" rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1 \
+   && git -C "$PROJECT_ROOT" cat-file -e "MERGE_HEAD:.agents/hooks/lib.sh" 2>/dev/null; then
+  lib_ok=1
+  conductor_load_lib "MERGE_HEAD" || lib_ok=0
+  missing="$(conductor_missing_helpers "$REQUIRED")"
+fi
+
 if [ "$lib_ok" = "0" ] || [ -n "$missing" ]; then
   # Enforcement is installed but its library is unavailable or incomplete: fail
   # CLOSED. Failing open here is exactly the hole — it is what let one deleted

@@ -8,6 +8,29 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.12.0] — 2026-10-13 — Personas from the real diff, one review vocabulary, parallel sessions
+
+From the 6.8 usage audit of four projects (2026-10-13).
+
+### Fixed
+
+- **Personas missed real UI changes.** `conductor personas` with no paths read only the outer repository's diff, so in the outer layout it found nothing. It now reads each nested code repository's diff too. Build re-runs it on each batch's real diff and loads any persona the plan's file names missed, with the *Design system first* step for a new Designer. Server-side templates (Jinja, Handlebars, ERB, Nunjucks, …) trigger the Designer.
+- **The review log could not answer its own question.** Categories were free text (30 rows said `undefined`; one idea had five names), so the ">50% dismissed" rubric alarm never fired, and `persona` was empty in 99% of rows. Categories are now a closed set of 13, and common names map onto it (the original kept as `detail`). Unknown fields are refused instead of silently dropped. The ledger and its file paths resolve from the project root, whichever folder the command runs in. The reviewer brief names a `class` and a `lens` for every finding, recorded as `category` and `persona`. `summary` groups old rows under their class.
+- **Lessons stayed in one agent's memory.** The always-on block now says where a lesson goes: a convention to `4-context/technical/coding-patterns.md`, a decision and its reason to `4-context/meta/decision-log.md`. The block is no larger.
+- **Subagents ran unbounded.** A reviewer ran the full suite for 21 minutes; a ship-prep agent waited on its own background job for over an hour. The reviewer now takes the author's verification evidence and runs only targeted commands under `timeout`. Every subagent brief carries a time budget, foreground commands only.
+- **Parallel sessions collided.** `init` and `upgrade` set `merge=union` in `.gitattributes` for the ship-log, inbox and review-log, so parallel entries merge without conflict. Ship and `git-workflow` create branches in a worktree, never by switching a shared checkout.
+- **Merging main into a branch older than the last upgrade failed closed** and taught agents to bypass the protected-path gate. During a merge, the hooks use the merged branch's committed library, and a protected file staged exactly as that branch committed it is not this change's edit. A protected file edited during the merge is still blocked.
+- Ship archives a carved slice from `2-backlog/project-backlog/<Project>/implementations/`, not only from `1-workbench/`.
+- "I know exactly what to build" routes to Quick-Path; Spec-It on an uncarved feature hands over to Quick-Path instead of stalling.
+- `"eval": "none"` declares evals that are run by hand: the push no longer prints the "not enforced" notice.
+
+### Note — upgrading
+
+- `conductor review-log append` now refuses a missing or unknown `category` and unknown fields. The error lists the allowed values.
+- `conductor upgrade` adds three `merge=union` lines to `.gitattributes`.
+
+---
+
 ## [6.11.0] — 2026-10-13 — Quick-Path keeps the gates, hooks judge code only, upgrade commits on its own branch
 
 ### Fixed

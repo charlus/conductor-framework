@@ -185,7 +185,7 @@ Then re-review **once**: a fresh reviewer, given round-1 findings *plus your dis
     * Update `conductor/3-product-areas/[area]/[area]-features.md` or `[area]-technical.md` with the newly shipped capabilities.
 
 3.  **Archive:**
-    * Move the completed Implementation folder from `conductor/1-workbench/` to `conductor/6-archive/completed-implementations/`.
+    * Move the completed Implementation folder to `conductor/6-archive/completed-implementations/`, from wherever it lives: `conductor/1-workbench/`, or `conductor/2-backlog/project-backlog/<Project>/implementations/` for a carved slice. When the Project's last slice ships, move the Project folder to `conductor/6-archive/completed-projects/`.
 
 ---
 

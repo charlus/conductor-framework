@@ -12,7 +12,7 @@ description: Spec-It (Detailed Implementation Specs)
 - `implementations/[NN-Name]/feature-spec.md` — the detailed "what"
 - `implementations/[NN-Name]/implementation-plan.md` — the detailed "how"
 
-**Prerequisites:** Carve workflow completed (Implementation folders exist with blank templates)
+**Prerequisites:** Carve workflow completed (Implementation folders exist with blank templates). With no Implementation folder from Carve, this is a Quick-Path: say so in one line and run `.agents/workflows/quick-path.md`. Do not ask which one.
 **Next Workflow:** Build (execute the implementation)
 
 **Technique — synthesize, don't re-interview:** By the time Spec-It runs, the Blueprint chain (Grand PRD, UX/UI Brief, Technical Vision) has already interviewed the user at length and written it all down. **Your job is to synthesize that context into specs, not to re-run the interview.** Load `.agents/skills/collaborative-drafting/SKILL.md`: read the upstream docs, draft the full spec, and let the user correct it. Only reach for `.agents/skills/grilling/SKILL.md` on a *genuine gap* — a decision the blueprint left open. Never ask the user for something the upstream documents already answer.

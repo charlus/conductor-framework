@@ -39,7 +39,7 @@ conductor_find_project_root
 # pre-commit that lands on exactly this content is an upgrade, not a neutering,
 # and needs no waiver at push. Forging a match means editing pre-push as well —
 # both entry scripts, the stated limit. Pinned by test/hooks-registry-drift.test.js.
-CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256="0ad85318ea2f3405fe8b12b485e8e4694cef5e532e934518cb1e6e1d555ff138"
+CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256="b4b373390e572cccce592d94a1b4222078d874484a4e769a588e6ef97afcc2ed"
 
 # git feeds one line per pushed ref: <local ref> <local sha> <remote ref> <remote sha>.
 PUSH_LINES="$(cat)"
@@ -223,6 +223,27 @@ if [ -n "$removed_hooks" ]; then
 fi
 
 # ---- Verification Iron Law ------------------------------------------------
+# ---- A push that changes only conductor/ proves nothing by running tests ----
+# conductor/ is project state: backlog, specs, ship-log. Running the suite and
+# live evals for a backlog edit cost minutes and failed on flaky evals. Any file
+# outside conductor/, or a range that cannot be computed, counts as code.
+code_in_push=0; ranges=0
+while read -r _lref lsha _rref rsha; do
+  [ -z "${lsha:-}" ] || [ "$lsha" = "$ZERO" ] && continue
+  ranges=$((ranges+1))
+  from="$rsha"
+  [ -z "${from:-}" ] || [ "$from" = "$ZERO" ] && from="$TRUSTED_REF"
+  if [ -z "$from" ] || [ "$from" = "HEAD" ]; then code_in_push=1; break; fi
+  changed="$(git -C "$ROOT" diff --name-only "$from" "$lsha" 2>/dev/null)" || { code_in_push=1; break; }
+  if printf '%s\n' "$changed" | grep -v '^$' | grep -qv '^conductor/'; then code_in_push=1; break; fi
+done <<< "$PUSH_LINES"
+[ "$ranges" = "0" ] && code_in_push=1   # nothing to compare: judge as before
+if [ "$code_in_push" = "0" ]; then
+  echo "ℹ️  Conductor: this push changes only conductor/ — no verify, no evals."
+  echo "✅ Push allowed."
+  exit 0
+fi
+
 cmd="$(conductor_verify_cmd "$ROOT" "$PROJECT_ROOT" "$NESTED_REPO")"
 if [ "$cmd" = "none" ]; then
   # A DECLARED off (`conductor verify --none`). Silent on purpose: a docs or

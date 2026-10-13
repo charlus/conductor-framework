@@ -8,6 +8,17 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.11.0] — 2026-10-13 — Quick-Path keeps the gates, hooks judge code only, upgrade commits on its own branch
+
+### Fixed
+
+- **Quick-Path dropped what 6.8 added.** Two real features went through it with no persona, an improvised reviewer prompt, nothing in review-log and no ship-log entry, because Quick-Path only said "follow Build" and the agent read the first 80 lines of `build.md`. Quick-Path now states those steps itself: `conductor personas` before each RED, `reviewer.md` verbatim for the independent review, every finding through `conductor review-log append`. It ends in Ship, and never opens a PR itself. Its spec template has the `## Brief check` heading the pre-commit hook requires, and the plan is no longer a stop.
+- **Gates fired on project state.** A backlog-only push ran 29 live LLM evals and failed on a flaky one. Scripts archived under `conductor/` needed TDD waivers. Files under `conductor/` are no longer implementation code, and a push that changes only `conductor/` runs neither the verify command nor the evals.
+- **Every waiver needed a chore commit.** The waiver line stayed uncommitted in the ship-log, the chore commit ran the evals again, and parallel sessions inherited each other's lines. A commit now carries its own waiver line and any a push left behind. The hook stages the ship-log only when waiver lines are its sole change, and never in a partial commit.
+- **Upgrade committed on whatever branch was checked out.** On local master in an MR-only repository the commits sat unpushed for a week; elsewhere they rode an unrelated feature's merge request. With a remote, `conductor upgrade` on the default branch now commits on a new `chore/conductor-<version>` branch and prints the push command. On any other branch it does not commit and says why. Without a remote, nothing changes.
+
+---
+
 ## [6.10.0] — 2026-10-13 — The gates guard nested code repositories
 
 ### Fixed

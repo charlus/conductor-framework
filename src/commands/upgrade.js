@@ -58,6 +58,43 @@ async function gitSnapshot(dir) {
 }
 
 /**
+ * Where the upgrade commit may go. A repository with a remote merges through
+ * merge requests, so the commit goes on its own branch, cut from the default
+ * branch, never on the default branch itself (it sat unpushed for a week) and
+ * never on a feature branch (it rode that feature's merge request). Without a
+ * remote, the current branch, as before.
+ *
+ * @returns {Promise<{mode: "here"} | {mode: "branch", branch: string} | {mode: "refuse", why: string}>}
+ */
+async function upgradeTarget(targetDir, version) {
+  const remotes = (await git(["remote"], targetDir)).stdout.split("\n").filter(Boolean);
+  if (!remotes.length) return { mode: "here" };
+  const remote = remotes.includes("origin") ? "origin" : remotes[0];
+  let main = (await git(["symbolic-ref", "--short", `refs/remotes/${remote}/HEAD`], targetDir)).stdout.replace(`${remote}/`, "");
+  if (!main) {
+    for (const candidate of ["main", "master"]) {
+      if ((await git(["rev-parse", "--verify", "-q", `refs/remotes/${remote}/${candidate}`], targetDir)).ok) main = candidate;
+    }
+  }
+  const current = (await git(["symbolic-ref", "--short", "-q", "HEAD"], targetDir)).stdout;
+  if (!current) return { mode: "refuse", why: "HEAD is detached" };
+  if (!main) return { mode: "here" };
+  if (current !== main) {
+    return {
+      mode: "refuse",
+      why:
+        `you are on ${current}, so the upgrade would ride that branch's merge request. ` +
+        `Switch to ${main} and run conductor upgrade again: it commits on its own branch`,
+    };
+  }
+  const branch = `chore/conductor-${version}`;
+  if ((await git(["rev-parse", "--verify", "-q", `refs/heads/${branch}`], targetDir)).ok) {
+    return { mode: "refuse", why: `branch ${branch} already exists` };
+  }
+  return { mode: "branch", branch, remote };
+}
+
+/**
  * Commit exactly the framework files the upgrade wrote — with the protected-
  * path waiver set, so the gate still logs it — or, when that is not safe, print
  * the one command that does it.
@@ -92,7 +129,7 @@ async function commitUpgrade({ targetDir, version, snap, noCommit, structural, e
   const printManual = (why) => {
     stdout.write(`\n   Commit it with one command${why ? ` (${why})` : ""}:\n`);
     stdout.write(`     ${manual}\n`);
-    stdout.write("   Then push as usual — the push needs no waiver.\n");
+    stdout.write("   The push needs no waiver.\n");
   };
 
   if (noCommit) return printManual("--no-commit");
@@ -104,6 +141,12 @@ async function commitUpgrade({ targetDir, version, snap, noCommit, structural, e
   }
 
   if (!existing.length) return;
+  const target = await upgradeTarget(targetDir, version);
+  if (target.mode === "refuse") return printManual(target.why);
+  if (target.mode === "branch") {
+    const sw = await git(["switch", "-q", "-c", target.branch], targetDir);
+    if (!sw.ok) return printManual(`could not create branch ${target.branch}`);
+  }
   const add = await git(["add", "-A", "--", ...existing], targetDir);
   if (!add.ok) return printManual(`git add failed: ${add.stderr.split("\n")[0]}`);
   if ((await git(["diff", "--cached", "--quiet", "--", ...existing], targetDir)).ok) {
@@ -120,8 +163,16 @@ async function commitUpgrade({ targetDir, version, snap, noCommit, structural, e
     return printManual(`the commit was refused${why ? `: ${why}` : ""}`);
   }
   const sha = (await git(["rev-parse", "--short", "HEAD"], targetDir)).stdout;
-  stdout.write(`\n   ✅ Committed the upgrade as ${sha}. Push as usual — no waiver needed.\n`);
   await commitWaiverLine(targetDir, version);
+  if (target.mode === "branch") {
+    stdout.write(
+      `\n   ✅ Committed the upgrade as ${sha} on its own branch, ${target.branch}. No waiver needed.\n` +
+        `   Push it and open a merge request:  git push -u ${target.remote} ${target.branch}\n` +
+        "   You are now on that branch. Start new work from the default branch once it is merged.\n",
+    );
+    return;
+  }
+  stdout.write(`\n   ✅ Committed the upgrade as ${sha}. Push as usual — no waiver needed.\n`);
 }
 
 /**

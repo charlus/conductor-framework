@@ -421,3 +421,50 @@ test("R4: upgrade refuses an agent-only repo with no conductor/ and no version s
   assert.equal(forced.code, 0, forced.stderr);
   assert.ok(existsSync(join(dir, ".agents", "workflows", "genesis.md")));
 });
+
+// ---------------------------------------------------------------------------
+// F5 — the upgrade commit goes where a merge request can carry it.
+//
+// Real usage (2026-10): upgrade committed on local master in evalapp-v2, where
+// the commits sat unpushed for a week in an MR-only repo; on an unrelated
+// branch in website; and rode a feature MR in eurassistant. With a remote, the
+// upgrade now commits on its own branch from the default branch, and does not
+// commit on any other branch.
+// ---------------------------------------------------------------------------
+
+async function withRemote(dir) {
+  const bare = mkdtempSync(join(tmpdir(), "cond-remote-"));
+  execFileSync("git", ["init", "-q", "--bare", bare]);
+  const branch = g(dir, "rev-parse", "--abbrev-ref", "HEAD");
+  g(dir, "remote", "add", "origin", bare);
+  g(dir, "push", "-q", "origin", `HEAD:${branch}`);
+  g(dir, "remote", "set-head", "origin", branch);
+  return branch;
+}
+
+test("on the default branch with a remote, upgrade commits on its own branch", async () => {
+  const dir = await makeGitInstall();
+  const main = await withRemote(dir);
+  const before = g(dir, "rev-parse", main);
+  const { code, stdout } = await runUpgrade(dir);
+  assert.equal(code, 0, stdout);
+  assert.equal(g(dir, "rev-parse", main), before, "upgrade committed on the default branch");
+  const branch = `chore/conductor-${packageVersion()}`;
+  assert.equal(g(dir, "rev-parse", "--abbrev-ref", "HEAD"), branch);
+  assert.ok(upgradeCommit(dir), "no upgrade commit on the new branch");
+  assert.match(stdout, new RegExp(`git push -u origin ${branch.replace(/\./g, "\\.")}`));
+  assert.match(stdout, /merge request|pull request/i);
+  assert.doesNotMatch(stdout, /push as usual/i);
+});
+
+test("on another branch, upgrade does not commit and says why", async () => {
+  const dir = await makeGitInstall();
+  await withRemote(dir);
+  g(dir, "switch", "-q", "-c", "feat/something");
+  const before = g(dir, "rev-parse", "HEAD");
+  const { code, stdout } = await runUpgrade(dir);
+  assert.equal(code, 0, stdout);
+  assert.equal(g(dir, "rev-parse", "HEAD"), before, "upgrade committed on a feature branch");
+  assert.match(stdout, /feat\/something/);
+  assert.match(stdout, /merge request|pull request/i);
+});

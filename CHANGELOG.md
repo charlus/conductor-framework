@@ -8,6 +8,20 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.9.0] — 2026-10-13 — Build runs to ship-ready
+
+### Changed
+
+- Build no longer stops to ask "Ready to build?" or "Batch N complete, ready for next batch?". It runs until the implementation is ship-ready. A batch of tasks is now only the unit of independent review: the review runs, its blockers are fixed, and the next batch starts. Product owners in two projects answered these stops dozens of times and kept the fix in agent memories.
+- Build stops for the product owner only on a product decision (what a user sees, cost, an irreversible choice, a contradiction with an earlier decision, scope), on a security or data-loss blocker that survives the review's delta round, or on a blocker it cannot remove (missing access, tests still red after systematic debugging). A plan step that does not match reality is an engineering decision: Build adapts it and records the deviation in the task tracker.
+- Long builds survive a context reset through `task-tracker.md`: after a compaction or in a new session, Build re-reads the tracker, plan and spec and continues from the first task not `done`. A session that must end writes `handoff.md` and the exact `/build <folder>` command.
+
+### Note — upgrading
+
+- Projects that kept a "build without checkpoints" memory can delete it: the workflow now does this.
+
+---
+
 ## [6.8.3] — 2026-10-06 — One DESIGN.md per code repository
 
 ### Fixed

@@ -63,11 +63,18 @@ export async function personasCommand(args, { cwd, stdout, stderr }) {
   const opts = parseArgs(args);
   const root = resolve(cwd);
   const config = await readJson(join(root, "conductor.config.json"));
-  const paths = opts.paths.length ? opts.paths : changedPaths(root, opts.base);
 
   // In the outer layout each nested code repository has its own DESIGN.md:
   // one install can hold two products with two designs.
   const nested = (await ignoredNestedRepos(root)).map((d) => d.replace(/\/$/, ""));
+  // No paths: the change itself. In the outer layout the code lives in the
+  // nested repositories, so their diffs count too, prefixed with the folder.
+  const paths = opts.paths.length
+    ? opts.paths
+    : [
+        ...changedPaths(root, opts.base),
+        ...nested.flatMap((r) => changedPaths(join(root, r), opts.base).map((p) => `${r}/${p}`)),
+      ];
   const localise = (context, files) => {
     if (!nested.length || !context.includes("DESIGN.md")) return context;
     const repos = [...new Set(files.map((f) => nested.find((r) => f.startsWith(`${r}/`))).filter(Boolean))];

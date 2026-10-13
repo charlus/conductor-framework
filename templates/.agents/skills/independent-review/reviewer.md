@@ -121,7 +121,8 @@ and does not withhold APPROVE unless the change is unsafe as it stands.
 
 You **only report**. You do not merge, push, or edit code — the author fixes and
 re-verifies, and verification stays with them. Your verdict is a finding set, never an
-action.
+action. Do not re-run the full suite: the author's verification evidence is your input.
+Run only targeted commands, in the foreground, under `timeout 300`. No background work.
 
 Withholding APPROVE because more could conceivably be built is a routing error: it
 spends a whole round on nobody. When every blocker is closed and the definition of done

@@ -32,7 +32,8 @@ Isolation is also a **safety** property:
 1. **Mutating work in parallel → isolated git worktrees.** Two agents editing the same tree collide. Give each its own worktree (see the `git-worktrees` skill) and serialize the merge. This is mandatory for the unattended swarm (see `workflows/unattended-loop.md`).
 2. **Scoped context.** Give a subagent the narrowest brief that lets it succeed — the files/dirs in scope, the one question to answer. A subagent with the whole project as context is just the monolith again.
 3. **Scoped credentials & atomic commits.** Unattended or risky steps get least-privilege access and commit in small, revertible units — so a bad step is contained and easy to back out. Pair with the enforcement hooks (`.agents/hooks/`) which keep each commit test-backed and each push verified.
-4. **Verification stays with the orchestrator.** A scout reports; the accountable agent (and the human) still verifies. Never let a subagent's "it's fine" be the proof — that's the Verification Iron Law.
+4. **A time budget, in the foreground.** Every subagent brief states a time budget (a review: 15 minutes) and what to return when it runs out: what it finished and what it did not. A subagent runs commands in the foreground under `timeout`, never starts background work, and never waits on it: no human is watching its context, so a hung wait can only end with a killed session.
+5. **Verification stays with the orchestrator.** A scout reports; the accountable agent (and the human) still verifies. Never let a subagent's "it's fine" be the proof — that's the Verification Iron Law.
 
 ## The Checker is a scout too
 

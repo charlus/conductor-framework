@@ -23,12 +23,53 @@
 // useful to the whole team and to the Retrospective workflow.
 
 import { appendFile, mkdir, readFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { existsSync } from "node:fs";
+import { join, dirname, resolve, relative, isAbsolute } from "node:path";
 import { PRECEDENCE, outranks } from "../personas.js";
+import { ignoredNestedRepos } from "../nested-repos.js";
 
 export const REVIEW_LOG_REL = "conductor/1-workbench/review-log.jsonl";
 
 const SEVERITIES = new Set(["BLOCKER", "IMPORTANT", "NIT", "SCOPE"]);
+
+// F7: one vocabulary. Free-text categories split one idea over many names
+// (spec-gap, spec-ambiguity, ambiguity), so no class reached the 3 findings the
+// rubric alarm needs. The reviewer brief names the same classes.
+export const CATEGORIES = [
+  "acceptance", "correctness", "security", "data-integrity", "test-quality", "error-handling",
+  "concurrency", "performance", "ui", "architecture", "consistency", "scope", "other",
+];
+const ALIASES = {
+  acceptance: ["spec", "spec-gap", "spec-contradiction", "spec-ambiguity", "ambiguity", "completeness",
+    "undefined-precedence", "unsatisfiable-criterion", "acceptance-criteria", "requirements", "external-api-answers"],
+  correctness: ["bug", "logic", "edge-case", "ordering", "timezone", "validation", "type-safety", "stale-state", "regression"],
+  security: ["info-leak", "auth", "authz", "injection", "sql-injection", "xss", "csrf", "secrets", "privacy"],
+  "data-integrity": ["data-loss", "data", "migration", "db-constraint", "data-constraint", "schema"],
+  "test-quality": ["testing", "tests", "test-coverage", "coverage", "testability", "vacuous-test",
+    "test-cannot-detect-subject", "wrong-test-seam", "test-structure"],
+  "error-handling": ["logging", "errors", "resilience"],
+  concurrency: ["race", "race-condition", "locking"],
+  performance: ["n-plus-one", "perf", "efficiency"],
+  ui: ["ui-state", "accessibility", "a11y", "design-system", "missing-asset", "ux", "design"],
+  architecture: ["coupling", "layering", "dependency"],
+  consistency: ["naming", "wording", "stale-comment", "documentation", "docs", "style"],
+  scope: ["slicing", "scope-creep"],
+};
+const ALIAS_TO_CLASS = new Map(
+  Object.entries(ALIASES).flatMap(([cls, names]) => names.map((n) => [n, cls])),
+);
+
+/** The class a category name belongs to, or null. */
+export function canonicalCategory(name) {
+  const n = String(name ?? "").trim().toLowerCase();
+  if (CATEGORIES.includes(n)) return n;
+  return ALIAS_TO_CLASS.get(n) ?? null;
+}
+
+const FIELDS = new Set([
+  "severity", "action", "category", "detail", "file", "line", "quote", "confidence", "reason", "round",
+  "brief_bytes", "persona", "overridden_by", "po_decision", "fingerprint", "artifact", "slice",
+]);
 const ACTIONS = new Set(["fixed", "dismissed", "known-gap", "deferred"]);
 
 /**
@@ -47,6 +88,17 @@ export function normalizeFinding(raw, { now = () => Date.now() } = {}) {
   if (!ACTIONS.has(action)) {
     return { ok: false, error: `action must be one of ${[...ACTIONS].join(", ")}` };
   }
+  const unknown = Object.keys(raw).filter((k) => !FIELDS.has(k));
+  if (unknown.length) {
+    return { ok: false, error: `unknown field(s): ${unknown.join(", ")}. Allowed: ${[...FIELDS].join(", ")}` };
+  }
+  const category = canonicalCategory(raw.category);
+  if (!category) {
+    return { ok: false, error: `category must be one of ${CATEGORIES.join(", ")} (got "${raw.category ?? ""}")` };
+  }
+  const detail = raw.detail
+    ? String(raw.detail).slice(0, 200)
+    : String(raw.category).trim().toLowerCase() !== category ? String(raw.category) : null;
   const confidence = Number(raw.confidence);
   // The E1 bar, enforced here too so the ledger cannot record a finding the
   // rubric would have refused: a BLOCKER needs a quote and confidence >= 7.
@@ -88,7 +140,9 @@ export function normalizeFinding(raw, { now = () => Date.now() } = {}) {
       round: Number.isFinite(Number(raw.round)) ? Number(raw.round) : 1,
       severity,
       confidence: Number.isFinite(confidence) ? confidence : null,
-      category: String(raw.category ?? "uncategorised"),
+      category,
+      detail,
+      slice: raw.slice ? String(raw.slice) : null,
       file: raw.file ? String(raw.file) : null,
       line: Number.isFinite(Number(raw.line)) ? Number(raw.line) : null,
       quote: raw.quote ? String(raw.quote).slice(0, 400) : null,
@@ -98,7 +152,7 @@ export function normalizeFinding(raw, { now = () => Date.now() } = {}) {
       // code that did not change.
       fingerprint: raw.fingerprint
         ? String(raw.fingerprint)
-        : `${raw.file ?? "?"}:${raw.line ?? "?"}:${raw.category ?? "?"}`,
+        : `${raw.file ?? "?"}:${raw.line ?? "?"}:${category}`,
       brief_bytes: Number.isFinite(Number(raw.brief_bytes)) ? Number(raw.brief_bytes) : null,
       artifact: raw.artifact ? String(raw.artifact) : "diff",
       persona,
@@ -124,7 +178,9 @@ export function summarise(records) {
       if (r.overridden_by) p.overridden += 1;
     }
     bySeverity[r.severity] = (bySeverity[r.severity] ?? 0) + 1;
-    const c = (byClass[r.category] ??= { total: 0, dismissed: 0, blockers: 0 });
+    // Old rows carry free-text categories: count them under their class.
+    const cls = canonicalCategory(r.category) ?? r.category ?? "other";
+    const c = (byClass[cls] ??= { total: 0, dismissed: 0, blockers: 0 });
     c.total += 1;
     if (r.action === "dismissed") {
       c.dismissed += 1;
@@ -167,9 +223,38 @@ export function summarise(records) {
   };
 }
 
+/**
+ * The project root: the nearest folder up from `cwd` that holds `conductor/`
+ * and `.agents/`. Run from a nested code repository, the ledger is still the
+ * project's, never a stray copy in the code repository.
+ */
+export function findProjectRoot(cwd) {
+  let dir = resolve(cwd);
+  for (;;) {
+    if (existsSync(join(dir, "conductor")) && existsSync(join(dir, ".agents"))) return dir;
+    const up = dirname(dir);
+    if (up === dir) return resolve(cwd);
+    dir = up;
+  }
+}
+
+/** `file` relative to the project root, whichever folder the caller ran in. */
+async function projectPath(file, cwd, root) {
+  if (!file) return file;
+  const fromCwd = isAbsolute(file) ? file : resolve(cwd, file);
+  if (existsSync(fromCwd)) return relative(root, fromCwd);
+  // A path relative to a nested code repository, given from the project root.
+  for (const repo of await ignoredNestedRepos(root)) {
+    const candidate = join(root, repo, file);
+    if (existsSync(candidate)) return relative(root, candidate);
+  }
+  return relative(root, fromCwd);
+}
+
 export async function reviewLogCommand(args, { cwd, stdout, stderr }) {
   const sub = args.find((a) => !a.startsWith("-")) ?? "";
-  const path = join(cwd, REVIEW_LOG_REL);
+  const root = findProjectRoot(cwd);
+  const path = join(root, REVIEW_LOG_REL);
 
   if (sub === "append") {
     const json = args[args.indexOf("append") + 1];
@@ -184,6 +269,7 @@ export async function reviewLogCommand(args, { cwd, stdout, stderr }) {
       stderr.write(`review-log: not valid JSON (${e.message})\n`);
       return 1;
     }
+    if (parsed && typeof parsed === "object" && parsed.file) parsed.file = await projectPath(String(parsed.file), cwd, root);
     const res = normalizeFinding(parsed);
     if (!res.ok) {
       stderr.write(`review-log: ${res.error}\n`);

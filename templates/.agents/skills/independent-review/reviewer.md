@@ -28,10 +28,15 @@ Write findings in this shape, most severe first:
 ```
 [BLOCKER] (confidence 9) src/auth/session.ts:42
   quote:  const user = await db.query(`SELECT * FROM users WHERE id = ${id}`)
-  class:  SQL string interpolation
+  class:  security — SQL string interpolation
+  lens:   security-auditor
   also:   src/auth/reset.ts:88, src/admin/lookup.ts:120
   fix:    parameterise the query
 ```
+
+`class` starts with one of: acceptance, correctness, security, data-integrity,
+test-quality, error-handling, concurrency, performance, ui, architecture, consistency,
+scope, other. `lens` is the persona whose Review Lens line it breaks, or `spec`.
 
 Then one line: `VERDICT: APPROVE` or `VERDICT: CHANGES REQUESTED`.
 

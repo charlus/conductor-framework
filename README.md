@@ -195,7 +195,7 @@ conductor status
     3  triage  rename the export button
 ```
 
-Under the counts, three lines answer "is anything actually enforced here?": the **Push gate** command, whether the git **Gates** are armed (with the fix when they are not, and which opt-in agent guards are on), and the **Waivers** logged in the last 30 days.
+Under the counts, three lines answer "is anything actually enforced here?": the **Push gate** command, whether the git **Gates** are armed (with the fix when they are not, and which opt-in agent guards are on), and the **Waivers** logged in the last 30 days. A fourth line, **Skipped**, appears when local commits or pushes in the last 14 days did not run the hooks (`--no-verify`, `CONDUCTOR_HOOKS=off`, or a git client that ignores hooks), with their hashes. Each hook writes a heartbeat line in the git directory and status compares it with the reflog. Commits from before `conductor install-hooks` are not judged.
 
 That queue is the **same** one `conductor loop` drains, in the same order, from the same parser — a preview of the fleet's next move, not a second opinion about it. `--json` for scripts, `--no-color` for pipes.
 
@@ -275,7 +275,7 @@ conductor evidence run --label tests -- npm test     # run it, and record what i
 conductor evidence check --label tests               # FRESH / STALE / MISSING
 ```
 
-Commit exactly the code that was tested and the evidence stays **FRESH**. Add an untracked source file and it goes **STALE**. `pre-push` uses this to skip a re-run it does not need — and only ever to *skip* one: no ledger, no CLI, or any doubt at all, and the command runs. The ledger can never satisfy the gate on its own.
+Commit exactly the code that was tested and the evidence stays **FRESH**. Add an untracked source file and it goes **STALE**. A run that changes tracked or new files while it runs (snapshots, a lint fix, a lockfile) is never FRESH, and `pre-push` runs the command with `--stable-tree`, which fails such a run and names the files: the code that passed is not the code on disk. `pre-push` uses this to skip a re-run it does not need — and only ever to *skip* one: no ledger, no CLI, or any doubt at all, and the command runs. The ledger can never satisfy the gate on its own.
 
 ---
 
@@ -411,6 +411,8 @@ Conductor was built by standing on the shoulders of giants. Each entry names wha
 - **[Skills for Real Engineers](https://github.com/mattpocock/skills)** by Matt Pocock (MIT) — The `grilling` interview primitive, synthesise-then-fill-gaps spec drafting (`to-spec`), TDD seams and anti-pattern tells, the Fowler smell baseline in code review, red-command-first debugging, the deep-module deletion test and ADR gate, merge-conflict discipline, and the `handoff` skill. What we took and where we deliberately differ: [`docs/roadmap/Pocock-Alignment-Backlog.md`](docs/roadmap/Pocock-Alignment-Backlog.md).
 
 - **[gstack](https://github.com/garrytan/gstack)** by Garry Tan (MIT) — The descriptions-suite routing eval with the routing table removed from the fixture, the working-tree content fingerprint and evidence ledger technique (`src/evidence/wtree.js` reimplements `gstack-wtree` in JavaScript), the context-bill ratchet, the review log, and confidence-gated review findings. We diverged on byte ceilings, a drift gate instead of a generator, and host neutrality: [`docs/roadmap/Review-Convergence-And-Harness-Alignment.md`](docs/roadmap/Review-Convergence-And-Harness-Alignment.md).
+
+- **[AI-DLC](https://github.com/awslabs/aidlc-workflows)** by AWS Labs (MIT-0) — Failing a verification run that changes files while it runs, the hook heartbeat that shows when the hooks stopped firing, and the `Compatibility:` line on each release entry. What we took, what we left and why: [`docs/roadmap/AIDLC-Harvest.md`](docs/roadmap/AIDLC-Harvest.md).
 
 - **agentctl** (Euranova internal agent orchestrator, private) — The diagnosis that review loops fail to converge when the reviewer's question is unbounded, the finding that round count tracks the size of the instruction corpus, and the architecture-checklist idea. We diverged on self-improvement: Conductor proposes rules, it never auto-appends them.
 

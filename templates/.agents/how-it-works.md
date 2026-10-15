@@ -216,7 +216,7 @@ Mechanics live in `.agents/skills/context-engineering/SKILL.md`.
 
 | Command | What it is for |
 |---|---|
-| `conductor status` | The daily question, answered in one screen: inbox depth, open tasks per priority, the work queue in the order the loop would drain it, stale documents, loop state, and whether the gates are armed (push command, git hooks wired, opt-in agent guards, waivers in the last 30 days). Costs no tokens and no context — never ask an agent to summarise state instead. |
+| `conductor status` | The daily question, answered in one screen: inbox depth, open tasks per priority, the work queue in the order the loop would drain it, stale documents, loop state, and whether the gates are armed (push command, git hooks wired, opt-in agent guards, waivers in the last 30 days, and the local commits and pushes that skipped the hooks). Costs no tokens and no context — never ask an agent to summarise state instead. |
 | `conductor inbox add "…"` / `conductor inbox list` | Deterministic quick capture and read-back. |
 | `conductor review <file.md>` | Hands one document to the human for sign-off: rendered in the browser, text-anchored comments, **Approve** / **Request changes**. Exit `0` approved, `2` changes requested, `1` no verdict; stdout is JSON. Run it in the background and read the JSON when it exits. |
 | `conductor survey [dir] [--out <file>]` | Facts about an existing codebase: languages, coverage by area (untested first), entry points, routes, config keys, dependencies. Used by `workflows/survey.md`. An area marked untested is a place to check, not a proven gap. |
@@ -229,7 +229,7 @@ The other commands, for setup, gates and measurement:
 | `conductor init` / `conductor upgrade` | Install the framework / move an install to the latest version (replaces `.agents/`, never touches your `conductor/` knowledge; backs up first) |
 | `conductor install-hooks` | Wire the git hooks in `.agents/hooks/` (TDD and eval presence, Goodhart boundary, protected paths on commit; verify and evals on push) |
 | `conductor verify [--set <cmd>]` | Show or set the command `git push` must pass |
-| `conductor evidence run\|check\|list` | Run the verify command and record the result against the exact working tree; `pre-push` accepts fresh evidence instead of re-running |
+| `conductor evidence run\|check\|list` | Run the verify command and record the result against the exact working tree; `pre-push` accepts fresh evidence instead of re-running, and fails a run that changed files while it ran (`--stable-tree`) |
 | `conductor review-log append\|summary` | Record review findings and how each was handled, in 13 fixed classes. A class dismissed more than half the time is a rubric defect |
 | `conductor context-bill` | What the framework costs every session before an agent reads project code (always-on vs on-demand bytes) |
 | `conductor agents-md facts\|write\|check` | The project card in `AGENTS.md`: print the facts the code states, refresh them in the card, check the card (exit 0 = complete and current, then stamped) |

@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { join, resolve } from "node:path";
 import { ignoredNestedRepos } from "../nested-repos.js";
+import { writeInstalledHeartbeat } from "../heartbeat.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -78,6 +79,7 @@ export async function wireNestedRepos(targetDir, { uninstall = false } = {}) {
       results.push({ repo, state: "own-hooks", detail: (await liveGitHooks(dir)).join(", ") });
     } else {
       const set = path === ours ? { ok: true } : await git(["config", "--local", "core.hooksPath", ours], dir);
+      if (set.ok) await writeInstalledHeartbeat(dir);
       results.push({ repo, state: set.ok ? "wired" : "unwired" });
     }
   }
@@ -165,6 +167,8 @@ export async function installHooksCommand(args, { cwd, stdout, stderr }) {
     stderr.write("Failed to set core.hooksPath.\n");
     return 1;
   }
+  // The floor for `conductor status`: commits from before this are not judged.
+  await writeInstalledHeartbeat(targetDir);
 
   const present = new Set(await readdir(hooksDir));
   const wired = ["pre-commit", "pre-push"].filter((h) => present.has(h));

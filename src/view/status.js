@@ -134,6 +134,23 @@ function gatesLine(gates, c) {
   }
 }
 
+/**
+ * One line for the local commits and pushes that skipped the hooks, or null
+ * when there are none or it cannot tell. "Gates on" is configuration; this is
+ * what happened.
+ */
+function skippedLine(skipped, c) {
+  if (!skipped || (!skipped.commits.length && !skipped.pushes)) return null;
+  const n = skipped.commits.length;
+  const parts = [];
+  if (n) {
+    const shown = skipped.commits.slice(0, 3).join(", ") + (n > 3 ? ", …" : "");
+    parts.push(`${n} commit${n > 1 ? "s" : ""} skipped the hooks (${shown})`);
+  }
+  if (skipped.pushes) parts.push(`${skipped.pushes} push${skipped.pushes > 1 ? "es" : ""} skipped the hooks`);
+  return c(`${parts.join(", ")} in ${skipped.days} days · --no-verify, CONDUCTOR_HOOKS=off or a git client that ignores hooks`, "yellow");
+}
+
 /** One line for the waivers logged in the window. A waived gate is not a gate. */
 function waiversLine(waivers, c) {
   if (!waivers?.count) return c(`none in ${waivers?.days ?? 30} days`, "dim");
@@ -178,6 +195,8 @@ export function renderStatus(state, { color = true, width = 78 } = {}) {
   lines.push(`  ${c("Push gate".padEnd(10), "dim")}${verifyLine(d.verify, c)}`);
   if (d.gates) {
     lines.push(`  ${c("Gates".padEnd(10), "dim")}${gatesLine(d.gates, c)}`);
+    const skipped = d.gates.hooks === "on" ? skippedLine(d.gates.skipped, c) : null;
+    if (skipped) lines.push(`  ${c("Skipped".padEnd(10), "dim")}${skipped}`);
     if (d.gates.hooks !== "not-git") {
       lines.push(`  ${c("Waivers".padEnd(10), "dim")}${waiversLine(d.gates.waivers, c)}`);
     }

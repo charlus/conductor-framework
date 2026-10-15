@@ -8,6 +8,25 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.13.0] — 2026-10-15 — Gates that show when they did not run
+
+Compatibility: upgrade plus a step
+
+From the analysis of AWS Labs' AI-DLC (2026-10-15): [`docs/roadmap/AIDLC-Harvest.md`](docs/roadmap/AIDLC-Harvest.md).
+
+### Added
+
+- **`conductor status` names the commits and pushes that skipped the hooks.** "Gates on" said git was configured, not that the hooks ran. A new **Skipped** line lists the local commits (by hash) and counts the pushes of the last 14 days that ran no hook: `--no-verify`, `CONDUCTOR_HOOKS=off`, or a git client that ignores hooks. Each hook appends a heartbeat line to `.git/conductor-heartbeat`, and status compares it with the reflog. Commits from before `conductor install-hooks` are not judged, and when it cannot tell, status says nothing.
+- **A verify run that changes files fails the push.** A command that rewrites snapshots, fixes lint or updates a lockfile passed against code that was not the code being pushed. `pre-push` now runs it as `conductor evidence run --stable-tree`, which fails a green run that changed tracked or new files and names them. Ignored files do not count. Such a run is never FRESH evidence either.
+- Each release entry in this changelog now starts with a `Compatibility:` line: `upgrade only`, `upgrade plus a step` or `breaking for scripts`.
+
+### Note — upgrading
+
+- If your verify command writes files that git tracks (for example `jest` without `--ci`, or a lint command with `--fix`), the push now fails and names the files. Make the command check only, or commit what it writes.
+- The first **Skipped** report covers only commits made after this upgrade.
+
+---
+
 ## [6.12.0] — 2026-10-13 — Personas from the real diff, one review vocabulary, parallel sessions
 
 From the 6.8 usage audit of four projects (2026-10-13).

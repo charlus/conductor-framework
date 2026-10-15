@@ -1,6 +1,6 @@
 # AI-DLC Harvest — A1–A7
 
-> **Status:** A1–A3 built on `feat/aidlc-harvest-a1-a3` (6.13.0), not merged. A4–A7 parked.
+> **Status:** A1–A3 shipped in 6.13.0 (#65). A4–A7 parked.
 >
 > **Source:** a source audit of **AI-DLC** (`github.com/awslabs/aidlc-workflows`, 2.11.0, read at `0bb0075`, 2026-10-15): a Bun engine of about 215k lines of TypeScript, 500k lines of tests, 33 stages in 5 phases, 11 scopes, 14 agents, 7 harnesses. 1,558 commits since 2025-11-13, 857 of them in 2026-10-01..15, about 70% by one author working with coding agents.
 >

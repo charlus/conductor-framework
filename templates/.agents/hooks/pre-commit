@@ -15,6 +15,14 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [ -z "$ROOT" ] && exit 0
 [ "${CONDUCTOR_HOOKS:-on}" = "off" ] && exit 0
 
+# Heartbeat: `conductor status` compares it with the reflog to name the commits
+# and pushes that skipped this hook (--no-verify, CONDUCTOR_HOOKS=off, a client
+# that ignores hooks). Written here, not in lib.sh, so the commit that upgrades
+# the hooks has one too.
+HB_DIR="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+case "$HB_DIR" in "") ;; /*) ;; *) HB_DIR="$(pwd)/$HB_DIR" ;; esac
+[ -n "$HB_DIR" ] && printf '%s pre-commit\n' "$(date +%s)" >> "$HB_DIR/conductor-heartbeat" 2>/dev/null || true
+
 # ---- The project root: where .agents/, conductor/ and the config live -------
 # It is ROOT, except in the outer layout. There a gitignored nested code
 # repository has core.hooksPath set to the outer .agents/hooks by absolute path

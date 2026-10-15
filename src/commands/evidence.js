@@ -2,12 +2,13 @@
 //
 // `conductor evidence` — the CLI over the evidence ledger (E2).
 //
-//   conductor evidence run --label tests -- npm test
+//   conductor evidence run --label tests [--stable-tree] -- npm test
 //   conductor evidence check --label tests [--expect-cmd "npm test"] [--max-age 24]
 //   conductor evidence list [--label tests]
 //
 // `run` is a TRANSPARENT wrapper: output streams through, and the child's exit
-// code is this command's exit code. `check` exits 0 only when every named label
+// code is this command's exit code. With `--stable-tree`, a green run that
+// changed tracked or new files fails: the code that passed is not on disk. `check` exits 0 only when every named label
 // is FRESH, so it is usable as a gate — but it never throws, and "I could not
 // tell" grades STALE, never FRESH.
 
@@ -52,13 +53,22 @@ export async function evidenceCommand(args, { cwd, stdout, stderr }) {
     const command = sep !== -1 ? args.slice(sep + 1).join(" ") : null;
     if (!label || !command) {
       stderr.write(
-        "usage: conductor evidence run --label <name> -- <command...>\n" +
+        "usage: conductor evidence run --label <name> [--stable-tree] -- <command...>\n" +
           '  e.g. conductor evidence run --label tests -- npm test\n',
       );
       return 1;
     }
-    const { exitCode } = await recordRun({ label, command, cwd, io: { stdout, stderr } });
-    // Transparency: the child's code is ours. Nothing about recording can change it.
+    const stable = args.slice(0, sep).includes("--stable-tree");
+    const { exitCode, treeChanged } = await recordRun({ label, command, cwd, io: { stdout, stderr } });
+    if (stable && exitCode === 0 && treeChanged) {
+      stderr.write(
+        `\nThe command changed files while it ran: ${treeChanged.join(", ")}\n` +
+          "The code that passed is not the code on disk. Commit those changes, or make the\n" +
+          "command stop writing them (for example `jest --ci`, a lint check without --fix).\n",
+      );
+      return 1;
+    }
+    // Transparency: otherwise the child's code is ours.
     return exitCode;
   }
 
@@ -125,7 +135,8 @@ export async function evidenceCommand(args, { cwd, stdout, stderr }) {
 
   stderr.write(
     "usage: conductor evidence <run|check|list>\n\n" +
-      "  run    --label <name> -- <command...>   run it and record the result\n" +
+      "  run    --label <name> [--stable-tree] -- <command...>   run it and record the result\n" +
+      "         (--stable-tree: fail a green run that changed files while it ran)\n" +
       "  check  --label <name> [--expect-cmd <cmd>] [--max-age <hours>] [--allow-paths a,b/]\n" +
       "  list   [--label <name>]\n\n" +
       "Freshness is bound to the working-tree CONTENT, so committing exactly the\n" +

@@ -6,8 +6,9 @@
 //   recordRun()      run a command, stream its output, append what happened
 //   checkFreshness() grade a prior run FRESH / STALE / MISSING
 //
-// TRANSPARENCY INVARIANT (load-bearing, and asserted by the tests): the child's
-// exit code is ALWAYS the wrapper's result. Every bookkeeping failure — an
+// TRANSPARENCY INVARIANT (asserted by the tests): the child's exit code is
+// ALWAYS the wrapper's result. Only the caller can opt into a stricter verdict
+// (`evidence run --stable-tree`, used by pre-push). Every bookkeeping failure — an
 // unwritable ledger, a missing home, a non-git directory — is a warning on the
 // returned record, never a failure. A wrapper whose job is to record runs must
 // never be able to turn a green run red.
@@ -133,6 +134,15 @@ export async function recordRun({
     child.on("close", (code) => resolve(code ?? 1));
   });
 
+  // A second fingerprint after the run. When it differs, the command changed
+  // files while it ran (snapshots, a lint fix, a lockfile): the code that
+  // passed is not the code on disk. Ignored files do not count.
+  const wtreeAfter = wtree ? await workingTreeFingerprint(cwd).catch(() => null) : null;
+  let treeChanged;
+  if (wtree && wtreeAfter && wtreeAfter !== wtree) {
+    treeChanged = (await treeDiffPaths(cwd, wtree, wtreeAfter)) ?? ["(unknown paths)"];
+  }
+
   const record = {
     ts: new Date(startedMs).toISOString(),
     label: String(label),
@@ -142,6 +152,7 @@ export async function recordRun({
     duration_s: Math.round((now() - startedMs) / 100) / 10,
     commit: head,
     wtree,
+    ...(treeChanged ? { tree_changed: treeChanged } : {}),
   };
 
   let warning;
@@ -155,7 +166,7 @@ export async function recordRun({
     io.stderr?.write?.(`${warning}\n`);
   }
 
-  return { exitCode, wtree, warning, record };
+  return { exitCode, wtree, treeChanged, warning, record };
 }
 
 /**
@@ -263,6 +274,14 @@ export async function checkFreshness({
     }
     if (rec.exit !== 0) {
       byLabel[label] = { ...base, state: "STALE", reason: `the recorded run failed (exit ${rec.exit})` };
+      continue;
+    }
+    if (rec.tree_changed?.length) {
+      byLabel[label] = {
+        ...base,
+        state: "STALE",
+        reason: `the run changed files while it ran (${rec.tree_changed.slice(0, 4).join(", ")}${rec.tree_changed.length > 4 ? ", …" : ""})`,
+      };
       continue;
     }
     if (!wtree || !rec.wtree) {

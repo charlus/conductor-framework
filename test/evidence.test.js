@@ -338,3 +338,79 @@ describe("E2.3 — `evidence check` grades freshness", () => {
     assert.equal(res.byLabel.dup.exit, 0, "an older record outvoted the newest one");
   });
 });
+
+describe("E2.5 — a run that changes the working tree is not evidence", () => {
+  // AI-DLC's verification check (aidlc-construction-checkpoints.ts) fails a
+  // command that changes files while it runs. A verify command that rewrites
+  // snapshots, fixes lint or updates a lockfile passes against code that is
+  // not the code being pushed.
+  let r2;
+  const run = (cmd, label = "verify") => recordRun({ label, command: cmd, cwd: r2, home });
+  const cli = async (args) => {
+    const { evidenceCommand } = await import("../src/commands/evidence.js");
+    let out = "";
+    let err = "";
+    const code = await evidenceCommand(args, {
+      cwd: r2,
+      stdout: { write: (s) => (out += s) },
+      stderr: { write: (s) => (err += s) },
+    });
+    return { code, out, err };
+  };
+
+  before(async () => {
+    r2 = await mkdtemp(join(tmpdir(), "conductor-ev-stable-"));
+    await execFileAsync("git", ["init", "-q", "."], { cwd: r2 });
+    await execFileAsync("git", ["config", "user.email", "t@t.t"], { cwd: r2 });
+    await execFileAsync("git", ["config", "user.name", "T"], { cwd: r2 });
+    await mkdir(join(r2, "src"), { recursive: true });
+    await writeFile(join(r2, "src/app.js"), "export const a = 1;\n");
+    await writeFile(join(r2, ".gitignore"), "*.log\n");
+    await execFileAsync("git", ["add", "-A"], { cwd: r2 });
+    await execFileAsync("git", ["commit", "-qm", "init"], {
+      cwd: r2,
+      env: { ...process.env, CONDUCTOR_HOOKS: "off" },
+    });
+  });
+  after(async () => rm(r2, { recursive: true, force: true }));
+  const restore = () => execFileAsync("git", ["checkout", "-q", "--", "."], { cwd: r2 });
+
+  test("records the files a run changed", async () => {
+    const r = await run("echo '// touched' >> src/app.js");
+    assert.equal(r.exitCode, 0, "the plain wrapper stays transparent");
+    assert.deepEqual(r.record.tree_changed, ["src/app.js"]);
+    await restore();
+  });
+
+  test("a run that writes only ignored files changes nothing", async () => {
+    const r = await run("echo noise > run.log");
+    assert.equal(r.record.tree_changed, undefined);
+    await rm(join(r2, "run.log"));
+  });
+
+  test("its evidence is never FRESH, even once the files are put back", async () => {
+    await run("echo '// touched' >> src/app.js", "mutating");
+    await restore();
+    const res = await checkFreshness({ labels: [{ label: "mutating" }], cwd: r2, home });
+    assert.equal(res.byLabel.mutating.state, "STALE");
+    assert.match(res.byLabel.mutating.reason, /changed files while it ran/);
+  });
+
+  test("`run --stable-tree` fails a green run that changed files, and names them", async () => {
+    const r = await cli(["run", "--label", "verify", "--stable-tree", "--", "echo '// x' >> src/app.js"]);
+    assert.equal(r.code, 1);
+    assert.match(r.err, /src\/app\.js/);
+    await restore();
+  });
+
+  test("`run --stable-tree` passes a green run that changed nothing (sensitivity)", async () => {
+    const r = await cli(["run", "--label", "verify", "--stable-tree", "--", "true"]);
+    assert.equal(r.code, 0, r.err);
+  });
+
+  test("`run --stable-tree` keeps a red run's own exit code", async () => {
+    const r = await cli(["run", "--label", "verify", "--stable-tree", "--", "echo y >> src/app.js; exit 5"]);
+    assert.equal(r.code, 5);
+    await restore();
+  });
+});

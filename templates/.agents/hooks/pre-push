@@ -10,6 +10,14 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [ -z "$ROOT" ] && exit 0
 [ "${CONDUCTOR_HOOKS:-on}" = "off" ] && exit 0
 
+# Heartbeat: `conductor status` compares it with the reflog to name the commits
+# and pushes that skipped this hook (--no-verify, CONDUCTOR_HOOKS=off, a client
+# that ignores hooks). Written here, not in lib.sh, so the commit that upgrades
+# the hooks has one too.
+HB_DIR="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+case "$HB_DIR" in "") ;; /*) ;; *) HB_DIR="$(pwd)/$HB_DIR" ;; esac
+[ -n "$HB_DIR" ] && printf '%s pre-push\n' "$(date +%s)" >> "$HB_DIR/conductor-heartbeat" 2>/dev/null || true
+
 # ---- The project root: where .agents/, conductor/ and the config live -------
 # It is ROOT, except in the outer layout. There a gitignored nested code
 # repository has core.hooksPath set to the outer .agents/hooks by absolute path
@@ -39,7 +47,7 @@ conductor_find_project_root
 # pre-commit that lands on exactly this content is an upgrade, not a neutering,
 # and needs no waiver at push. Forging a match means editing pre-push as well —
 # both entry scripts, the stated limit. Pinned by test/hooks-registry-drift.test.js.
-CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256="ce23c57317efaeec3fd18696ae26876925b1677102026eb0c8f70fd9fb4ee6de"
+CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256="afd4dbe6ea1c72e16232c87a895f2d681dc98955254a1e40a7f077c68346d30c"
 
 # git feeds one line per pushed ref: <local ref> <local sha> <remote ref> <remote sha>.
 PUSH_LINES="$(cat)"
@@ -292,10 +300,10 @@ else
   else
     echo "🔬 Conductor Verification Iron Law — running: $cmd"
     # Wrap the run so the result is recorded and the next push can trust it.
-    # The wrapper is transparent: the command's exit code is the wrapper's, so
-    # this can never turn a red suite green or a green suite red.
+    # The wrapper never turns a red suite green. --stable-tree fails a green
+    # run that changed files while it ran: the code that passed is not on disk.
     if [ "${CONDUCTOR_EVIDENCE:-on}" != "off" ] && command -v conductor >/dev/null 2>&1; then
-      runner() { ( cd "$ROOT" && conductor evidence run --label verify -- "$cmd" ); }
+      runner() { ( cd "$ROOT" && conductor evidence run --label verify --stable-tree -- "$cmd" ); }
     else
       runner() { ( cd "$ROOT" && eval "$cmd" ); }
     fi

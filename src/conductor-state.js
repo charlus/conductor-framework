@@ -24,6 +24,7 @@ import { promisify } from "node:util";
 import { harvestWorkQueue, parseInbox } from "./loop/harvester.js";
 import { gateStateFrom, NONE } from "./verify-config.js";
 import { ignoredNestedRepos } from "./nested-repos.js";
+import { skippedHooks } from "./heartbeat.js";
 import {
   renderMarkdown,
   renderInline,
@@ -551,8 +552,9 @@ function guardsIn(raw) {
  * @returns {Promise<{hooks: "on"|"off"|"custom"|"missing"|"not-git", customPath?: string, nested?: Array<{repo: string, hooks: "on"|"off"|"custom"}>, guards: {bypass: boolean, factGate: boolean}}>}
  */
 export async function readGateWiring(root) {
-  const wiring = await readOwnGateWiring(root);
-  if (wiring.hooks === "not-git") return wiring;
+  const own = await readOwnGateWiring(root);
+  if (own.hooks === "not-git") return own;
+  const wiring = { ...own, skipped: await skippedHooks(root) };
   const nested = [];
   const ours = join(root, HOOKS_REL);
   for (const entry of await ignoredNestedRepos(root)) {
@@ -565,6 +567,12 @@ export async function readGateWiring(root) {
     }
     path = path.trim().replace(/\/+$/, "");
     nested.push({ repo, hooks: path === ours ? "on" : path ? "custom" : "off" });
+    const sk = await skippedHooks(join(root, repo));
+    if (sk) {
+      wiring.skipped ??= { commits: [], pushes: 0, days: sk.days };
+      wiring.skipped.commits.push(...sk.commits.map((c) => `${repo}/${c}`));
+      wiring.skipped.pushes += sk.pushes;
+    }
   }
   return nested.length ? { ...wiring, nested } : wiring;
 }

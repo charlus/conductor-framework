@@ -59,3 +59,33 @@ test("conductor status shows the warning when a CLAUDE.md would hide AGENTS.md",
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("instructionWarnings: .claude/CLAUDE.md and a CLAUDE file in a parent folder hide AGENTS.md too", () => {
+  const w = instructionWarnings({ claudeVersion: "2.1.289", files: [".claude/CLAUDE.md", "../CLAUDE.md"] });
+  assert.equal(w.length, 2);
+  assert.match(w[0], /\.claude\/CLAUDE\.md.*instead of AGENTS\.md/);
+  assert.match(w[1], /\.\.\/CLAUDE\.md.*instead of AGENTS\.md.*claude-md-and-agents-md/);
+});
+
+test("instructionWarningsFor walks up the folders, but ~/.claude/CLAUDE.md does not count", async () => {
+  const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { instructionWarningsFor } = await import("../src/claude-instructions.js");
+  const home = await mkdtemp(join(tmpdir(), "claude-walk-"));
+  const project = join(home, "work", "app");
+  try {
+    await mkdir(join(home, ".claude"), { recursive: true });
+    await mkdir(join(project, ".claude"), { recursive: true });
+    await writeFile(join(home, ".claude", "CLAUDE.md"), "# user-level, loads alongside AGENTS.md\n");
+    assert.deepEqual(await instructionWarningsFor(project, { home, claudeVersion: "2.1.289" }), []);
+    await writeFile(join(home, "work", "CLAUDE.md"), "# parent\n");
+    await writeFile(join(project, ".claude", "CLAUDE.md"), "# project, hidden folder\n");
+    const w = await instructionWarningsFor(project, { home, claudeVersion: "2.1.289" });
+    assert.equal(w.length, 2);
+    assert.match(w[0], /\.claude\/CLAUDE\.md/);
+    assert.match(w[1], /\.\.\/CLAUDE\.md/);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});

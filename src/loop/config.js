@@ -10,6 +10,7 @@
 //   priorities       ["P1", …] → only backlog items under these headings
 //   inbox            false → inbox lines are not harvested
 //   allow_nested_repo true → run even though a gitignored nested git repo exists
+//   models           { maker, checker } → the model each loop role runs on (claude engine)
 //
 // The driver reads this file from the ROOT checkout only, never from a worktree,
 // so a beat cannot widen its own sandbox or change its own setup. All helpers are
@@ -18,13 +19,17 @@
 const FORGES = ["gh", "glab"];
 // A hostname, optionally with one leading "*." wildcard label. No scheme, path,
 // port or bare "*": a domain entry widens the sandbox, so it must be exact.
+// A model id or alias: `sonnet`, `claude-opus-5-5`, `claude-opus-5-5[1m]`. No
+// spaces and no leading dash, so the value can never be read as another flag.
+const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:\[\]-]*$/;
+const ROLES = ["maker", "checker"];
 const DOMAIN_RE = /^(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
 
 /** Parse and validate the `loop` block. Invalid values are reported, never dropped. */
 export function parseLoopConfig(config) {
   const raw = config && typeof config === "object" && config.loop && typeof config.loop === "object" ? config.loop : {};
   const errors = [];
-  const out = { forge: null, setup: null, allowedDomains: [], requireReady: false, priorities: [], inbox: true, allowNestedRepo: false, errors };
+  const out = { forge: null, setup: null, allowedDomains: [], requireReady: false, priorities: [], inbox: true, allowNestedRepo: false, models: { maker: null, checker: null }, errors };
 
   if (raw.forge !== undefined && raw.forge !== null) {
     if (FORGES.includes(raw.forge)) out.forge = raw.forge;
@@ -54,6 +59,16 @@ export function parseLoopConfig(config) {
   if (raw.allow_nested_repo !== undefined) {
     if (typeof raw.allow_nested_repo === "boolean") out.allowNestedRepo = raw.allow_nested_repo;
     else errors.push("loop.allow_nested_repo must be true or false");
+  }
+  if (raw.models !== undefined && raw.models !== null) {
+    if (typeof raw.models !== "object" || Array.isArray(raw.models)) errors.push('loop.models must be an object such as { "maker": "sonnet", "checker": "opus" }');
+    else
+      for (const [role, model] of Object.entries(raw.models)) {
+        if (!ROLES.includes(role)) errors.push(`loop.models: unknown role '${role}' (use maker or checker)`);
+        else if (model === null) continue;
+        else if (typeof model === "string" && MODEL_RE.test(model)) out.models[role] = model;
+        else errors.push(`loop.models.${role}: ${JSON.stringify(model)} is not a model id or alias`);
+      }
   }
   if (raw.inbox !== undefined) {
     if (typeof raw.inbox === "boolean") out.inbox = raw.inbox;
@@ -113,4 +128,15 @@ export function mergeSandboxSettings(template, extraDomains = []) {
   const base = Array.isArray(out.sandbox.network.allowedDomains) ? out.sandbox.network.allowedDomains : [];
   out.sandbox.network.allowedDomains = [...new Set([...base, ...extraDomains])];
   return out;
+}
+
+/** The adapter with each loop role's model passed to its beats. Returns the
+ *  adapter itself when no model is set, so an unset `loop.models` changes nothing. */
+export function withRoleModels(adapter, models = {}) {
+  if (!models.maker && !models.checker) return adapter;
+  return {
+    ...adapter,
+    runBeat: (opts) => adapter.runBeat(models.maker ? { ...opts, model: models.maker } : opts),
+    runChecker: (opts) => adapter.runChecker(models.checker ? { ...opts, model: models.checker } : opts),
+  };
 }

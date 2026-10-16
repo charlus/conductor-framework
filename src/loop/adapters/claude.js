@@ -36,8 +36,11 @@ export async function isAvailable() {
  * input (E4, `src/loop/untrusted.js`). Every published bypass of this class of
  * agent defeated a *blocklist*, so there is deliberately no blocklist path here.
  *
+ * `--model` is passed only when `loop.models` names one for this role; without it
+ * the CLI's own default model runs.
+ *
  * @param {{prompt: string, permissionMode?: string, settingsPath?: string|null,
- *          allowedTools?: string[]|null}} opts
+ *          allowedTools?: string[]|null, model?: string|null}} opts
  * @returns {string[]}
  */
 export function buildArgv({
@@ -45,8 +48,10 @@ export function buildArgv({
   permissionMode = "acceptEdits",
   settingsPath = null,
   allowedTools = null,
+  model = null,
 }) {
   const argv = ["-p", prompt, "--permission-mode", permissionMode];
+  if (model) argv.push("--model", model);
   if (settingsPath) argv.push("--settings", settingsPath);
   // An empty array is NOT passed: `--allowed-tools` with no values would be a
   // dangling flag that swallows the next argument.
@@ -67,10 +72,11 @@ export async function runBeat({
   permissionMode = "acceptEdits",
   settingsPath = null,
   allowedTools = null,
+  model = null,
 }) {
   const prompt = await readFile(promptPath, "utf8");
   return await new Promise((resolve, reject) => {
-    const argv = buildArgv({ prompt, permissionMode, settingsPath, allowedTools });
+    const argv = buildArgv({ prompt, permissionMode, settingsPath, allowedTools, model });
     const child = spawn("claude", argv, { cwd, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";

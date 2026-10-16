@@ -1,5 +1,5 @@
 ---
-name: Collaborative-Drafting
+name: collaborative-drafting
 description: "The drafting primitive. When a workflow must produce a structured document (Epics, screens, implementation slices, an architecture), lead with a complete draft the human corrects — never a blank-page questionnaire. Reach for it in Grand PRD, UX/UI Brief, Technical Vision, Carve, and any 'propose then refine' phase."
 ---
 

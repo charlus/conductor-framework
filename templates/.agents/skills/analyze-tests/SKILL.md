@@ -1,5 +1,5 @@
 ---
-name: Analyze-Tests
+name: analyze-tests
 description: "Use before starting the Build workflow to generate a comprehensive test strategy and verification plan."
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: Handoff
+name: handoff
 description: "Compact the current conversation into a handoff document a fresh agent (or a later session) can pick up cleanly. Use when context is getting long, before reasoning quality degrades, or when passing work between loop iterations or sessions."
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: Brain-Dump-to-Epics
+name: brain-dump-to-epics
 description: Use this skill when the user asks to transform unstructured thoughts and ideas into structured Product Epics.
 ---
 

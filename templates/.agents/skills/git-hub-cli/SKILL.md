@@ -1,5 +1,5 @@
 ---
-name: GitHub-CLI
+name: git-hub-cli
 description: GitHub workflow using the gh CLI — issues, PRs, releases, and Actions. Use when the project is hosted on GitHub. Conventions (commit/branch/PR-body) come from git-workflow.
 ---
 

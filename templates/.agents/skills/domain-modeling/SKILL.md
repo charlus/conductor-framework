@@ -1,5 +1,5 @@
 ---
-name: Domain-Modeling
+name: domain-modeling
 description: "Use when establishing or refining the shared vocabulary of the product — during Technical Vision, when naming entities or slices in Carve, when writing a spec, or any time a term is ambiguous or two people mean different things by the same word. Turns the static glossary into a living ubiquitous-language discipline."
 category: core
 ---

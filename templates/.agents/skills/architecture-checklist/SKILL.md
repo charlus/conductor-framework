@@ -1,5 +1,5 @@
 ---
-name: Architecture-Checklist
+name: architecture-checklist
 description: "Turn 'follow the architecture' into explicit, checkable items. Technical-Vision/Carve write a machine-readable compliance checklist from the architecture decisions; the Checker (loop + independent-review) verifies each item against the diff instead of vibing 'looks right'. Items are deterministic (carry a `check:` shell command) or semantic (the Checker judges them). This is the semantic half of the ship-contract; the Eval-Driven Law is the deterministic half."
 category: core
 ---

@@ -1,5 +1,5 @@
 ---
-name: Subagent-Isolation
+name: subagent-isolation
 description: "Use when a task needs reading across many files, several independent investigations, or long unbounded exploration — delegate to scout subagents so the main context stays clean and under budget. Also the pattern for parallel work that must not collide. Isolation is the default, not an optimization."
 category: core
 ---

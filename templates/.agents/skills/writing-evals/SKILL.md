@@ -1,5 +1,5 @@
 ---
-name: Writing-Evals
+name: writing-evals
 description: "How to write an evalset for the non-deterministic surface of the app you're building — the LLM-calling features whose output a unit test can't pin down. Loaded when a task touches provider-calling code (the Eval-Driven Law's pre-commit gate requires an eval alongside it). Covers the three grading modes (rubric/LM-judge, property, reference) so 'we have no labelled data' is never an excuse."
 category: core
 ---

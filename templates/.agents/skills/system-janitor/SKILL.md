@@ -1,5 +1,5 @@
 ---
-name: System-Janitor
+name: system-janitor
 description: Use this skill when the user asks to scan the Conductor Framework for misplaced files and recommend reorganization.
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: Context-Updater
+name: context-updater
 description: Use after Build or Retrospective to update Product Area and Context files with what was learned and built.
 ---
 

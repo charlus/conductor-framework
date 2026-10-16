@@ -1,5 +1,5 @@
 ---
-name: Trace-Documentation
+name: trace-documentation
 description: "Use to generate or update trace.md files that link project backlog items directly to code modifications."
 ---
 

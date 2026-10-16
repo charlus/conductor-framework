@@ -1,5 +1,5 @@
 ---
-name: Behavior-Validator
+name: behavior-validator
 description: "Source-blind, black-box validation of the RUNNING artifact. When a change claims to work, a validator that has NOT read the implementation exercises the live app/CLI/API as a real operator would — with adversarial anti-cheat probes — and reports observed behavior against a contract. The dynamic complement to verification-gate (author-run) and independent-review (static review of the diff)."
 category: core
 ---

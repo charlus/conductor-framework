@@ -1,5 +1,5 @@
 ---
-name: Task-Tracker
+name: task-tracker
 description: Use during Build workflow execution to maintain a live task tracker. Update at every state change.
 ---
 

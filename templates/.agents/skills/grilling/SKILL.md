@@ -1,5 +1,5 @@
 ---
-name: Grilling
+name: grilling
 description: "The interview primitive. A relentless, one-question-at-a-time interview that sharpens a plan, design, or idea before any building begins. Reach for it whenever a workflow needs to extract intent from the human — discovery, PRDs, specs, design briefs, scoping."
 ---
 

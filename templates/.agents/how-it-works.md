@@ -361,7 +361,7 @@ What each workflow produces, and who reads it next:
 The reusable "how" that discovery/blueprint/spec workflows load instead of re-implementing an interview or a draft loop.
 | Skill | Purpose |
 |---|---|
-| `grilling` | The interview primitive — one question at a time, recommend an answer to each, look facts up instead of asking, one convergence gate; its Lens Pass lets personas challenge a draft |
+| `grilling` | The interview primitive — short numbered rounds of the questions that are ready, recommend an answer to each, look facts up instead of asking, one convergence gate; its Lens Pass lets personas challenge a draft |
 | `collaborative-drafting` | The drafting primitive — lead with a complete draft the human corrects (propose → discuss → coverage-check → confirm), not a blank-page questionnaire |
 
 > Lifecycle routing (which phase/workflow a request maps to) lives in the always-on **Request Classifier** in `AGENTS.md` and its full table above — not in a skill. Both harnesses reach workflows directly (Antigravity: `.agents/workflows/*.md` slash-commands; Claude Code: generated `.claude/commands/*.md` shims), so no proxy skill is needed.

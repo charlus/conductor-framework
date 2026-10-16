@@ -17,7 +17,7 @@ description: Genesis (The App Origin Story)
 
 **Older documents:** Genesis documents written by earlier versions use other names for the same sections: *Sun* = core problem, *Satellites* = symptoms, *North Star* = target outcome, *Problem Solar System*, *World Transformation* and *Functional Animator* = the three documents above. The file names are unchanged. Read them as the same thing and do not rename them.
 
-**Interview technique:** This workflow is one long interview. **Load `.agents/skills/grilling/SKILL.md` and conduct every phase by its Five Laws** — one question at a time, recommend an answer to each, look facts up instead of asking, descend in dependency order, and gate only at convergence. Genesis supplies the *agenda* below; Grilling supplies the *how*.
+**Interview technique:** This workflow is one long interview. **Load `.agents/skills/grilling/SKILL.md` and conduct every phase by its Five Laws** — short numbered rounds of questions, recommend an answer to each, look facts up instead of asking, descend in dependency order, and gate only at convergence. Genesis supplies the *agenda* below; Grilling supplies the *how*.
 
 **Relationship to Projects:** Genesis creates a new Project folder in the project-backlog. All subsequent workflows (Storyboard, Blueprint, etc.) add to this same Project folder.
 
@@ -48,7 +48,7 @@ Everything about *how* to interview lives in the Grilling primitive. This file o
 **Goal:** Identify the core problem and the symptoms it causes, in order of pain.
 
 1.  **Open:** "Tell me what's broken. Rant to me — what annoys you or your users? Don't hold back."
-2.  **Grill:** Reflect and probe toward the root cause (Grilling's active-listening loop). Surface adjacent problems and blind spots one at a time, each with your read on whether it's in scope — not as a batch.
+2.  **Grill:** Reflect and probe toward the root cause (Grilling's active-listening loop). Surface adjacent problems and blind spots in the next round, each with your read on whether it's in scope — not as a batch.
 3.  **Name the core problem:** Propose the core problem and its symptoms: "I see [X] as the core problem, with [A, B, C] as its symptoms. Agree?"
 4.  **Brief check (Grilling's C1–C4):** against this project's existing `conductor/` docs only. State any hit in two sentences with its source, or say **"Brief check: none found."** It does not block — the human answers, you continue.
 5.  **Draft & approve:** Present `problem-solar-system.md` (template structure). **STOP** for explicit approval, then write it.

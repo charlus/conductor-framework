@@ -317,7 +317,7 @@ So privilege comes from **you**, never from the event:
 - Its goal and context are **enveloped and labelled as data, never instructions**, with injection attempts flagged inline and fullwidth/zero-width evasion folded for matching.
 - It gets an explicit **tool allowlist** — read and edit, no shell, no network. An allowlist, because every published bypass of this agent class defeated a blocklist.
 
-Per-project settings live in the `loop` block of `conductor.config.json`: a `setup` command per worktree, extra sandbox domains, the forge (`gh`/`glab`, otherwise read from the origin host), and which backlog items the fleet may take (`require_ready`, `priorities`). Each beat's full agent output is kept in `.git/conductor-loop-logs/`.
+Per-project settings live in the `loop` block of `conductor.config.json`: a `setup` command per worktree, extra sandbox domains, the forge (`gh`/`glab`, otherwise read from the origin host), which backlog items the fleet may take (`require_ready`, `priorities`), and the model each loop role runs on (`models`). The sandbox profile withholds your forge logins from every beat, so only the driver can push or open a PR. Each beat's full agent output is kept in `.git/conductor-loop-logs/`.
 
 **▶ How to run it on your repo:** see the step-by-step guide [`docs/Running-The-Loop.md`](docs/Running-The-Loop.md) — configure The Spine (`loop-state.json`, with `sandbox: "cli-native"`), `--dry-run` to preview, then `conductor loop <dir> --platform claude`.
 

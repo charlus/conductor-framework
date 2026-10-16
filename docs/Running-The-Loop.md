@@ -59,13 +59,15 @@ Settings that belong to the project, not to one run, go in the `loop` block of `
     "forge": "glab",
     "require_ready": true,
     "priorities": ["P1"],
-    "inbox": false
+    "inbox": false,
+    "models": { "maker": "sonnet", "checker": "opus" }
   }
 }
 ```
 
 - `setup`: runs once in each new worktree, before its first beat, in the driver and outside the agent sandbox. A worktree starts without `.venv` or `node_modules`, so without this the verify command fails before it tests anything. If it fails, a pair run stops with `halted_setup_failed` and a swarm task is failed. Fix it and run again: setup is retried.
-- `allowed_domains`: extra hosts for the `cli-native` sandbox (claude). They are merged into a generated copy of `.agents/sandbox/claude-sandbox.settings.json`. Hostnames only, with an optional leading `*.`.
+- `allowed_domains`: extra hosts for the `cli-native` sandbox (claude). They are merged into a generated copy of `.agents/sandbox/claude-sandbox.settings.json`. Hostnames only, with an optional leading `*.`. The profile also withholds the forge logins from every beat: `~/.ssh`, `~/.config/gh`, `~/.config/glab-cli`, git credential files, the `GH_TOKEN`-style variables, `SSH_AUTH_SOCK` and the keyring bus. The driver pushes and opens the PR from outside the sandbox, so a beat that could do it itself would bypass the PR gate. A private dependency fetched over SSH belongs in `setup`, which runs outside the sandbox.
+- `models`: the model each loop role runs on, as a model id or alias (`sonnet`, `opus`, `claude-opus-5-5`). `maker` writes the code, `checker` judges it. Unset, the CLI's default model runs both. The claude engine only: other engines warn and use their own default.
 - `forge`: `gh` or `glab`. Default: from `git remote get-url origin`, `github.com` → `gh`, any other host → `glab`. At L3 execution the loop checks `<forge> auth status` for that host before the first beat.
 - `require_ready`, `priorities`, `inbox`: which items `--from-conductor` takes. See Fleet mode.
 

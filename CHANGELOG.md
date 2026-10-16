@@ -8,6 +8,32 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.14.0] — 2026-10-16 — The loop beat cannot push, a model per role, interviews in rounds
+
+Compatibility: upgrade only
+
+From the 2026-10-16 harvest of peer frameworks, harness changelogs and research: [`docs/roadmap/Harvest-2026-10.md`](docs/roadmap/Harvest-2026-10.md).
+
+### Fixed
+
+- **A loop beat cannot push or open a PR itself.** The `cli-native` sandbox allowed `github.com`, while sandboxed commands could read `~/.ssh` and `~/.config/gh` and inherited `GH_TOKEN`, `SSH_AUTH_SOCK` and the keyring bus. Claude Code's sandbox protects no credential unless told to. The profile now denies those files and variables to the shell and the same files to the Read tool, so only the driver, outside the sandbox, can push or open the PR. Verified live on Claude Code 2.1.301: a beat saw 10 entries in `~/.ssh` before and 0 after.
+- **`status`, `init`, `upgrade` and `loop` warn about every CLAUDE file that hides AGENTS.md.** Claude Code skips AGENTS.md when a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in the working folder or any folder above it. The check looked only at the working folder and missed `.claude/CLAUDE.md`. Your own `~/.claude/CLAUDE.md` does not count and is not reported.
+- **Every core skill is named after its folder.** Codex, Antigravity, Cursor and Copilot read `.agents/skills/` against the Agent Skills specification, which wants a lowercase name equal to the folder. 28 of 32 skills used another name. Claude Code is unaffected: its shims already used the folder name.
+
+### Added
+
+- **`loop.models` picks a model per loop role.** `{ "maker": "sonnet", "checker": "opus" }` in the `loop` block of `conductor.config.json` passes `--model` to each role's beats on the claude engine. Unset, the CLI's default model runs, as before. The dry-run plan and the run log name the models. Verified live: a Maker set to `haiku` reported `claude-haiku-5-5`.
+
+### Changed
+
+- **Interviews come in short numbered rounds.** `grilling` asked one question at a time. Each round now asks every question whose prerequisites are settled, at most five, numbered so you can answer by number, and worded so that "yes" accepts the recommendation. A question that depends on an open one waits for the next round. Pocock reversed the rule we had copied from him. Not measured: no eval covers interviews.
+
+### Note — upgrading
+
+- A loop beat that fetched a private dependency over SSH inside the sandbox now fails. Move that fetch to `loop.setup`, which runs outside the sandbox.
+
+---
+
 ## [6.13.0] — 2026-10-15 — Gates that show when they did not run
 
 Compatibility: upgrade plus a step

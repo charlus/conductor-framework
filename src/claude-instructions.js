@@ -1,13 +1,15 @@
 // src/claude-instructions.js
 //
 // D9: Conductor's instructions live in the root AGENTS.md. Claude Code reads it
-// natively only from v2.1.277, and only when no CLAUDE.md / CLAUDE.local.md sits
-// in the working folder: either file makes Claude read CLAUDE files instead, and
-// the framework is silently skipped. These warnings name the cause and the fix.
+// natively only from v2.1.277, and only when no CLAUDE.md, .claude/CLAUDE.md or
+// CLAUDE.local.md sits in the working folder or any folder above it: any of them
+// makes Claude read CLAUDE files instead, and the framework is silently skipped.
+// ~/.claude/CLAUDE.md does not count. These warnings name the cause and the fix.
 // Pure, plus one IO helper for the commands.
 
 import { access } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
+import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 
 export const MIN_CLAUDE_VERSION = "2.1.277";
@@ -26,7 +28,8 @@ function below(v, min) {
 /**
  * @param {{claudeVersion: string|null, files: string[]}} input
  *   claudeVersion: raw `claude --version` output, null when claude is not installed
- *   files: which of CLAUDE.md / CLAUDE.local.md exist in the working folder
+ *   files: the CLAUDE files that hide AGENTS.md, relative to the working folder
+ *          (CLAUDE.md, CLAUDE.local.md, .claude/CLAUDE.md, ../CLAUDE.md, …)
  */
 export function instructionWarnings({ claudeVersion, files }) {
   const out = [];
@@ -42,21 +45,39 @@ export function instructionWarnings({ claudeVersion, files }) {
   if (files.includes("CLAUDE.local.md")) {
     out.push("CLAUDE.local.md is here: Claude Code then reads CLAUDE files instead of AGENTS.md. Put the line @AGENTS.md at its top.");
   }
+  for (const f of files.filter((f) => f !== "CLAUDE.md" && f !== "CLAUDE.local.md")) {
+    out.push(`${f} makes Claude Code read CLAUDE files instead of AGENTS.md. Set Project instructions to claude-md-and-agents-md in /config, or import AGENTS.md from that file.`);
+  }
   return out;
 }
 
-/** The warnings for the folder `dir`, probing `claude --version` (never throws). */
-export async function instructionWarningsFor(dir) {
-  const probe = spawnSync("claude", ["--version"], { encoding: "utf8", timeout: 10000 });
-  const claudeVersion = probe.status === 0 ? probe.stdout : null;
+async function present(p) {
+  try {
+    await access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The warnings for the folder `dir`, probing `claude --version` unless given
+ * (never throws). Walks `dir` and every folder above it, as Claude Code does.
+ */
+export async function instructionWarningsFor(dir, { home = homedir(), claudeVersion } = {}) {
+  if (claudeVersion === undefined) {
+    const probe = spawnSync("claude", ["--version"], { encoding: "utf8", timeout: 10000 });
+    claudeVersion = probe.status === 0 ? probe.stdout : null;
+  }
+  const start = resolve(dir);
   const files = [];
-  for (const f of ["CLAUDE.md", "CLAUDE.local.md"]) {
-    try {
-      await access(join(dir, f));
-      files.push(f);
-    } catch {
-      /* absent */
+  for (let d = start; ; d = dirname(d)) {
+    for (const f of ["CLAUDE.md", "CLAUDE.local.md", join(".claude", "CLAUDE.md")]) {
+      // The user's own ~/.claude/CLAUDE.md loads alongside AGENTS.md.
+      if (d === resolve(home) && f !== "CLAUDE.md" && f !== "CLAUDE.local.md") continue;
+      if (await present(join(d, f))) files.push(relative(start, join(d, f)));
     }
+    if (dirname(d) === d) break;
   }
   return instructionWarnings({ claudeVersion, files });
 }

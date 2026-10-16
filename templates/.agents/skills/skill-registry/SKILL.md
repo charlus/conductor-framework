@@ -1,5 +1,5 @@
 ---
-name: Skill-Registry
+name: skill-registry
 description: Manages Conductor skills from the remote registry — install, remove, search, and list skills using the conductor CLI. Use during Technical Vision workflow or whenever the tech stack changes.
 ---
 

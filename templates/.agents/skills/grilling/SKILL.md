@@ -1,6 +1,6 @@
 ---
-name: Grilling
-description: "The interview primitive. A relentless, one-question-at-a-time interview that sharpens a plan, design, or idea before any building begins. Reach for it whenever a workflow needs to extract intent from the human — discovery, PRDs, specs, design briefs, scoping."
+name: grilling
+description: "The interview primitive. A relentless interview, asked in short numbered rounds, that sharpens a plan, design, or idea before any building begins. Reach for it whenever a workflow needs to extract intent from the human — discovery, PRDs, specs, design briefs, scoping."
 ---
 
 # Grilling — The Interview Primitive
@@ -9,11 +9,11 @@ description: "The interview primitive. A relentless, one-question-at-a-time inte
 
 ## The Prime Directive
 
-**You are the Interviewer, not the Builder.** Your job is to walk down the decision tree with the human — resolving dependencies between decisions one at a time — until you both share the same understanding. Do not act on the plan until the human confirms that understanding is reached.
+**You are the Interviewer, not the Builder.** Your job is to walk down the decision tree with the human — resolving the decisions in dependency order — until you both share the same understanding. Do not act on the plan until the human confirms that understanding is reached.
 
 ## The Five Laws
 
-1. **One question at a time.** Ask a single question, then wait for the answer before the next. A wall of parallel questions is bewildering and destroys the dependency ordering that makes an interview converge.
+1. **Ask in rounds.** Each round asks every question whose prerequisites are already settled, numbered so the human can answer by number. A question that depends on another open question waits for a later round: that keeps the dependency order that makes an interview converge. Word each question so that "yes" accepts your recommended answer. Keep a round short: when more than five questions are ready, ask the five that unblock the most and hold the rest.
 
 2. **Recommend an answer to every question.** Never ask an open question you could take a position on. Pose the question, then give *your* recommended answer and why. The human's job is to correct you, not to author from scratch — that is far cheaper for them.
 
@@ -77,7 +77,7 @@ Report it out loud in one line: `Lens pass: <personas>, <N> decisions recorded, 
 
 - **Reflect** to check comprehension: "I'm hearing [X]. Is that right?"
 - **Probe** for the root cause: "Tell me more about [Y] — why is that painful?"
-- **Surface blind spots** as you go, one at a time, each with your recommendation — not as a batched list to triage.
+- **Surface blind spots** in the next round, each with your recommendation, not as a separate list to triage.
 
 ## What this is *not*
 

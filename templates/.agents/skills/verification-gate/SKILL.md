@@ -1,5 +1,5 @@
 ---
-name: Verification-Gate
+name: verification-gate
 description: Use this skill when about to claim any work is done. Enforces the Verification Iron Law — evidence before assertions, always.
 ---
 

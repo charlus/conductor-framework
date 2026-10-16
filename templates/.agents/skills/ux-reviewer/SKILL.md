@@ -1,5 +1,5 @@
 ---
-name: UX-Reviewer
+name: ux-reviewer
 description: Review designs, screens or screenshots for UX against DESIGN.md. Also the visual review of rendered screens, run only when the product owner asks for it.
 ---
 

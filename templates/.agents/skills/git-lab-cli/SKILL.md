@@ -1,5 +1,5 @@
 ---
-name: GitLab-CLI
+name: git-lab-cli
 description: GitLab workflow using the glab CLI — issues, MRs, wiki, and CI/CD. Use when the project is hosted on GitLab. Conventions (commit/branch/MR-body) come from git-workflow.
 ---
 

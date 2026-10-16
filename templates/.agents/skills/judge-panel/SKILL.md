@@ -1,5 +1,5 @@
 ---
-name: Judge-Panel
+name: judge-panel
 description: "The divergent-then-convergent decision primitive. When a decision has a wide solution space and getting it wrong is expensive — an architecture, a hard design choice, a tricky algorithm — generate N candidates from deliberately different angles, score them with independent judges, then synthesize the winner while grafting the best of the runners-up. Reach for it in Technical Vision (architecture) and any high-stakes fork; skip it when the answer is obvious."
 category: core
 ---

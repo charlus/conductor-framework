@@ -1,5 +1,5 @@
 ---
-name: Independent-Review
+name: independent-review
 description: "The fresh-context review gate. When a workflow produces a consequential artifact — a PRD, an architecture, a spec, a carved plan, a diff — spawn a separate reviewer that did NOT produce it to decide whether it's ready, before it's saved or handed off. This is the Maker/Checker split applied to any artifact. Ship's Phase 4 is its reference implementation; blueprint workflows load it too."
 category: core
 ---

@@ -29,7 +29,7 @@ import { writeBeatLog, BEAT_LOG_DIR } from "../loop/beat-log.js";
 import { syncLoopStateInto } from "../loop/state-sync.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
-import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings } from "../loop/config.js";
+import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels } from "../loop/config.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
 const LOCK_REL = "conductor/1-workbench/loop.lock";
@@ -83,6 +83,7 @@ const LOOP_HELP = [
   "    priorities       [\"P1\"] → only backlog items under these headings",
   "    inbox            false → never harvest inbox lines",
   "    allow_nested_repo true → run although a gitignored nested git repo exists",
+  "    models           { \"maker\": \"sonnet\", \"checker\": \"opus\" } → a model per loop role (claude engine)",
   "",
 ].join("\n");
 
@@ -490,6 +491,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         `  checker:  ${state.checker_votes > 1 ? `${state.checker_votes}-vote (adversarial, majority)` : "single verdict"}`,
         `  platform: ${platformPref ?? "(auto-detect)"}`,
         `  adapter:  ${adapterError ? `ERROR: ${adapterError}` : resolved.name ?? "(none available)"}`,
+        ...(loopConfig.models.maker || loopConfig.models.checker ? [`  models:   maker ${loopConfig.models.maker ?? "default"}, checker ${loopConfig.models.checker ?? "default"}${resolved.name === "claude" ? "" : "  (only applies to the claude engine)"}`] : []),
         `  detected: ${detected.length ? detected.join(", ") : "none on PATH"}`,
         `  worktree: ${state.phase === "execution" ? "created for execution phase (isolated Maker)" : "n/a (not execution phase)"}`,
         "",
@@ -545,12 +547,19 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     }
     return result;
   };
+  const { maker: makerModel, checker: checkerModel } = loopConfig.models;
+  const roleModels = resolved.adapter.name === "claude" ? loopConfig.models : { maker: null, checker: null };
+  const modelled = withRoleModels(resolved.adapter, roleModels);
   const adapter = {
-    ...resolved.adapter,
-    runBeat: logged("maker", resolved.adapter.runBeat),
-    runChecker: logged("checker", resolved.adapter.runChecker),
+    ...modelled,
+    runBeat: logged("maker", modelled.runBeat),
+    runChecker: logged("checker", modelled.runChecker),
   };
   stdout.write(`[CONDUCTOR LOOP] platform: ${adapter.name}\n`);
+  if (makerModel || checkerModel) {
+    if (adapter.name === "claude") stdout.write(`[CONDUCTOR LOOP] models: maker ${makerModel ?? "default"}, checker ${checkerModel ?? "default"}\n`);
+    else stderr.write(`[CONDUCTOR LOOP] ⚠️  loop.models applies to the claude engine only; ${adapter.name} runs its own default model\n`);
+  }
 
   // D9: a claude beat that cannot read the root AGENTS.md runs without the laws.
   if (adapter.name === "claude") {

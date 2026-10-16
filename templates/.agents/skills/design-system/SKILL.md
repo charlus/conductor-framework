@@ -1,5 +1,5 @@
 ---
-name: Design-System
+name: design-system
 description: "Create, extract or maintain DESIGN.md, the one file that keeps a product's UI coherent: visual theme, colour roles, typography, layout, component styling, brand assets, and where the token values live. Use at the end of the UX/UI Design Brief, before the first UI task in Build when DESIGN.md is missing, and whenever a screen needs a pattern DESIGN.md does not cover."
 category: core
 ---

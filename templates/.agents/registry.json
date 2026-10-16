@@ -108,7 +108,7 @@
     {
       "name": "Grilling",
       "dir": "grilling",
-      "description": "The interview primitive. A relentless, one-question-at-a-time interview that sharpens a plan, design, or idea before any building begins. Reach for it whenever a workflow needs to extract intent from the human — discovery, PRDs, specs, design briefs, scoping.",
+      "description": "The interview primitive. A relentless interview, asked in short numbered rounds, that sharpens a plan, design, or idea before any building begins. Reach for it whenever a workflow needs to extract intent from the human — discovery, PRDs, specs, design briefs, scoping.",
       "category": "core",
       "default": true
     },

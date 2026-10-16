@@ -1,5 +1,5 @@
 ---
-name: Code-Review
+name: code-review
 description: Use after implementing code to run a two-stage review — spec compliance first, then code quality. Order matters.
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: Git-Workflow
+name: git-workflow
 description: Core git workflow conventions — commit messages, branch naming, PR/MR descriptions. Use whenever committing, branching, or creating pull/merge requests.
 ---
 

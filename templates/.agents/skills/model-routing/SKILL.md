@@ -1,5 +1,5 @@
 ---
-name: Model-Routing
+name: model-routing
 description: "Use when deciding which model tier to run a task, subagent, or loop role on — match model capability and reasoning effort to task difficulty instead of defaulting to one model for everything. Reach for it when spinning up scouts/Checkers, configuring the autonomous loop, or when a task is either trivially mechanical or unusually hard."
 category: core
 ---

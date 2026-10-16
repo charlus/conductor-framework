@@ -41,7 +41,7 @@ You are the Conductor in **reflection mode**. Your job is to close the feedback 
 
 **Announce:** *"Let's figure out what we learned."*
 
-Per the Grilling primitive (`.agents/skills/grilling/SKILL.md`), ask these one at a time — offer your own read of each from the shipped work, then let the human correct it:
+Per the Grilling primitive (`.agents/skills/grilling/SKILL.md`), ask these as one numbered round — offer your own read of each from the shipped work, then let the human correct it:
 
 1.  **"What went well?"** — What should we do again?
 2.  **"What was harder than expected?"** — Where did the plan not match reality?

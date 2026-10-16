@@ -1,5 +1,5 @@
 ---
-name: Context-Engineering
+name: context-engineering
 description: "Use when updating the task backlog, reading PRDs, or modifying project state in the conductor/ directory"
 ---
 

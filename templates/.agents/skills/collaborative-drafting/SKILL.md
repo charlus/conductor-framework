@@ -1,11 +1,11 @@
 ---
-name: Collaborative-Drafting
+name: collaborative-drafting
 description: "The drafting primitive. When a workflow must produce a structured document (Epics, screens, implementation slices, an architecture), lead with a complete draft the human corrects — never a blank-page questionnaire. Reach for it in Grand PRD, UX/UI Brief, Technical Vision, Carve, and any 'propose then refine' phase."
 ---
 
 # Collaborative-Drafting — The Drafting Primitive
 
-> The document-scale counterpart to [Grilling](../grilling/SKILL.md). Grilling extracts *decisions* one question at a time; Collaborative-Drafting produces a *structured artifact* by proposing it whole and letting the human correct it. Workflows that assemble Epics, screens, implementation slices, or an architecture load this instead of re-inventing a propose/refine loop. It defines the *technique*; the calling workflow supplies the *agenda* (which sections, in what order) and the *template*.
+> The document-scale counterpart to [Grilling](../grilling/SKILL.md). Grilling extracts *decisions* in short rounds of questions; Collaborative-Drafting produces a *structured artifact* by proposing it whole and letting the human correct it. Workflows that assemble Epics, screens, implementation slices, or an architecture load this instead of re-inventing a propose/refine loop. It defines the *technique*; the calling workflow supplies the *agenda* (which sections, in what order) and the *template*.
 
 ## The Prime Directive
 

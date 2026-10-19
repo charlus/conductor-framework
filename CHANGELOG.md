@@ -8,6 +8,25 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.22.0] — 2026-10-19 — Fixes from the second unattended run
+
+Compatibility: upgrade only
+
+From the second unattended run on a real product (evalapp-v2, 2026-10-19): [`docs/roadmap/Unattended-Crossing.md`](docs/roadmap/Unattended-Crossing.md).
+
+### Fixed
+
+- **The loop's MR title fits the forge.** It was the backlog item's whole first line, over GitLab's 255-character limit, and the MR step failed. The title is now the item's first sentence, without markdown or the `(loop-ready)` tag, at most 120 characters.
+- **The loop asks again when the forge has not yet seen the pushed branch.** GitLab answered "source branch does not exist" a moment after the push. The MR step now waits 5 seconds and retries once, for that error only.
+- **The loop's worktrees stay out of `git status`.** `.agents/.worktrees/` was not ignored in every project, so a `git add -A` would have swept the loop's worktrees into a commit. The loop and the doctor now add it to git's local exclude file, which commits nothing and covers existing installs. Verified live on evalapp-v2.
+- **The loop's audit lines no longer block your next commit.** The report-shape gate treated the `[loop]` lines that `conductor loop` appends to the ship-log as a report without a **For you** block. It now skips them, as it already skipped waiver lines; a real report riding along with them is still gated.
+
+### Added
+
+- **The doctor points at your CI file** when verify is red in a fresh worktree: the project's own test recipe usually lives there. On evalapp-v2 the one fact the doctor could not find, how the test database is built, was in `.gitlab-ci.yml`.
+
+---
+
 ## [6.21.0] — 2026-10-19 — Loop beats cannot read your cloud logins
 
 Compatibility: upgrade only

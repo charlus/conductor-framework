@@ -39,3 +39,38 @@ test("merging project domains keeps the credential protection", () => {
   assert.deepEqual(out.sandbox.credentials, profile.sandbox.credentials);
   assert.deepEqual(out.permissions, profile.permissions);
 });
+
+// F2 (first real crossing, 2026-10-19): a sandboxed command that starts with a
+// variable assignment (`FOO=bar cmd`) goes through Claude Code's permission
+// flow, which a headless beat cannot answer, so run 1 stalled. An allow rule
+// fixes that, but an allow rule also approves an unsandboxed retry, so it is
+// safe only with the retry turned off. Pushing and opening PRs stays the
+// driver's job: those commands are denied, and a deny rule always wins.
+
+test("headless beats may run any sandboxed command, variable-prefixed ones included", () => {
+  assert.ok((profile.permissions?.allow ?? []).includes("Bash"), "permissions.allow must include Bash");
+});
+
+test("the allow rule cannot approve a command outside the sandbox", () => {
+  assert.equal(profile.sandbox.allowUnsandboxedCommands, false, "the unsandboxed retry must be off");
+  assert.equal(profile.sandbox.failIfUnavailable, true);
+  assert.equal(profile.sandbox.excludedCommands, undefined, "no command may run outside the sandbox");
+});
+
+test("a beat can never push or open a PR, even with Bash allowed", () => {
+  const deny = new Set(profile.permissions?.deny ?? []);
+  for (const rule of ["Bash(git push *)", "Bash(gh pr *)", "Bash(glab mr *)"]) assert.ok(deny.has(rule), `permissions.deny must include ${rule}`);
+});
+
+// Found while checking F2 (2026-10-19): `--allowed-tools` only ADDS approvals,
+// and the sandbox auto-allows Bash, so an untrusted run (E4) could always run
+// sandboxed Bash, on master too (verified live). `--tools` sets which tools
+// exist at all, so the allowlist is passed there as well.
+test("an untrusted run's allowlist is the set of available tools, so Bash does not exist for it", async () => {
+  const { buildArgv } = await import("../src/loop/adapters/claude.js");
+  const argv = buildArgv({ prompt: "p", allowedTools: ["Read", "Edit"] });
+  const i = argv.indexOf("--tools");
+  assert.ok(i > 0, "--tools must be passed with the allowlist");
+  assert.deepEqual(argv.slice(i + 1, i + 3), ["Read", "Edit"]);
+  assert.ok(!buildArgv({ prompt: "p" }).includes("--tools"), "a trusted run keeps every tool");
+});

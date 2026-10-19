@@ -247,6 +247,7 @@ Maker unlabelled, inside the instruction stream.
 3. **Allowlist, not blocklist** — `Read Edit Write Glob Grep TodoWrite`. No `Bash`, no `WebFetch`,
    no `WebSearch`. Every published bypass defeated a *blocklist* (`/proc/*/environ` instead of
    `env`, `git push` instead of `curl`), so no blocklist path exists in the code.
+   **Correction 2026-10-19 (6.17.0):** the list was passed only as `--allowed-tools`, which pre-approves and restricts nothing. With the cli-native sandbox's `autoAllowBashIfSandboxed`, an untrusted beat could run sandboxed Bash (verified live on the 6.14.0 profile). It is now also passed as `--tools`, which sets the available tools; verified live that Bash then does not exist for the beat.
 
 **Plus the Stop hook's trust boundary.** Hooks bypass the permission system, so
 `verification-stop-hook.sh` was executing a command read from a file *inside the repo* with no

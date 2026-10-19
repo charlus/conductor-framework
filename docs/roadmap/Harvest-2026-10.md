@@ -39,6 +39,8 @@ It subtracts. Superpowers, Pocock, gstack, AG Kit and Agent OS cut skills and pr
 
 ## Superlite (added 2026-10-19)
 
+Design for A10–A14: [`Superlite-Imports.md`](Superlite-Imports.md). A15 is already covered by our per-commit waivers, and A16 stays parked.
+
 Source: [iha2/superlite](https://github.com/iha2/superlite) at `eea16ee` (1.1.0), read and not run, and the author's article on contextfirst.blog. It is a Claude Code plugin derived from Superpowers. One coordinator schedules a Markdown task graph over a pool of Haiku and Sonnet agents. All agents work in one shared working tree. There are no worktrees and no merge step.
 
 **The claim does not hold.** The headline "16.1 min against 33.6, 52% faster" compares one superlite run (`k1`) against three superpowers runs made days earlier, which shared the rate limit with the other arm. In the six combo runs where both arms ran at the same time, superlite was faster in 3 of 6: 157 against 171 minutes in total (8%), at $47.78 against $45.70. One superpowers run (13.3 min) beat `k1`. Every arm passed 177/177 hidden tests, so the benchmark compares wall time only. The planning skill uses the benchmark task as its worked example, and the predictor was fitted on the benchmark runs. Leakage of hidden tests cannot be audited, because the run transcripts are not committed.

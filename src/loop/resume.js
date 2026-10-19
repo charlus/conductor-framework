@@ -71,6 +71,7 @@ export function startNewRun(state) {
   state.budget.cost_warned = false;
   state.attempts = [];
   state.rejected_beats = 0;
+  state.rulings = [];
   state.stall = { consecutive: 0, last_beat_hash: null };
   state.merge = null;
   return { reset: true, from };

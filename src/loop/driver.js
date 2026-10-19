@@ -206,6 +206,8 @@ export function normalizeState(raw) {
     // A13: the last rejected attempts, shown to the next Maker beat.
     attempts: Array.isArray(s.attempts) ? s.attempts : [],
     rejected_beats: s.rejected_beats ?? 0,
+    // A12: decisions the Maker logged in rulings.md during this run.
+    rulings: Array.isArray(s.rulings) ? s.rulings : [],
     tasks: Array.isArray(s.tasks) ? s.tasks : [],
     roles: Array.isArray(s.roles) ? s.roles : ["maker", "checker"],
     concurrency: s.concurrency ?? 1,

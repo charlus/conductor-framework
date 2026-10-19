@@ -86,3 +86,21 @@ The superlite session listed four gaps from reading `src/loop`. Against this run
 - A dependency counts as merged once its PR is opened: real, not observed (one task), left to A11 under D1.
 - A retry does not receive its rejection: real in both modes, fixed in #71 and proven live in pair mode. In run 1 it was not the cause: the Maker knew why it was blocked and needed F3.
 - Every adapter returns `tokens: 0`: real, fixed in #72.
+
+## Second crossing — evalapp-v2, 2026-10-19
+
+The product is live and supports the yearly evaluation, so the item was chosen off that path: component tests for MR !49's advisory banner and coverage strip, tests only. Risk check before the run: production deploys only by a manual click; the loop's branch triggers no deploy; the tests use a local SQLite file. The cloud logins were readable in the sandbox (R2), fixed first in 6.21.0.
+
+| | Result |
+|---|---|
+| Prep | 7 minutes with `conductor loop doctor`, against two runs and manual fixes on eurassistant. The doctor found the phase, the sandbox, the version, the missing setup and a 30-item queue; the test-database recipe was in `.gitlab-ci.yml`. |
+| Run | Approved in one beat, 7 minutes, ≈ $0.73 at list price (Maker $0.30, Checker $0.43). |
+| Work | Tests only. The Maker found the coverage strip already pinned by `DeliberationDashboard.test.tsx`, logged that as a ruling (verified true) and covered the banner in both states. MR !105, prep MR !104. |
+
+### Friction (fixed in 6.22.0)
+
+- **F10.** The MR title was the item's whole first line, over GitLab's 255-character limit.
+- **F11.** GitLab answered "source branch does not exist" just after the push.
+- **F12.** `.agents/.worktrees/` was not ignored, so `git add -A` would sweep the worktrees into a commit.
+- **F13.** The loop's `[loop]` audit lines made the report-shape gate block the owner's next commit.
+- **F14.** The one fact the doctor could not find lived in the CI file; the doctor now points there.

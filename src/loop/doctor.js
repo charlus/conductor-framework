@@ -102,9 +102,11 @@ export function diagnose(f) {
       if (v.exitCode === 0) {
         out.push(check("verify", "pass", `verify is green in a fresh worktree (${v.secs ?? "?"}s): ${v.command}`));
       } else {
-        const fix = pr.setup?.configured
+        let fix = pr.setup?.configured
           ? "The base must be green: fix the failure, or the setup that should prepare it."
           : "A fresh worktree has no installed dependencies or ignored files. Set loop.setup to prepare it.";
+        // The project's own test recipe usually lives in its CI file.
+        if (f.ciFile) fix += ` ${f.ciFile} shows how CI prepares its test job: mirror those steps in loop.setup.`;
         out.push(check("verify", "fail", `verify is red in a fresh worktree (exit ${v.exitCode}): ${v.command}`, v.tail ?? "", fix));
       }
     }

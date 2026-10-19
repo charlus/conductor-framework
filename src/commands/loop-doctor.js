@@ -21,6 +21,7 @@ import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
 import { packageVersion, readVersionStamp } from "../version.js";
 import { exists, readJson, sh, runCli, hasNpmTestScript, configVerify } from "./loop.js";
+import { ensureWorktreesExcluded } from "../loop/worktree.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
 const PROBE_REL = ".agents/.worktrees/conductor-doctor-probe";
@@ -128,7 +129,15 @@ export async function loopDoctor(root, { stdout, beat = false }) {
   const ignored = dotenvPresent && (await runCli("git", ["check-ignore", "-q", ".env"], root)).ok;
   facts.dotenv = { present: Boolean(ignored), copiedBySetup: /\.env\b/.test(loopConfig.setup ?? "") };
 
+  for (const ci of [".gitlab-ci.yml", ".github/workflows", "bitbucket-pipelines.yml", ".circleci/config.yml"]) {
+    if (await exists(join(root, ci))) {
+      facts.ciFile = ci;
+      break;
+    }
+  }
+
   // The probe: a fresh worktree where real loop worktrees live.
+  await ensureWorktreesExcluded(root);
   const probe = join(root, PROBE_REL);
   await runCli("git", ["worktree", "remove", "--force", probe], root);
   const added = await runCli("git", ["worktree", "add", "-q", "--detach", probe, "HEAD"], root);

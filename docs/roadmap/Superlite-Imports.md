@@ -1,6 +1,6 @@
 # Superlite imports: design
 
-> **Status:** designed 2026-10-19, nothing built. Owner decided D1–D4 on 2026-10-19. D5 is recommended and awaits confirmation.
+> **Status:** designed 2026-10-19, nothing built. Owner decided D1–D5 on 2026-10-19.
 > **Source:** [`Harvest-2026-10.md`](Harvest-2026-10.md), section "Superlite", items A10–A16. Superlite was read at `eea16ee` and never run.
 > **Related:** [`Swarm-Collision-Admission.md`](Swarm-Collision-Admission.md) (F8), [`Autonomous-Loop-Backend.md`](Autonomous-Loop-Backend.md), and the paused `Unattended-Crossing.md` (draft PR #69).
 
@@ -134,4 +134,4 @@ None of the five changes weakens an invariant:
 - **D2, decided.** Cost is not a concern on a subscription. Escalation to a stronger Maker model is a quality setting, used when `loop.models.maker_escalation` is set. Features that act on cost sit behind `loop.cost_aware`, which is off by default.
 - **D3, decided.** The owner runs on quota, not pay-per-token. The cost ceiling exists only with `loop.cost_aware`. A spent quota is handled as the pair driver already handles it: the run halts with `usage_limit_reached`, and the swarm must do the same.
 - **D4, decided.** A `high` ruling goes to the inbox, and the run continues.
-- **D5, recommended, awaits confirmation.** `spec-it`'s Implementation Plan writes `Owns`, `Produces` and the `e.g.` lines. This changes an interactive workflow, but the lines have no effect outside the swarm.
+- **D5, decided.** `spec-it`'s Implementation Plan writes `Owns`, `Produces` and the `e.g.` lines. This changes an interactive workflow, but the lines have no effect outside the swarm.

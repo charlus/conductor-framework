@@ -8,6 +8,16 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.21.0] — 2026-10-19 — Loop beats cannot read your cloud logins
+
+Compatibility: upgrade only
+
+### Fixed
+
+- **The sandbox withholds cloud and container logins too.** 6.14.0 withheld the forge logins, but a beat could still read `~/.config/gcloud`, `~/.aws`, `~/.azure`, `~/.kube` and `~/.docker/config.json`. Only the network allowlist kept it from using them. They are now denied to the shell and to the Read tool, and `GOOGLE_APPLICATION_CREDENTIALS`, `CLOUDSDK_AUTH_ACCESS_TOKEN`, the `AWS_*` keys, `AZURE_CLIENT_SECRET` and `KUBECONFIG` are unset. Found while assessing a loop run on a production project. Verified live: a sandboxed beat saw 14 entries in `~/.config/gcloud` with the 6.20.0 profile and 0 with this one.
+
+---
+
 ## [6.20.0] — 2026-10-19 — The upgrade says which waiver it logged; the doctor checks your own checkout
 
 Compatibility: upgrade only

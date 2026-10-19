@@ -58,7 +58,10 @@ export function buildArgv({
   // An empty array is NOT passed: `--allowed-tools` with no values would be a
   // dangling flag that swallows the next argument.
   if (Array.isArray(allowedTools) && allowedTools.length > 0) {
-    argv.push("--allowed-tools", ...allowedTools);
+    // `--allowed-tools` only pre-approves; the sandbox auto-allows Bash on its
+    // own, so an untrusted run could still run it. `--tools` is the real
+    // allowlist: a tool not named there does not exist for this beat.
+    argv.push("--tools", ...allowedTools, "--allowed-tools", ...allowedTools);
   }
   return argv;
 }

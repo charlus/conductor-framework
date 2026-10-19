@@ -1,6 +1,6 @@
 # Superlite imports: design
 
-> **Status:** designed 2026-10-19, nothing built. Decisions D1–D5 are open for the owner.
+> **Status:** designed 2026-10-19, nothing built. Owner decided D1–D4 on 2026-10-19. D5 is recommended and awaits confirmation.
 > **Source:** [`Harvest-2026-10.md`](Harvest-2026-10.md), section "Superlite", items A10–A16. Superlite was read at `eea16ee` and never run.
 > **Related:** [`Swarm-Collision-Admission.md`](Swarm-Collision-Admission.md) (F8), [`Autonomous-Loop-Backend.md`](Autonomous-Loop-Backend.md), and the paused `Unattended-Crossing.md` (draft PR #69).
 
@@ -21,7 +21,7 @@ Five imports. Each one takes superlite's idea and replaces the self-report parts
 - A16 (robustness probes) stays parked. It is Python only, unproven, and overlaps the Eval-Driven Law.
 - The coordinator-edit hook does not apply. Our orchestrator is code, not a model.
 
-**Conflict with an earlier recommendation.** The paused Unattended Crossing brainstorm recommends "stop adding loop features and do one real crossing". A13 and A14 make that crossing readable: a retry that knows why it failed, and a cost for the crossing report and for Q3. A12 to A11 should wait until the crossing has run (D1).
+**The crossing.** The first real crossing runs in another session (2026-10-19). Build A13 and A14 now. Build A12 after the crossing. Build A10 and A11 after the swarm has run real work (D1).
 
 ## A13: a retry receives the reason for its rejection
 
@@ -36,7 +36,7 @@ Five imports. Each one takes superlite's idea and replaces the self-report parts
   - `files`: from `git diff --name-only` of the beat.
 - The Maker may add a `notes` field to `maker-signal.json`, at most 1,500 characters. This field is advisory input for the next Maker and never part of a verdict.
 - `renderAssignment` adds a section, "Previous attempts were rejected", built from `task.attempts`. Verify output and Checker text are model or repository output, so they go inside the untrusted envelope of `untrusted.js`.
-- After 2 rejected beats on a task, the next beat uses `loop.models.maker_escalation` if it is set (D2). Without it, nothing changes.
+- After 2 rejected beats on a task, the next beat uses `loop.models.maker_escalation` if it is set. This is a quality setting and does not depend on `loop.cost_aware` (D2). Without it, nothing changes.
 
 **Tests.**
 - A unit test, red then green: the prompt of the second beat contains the first beat's Checker reason, inside the envelope.
@@ -52,13 +52,15 @@ Five imports. Each one takes superlite's idea and replaces the self-report parts
 - **Codex and agy** report `null` (unknown), not `0`.
 - **Beat log.** One line per beat: role, model, task, duration, tokens and cost (`beat-log.js`). The Checker votes are logged as well.
 - **Surfaces.** `conductor status` shows the cost of the last run, split by role. That split is the measurement Q3 and `loop.models` need.
-- **Ceiling.** `budget.max_cost_usd`. At 70% of it, write one inbox line. At 100%, halt between beats with `budget_exceeded`, as the wall-clock ceiling already does (D3).
+- **Cost-aware mode.** `loop.cost_aware` (default `false`) enables the cost ceiling `budget.max_cost_usd`. At 70% of it, write one inbox line. At 100%, halt between beats with `budget_exceeded`, as the wall-clock ceiling already does. With the default, tokens and cost are recorded and shown, and nothing acts on them (D3).
+- **The swarm ignores a spent quota (verified in code).** `processTask` (`swarm.js`) discards the result of `runBeat`. It never calls `classifyBeatResult` (`driver.js:140`), so a beat that hit the session limit counts as a rejected attempt, and the task fails after its retries. The pair driver halts with `usage_limit_reached` and the reset time instead. Fix: the swarm uses the same check and halts the whole run with `usage_limit_reached`, so that a re-run resumes it. With `--output-format json`, the limit message can move into the JSON `result`. The check must read the field where the message ends up.
 
 **Not verified.** Whether `claude -p --output-format json` reports `total_cost_usd` on a subscription login. Superlite read `total_cost_usd` from `stream-json`. The first live run settles it. If it does not report the cost, record tokens only.
 
 **Tests.**
 - A parser unit test on a recorded JSON result and on garbage input.
-- A driver test: a beat that reports cost adds to the budget, and crossing the ceiling halts the run.
+- A driver test: a beat that reports cost adds to the budget. With `cost_aware`, crossing the ceiling halts the run. Without it, the run continues.
+- A swarm test, red then green: a beat that hit the usage limit halts the run with `usage_limit_reached` and does not count as a rejection.
 - A live claude beat.
 
 ## A12: a ruling log for unattended decisions
@@ -93,7 +95,7 @@ Five imports. Each one takes superlite's idea and replaces the self-report parts
   - Files under `conductor/` are excluded, because the loop writes them itself.
   - A file outside the scope rejects the beat with the file list, and that reason reaches the next beat through A13.
   - The second rejection for scope fails the task, with an inbox line that asks for a wider scope.
-- **Who writes `Owns`.** The human, in the backlog, for the first runs. Changing `carve` or `spec-it` to emit it is a change to the interactive path (D5).
+- **Who writes `Owns`.** The Implementation Plan in `spec-it`, phase 2 (D5). That phase already decides how the work is built, after the agent has read the code, so it is the point where the files are known. Because the driver checks the real diff, the writer can be an agent: a wrong scope fails one task and does not cause a collision. A backlog item without a plan has no scope and runs alone. Prerequisite: the harvester reads only `task-backlog.md` today, not implementation plans, so a scoped plan reaches the swarm only after A10 adds that path.
 - **Backstop.** F7's merge-time prediction stays in place.
 
 **Tests.**
@@ -126,10 +128,10 @@ None of the five changes weakens an invariant:
 - A missing Checker verdict still fails safe.
 - Each new input fails open only for measurement (A14). It fails closed for admission (A10: no scope means the task runs alone).
 
-## Decisions for the owner
+## Decisions (owner, 2026-10-19)
 
-- **D1.** Order against the crossing. My pick: build A13 and A14 now, because they make the first real crossing readable. Build A12 after the crossing. Build A10 and A11 only after the swarm has run real work. The alternative is to build all five now, against the paused brainstorm's advice.
-- **D2.** Escalation to a stronger Maker model after 2 rejections. It raises cost per task. My pick: opt-in through `loop.models.maker_escalation`, off by default.
-- **D3.** A cost ceiling that halts the run. My pick: a hard halt between beats, the same as the wall-clock ceiling. The alternative is to warn only, as superlite does.
-- **D4.** Where a `high` ruling goes. My pick: the inbox, and the run continues. The alternative is to stop the task until the owner answers.
-- **D5.** Whether `carve` and `spec-it` emit `Owns`, `Produces` and `e.g.` lines. This changes the interactive path. My pick: not before A10 has run on hand-written scopes.
+- **D1, decided.** Build A13 and A14 now, A12 after the first crossing, and A10 and A11 after the swarm has run real work.
+- **D2, decided.** Cost is not a concern on a subscription. Escalation to a stronger Maker model is a quality setting, used when `loop.models.maker_escalation` is set. Features that act on cost sit behind `loop.cost_aware`, which is off by default.
+- **D3, decided.** The owner runs on quota, not pay-per-token. The cost ceiling exists only with `loop.cost_aware`. A spent quota is handled as the pair driver already handles it: the run halts with `usage_limit_reached`, and the swarm must do the same.
+- **D4, decided.** A `high` ruling goes to the inbox, and the run continues.
+- **D5, recommended, awaits confirmation.** `spec-it`'s Implementation Plan writes `Owns`, `Produces` and the `e.g.` lines. This changes an interactive workflow, but the lines have no effect outside the swarm.

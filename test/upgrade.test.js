@@ -228,6 +228,23 @@ test("upgrade leaves a clean tree: it commits the waiver line its own commit log
   assert.match(readFileSync(join(dir, "conductor/0-compass/ship-log.md"), "utf8"), /Hook waiver \(Protected\): conductor upgrade/);
 });
 
+// F7 (first real crossing, 2026-10-19): the message said "No waiver needed"
+// and the next commit logged a waiver. The upgrade does need the
+// protected-path waiver; it sets and logs it itself, so the user types none.
+test("the upgrade message names the waiver it logged instead of denying it", async () => {
+  for (const withRemoteToo of [false, true]) {
+    const dir = await makeGitInstall();
+    if (withRemoteToo) await withRemote(dir);
+    const { code, stdout } = await runUpgrade(dir);
+    assert.equal(code, 0, stdout);
+    assert.doesNotMatch(stdout, /no waiver needed/i);
+    const waiverSha = g(dir, "log", "-1", "--format=%h", "--grep", "upgrade waiver");
+    assert.ok(waiverSha, "the waiver line was not committed");
+    assert.match(stdout, new RegExp(`waiver.*${waiverSha}`, "i"));
+    assert.match(stdout, /you type nothing|nothing to type/i);
+  }
+});
+
 test("upgrade never sweeps the user's own staged work into its commit", async () => {
   const dir = await makeGitInstall();
   writeFileSync(join(dir, "mine.txt"), "my work in progress\n");

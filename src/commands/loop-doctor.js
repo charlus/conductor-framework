@@ -148,6 +148,11 @@ export async function loopDoctor(root, { stdout, beat = false }) {
         const t0 = Date.now();
         const v = await sh(verifyCommand, probe);
         facts.probe.verify = { command: verifyCommand, exitCode: v.exitCode, secs: Math.round((Date.now() - t0) / 1000), tail: tail(v.output) };
+        // The same command in the main checkout, where the owner pushes from.
+        if (v.exitCode === 0) {
+          const r = await sh(verifyCommand, root);
+          facts.rootVerify = { exitCode: r.exitCode, tail: tail(r.output) };
+        }
       }
       if (beat && setupOk && verifyCommand && claudeOk && state.sandbox === "cli-native" && profile) {
         const dir = await mkdtemp(join(tmpdir(), "conductor-doctor-"));

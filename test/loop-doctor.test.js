@@ -95,6 +95,18 @@ test("the report ends with what to do, and fails count as fails", () => {
   assert.match(out, /1 to fix/);
 });
 
+// eurassistant, 2026-10-19: after the loop's MR changed the lock file, the main
+// checkout's .venv still held the old SDK, and the owner's next push failed at
+// import. Loop runs push from their own worktree, so this is a warning.
+test("verify red in the main checkout but green in a fresh worktree warns of a stale environment", () => {
+  const c = by(diagnose({ ...ok, rootVerify: { exitCode: 2, tail: "ImportError: cannot import name 'genai' from 'google'" } }), "local-env");
+  assert.equal(c.level, "warn");
+  assert.match(c.detail, /cannot import name 'genai'/);
+  assert.match(c.fix, /reinstall|setup/i);
+  assert.equal(by(diagnose({ ...ok, rootVerify: { exitCode: 0 } }), "local-env").level, "pass");
+  assert.equal(by(diagnose({ ...ok, probe: { ...ok.probe, verify: { ...ok.probe.verify, exitCode: 1 } }, rootVerify: { exitCode: 1 } }), "local-env"), undefined, "a red base is the verify check's finding, not this one");
+});
+
 test("conductor loop doctor runs the real checks on a scratch project", async () => {
   const { mkdtemp, writeFile, rm, readFile } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
@@ -129,6 +141,12 @@ test("conductor loop doctor runs the real checks on a scratch project", async ()
     assert.match(green.text, /✔ .*verify/i, green.text);
     assert.equal(code2, 0, green.text);
     assert.equal(execFileSync("git", ["worktree", "list"], { cwd: dir }).toString().trim().split("\n").length, 1, "the probe worktree is removed");
+
+    // A main checkout that drifted from HEAD: red here, green in a fresh worktree.
+    await rm(join(dir, "marker.txt"));
+    const drift = sink();
+    await loopCommand(["doctor", dir], { cwd: tmpdir(), stdout: drift, stderr: sink() });
+    assert.match(drift.text, /⚠ .*main checkout/i, drift.text);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

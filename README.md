@@ -291,7 +291,7 @@ The driver reads and writes **The Spine** (a durable JSON ledger, `conductor/1-w
 
 Around the driver:
 * **Platform adapters** (`src/loop/adapters/`) — Claude Code (primary), Antigravity (`agy`), and Codex (`codex`), each verified against the installed CLI; selected via `--platform` → `loop-state.json` → auto-detect.
-* **Maker/Checker split** — the Maker builds in an isolated git worktree; an **independent Checker** process verifies via a multi-vote verdict (`checker-verdict.json`, fail-safe reject).
+* **Maker/Checker split** — the Maker builds in an isolated git worktree; an **independent Checker** process verifies via a multi-vote verdict (`checker-verdict.json`, fail-safe reject). A rejected beat passes the verify output and the Checker's reasons to the next one, and a Maker that is blocked escalates to your inbox instead of burning beats.
 * **Sandbox gate** — real headless runs are gated behind a sandbox (`--unsafe-no-sandbox` to override); L3 requires `cli-native` (the CLI vendor's own sandbox — Anthropic bubblewrap for `claude`, no Docker image needed) or a container.
 * **Swarm scaling & autonomy slider (L0–L3)** — parallelize independent work with a PR-gated merge queue. Before a merge, `git merge-tree` predicts conflicts: clean branches land first and a colliding branch is escalated by name instead of opening a PR that cannot merge.
 

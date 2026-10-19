@@ -8,6 +8,26 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.15.0] — 2026-10-19 — A blocked loop beat escalates, a rejected one learns why
+
+Compatibility: upgrade only
+
+From the first unattended run on a real product (eurassistant, 2026-10-19), findings F3–F5 and a new F8, and the superlite import A13: [`docs/roadmap/Superlite-Imports.md`](docs/roadmap/Superlite-Imports.md).
+
+### Added
+
+- **A Maker that is blocked escalates.** It writes `{ "escalate": true, "reason": "…" }` to `maker-signal.json`, and the run ends as `escalated` with the reason in the inbox, in pair and swarm mode. No verify and no Checker run for that beat. The first real run spent nine beats, each with an opus Checker, on a block the Maker had named in beat 1. Verified live: a Maker without network access escalated in beat 1, in 22 seconds (pair) and 16 seconds (swarm).
+- **A rejected beat tells the next one why.** The driver keeps the last three rejections (verify exit, the tail of its output, the Checker's reasons and findings, the files changed) and puts them in the next beat's prompt, inside the untrusted-content envelope. Verified live: a verify rule that is revealed only by its failure message was met in beat 2.
+- **`loop.models.maker_escalation`** runs a Maker beat that follows two rejections on a stronger model. Unset, nothing changes.
+
+### Fixed
+
+- **The swarm's stall guard could never fire on most test runners.** It hashed the raw verify output, so a duration such as pytest's "in 9.54s" changed the hash on every beat. It now uses the same normalisation as pair mode.
+- **The loop opens a GitLab MR without pushing a second time.** `glab mr create --fill` pushes the branch, which re-ran the whole pre-push gate (2.5 minutes with live evals) and failed the MR step. The title and description are now passed explicitly, for `gh` and `glab`.
+- **A failed push or forge command keeps its error.** The inbox and the ship-log said only "glab failed to open the PR/MR". They now carry the last 300 characters of the command's own error.
+
+---
+
 ## [6.14.0] — 2026-10-16 — The loop beat cannot push, a model per role, interviews in rounds
 
 Compatibility: upgrade only

@@ -8,6 +8,18 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.18.0] — 2026-10-19 — `conductor loop doctor`
+
+Compatibility: upgrade only
+
+From the first unattended run on a real product (findings F1 and F6).
+
+### Added
+
+- **`conductor loop doctor [dir] [--beat]` checks a project before an unattended run.** The first real run needed six project facts that nothing checked, found one by one over two runs. The doctor checks the pre-flight, the framework version and sandbox profile, bubblewrap and socat, whether Claude Code reads `AGENTS.md`, the forge login, nested repositories, the `--from-conductor` queue and a gitignored `.env` the worktree will not have. It then runs `loop.setup` and the verify command in a real worktree and removes it. `--beat` adds one sandboxed agent beat that runs the verify command, the only check that sees what the sandbox blocks. Each problem comes with its fix; exit 1 when one must be fixed. Verified live on eurassistant: 36 seconds, or 54 with `--beat`. It caught the outdated 6.14.0 sandbox profile and a backlog item that a run would have repeated. On a scratch project with the old profile, `--beat` reported "This command requires approval" for a verify command that was green outside the sandbox.
+
+---
+
 ## [6.17.0] — 2026-10-19 — Headless beats can run what a developer runs, and no more
 
 Compatibility: upgrade only

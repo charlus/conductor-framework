@@ -62,6 +62,7 @@ function autonomySummary(state) {
 const LOOP_HELP = [
   "",
   "  conductor loop [target-directory] [options]",
+  "  conductor loop doctor [target-directory] [--beat]   Check a project before an unattended run",
   "",
   "  Run the deterministic autonomous loop driver against conductor/1-workbench/loop-state.json.",
   "",
@@ -115,7 +116,7 @@ function flagValue(args, flag) {
   return null;
 }
 
-async function exists(p) {
+export async function exists(p) {
   try {
     await access(p, fsConstants.F_OK);
     return true;
@@ -124,7 +125,7 @@ async function exists(p) {
   }
 }
 
-async function readJson(path) {
+export async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
 }
 
@@ -163,7 +164,7 @@ async function atomicWriteJson(path, obj) {
   await rename(tmp, path);
 }
 
-function sh(cmd, cwd) {
+export function sh(cmd, cwd) {
   return new Promise((res) => {
     const child = spawn(cmd, { cwd, shell: true, stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
@@ -193,7 +194,7 @@ function makeGit(cwd) {
  * collapsing either into `ok: false` makes them indistinguishable. Reading
  * stderr also drains the pipe, which an unread one would eventually block on.
  */
-function runCli(cmd, argv, cwd) {
+export function runCli(cmd, argv, cwd) {
   return new Promise((res) => {
     const child = spawn(cmd, argv, { cwd, stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
@@ -219,7 +220,7 @@ async function appendShipLog(root, message, now) {
   }
 }
 
-async function hasNpmTestScript(root) {
+export async function hasNpmTestScript(root) {
   const pkgPath = join(root, "package.json");
   if (!(await exists(pkgPath))) return false;
   try {
@@ -230,7 +231,7 @@ async function hasNpmTestScript(root) {
   }
 }
 
-async function configVerify(root) {
+export async function configVerify(root) {
   const cfgPath = join(root, "conductor.config.json");
   if (!(await exists(cfgPath))) return "";
   try {
@@ -272,6 +273,13 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   if (args.includes("--help") || args.includes("-h")) {
     stdout.write(`${LOOP_HELP}\n`);
     return 0;
+  }
+  // `conductor loop doctor [dir]`: check a project before an unattended run.
+  if (args.find((a) => !a.startsWith("-")) === "doctor") {
+    const rest = args.slice(args.indexOf("doctor") + 1);
+    const dir = rest.find((a) => !a.startsWith("-"));
+    const { loopDoctor } = await import("./loop-doctor.js");
+    return loopDoctor(resolve(cwd, dir || "."), { stdout, beat: rest.includes("--beat") });
   }
   const positional = args.find((a) => !a.startsWith("-"));
   const root = resolve(cwd, positional || ".");

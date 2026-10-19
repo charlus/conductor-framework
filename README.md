@@ -319,7 +319,7 @@ So privilege comes from **you**, never from the event:
 
 Per-project settings live in the `loop` block of `conductor.config.json`: a `setup` command per worktree, extra sandbox domains, the forge (`gh`/`glab`, otherwise read from the origin host), which backlog items the fleet may take (`require_ready`, `priorities`), the model each loop role runs on (`models`), and whether cost may stop a run (`cost_aware`, off by default). Every run reports what it cost, by role. The sandbox profile withholds your forge logins from every beat, so only the driver can push or open a PR. Each beat's full agent output is kept in `.git/conductor-loop-logs/`.
 
-**▶ How to run it on your repo:** see the step-by-step guide [`docs/Running-The-Loop.md`](docs/Running-The-Loop.md) — configure The Spine (`loop-state.json`, with `sandbox: "cli-native"`), `--dry-run` to preview, then `conductor loop <dir> --platform claude`.
+**▶ How to run it on your repo:** see the step-by-step guide [`docs/Running-The-Loop.md`](docs/Running-The-Loop.md) — configure The Spine (`loop-state.json`, with `sandbox: "cli-native"`), `--dry-run` to preview, `conductor loop doctor <dir>` to check the setup and verify command in a real worktree, then `conductor loop <dir> --platform claude`.
 
 See also [`docs/roadmap/Autonomous-Loop-Backend.md`](docs/roadmap/Autonomous-Loop-Backend.md), [`docs/roadmap/Loop-Engineering-Alignment.md`](docs/roadmap/Loop-Engineering-Alignment.md), [`docs/roadmap/Loop-Robustness-Plan.md`](docs/roadmap/Loop-Robustness-Plan.md), and [`docs/adr/0001-enforcement-and-autonomy-rebalance.md`](docs/adr/0001-enforcement-and-autonomy-rebalance.md).
 

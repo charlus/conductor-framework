@@ -88,6 +88,17 @@ conductor loop /path/to/repo --dry-run
 
 It prints the resolved plan — phase, verify command, autonomy summary, detected adapter, whether a worktree will be created, and any halt it *would* hit (e.g. `discovery → halted_scoping`, no verify → `halted_no_verification`, `L3` without a sandbox → `halted_sandbox_required`). No agent is spawned.
 
+## Step 2b — Check the project with `conductor loop doctor`
+
+```bash
+conductor loop doctor /path/to/repo          # about 30 seconds, no agent
+conductor loop doctor /path/to/repo --beat   # plus one sandboxed agent beat
+```
+
+`--dry-run` reads the configuration; the doctor tries it. It checks the pre-flight, the project's framework version and sandbox profile, bubblewrap and socat, whether Claude Code reads `AGENTS.md`, the forge login when the run would open a PR, nested repositories, what `--from-conductor` would take, and a gitignored `.env` that a worktree will not have. Then it builds a real worktree where the loop builds its own, runs `loop.setup` and the verify command there, and removes it. With `--beat`, one sandboxed agent beat runs the verify command too: it is the only check that sees what the sandbox itself blocks, such as a command that needs approval. Each problem is printed with its fix, and the exit code is 1 when one must be fixed.
+
+The first run on a real product needed six such facts, found one by one over two runs. The doctor finds them in one pass.
+
 ## Step 3 — Run it for real
 
 ```bash

@@ -48,7 +48,8 @@ conductor-framework/          ← You are here (package source)
 │       ├── verify.js / trust-verify.js / evidence.js / install-hooks.js   # conductor verify|trust-verify|evidence|install-hooks: the gates
 │       ├── review-log.js / context-bill.js   # conductor review-log|context-bill: measurement
 │       ├── agents-md.js       # conductor agents-md: the project card
-│       └── loop.js            # conductor loop: the autonomous driver
+│       ├── loop.js            # conductor loop: the autonomous driver
+│       └── loop-doctor.js     # conductor loop doctor: checks a project before an unattended run
 ├── templates/                 # THESE files get installed into user projects
 │   ├── .agents/                # Agent core (AGENTS.md, how-it-works.md, registry.json, rules, workflows, skills, personas)
 │   ├── conductor/              # Project state (numbered folders 0-compass..6-archive)
@@ -97,7 +98,7 @@ This used to be a version-stamped prose snapshot; it drifts (it predated the V6 
 - **The methodology surface** → `templates/.agents/how-it-works.md` (routing table, skill/rule registries, the ship-contract).
 
 Stable pointers to where the big subsystems live:
-- **Autonomous loop** → `src/loop/` (driver, adapters, worktree, checker, merge, swarm, trigger) + `src/commands/loop.js`; the only interactive template it touches is `.agents/workflows/unattended-loop.md`. Design: `docs/roadmap/Autonomous-Loop-Backend.md`, `docs/roadmap/Loop-Robustness-Plan.md`.
+- **Autonomous loop** → `src/loop/` (driver, adapters, worktree, checker, merge, swarm, trigger, usage, doctor) + `src/commands/loop.js` and `src/commands/loop-doctor.js` (`conductor loop doctor`); the only interactive template it touches is `.agents/workflows/unattended-loop.md`. Design: `docs/roadmap/Autonomous-Loop-Backend.md`, `docs/roadmap/Loop-Robustness-Plan.md`.
 - **Deterministic enforcement** → `templates/.agents/hooks/` (`lib.sh` + `pre-commit` for the TDD + Eval *presence* gates, the Goodhart boundary and protected paths; `pre-push` for Verify + Eval *run* gates and the pinned official `pre-commit` fingerprint), wired by `conductor install-hooks`. The hooks load the *committed* `lib.sh` and fail closed without it. Opt-in Claude Code `PreToolUse` hooks: `pretooluse-no-bypass.sh` and `pretooluse-fact-gate.sh` (measured by `test/evals/fact-gate-eval.mjs`). `test/hooks-registry-drift.test.js` keeps hooks, README and `install-hooks` in step. `conductor upgrade` commits its own protected-path writes (`src/commands/upgrade.js`, `commitUpgrade`), on its own branch when the repo has a remote (`upgradeTarget`). Files under `conductor/` are not code to the hooks, and a waiver line rides the commit that passes. Design + review record: `docs/roadmap/Peer-Framework-Harvest.md`. The ship-contract (Eval-Driven Law + `architecture-checklist`, judge-rubric calibration): `docs/roadmap/Eval-Driven-Law.md`.
 - **CLI** → `src/` (`cli.js` parser; `init`/`upgrade` in `src/commands/`; `update.js`/`backup.js`/`version.js` for the robust cross-version upgrade — `docs/roadmap/Robust-Upgrade-Migration.md`).
 - **Evidence freshness** → `src/evidence/` (`wtree.js` working-tree content fingerprint + `ledger.js`), surfaced as `conductor evidence run|check|list` and consumed by `hooks/pre-push` (with `--stable-tree`: a run that changes files while it runs fails). Committing exactly the code that was tested keeps its evidence FRESH; an untracked new source file invalidates it.

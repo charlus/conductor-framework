@@ -188,7 +188,7 @@ Inside an interactive Claude Code session you can instead run `/loop` (it discov
    ```
 
    Fullwidth and zero-width evasion is folded **for matching only** — the text you read is exactly what was written — and a forged copy of the banner is defused so it cannot close the envelope early.
-3. **An explicit tool allowlist** — `Read Edit Write Glob Grep TodoWrite`. No shell, no `WebFetch`, no `WebSearch`. An allowlist rather than a blocklist, because every published bypass of this class of agent defeated a blocklist.
+3. **An explicit tool allowlist** — `Read Edit Write Glob Grep TodoWrite`. No shell, no `WebFetch`, no `WebSearch`. An allowlist rather than a blocklist, because every published bypass of this class of agent defeated a blocklist. Since 6.17.0 it is passed as `--tools`, so the other tools do not exist for the beat. Before, it was passed only as `--allowed-tools`, which pre-approves and restricts nothing, and the sandbox's auto-allow let an untrusted beat run sandboxed shell commands.
 
 `--dry-run` shows all of it before anything runs:
 

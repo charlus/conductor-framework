@@ -8,6 +8,23 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.17.0] — 2026-10-19 — Headless beats can run what a developer runs, and no more
+
+Compatibility: upgrade only
+
+From the first unattended run on a real product (finding F2): [`docs/roadmap/Superlite-Imports.md`](docs/roadmap/Superlite-Imports.md) and the crossing record.
+
+### Fixed
+
+- **A loop beat can run a command that starts with a variable assignment.** Claude Code sends `FOO=bar cmd`, even sandboxed, through its permission prompt, which a headless beat cannot answer, and the first real run stalled on it. The cli-native profile now allows `Bash`. `allowUnsandboxedCommands: false` keeps that allow from ever approving a command outside the sandbox, and deny rules keep `git push`, `gh pr` and `glab mr` with the driver. Verified live: a variable-prefixed command and a compound commit ran, a write to the home folder failed and its unsandboxed retry was ignored, and `git push` was denied.
+- **An untrusted run really has no shell.** Its tool allowlist was passed only as `--allowed-tools`, which pre-approves and restricts nothing, and the sandbox auto-allows Bash, so an untrusted beat could run sandboxed shell commands. Verified live on the 6.14.0 profile. The list is now also passed as `--tools`, so the other tools do not exist for the beat. Verified live: the beat could write a file and had no Bash.
+
+### Note — upgrading
+
+- A beat now runs every sandboxed command without asking. The sandbox (network allowlist, writes only in the worktree, forge credentials withheld since 6.14.0) is the boundary, as it was meant to be.
+
+---
+
 ## [6.16.0] — 2026-10-19 — Every loop run says what it cost
 
 Compatibility: upgrade only

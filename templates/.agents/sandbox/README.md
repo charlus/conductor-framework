@@ -39,6 +39,13 @@ project (or you) to maintain but a host package.
     unsets `GH_TOKEN`, `GITHUB_TOKEN`, `GITLAB_TOKEN`, `SSH_AUTH_SOCK` and the
     keyring bus. A beat cannot push or open a PR: the driver does both, from
     outside the sandbox. Put an SSH fetch of a private dependency in `loop.setup`.
+  - **Headless beats run any sandboxed command.** A beat cannot answer a
+    permission prompt, and Claude Code prompts for some sandboxed commands, such
+    as one that starts with a variable assignment (`FOO=bar cmd`). The profile
+    allows `Bash`, sets `allowUnsandboxedCommands: false` so that allow can never
+    approve an unsandboxed retry (passed through `--settings`, this also makes the
+    sandbox admin-required, so a repository's own settings cannot loosen it), and
+    denies `git push`, `gh pr` and `glab mr`: only the driver pushes and opens PRs.
 - **`agy` (Antigravity):** runs in **Google's hosted sandbox** — isolation is
   server-side and managed by Google; nothing to configure locally.
 - **`codex`:** uses **OpenAI's** Docker-based sandbox; ensure your codex CLI is

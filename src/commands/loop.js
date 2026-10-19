@@ -12,7 +12,7 @@ import { join, resolve, sep, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { runLoop, normalizeState, resolveVerifyCommand, beatCeiling } from "../loop/driver.js";
 import { resolveAdapter } from "../loop/adapters/index.js";
-import { createWorktree, teardownWorktree, worktreePlan, taskWorktreePlan, materializeConductorContext, CONTEXT_ANCHORS, hasUniqueCommits } from "../loop/worktree.js";
+import { createWorktree, teardownWorktree, worktreePlan, taskWorktreePlan, materializeConductorContext, CONTEXT_ANCHORS, hasUniqueCommits, ensureWorktreesExcluded } from "../loop/worktree.js";
 import { autoCommit, autoCommitMessage } from "../loop/autocommit.js";
 import { harvestWorkQueue, renderAssignment, renderAttempts } from "../loop/harvester.js";
 import { applyClaim, applyDone } from "../loop/writeback.js";
@@ -943,6 +943,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     let workCwd = root;
     if (state.phase === "execution") {
       try {
+        await ensureWorktreesExcluded(root);
         const wt = await createWorktree({ root, goalDescription: state.goal_description, git });
         workCwd = wt.path;
         state.worktree = { path: wt.path, branch: wt.branch };
@@ -1084,6 +1085,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const deps = {
       verifyCommand,
       assignWorktree: async ({ task }) => {
+        await ensureWorktreesExcluded(root);
         const plan = taskWorktreePlan(root, state.goal_description, task.id);
         // Idempotent (P1.4 resume): a prior interrupted run may have left this
         // task's worktree + branch on disk. Reuse it rather than failing the

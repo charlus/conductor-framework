@@ -137,3 +137,27 @@ export async function teardownWorktree({ root, goalDescription, git, baseBranch 
     ? { removed: true, reason: `removed clean worktree ${path}` }
     : { removed: false, reason: `git worktree remove failed for ${path}` };
 }
+
+/**
+ * F12: keep the loop's worktrees out of `git status`. evalapp-v2 did not
+ * ignore `.agents/.worktrees/`, so a `git add -A` would have swept the loop's
+ * worktrees into a commit. The entry goes in git's local exclude file, so it
+ * holds for every existing install and commits nothing. Idempotent; never throws.
+ */
+export async function ensureWorktreesExcluded(root, entry = ".agents/.worktrees/") {
+  const { spawnSync } = await import("node:child_process");
+  const { readFileSync, writeFileSync, mkdirSync, existsSync } = await import("node:fs");
+  const { dirname, resolve } = await import("node:path");
+  try {
+    const r = spawnSync("git", ["rev-parse", "--git-path", "info/exclude"], { cwd: root, encoding: "utf8" });
+    if (r.status !== 0) return false;
+    const path = resolve(root, r.stdout.trim());
+    const text = existsSync(path) ? readFileSync(path, "utf8") : "";
+    if (text.split(/\r?\n/).some((l) => l.trim() === entry || l.trim() === entry.replace(/\/$/, ""))) return false;
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, `${text}${text && !text.endsWith("\n") ? "\n" : ""}${entry}\n`);
+    return true;
+  } catch {
+    return false;
+  }
+}

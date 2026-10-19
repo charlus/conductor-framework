@@ -113,6 +113,32 @@ else
 fi
 rm -rf "$D"
 
+# ---- R9: the loop's own audit lines are bookkeeping, not a report -------
+# evalapp-v2, 2026-10-19: conductor loop appended "[loop]" lines to the
+# ship-log, and the gate then blocked the owner's next commit.
+D="$(fresh_repo)"; printf '%s' "$NO_BLOCK" > "$D/$LOG"
+git -C "$D" add -A >/dev/null 2>&1; CONDUCTOR_HOOKS=off git -C "$D" commit -q -m "old entry" >/dev/null 2>&1
+printf -- '- [2026-10-19T13:26:31.120Z] [loop] swarm start: 1 tasks, concurrency=1\n- [2026-10-19T13:33:05.002Z] [loop] run cost: ≈ $0.73 at list price\n' >> "$D/$LOG"
+git -C "$D" add -A >/dev/null 2>&1
+if git -C "$D" commit -q -m "loop audit lines" >/dev/null 2>&1; then
+  ok "R9: the loop's [loop] audit lines commit without a For you block"
+else
+  no "R9: the gate blocked the loop's own audit lines"
+fi
+rm -rf "$D"
+
+# ---- R10: loop lines do not smuggle in a report without For you ---------
+D="$(fresh_repo)"; printf '%s' "$NO_BLOCK" > "$D/$LOG"
+git -C "$D" add -A >/dev/null 2>&1; CONDUCTOR_HOOKS=off git -C "$D" commit -q -m "old entry" >/dev/null 2>&1
+printf -- '- [2026-10-19T13:26:31.120Z] [loop] swarm start\n- **What:** a real change\n' >> "$D/$LOG"
+git -C "$D" add -A >/dev/null 2>&1
+if git -C "$D" commit -q -m "loop line plus report" >/dev/null 2>&1; then
+  no "R10: a report line rode in with a loop line"
+else
+  ok "R10: a loop line plus any other line is still gated"
+fi
+rm -rf "$D"
+
 # ---- R6: hooks off → gate silent ------------------------------------------
 D="$(fresh_repo)"; printf '%s' "$NO_BLOCK" > "$D/$LOG"
 git -C "$D" add -A >/dev/null 2>&1

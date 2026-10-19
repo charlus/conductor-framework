@@ -18,6 +18,28 @@ export function planMergeAction({ autonomyLevel, phase }) {
   return "none"; // L1/L2 and non-execution hand off to the human without merging
 }
 
+/**
+ * F10: a PR/MR title from a backlog item. The item's whole first line ran past
+ * GitLab's 255-character limit. Keep the first sentence, without markdown
+ * emphasis or the loop's own tags, cut at a word to at most `max` characters.
+ */
+export function prTitle(text, max = 120) {
+  let t = String(text ?? "")
+    .replace(/\(loop-ready\)/gi, "")
+    .replace(/\*+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const end = t.search(/[.?](\s|$)/);
+  if (end > 0) t = t.slice(0, end).trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max - 1);
+  const atWord = cut.lastIndexOf(" ");
+  return `${(atWord > max / 2 ? cut.slice(0, atWord) : cut).trimEnd()}…`;
+}
+
+/** F11: the forge has not registered the branch pushed a moment ago. */
+const BRANCH_NOT_SEEN = /source[_ ]branch.*(does not exist|not found)|branch .*not found/i;
+
 export const DEFAULT_PR_BODY = "Opened by `conductor loop`: verify passed and the independent Checker approved. A human merges.";
 
 /**
@@ -82,7 +104,8 @@ async function findExistingPr(forge, branch, run) {
  *   forge: "gh" | "glab" | null — resolved from the origin host or loop.forge (config.js)
  * @returns {Promise<{ok:boolean, branch?:string, prUrl?:string, reason?:string}>}
  */
-export async function openPullRequest({ branch, title, body, git, run, forge }) {
+export async function openPullRequest({ branch, title, body, git, run, forge, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
+  title = prTitle(title);
   if (!forge) {
     return { ok: false, reason: "no forge resolved to open a PR (set loop.forge in conductor.config.json)" };
   }
@@ -104,7 +127,13 @@ export async function openPullRequest({ branch, title, body, git, run, forge }) 
   }
 
   const [cmd, argv] = prCommand(forge, { branch, title, ...(body ? { body } : {}) });
-  const pr = await run(cmd, argv);
+  let pr = await run(cmd, argv);
+  // F11: right after the push, GitLab answered "source_branch does not exist".
+  // Give the forge a moment and ask once more.
+  if (!pr.ok && BRANCH_NOT_SEEN.test(`${pr.stderr ?? ""} ${pr.stdout ?? ""}`)) {
+    await sleep(5000);
+    pr = await run(cmd, argv);
+  }
   if (!pr.ok) {
     // Don't escalate on a bare non-zero: `create` also fails when a PR already
     // exists for this branch (concurrency / a retried beat). If one is open, the

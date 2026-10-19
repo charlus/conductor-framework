@@ -315,7 +315,10 @@ conductor_staged_only_waiver_lines() {
   rel="${f#"$root"/}"
   diff="$(git -C "$root" diff --cached -U0 -- "$rel" 2>/dev/null | grep -E '^[+-]' | grep -Ev '^(\+\+\+|---) ')"
   [ -n "$diff" ] || return 1
-  printf '%s\n' "$diff" | grep -Evq '^\+- \[[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}\] Hook waiver \(' && return 1
+  # Bookkeeping lines only: the hooks' own waiver lines, and the audit lines
+  # `conductor loop` appends (`- [<ISO time>] [loop] …`). Anything else is gated.
+  printf '%s\n' "$diff" | grep -Ev '^\+- \[[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}\] Hook waiver \(' \
+    | grep -Evq '^\+- \[[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z\] \[loop\] ' && return 1
   return 0
 }
 

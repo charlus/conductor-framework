@@ -77,3 +77,11 @@ The Maker's work was sound. It also found call sites the backlog had missed (the
 ### What worked
 
 The Evidence Rule and the opus Checker held: ten half-done beats were all rejected with precise reasons, and nothing was faked. The credential fix from 6.14.0 was in place. The push gate ran the live evals before the MR existed. The loop escalated the MR failure to the inbox.
+
+### Cross-check with the superlite code read (2026-10-19)
+
+The superlite session listed four gaps from reading `src/loop`. Against this run:
+- Swarm ignores a spent quota: real, not hit in this run, fixed in #72.
+- A dependency counts as merged once its PR is opened: real, not observed (one task), left to A11 under D1.
+- A retry does not receive its rejection: real in both modes, fixed in #71 and proven live in pair mode. In run 1 it was not the cause: the Maker knew why it was blocked and needed F3.
+- Every adapter returns `tokens: 0`: real, fixed in #72.

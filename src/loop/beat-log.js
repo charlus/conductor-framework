@@ -18,8 +18,20 @@ export function beatLogName({ now, label }) {
   return `${stamp}-${slug || "beat"}.log`;
 }
 
+/** A14: role, model, task, duration, tokens and cost of one beat, on one line. */
+export function usageLine({ role, model, task, duration_s, tokens, cost_usd }) {
+  return [
+    `role=${role}`,
+    `model=${model ?? "default"}`,
+    ...(task ? [`task=${task}`] : []),
+    `duration=${duration_s ?? "?"}s`,
+    `tokens=${tokens ?? "unknown"}`,
+    `cost=${cost_usd === null || cost_usd === undefined ? "unknown" : `$${cost_usd.toFixed(4)}`}`,
+  ].join(" ");
+}
+
 /** Write one beat's log into `dir`, prune old logs, and return the log's path. */
-export async function writeBeatLog(dir, { now, label, cwd, result = {}, keep = KEEP }) {
+export async function writeBeatLog(dir, { now, label, cwd, result = {}, usage = null, keep = KEEP }) {
   await mkdir(dir, { recursive: true });
   const path = join(dir, beatLogName({ now, label }));
   const text = [
@@ -28,6 +40,7 @@ export async function writeBeatLog(dir, { now, label, cwd, result = {}, keep = K
     `- time: ${new Date(now).toISOString()}`,
     `- cwd: ${cwd}`,
     `- exit code: ${result.exitCode ?? "(none)"}`,
+    ...(usage ? [`- usage: ${usageLine(usage)}`] : []),
     "",
     "## stdout",
     "",

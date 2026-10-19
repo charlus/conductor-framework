@@ -14,6 +14,7 @@
 
 import { createHash } from "node:crypto";
 import { recordAttempt } from "./harvester.js";
+import { costGate, costGateMessage } from "./usage.js";
 
 /** Terminal statuses — once reached, the loop stops. Single source of truth. */
 export const TERMINAL_STATUSES = Object.freeze([
@@ -186,6 +187,11 @@ export function normalizeState(raw) {
       // v1 → v2 migration: telemetry.tokens_spent folds into budget.
       tokens_spent: s.budget?.tokens_spent ?? s.telemetry?.tokens_spent ?? 0,
       started_at: s.budget?.started_at ?? null,
+      // A14: cost per run and per role; max_cost_usd acts only with loop.cost_aware.
+      cost_usd_spent: s.budget?.cost_usd_spent ?? 0,
+      usage: s.budget?.usage ?? {},
+      max_cost_usd: s.budget?.max_cost_usd ?? null,
+      cost_warned: s.budget?.cost_warned ?? false,
     },
     verification: {
       command: s.verification?.command ?? "",
@@ -324,6 +330,7 @@ export async function runLoop(state, deps) {
     readMakerDone = null, // maker's completion signal, read from a file (never trust in-memory)
     readMakerSignal = null, // the whole signal: { done, escalate, reason }; wins over readMakerDone
     changedFiles = null, // ({from}) → string[]: the files a beat changed (A13), optional
+    costAware = false, // loop.cost_aware: only then does budget.max_cost_usd act
     merge = null, // Phase 4: PR-gated merge at L3 (async → { ok, branch, prUrl, reason })
     branchHasWork = null, // (state)=>bool: does the branch carry committed work to ship?
     audit = () => {}, // Phase 4: append to the human-auditable ship-log trail
@@ -359,6 +366,14 @@ export async function runLoop(state, deps) {
       await persist(state);
       break;
     }
+    // A14: the cost ceiling, only with loop.cost_aware. Checked between beats.
+    const gate = costGate(state, { costAware });
+    if (gate) await writeInbox(state, costGateMessage(state, gate));
+    if (gate === "halt") {
+      state.status = "budget_exceeded";
+      await persist(state);
+      break;
+    }
 
     switch (state.status) {
       case "idle":
@@ -371,7 +386,8 @@ export async function runLoop(state, deps) {
         const beforeHead = await gitHead();
         state.beat_base = beforeHead;
         const result = await runBeat({ role: "maker", state, escalateModel: state.rejected_beats >= 2 });
-        state.budget.tokens_spent += result?.tokens ?? 0;
+        // Tokens and cost are recorded once, by the command layer's beat wrapper
+        // (src/loop/usage.js), for Maker and Checker alike.
 
         // Dead-beat guard: a beat where the agent CLI never really ran (a usage
         // limit) is external and terminal — stop truthfully instead of burning the

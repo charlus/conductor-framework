@@ -66,6 +66,11 @@ export function startNewRun(state) {
   state.iterations.current = 0;
   state.budget.started_at = null;
   state.budget.tokens_spent = 0;
+  state.budget.cost_usd_spent = 0;
+  state.budget.usage = {};
+  state.budget.cost_warned = false;
+  state.attempts = [];
+  state.rejected_beats = 0;
   state.stall = { consecutive: 0, last_beat_hash: null };
   state.merge = null;
   return { reset: true, from };

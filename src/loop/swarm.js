@@ -15,7 +15,8 @@
 // All IO (agent beats, verify, checker, merge, git, clock, persist) is injected
 // so the whole scheduler is unit-testable with stubs — no processes spawned.
 
-import { hashString, computeStallHash, normalizeVerifyOutput, preflight, describeHalt, beatCeiling } from "./driver.js";
+import { hashString, computeStallHash, normalizeVerifyOutput, preflight, describeHalt, beatCeiling, classifyBeatResult } from "./driver.js";
+import { costGate, costGateMessage } from "./usage.js";
 import { recordAttempt } from "./harvester.js";
 import { orderMergeQueue } from "./conflict.js";
 import { planMergeAction } from "./merge.js";
@@ -178,6 +179,16 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
       files: await filesOf(from),
     });
   };
+  // A14: a beat where the agent CLI hit its usage limit did no work. Refund it
+  // and stop the whole run, as the pair does; the task resumes next run.
+  const deadBeat = (result) => {
+    const verdict = classifyBeatResult(result);
+    if (!verdict.dead) return null;
+    task.iterations.current -= 1;
+    budget.beats -= 1;
+    task.status = "pending";
+    return { task, outcome: "usage_limit", resetHint: verdict.resetHint };
+  };
   const escalated = async (result) => {
     const reason = escalationOf(result);
     if (!reason) return null;
@@ -206,6 +217,8 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
       task.role = authorRole;
       const before = await gitHead({ task });
       const contractResult = await runBeat({ task, role: authorRole, phase: "contract", escalateModel: false });
+      const dead = deadBeat(contractResult);
+      if (dead) return dead;
       const stop = await escalated(contractResult);
       if (stop) return stop;
       const { exitCode, output } = await runVerify({ task, cmd: task.verify ?? verifyCommand });
@@ -230,6 +243,8 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
       phase: tddSplit ? "implementation" : null,
       escalateModel: task.rejected_beats >= ESCALATE_MODEL_AFTER,
     });
+    const dead = deadBeat(result);
+    if (dead) return dead;
     // F3: a Maker that says it is blocked ends the task now. No verify, no
     // Checker: another beat cannot get what only a human can give.
     const stop = await escalated(result);
@@ -284,6 +299,7 @@ export async function runSwarm(state, deps) {
     audit = () => {},
     log = () => {},
     writeInbox = () => {},
+    costAware = false, // loop.cost_aware: only then does budget.max_cost_usd act
   } = deps;
 
   // Same deterministic gates as the pair (scoping, sandbox, autonomy, verify) —
@@ -342,6 +358,9 @@ export async function runSwarm(state, deps) {
     // Global caps checked before dispatching a wave.
     if (budget.beats >= budget.maxBeats) { terminal = "max_iterations_exceeded"; break; }
     if ((now() - budget.startedAt) / 60000 >= budget.maxWallClockMin) { terminal = "budget_exceeded"; break; }
+    const gate = costGate(state, { costAware });
+    if (gate) await writeInbox(state, costGateMessage(state, gate));
+    if (gate === "halt") { terminal = "budget_exceeded"; break; }
 
     const assigned = frontier.slice(0, concurrency);
     const wave = [];
@@ -375,7 +394,17 @@ export async function runSwarm(state, deps) {
     );
     state.iterations.current = budget.beats;
 
+    const spent = results.find((r) => r.outcome === "usage_limit");
+    if (spent) {
+      const resetNote = spent.resetHint ? ` — resets ${spent.resetHint}` : "";
+      await writeInbox(
+        state,
+        `agent CLI reported a usage/session limit${resetNote}. No work was done that beat; raise the limit or wait, then re-run to resume.`
+      );
+      await audit(`swarm: usage limit reached${resetNote}`);
+    }
     for (const { task, outcome, reason } of results) {
+      if (outcome === "usage_limit") continue; // already back to pending
       if (outcome === "escalated") {
         task.status = "failed";
         await writeInbox(state, `task ${task.id} escalated by the Maker (beat ${task.escalation?.beat ?? "?"}): ${reason}`);
@@ -385,6 +414,11 @@ export async function runSwarm(state, deps) {
         task.status = "failed";
         await audit(`task ${task.id}: failed (${outcome})`);
       }
+    }
+
+    if (spent) {
+      terminal = "usage_limit_reached";
+      // Tasks that passed in this wave still go through the merge queue below.
     }
 
     // Serialized, PR-gated merge queue. A collision used to be discovered only

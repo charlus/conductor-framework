@@ -13,6 +13,7 @@
 // would eventually disagree and then neither surface would be trusted.
 
 import { stripInlineMarkdown } from "./markdown.js";
+import { usageSummary } from "../loop/usage.js";
 
 const ANSI = {
   reset: "\u001b[0m",
@@ -73,6 +74,9 @@ function loopLine(loop) {
     parts.push(`beat ${current}${Number.isFinite(Number(max)) ? `/${max}` : ""}`);
   }
   if (loop.autonomy_level) parts.push(loop.autonomy_level);
+  // A14: what the last run cost, by role (a list-price estimate on a subscription).
+  const cost = loop.budget ? usageSummary(loop) : "";
+  if (cost) parts.push(cost);
   return parts.length ? parts.join(" · ") : "unknown";
 }
 

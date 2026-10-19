@@ -50,7 +50,9 @@ export function buildArgv({
   allowedTools = null,
   model = null,
 }) {
-  const argv = ["-p", prompt, "--permission-mode", permissionMode];
+  // A14: the JSON result carries the text plus tokens and cost (a list-price
+  // estimate on a subscription login). parseClaudeResult turns it back into text.
+  const argv = ["-p", prompt, "--output-format", "json", "--permission-mode", permissionMode];
   if (model) argv.push("--model", model);
   if (settingsPath) argv.push("--settings", settingsPath);
   // An empty array is NOT passed: `--allowed-tools` with no values would be a
@@ -59,6 +61,30 @@ export function buildArgv({
     argv.push("--allowed-tools", ...allowedTools);
   }
   return argv;
+}
+
+/**
+ * Read the final object of `claude -p --output-format json`. Returns
+ * { text, tokens, costUsd, model }, or null when stdout is not a result object
+ * (a crash, a usage-limit banner printed before any JSON). Null fails open: the
+ * caller keeps the raw stdout and records the usage as unknown.
+ */
+export function parseClaudeResult(stdout) {
+  let obj;
+  try {
+    obj = JSON.parse(String(stdout ?? "").trim());
+  } catch {
+    return null;
+  }
+  if (!obj || typeof obj !== "object" || Array.isArray(obj) || obj.type !== "result") return null;
+  const u = obj.usage ?? {};
+  const counts = [u.input_tokens, u.output_tokens, u.cache_creation_input_tokens, u.cache_read_input_tokens].filter(Number.isFinite);
+  return {
+    text: typeof obj.result === "string" ? obj.result : "",
+    tokens: counts.length ? counts.reduce((a, b) => a + b, 0) : null,
+    costUsd: Number.isFinite(obj.total_cost_usd) ? obj.total_cost_usd : null,
+    model: obj.modelUsage && typeof obj.modelUsage === "object" ? Object.keys(obj.modelUsage)[0] ?? null : null,
+  };
 }
 
 /**
@@ -84,7 +110,16 @@ export async function runBeat({
     child.stderr.on("data", (d) => (stderr += d.toString()));
     child.on("error", reject);
     child.on("close", (exitCode) => {
-      resolve({ exitCode: exitCode ?? 1, stdout, stderr, tokens: 0 });
+      const parsed = parseClaudeResult(stdout);
+      resolve({
+        exitCode: exitCode ?? 1,
+        // The verdict and usage-limit checks read the same text as before.
+        stdout: parsed ? parsed.text : stdout,
+        stderr,
+        tokens: parsed?.tokens ?? null,
+        costUsd: parsed?.costUsd ?? null,
+        model: parsed?.model ?? null,
+      });
     });
   });
 }

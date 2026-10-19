@@ -52,7 +52,7 @@ export async function runBeat({ promptPath, cwd = process.cwd(), permissionMode 
     child.stdout.on("data", (d) => (stdout += d.toString()));
     child.stderr.on("data", (d) => (stderr += d.toString()));
     child.on("error", reject);
-    child.on("close", (exitCode) => resolve({ exitCode: exitCode ?? 1, stdout, stderr, tokens: 0 }));
+    child.on("close", (exitCode) => resolve({ exitCode: exitCode ?? 1, stdout, stderr, tokens: null, costUsd: null }));
   });
 }
 

@@ -11,6 +11,7 @@
 // (src/commands/loop.js), which passes their contents here.
 
 import { envelopeUntrusted } from "./untrusted.js";
+import { rulingHint } from "./rulings.js";
 
 /** kebab-slug, bounded — mirrors worktree.slugify so ids/branches line up. */
 export function slugify(text, fallback = "item") {
@@ -270,6 +271,8 @@ export function renderAssignment(task) {
     `**Brief:** ${route.brief}`,
     "",
     `**Blocked?** ${ESCALATE_HINT}`,
+    "",
+    `**Deciding alone?** ${rulingHint(task.id)}`,
     ...(task.attempts?.length ? ["", renderAttempts(task.attempts)] : []),
   ].join("\n");
 }

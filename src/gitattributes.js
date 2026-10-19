@@ -13,6 +13,7 @@ export const UNION_PATHS = [
   "conductor/0-compass/ship-log.md",
   "conductor/1-workbench/inbox.md",
   "conductor/1-workbench/review-log.jsonl",
+  "conductor/1-workbench/rulings.md",
 ];
 
 /** Add `<path> merge=union` for each log missing from .gitattributes. Returns true if it wrote. */

@@ -135,6 +135,7 @@ export function normalizeTask(task, defaults = {}) {
     attempts: Array.isArray(task.attempts) ? task.attempts : [],
     rejected_beats: task.rejected_beats ?? 0,
     escalation: task.escalation ?? null,
+    rulings: Array.isArray(task.rulings) ? task.rulings : [],
   };
 }
 

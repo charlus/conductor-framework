@@ -8,6 +8,18 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.19.0] — 2026-10-19 — A loop Maker logs the decisions it makes alone
+
+Compatibility: upgrade only
+
+Superlite import A12, built after the first real crossing as decided (D1, D4): [`docs/roadmap/Superlite-Imports.md`](docs/roadmap/Superlite-Imports.md).
+
+### Added
+
+- **The ruling log.** An unattended Maker decides product questions alone, and before this only its diff showed what it chose. It now appends one line per decision the spec did not settle to `conductor/1-workbench/rulings.md`: the decision, why, and what breaks if it is wrong, rated low, medium or high. The PR body lists every ruling on its branch, a `high` ruling goes to the inbox and the run continues, and the Checker reviews the rulings against the spec. The file merges with `merge=union`. An unknown risk level counts as `high`. Nothing can force an agent to log a decision: the format is parsed, and completeness can only be measured. Verified live: asked for a user-facing message with no language or tone given, the Maker logged its choice as `high`, the inbox received it once over three runs, the Checker's prompt carried it, and the PR body listed it on a reused worktree.
+
+---
+
 ## [6.18.0] — 2026-10-19 — `conductor loop doctor`
 
 Compatibility: upgrade only

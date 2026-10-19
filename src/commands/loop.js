@@ -17,7 +17,7 @@ import { autoCommit, autoCommitMessage } from "../loop/autocommit.js";
 import { harvestWorkQueue, renderAssignment, renderAttempts } from "../loop/harvester.js";
 import { applyClaim, applyDone } from "../loop/writeback.js";
 import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, isInfraReason, VERDICT_REL } from "../loop/checker.js";
-import { openPullRequest, planMergeAction } from "../loop/merge.js";
+import { openPullRequest, planMergeAction, DEFAULT_PR_BODY } from "../loop/merge.js";
 import { runSwarm } from "../loop/swarm.js";
 import { predictConflicts } from "../loop/conflict.js";
 import { lockDecision, renderLock } from "../loop/lock.js";
@@ -30,6 +30,7 @@ import { syncLoopStateInto } from "../loop/state-sync.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
 import { recordUsage, usageSummary } from "../loop/usage.js";
+import { newRulings, rulingInboxLines, rulingsPrBody, rulingsForChecker, RULINGS_REL } from "../loop/rulings.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels } from "../loop/config.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
@@ -709,11 +710,12 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   };
 
   // PR-gated merge for a worktree branch (never a direct push to a protected branch).
-  const makeMerge = (cwd, branch, title) => async () => {
+  const makeMerge = (cwd, branch, title, rulings = async () => []) => async () => {
     if (!branch) return { ok: false, reason: "no worktree branch to open a PR from" };
     return openPullRequest({
       branch,
       title,
+      body: rulingsPrBody(await rulings(), DEFAULT_PR_BODY),
       git: makeGit(cwd),
       run: (cmd, argv) => runCli(cmd, argv, cwd),
       forge: forgeInfo.forge,
@@ -897,6 +899,38 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     }
   }
   // A13: the files a beat changed, from the HEAD before it to the HEAD after it.
+  // A12: the ruling log in a worktree, before and after a beat.
+  async function readRulingsAt(cwd) {
+    try {
+      return await readFile(join(cwd, RULINGS_REL), "utf8");
+    } catch {
+      return "";
+    }
+  }
+  async function collectRulings(holder, cwd, before) {
+    const added = newRulings(before, await readRulingsAt(cwd));
+    if (!added.length) return;
+    holder.rulings = [...(holder.rulings ?? []), ...added];
+    await audit(`rulings: ${added.length} new (${added.filter((r) => r.risk === "high").length} high)`);
+    for (const line of rulingInboxLines(added)) await writeInbox(root, state, line);
+  }
+  // Every ruling on a worktree's branch: its log minus the base checkout's. The
+  // PR and the Checker use this, not the run's memory, so a reused worktree's
+  // earlier rulings are never dropped. The inbox uses per-beat lines instead,
+  // so no ruling is reported twice.
+  async function branchRulings(cwd) {
+    return newRulings(await readRulingsAt(root), await readRulingsAt(cwd));
+  }
+  // The Checker's prompt plus the rulings it must review, via a scratch file.
+  async function checkerPromptWithRulings(basePath, rulings, key) {
+    const section = rulingsForChecker(rulings);
+    if (!section) return basePath;
+    const p = join(tmpdir(), `conductor-checker-rulings-${String(key).replace(/[^a-z0-9]+/gi, "-")}.md`);
+    const base = (await exists(basePath)) ? await readFile(basePath, "utf8") : "";
+    await writeFile(p, `${base}\n\n---\n\n${section}\n`, "utf8");
+    return p;
+  }
+
   async function changedFilesIn(cwd, from) {
     if (!from) return [];
     const r = await runCli("git", ["diff", "--name-only", from, "HEAD"], cwd);
@@ -949,6 +983,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       verifyCommand,
       runBeat: async ({ escalateModel } = {}) => {
         await rm(makerSignalPath, { force: true }).catch(() => {}); // clear stale signal
+        const rulingsBefore = await readRulingsAt(workCwd);
         let beatPrompt = promptPath;
         if (state.attempts?.length) {
           await writeFile(pairPromptPath, `${pairWorkflowText}\n\n---\n\n${renderAttempts(state.attempts)}\n`, "utf8");
@@ -977,15 +1012,16 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           stdout.write(`[CONDUCTOR LOOP] ${note}\n`);
           await audit(`beat ${state.iterations.current}: ${note}`);
         }
+        await collectRulings(state, workCwd, rulingsBefore);
         return result;
       },
       runVerify: (cmd) => sh(cmd, workCwd),
       gitHead: () => gitHead(workCwd),
-      runChecker: makeChecker(workCwd),
+      runChecker: async (o) => makeChecker(workCwd, await checkerPromptWithRulings(checkerPromptPath, await branchRulings(workCwd), "pair"))(o),
       readMakerDone,
       readMakerSignal: () => readSignalAt(workCwd),
       changedFiles: ({ from }) => changedFilesIn(workCwd, from),
-      merge: makeMerge(workCwd, state.worktree?.branch, `Conductor loop: ${state.goal_description || "goal"}`),
+      merge: makeMerge(workCwd, state.worktree?.branch, `Conductor loop: ${state.goal_description || "goal"}`, () => branchRulings(workCwd)),
       // Empty done-claim guard: only ship if the loop branch carries committed work
       // beyond master (a maker commit or a P0.1 auto-capture). Blueprint/non-execution
       // phases aren't gated on commits → true. `git` (root) sees the loop branch.
@@ -1072,6 +1108,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         const taskCwd = cwdFor.get(task.id) ?? root;
         // F3: the swarm reads the Maker's signal too; clear the last beat's first.
         await rm(join(taskCwd, "conductor/1-workbench/maker-signal.json"), { force: true }).catch(() => {});
+        const rulingsBefore = await readRulingsAt(taskCwd);
         // FB-4: hand the agent its work item by appending the routed assignment to
         // the loop workflow prompt, via a scratch file. Nothing lands in the
         // worktree (no tracked pollution) and no templates change.
@@ -1100,11 +1137,13 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           stdout.write(`[CONDUCTOR SWARM] ${note}\n`);
           await audit(note);
         }
+        await collectRulings(task, taskCwd, rulingsBefore);
         return { ...result, signal: await readSignalAt(taskCwd) };
       },
       runVerify: ({ task, cmd }) => sh(cmd, cwdFor.get(task.id) ?? root),
       changedFiles: ({ task, from }) => changedFilesIn(cwdFor.get(task.id) ?? root, from),
-      runChecker: async ({ task }) => makeChecker(cwdFor.get(task.id) ?? root, await checkerPromptFor(task))(),
+      runChecker: async ({ task }) =>
+        makeChecker(cwdFor.get(task.id) ?? root, await checkerPromptWithRulings(await checkerPromptFor(task), await branchRulings(cwdFor.get(task.id) ?? root), task.id))(),
       // F7: would this branch collide with the base before we push it? Asked
       // against the object store from the ROOT checkout, so no working tree is
       // touched and no worktree has to be clean for it to answer.
@@ -1114,7 +1153,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         const m = await makeMerge(
           cwdFor.get(task.id) ?? root,
           task.worktree?.branch,
-          `Conductor task ${task.id}: ${task.title || task.type}`
+          `Conductor task ${task.id}: ${task.title || task.type}`,
+          () => branchRulings(cwdFor.get(task.id) ?? root)
         )();
         if (m?.ok) {
           // FB-3: reflect completion into the source of truth + ship-log.

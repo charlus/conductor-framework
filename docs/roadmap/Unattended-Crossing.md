@@ -1,6 +1,6 @@
 # Unattended Crossing — brainstorm, paused 2026-10-16
 
-> **Status:** brainstorm, paused by the owner. Nothing decided, nothing built. Resume at **Where to resume**.
+> **Status:** first crossing done 2026-10-19 on eurassistant CHORE-2: one stalled run, one approved run, MR !48 opened by hand. Friction F1–F7 below is the unattended roadmap. Open questions Q2 and Q3 still stand.
 > **Evidence:** ten research reports from 2026-10-16 in [`docs/research/2026-10-16/`](../research/2026-10-16/), mainly `meta-landscape.md` (30 tools) and `meta-omnigent-paperclip.md`. Third-party code was read, never run.
 > **Related:** [`Harvest-2026-10.md`](Harvest-2026-10.md) (PR #67), the Q3 outcome eval approved there.
 
@@ -51,3 +51,28 @@ The recommendation made when the brainstorm paused: stop adding loop features an
 - Which project for the first crossing, evalapp-v2 or eurassistant, and which item?
 - Does the positioning above (discipline under any orchestrator, loop no longer the centre) match the intent?
 - Should dots' `dev` capability, which merges on green CI without a human, become a Conductor-governed orchestrator instead of a separate path?
+
+## First crossing — eurassistant CHORE-2, 2026-10-19
+
+Item: migrate the EOL `google-generativeai` SDK to `google-genai` (15 files). L3, cli-native sandbox, sonnet Maker, opus Checker. Prep MR !47, result MR !48.
+
+| Run | Result | Time |
+|---|---|---|
+| 1 | stalled after 10 beats: the Maker could not run Poetry and stopped honestly each beat; the Checker rejected each half-migration | 12 min |
+| 2 | approved in one beat; the push gate passed 641 unit tests and 29 live Gemini evals on the new SDK; no old-SDK reference left; the MR step failed | 8 min |
+
+The Maker's work was sound. It also found call sites the backlog had missed (the judge, `reshape_query`, six test files).
+
+### Friction, ranked (the unattended roadmap)
+
+- **F1. Preparation needs knowledge more than time.** Six project facts had to be known: the sandbox write limits, Poetry, the Python from mise, `.env` for the live evals, `require_ready`, and the upgrade to 6.14.0. A `conductor loop doctor` that probes a worktree setup, the verify command and the eval key would turn this into a checklist.
+- **F2. Headless permission flow.** A command that starts with a variable assignment (`FOO=bar cmd`) needs approval even when sandboxed, and a headless beat cannot answer. Every project whose tools need environment variables hits this. Fix in Conductor: allow rules in the sandbox profile, with `allowUnsandboxedCommands: false` so an allow rule cannot approve an unsandboxed retry.
+- **F3. No escalate signal (harvest A6, now confirmed live).** The Maker said "blocked, here is what I need" in beat 1; the loop ran nine more identical beats, each with an opus Checker.
+- **F4. `glab mr create --fill` pushes again.** It re-runs the push gate (2.5 min with live evals) and the MR step failed in the loop. Open the MR with `--title`/`--description` and no `--fill`, as the driver has already pushed.
+- **F5. A failed forge command is logged without its error.** The ship-log said only "glab failed to open the PR/MR". Keep the forge's stderr in the reason.
+- **F6. Prep notes are only proven by a live run.** The first notes told the Maker to use the one command form the loop cannot run.
+- **F7. `upgrade` says "No waiver needed" and then commits a waiver line.**
+
+### What worked
+
+The Evidence Rule and the opus Checker held: ten half-done beats were all rejected with precise reasons, and nothing was faked. The credential fix from 6.14.0 was in place. The push gate ran the live evals before the MR existed. The loop escalated the MR failure to the inbox.

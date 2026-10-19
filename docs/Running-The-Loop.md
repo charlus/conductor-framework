@@ -60,7 +60,8 @@ Settings that belong to the project, not to one run, go in the `loop` block of `
     "require_ready": true,
     "priorities": ["P1"],
     "inbox": false,
-    "models": { "maker": "sonnet", "checker": "opus", "maker_escalation": "opus" }
+    "models": { "maker": "sonnet", "checker": "opus", "maker_escalation": "opus" },
+    "cost_aware": false
   }
 }
 ```
@@ -68,6 +69,7 @@ Settings that belong to the project, not to one run, go in the `loop` block of `
 - `setup`: runs once in each new worktree, before its first beat, in the driver and outside the agent sandbox. A worktree starts without `.venv` or `node_modules`, so without this the verify command fails before it tests anything. If it fails, a pair run stops with `halted_setup_failed` and a swarm task is failed. Fix it and run again: setup is retried.
 - `allowed_domains`: extra hosts for the `cli-native` sandbox (claude). They are merged into a generated copy of `.agents/sandbox/claude-sandbox.settings.json`. Hostnames only, with an optional leading `*.`. The profile also withholds the forge logins from every beat: `~/.ssh`, `~/.config/gh`, `~/.config/glab-cli`, git credential files, the `GH_TOKEN`-style variables, `SSH_AUTH_SOCK` and the keyring bus. The driver pushes and opens the PR from outside the sandbox, so a beat that could do it itself would bypass the PR gate. A private dependency fetched over SSH belongs in `setup`, which runs outside the sandbox.
 - `models`: the model each loop role runs on, as a model id or alias (`sonnet`, `opus`, `claude-opus-5-5`). `maker` writes the code, `checker` judges it, and `maker_escalation` runs a Maker beat that follows two rejections. Unset, the CLI's default model runs both. The claude engine only: other engines warn and use their own default.
+- `cost_aware`: off by default. On, `budget.max_cost_usd` in `loop-state.json` becomes a ceiling: one inbox line at 70%, and the run stops between beats at 100% with `budget_exceeded`. Off, the cost is recorded and shown and acts on nothing.
 - `forge`: `gh` or `glab`. Default: from `git remote get-url origin`, `github.com` → `gh`, any other host → `glab`. At L3 execution the loop checks `<forge> auth status` for that host before the first beat.
 - `require_ready`, `priorities`, `inbox`: which items `--from-conductor` takes. See Fleet mode.
 
@@ -212,6 +214,8 @@ conductor evidence list                     # what ran, when, against which tree
 
 - Prefer `sandbox: "cli-native"` for real runs — it enables the agent CLI's own vendor sandbox (Anthropic's bubblewrap for `claude`, fail-closed). `sandbox: "none"` + `--unsafe-no-sandbox` runs the agent unsandboxed; only do that inside a throwaway clone or a VM.
 - **A blocked Maker escalates.** When a beat cannot go on without a human (an approval, access, a decision), the Maker writes `{ "escalate": true, "reason": "…" }` to `conductor/1-workbench/maker-signal.json`. The run ends at once as `escalated`, with no verify and no Checker, and the reason is in the inbox. The first real run on a product spent nine beats on a block the Maker had already named in beat 1.
+- **Every run says what it cost.** The claude adapter reads the JSON result of each beat. The run ends with a `cost:` line split by role, `conductor status` repeats it, and each beat log in `.git/conductor-loop-logs/` has a `usage:` line (role, model, duration, tokens, cost). On a subscription login the cost is a list-price estimate, not a charge. Codex and agy report no usage, which shows as unknown, never as zero.
+- **A spent quota stops the swarm too.** A beat that hits the session or usage limit is refunded, the run ends as `usage_limit_reached` with the reset time in the inbox, and the next run resumes the task.
 - **A rejected beat tells the next one why.** The driver records each rejection (verify exit, the tail of its output, the Checker's reasons and findings, the files changed) and puts the last three in the next beat's prompt, inside the untrusted-content envelope.
 - The loop is **young**. The rough edge that used to lose work — a maker creating files without committing, so verify passed on the working tree while the committed diff stayed empty — is now backstopped (`src/loop/autocommit.js` captures uncommitted maker changes before teardown, and the empty-done-claim guard refuses to ship a branch with no commits). Prefer `L1` and review the branch before merging anyway. Hardening is tracked in [`roadmap/Loop-Robustness-Plan.md`](roadmap/Loop-Robustness-Plan.md).
 - Escalations and the run trail are written to `conductor/1-workbench/inbox.md` and `conductor/0-compass/ship-log.md` — read those after every run.

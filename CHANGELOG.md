@@ -8,6 +8,24 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.16.0] — 2026-10-19 — Every loop run says what it cost
+
+Compatibility: upgrade only
+
+Superlite import A14: [`docs/roadmap/Superlite-Imports.md`](docs/roadmap/Superlite-Imports.md).
+
+### Added
+
+- **Cost and tokens per beat.** The claude adapter runs `claude -p --output-format json` and reads each beat's tokens, cost and model. The run ends with a `cost:` line split by Maker and Checker, `conductor status` shows it, and each beat log has a `usage:` line. On a subscription login the cost is a list-price estimate. Codex and agy report unknown, not zero. Verified live: a haiku Maker and a sonnet Checker cost $0.01 and $0.13 on a one-beat task.
+- **`loop.cost_aware`**, off by default. On, `budget.max_cost_usd` warns once at 70% and stops the run between beats at 100%. Off, cost is shown and acts on nothing.
+
+### Fixed
+
+- **A spent quota stops the swarm.** The swarm counted a beat that hit the usage limit as a rejected attempt and failed the task after its retries. It now refunds the beat, ends the run as `usage_limit_reached` with the reset time in the inbox, and resumes the task on the next run, as pair mode already did.
+- **A new run starts with no carried-over rejections.** The attempts and the rejection count from 6.15.0 now reset with the beat counter.
+
+---
+
 ## [6.15.0] — 2026-10-19 — A blocked loop beat escalates, a rejected one learns why
 
 Compatibility: upgrade only

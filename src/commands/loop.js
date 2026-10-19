@@ -29,6 +29,7 @@ import { writeBeatLog, BEAT_LOG_DIR } from "../loop/beat-log.js";
 import { syncLoopStateInto } from "../loop/state-sync.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
+import { recordUsage, usageSummary } from "../loop/usage.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels } from "../loop/config.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
@@ -535,11 +536,27 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     } catch (e) {
       stderr.write(`[CONDUCTOR LOOP] ⚠️  could not copy loop-state.json into ${opts.cwd}: ${e.message}\n`);
     }
+    const startedAt = Date.now();
     const result = await run(opts);
+    // A14: the one accounting point for every beat, Maker and Checker, pair and
+    // swarm. A failure to record never fails a beat.
+    try {
+      recordUsage(state, { role: kind, result });
+    } catch {
+      /* usage is measurement only */
+    }
     if (beatLogDir) {
       try {
         const label = `${kind}${opts.role ? ` ${opts.role}` : ""} ${basename(opts.cwd ?? root)}`;
-        const path = await writeBeatLog(beatLogDir, { now: Date.now(), label, cwd: opts.cwd ?? root, result });
+        const usage = {
+          role: kind,
+          model: result?.model ?? opts.model ?? "default",
+          task: opts.task?.id ?? null,
+          duration_s: Math.round((Date.now() - startedAt) / 1000),
+          tokens: result?.tokens ?? null,
+          cost_usd: result?.costUsd ?? null,
+        };
+        const path = await writeBeatLog(beatLogDir, { now: Date.now(), label, cwd: opts.cwd ?? root, result, usage });
         await audit(`${kind} log: ${path}`);
       } catch {
         /* a log failure never fails a beat */
@@ -973,9 +990,15 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       persist: (s) => atomicWriteJson(statePath, s),
       writeInbox: (s, reason) => writeInbox(root, s, reason),
       log: (m) => stdout.write(`${m}\n`),
+      costAware: loopConfig.costAware,
     };
 
     const final = await runLoop(state, deps);
+    const cost = usageSummary(final);
+    if (cost) {
+      stdout.write(`[CONDUCTOR LOOP] cost: ${cost}\n`);
+      await audit(`run cost: ${cost}`);
+    }
     if (final.merge?.pr_url) stdout.write(`[CONDUCTOR LOOP] PR opened: ${final.merge.pr_url}\n`);
 
     if (state.phase === "execution" && final.worktree) {
@@ -1098,9 +1121,15 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       persist: (s) => atomicWriteJson(statePath, s),
       writeInbox: (s, reason) => writeInbox(root, s, reason),
       log: (m) => stdout.write(`${m}\n`),
+      costAware: loopConfig.costAware,
     };
 
     const final = await runSwarm(state, deps);
+    const cost = usageSummary(final);
+    if (cost) {
+      stdout.write(`[CONDUCTOR SWARM] cost: ${cost}\n`);
+      await audit(`run cost: ${cost}`);
+    }
     const merged = final.tasks.filter((t) => t.status === "merged").length;
     stdout.write(`\n[CONDUCTOR SWARM] finished: ${final.status} (${merged}/${final.tasks.length} tasks merged)\n`);
     return final.status === "completed" || final.status === "awaiting_review" ? 0 : 1;

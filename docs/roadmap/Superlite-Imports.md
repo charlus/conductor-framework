@@ -1,6 +1,6 @@
 # Superlite imports: design
 
-> **Status:** A13 shipped in 6.15.0 and A14 in 6.16.0 (2026-10-19), both verified live. `claude -p --output-format json` does report `total_cost_usd` on a subscription login, as a list-price estimate (`costBasis: list`). A12 is next. A10 and A11 wait for D1's condition. Owner decided D1–D5 on 2026-10-19.
+> **Status:** A13 shipped in 6.15.0 and A14 in 6.16.0 (2026-10-19), both verified live. `claude -p --output-format json` does report `total_cost_usd` on a subscription login, as a list-price estimate (`costBasis: list`). A12 shipped in 6.19.0, verified live. A10 and A11 wait for D1's condition: the swarm running real work. A10 and A11 wait for D1's condition. Owner decided D1–D5 on 2026-10-19.
 > **Source:** [`Harvest-2026-10.md`](Harvest-2026-10.md), section "Superlite", items A10–A16. Superlite was read at `eea16ee` and never run.
 > **Related:** [`Swarm-Collision-Admission.md`](Swarm-Collision-Admission.md) (F8), [`Autonomous-Loop-Backend.md`](Autonomous-Loop-Backend.md), and the paused `Unattended-Crossing.md` (draft PR #69).
 

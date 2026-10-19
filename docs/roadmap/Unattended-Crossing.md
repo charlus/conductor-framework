@@ -1,6 +1,6 @@
 # Unattended Crossing — brainstorm, paused 2026-10-16
 
-> **Status:** first crossing done 2026-10-19 on eurassistant CHORE-2: one stalled run, one approved run, MR !48 opened by hand. Friction F1–F7 below is the unattended roadmap. Open questions Q2 and Q3 still stand.
+> **Status:** first crossing done 2026-10-19 on eurassistant CHORE-2 (MR !48). Fixes built the same day, each verified live, in stacked PRs #71–#75 (6.15.0–6.19.0): F3, F4, F5 and a new F8 in #71; F2 in #73; F1 and F6 in #74. F7 is still open. Open questions Q2 and Q3 still stand.
 > **Evidence:** ten research reports from 2026-10-16 in [`docs/research/2026-10-16/`](../research/2026-10-16/), mainly `meta-landscape.md` (30 tools) and `meta-omnigent-paperclip.md`. Third-party code was read, never run.
 > **Related:** [`Harvest-2026-10.md`](Harvest-2026-10.md) (PR #67), the Q3 outcome eval approved there.
 
@@ -71,7 +71,8 @@ The Maker's work was sound. It also found call sites the backlog had missed (the
 - **F4. `glab mr create --fill` pushes again.** It re-runs the push gate (2.5 min with live evals) and the MR step failed in the loop. Open the MR with `--title`/`--description` and no `--fill`, as the driver has already pushed.
 - **F5. A failed forge command is logged without its error.** The ship-log said only "glab failed to open the PR/MR". Keep the forge's stderr in the reason.
 - **F6. Prep notes are only proven by a live run.** The first notes told the Maker to use the one command form the loop cannot run.
-- **F7. `upgrade` says "No waiver needed" and then commits a waiver line.**
+- **F7. `upgrade` says "No waiver needed" and then commits a waiver line.** Open.
+- **F8. The swarm's stall guard never fired** (found while fixing F3): it hashed raw verify output, so pytest's duration changed the hash every beat. Fixed in #71.
 
 ### What worked
 

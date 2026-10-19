@@ -13,6 +13,7 @@
 // and never spawn a `claude` process. See test/loop-driver.test.js.
 
 import { createHash } from "node:crypto";
+import { recordAttempt } from "./harvester.js";
 
 /** Terminal statuses — once reached, the loop stops. Single source of truth. */
 export const TERMINAL_STATUSES = Object.freeze([
@@ -22,6 +23,7 @@ export const TERMINAL_STATUSES = Object.freeze([
   "max_iterations_exceeded",
   "budget_exceeded",
   "usage_limit_reached",
+  "escalated",
   "halted_scoping",
   "halted_no_verification",
   "halted_sandbox_required",
@@ -195,6 +197,9 @@ export function normalizeState(raw) {
       consecutive: s.stall?.consecutive ?? s.telemetry?.consecutive_stalls ?? 0,
       last_beat_hash: s.stall?.last_beat_hash ?? null,
     },
+    // A13: the last rejected attempts, shown to the next Maker beat.
+    attempts: Array.isArray(s.attempts) ? s.attempts : [],
+    rejected_beats: s.rejected_beats ?? 0,
     tasks: Array.isArray(s.tasks) ? s.tasks : [],
     roles: Array.isArray(s.roles) ? s.roles : ["maker", "checker"],
     concurrency: s.concurrency ?? 1,
@@ -317,6 +322,8 @@ export async function runLoop(state, deps) {
     verifyCommand,
     runChecker = null, // Phase 3: independent Checker in a separate process
     readMakerDone = null, // maker's completion signal, read from a file (never trust in-memory)
+    readMakerSignal = null, // the whole signal: { done, escalate, reason }; wins over readMakerDone
+    changedFiles = null, // ({from}) → string[]: the files a beat changed (A13), optional
     merge = null, // Phase 4: PR-gated merge at L3 (async → { ok, branch, prUrl, reason })
     branchHasWork = null, // (state)=>bool: does the branch carry committed work to ship?
     audit = () => {}, // Phase 4: append to the human-auditable ship-log trail
@@ -361,7 +368,9 @@ export async function runLoop(state, deps) {
         state.current_worker = "maker";
         await persist(state);
 
-        const result = await runBeat({ role: "maker", state });
+        const beforeHead = await gitHead();
+        state.beat_base = beforeHead;
+        const result = await runBeat({ role: "maker", state, escalateModel: state.rejected_beats >= 2 });
         state.budget.tokens_spent += result?.tokens ?? 0;
 
         // Dead-beat guard: a beat where the agent CLI never really ran (a usage
@@ -392,9 +401,23 @@ export async function runLoop(state, deps) {
         // The maker's "goal complete" claim is read from a file it writes, never
         // from the driver's in-memory state (which the agent process can't touch)
         // — symmetric with the Checker's verdict file. Absent ⇒ not claimed.
-        if (readMakerDone) {
-          state.maker_reported_done = await readMakerDone();
+        const signal = readMakerSignal
+          ? (await readMakerSignal()) ?? {}
+          : readMakerDone
+            ? { done: await readMakerDone() }
+            : { done: state.maker_reported_done }; // no reader wired (unit harness)
+        // F3: a Maker that says it is blocked ends the run now. No verify, no
+        // Checker: no further beat can get what only a human can give.
+        if (signal.escalate === true) {
+          const reason = String(signal.reason ?? "").replace(/\s+/g, " ").trim().slice(0, 1500) || "the Maker escalated without a reason";
+          state.current_worker = null;
+          state.status = "escalated";
+          await writeInbox(state, `the Maker escalated at beat ${state.iterations.current}: ${reason}`);
+          await audit(`beat ${state.iterations.current}: escalated by the Maker — ${reason}`);
+          await persist(state);
+          break;
         }
+        state.maker_reported_done = signal.done === true;
 
         // Stall detection: driver-observable progress only.
         const head = await gitHead();
@@ -438,6 +461,7 @@ export async function runLoop(state, deps) {
         state.verification.last_output_hash = hashString(normalizeVerifyOutput(output));
 
         let checkerExit = null;
+        let checkerResult = null;
         if (exitCode !== 0) {
           // Red floor: forced reject, no Checker consulted.
           state.status = "rejected_by_checker";
@@ -448,6 +472,7 @@ export async function runLoop(state, deps) {
           state.current_worker = "checker";
           await persist(state);
           const cr = await runChecker({ role: "checker", state });
+          checkerResult = cr;
           checkerExit = cr?.exitCode ?? 1;
           state.current_worker = null;
           state.status = checkerExit === 0 ? "passed_by_checker" : "rejected_by_checker";
@@ -456,6 +481,25 @@ export async function runLoop(state, deps) {
           state.status = "passed_by_checker";
         }
 
+        if (state.status === "rejected_by_checker") {
+          state.rejected_beats += 1;
+          let files = [];
+          if (changedFiles) {
+            try {
+              files = (await changedFiles({ from: state.beat_base })) ?? [];
+            } catch {
+              files = [];
+            }
+          }
+          recordAttempt(state, {
+            beat: state.iterations.current,
+            verifyExit: exitCode,
+            verifyOutput: output,
+            checkerReasons: checkerResult?.reasons ?? [],
+            checkerFindings: checkerResult?.findings ?? [],
+            files,
+          });
+        }
         state.history.push({
           beat: state.iterations.current,
           status: state.status,

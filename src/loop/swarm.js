@@ -15,11 +15,28 @@
 // All IO (agent beats, verify, checker, merge, git, clock, persist) is injected
 // so the whole scheduler is unit-testable with stubs — no processes spawned.
 
-import { hashString, computeStallHash, preflight, describeHalt, beatCeiling } from "./driver.js";
+import { hashString, computeStallHash, normalizeVerifyOutput, preflight, describeHalt, beatCeiling } from "./driver.js";
+import { recordAttempt } from "./harvester.js";
 import { orderMergeQueue } from "./conflict.js";
 import { planMergeAction } from "./merge.js";
 
 export const MAX_TASK_STALLS = 3;
+
+/** Rejected beats after which a Maker beat asks for `loop.models.maker_escalation`. */
+export const ESCALATE_MODEL_AFTER = 2;
+
+/** The Maker's escalation, if this beat's signal carried one. */
+function escalationOf(result) {
+  const sig = result?.signal;
+  if (!sig || sig.escalate !== true) return null;
+  const reason = String(sig.reason ?? "").replace(/\s+/g, " ").trim().slice(0, 1500);
+  return reason || "the Maker escalated without a reason";
+}
+
+/** Same normalisation as the pair: runner timings must not move the stall hash. */
+function verifyHash(output) {
+  return hashString(normalizeVerifyOutput(output));
+}
 
 /** Task-graph terminal states. */
 export const TASK_TERMINAL = Object.freeze(["merged", "failed"]);
@@ -112,6 +129,11 @@ export function normalizeTask(task, defaults = {}) {
     stall: { consecutive: task.stall?.consecutive ?? 0, last_beat_hash: task.stall?.last_beat_hash ?? null },
     evidence: task.evidence ?? null,
     merge: task.merge ?? null,
+    // A13: the last rejected attempts, written by the driver and shown to the
+    // next beat. `rejected_beats` counts every rejection for model escalation.
+    attempts: Array.isArray(task.attempts) ? task.attempts : [],
+    rejected_beats: task.rejected_beats ?? 0,
+    escalation: task.escalation ?? null,
   };
 }
 
@@ -135,7 +157,34 @@ export function isBlocked(task, byId) {
  * Run one task's Maker→verify→Checker chain, retrying on rejection up to the
  * per-task ceiling, sharing the global budget. Mutates the task; returns outcome.
  */
-async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker, gitHead, now, budget, audit, roles = [], tddSplit = false }) {
+async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker, gitHead, changedFiles = null, now, budget, audit, roles = [], tddSplit = false }) {
+  const filesOf = async (from) => {
+    if (!changedFiles) return [];
+    try {
+      return (await changedFiles({ task, from })) ?? [];
+    } catch {
+      return [];
+    }
+  };
+  const reject = async ({ verifyExit, verifyOutput, checker = null, from }) => {
+    task.status = "rejected";
+    task.rejected_beats += 1;
+    recordAttempt(task, {
+      beat: task.iterations.current,
+      verifyExit,
+      verifyOutput,
+      checkerReasons: checker?.reasons ?? [],
+      checkerFindings: checker?.findings ?? [],
+      files: await filesOf(from),
+    });
+  };
+  const escalated = async (result) => {
+    const reason = escalationOf(result);
+    if (!reason) return null;
+    task.escalation = { reason, beat: task.iterations.current };
+    await audit(`task ${task.id}: beat ${task.iterations.current} escalated by the Maker — ${reason}`);
+    return { task, outcome: "escalated", reason };
+  };
   task.status = "in_progress";
   if (tddSplit && !task.phase) task.phase = "contract";
   while (task.iterations.current < task.iterations.max_allowed) {
@@ -155,12 +204,16 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
     if (tddSplit && task.phase === "contract") {
       const authorRole = resolveRoleForTask(task, roles, "test-author").name;
       task.role = authorRole;
-      await runBeat({ task, role: authorRole, phase: "contract" });
+      const before = await gitHead({ task });
+      const contractResult = await runBeat({ task, role: authorRole, phase: "contract", escalateModel: false });
+      const stop = await escalated(contractResult);
+      if (stop) return stop;
       const { exitCode, output } = await runVerify({ task, cmd: task.verify ?? verifyCommand });
-      task.evidence = { exit_code: exitCode, output_hash: hashString(output), phase: "contract" };
+      task.evidence = { exit_code: exitCode, output_hash: verifyHash(output), phase: "contract" };
       await audit(`task ${task.id}: contract beat (${authorRole}) verify exit=${exitCode}`);
       if (exitCode === 0) {
-        task.status = "rejected"; // tests pass with no implementation → vacuous contract
+        // Tests pass with no implementation → vacuous contract.
+        await reject({ verifyExit: exitCode, verifyOutput: output, from: before });
         continue;
       }
       task.phase = "implementation";
@@ -170,7 +223,17 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
 
     // ---- Implementation phase (or the non-split single maker). Identical
     // semantics to before: make it green, gated by verify then Checker.
-    await runBeat({ task, role: task.role, phase: tddSplit ? "implementation" : null });
+    const before = await gitHead({ task });
+    const result = await runBeat({
+      task,
+      role: task.role,
+      phase: tddSplit ? "implementation" : null,
+      escalateModel: task.rejected_beats >= ESCALATE_MODEL_AFTER,
+    });
+    // F3: a Maker that says it is blocked ends the task now. No verify, no
+    // Checker: another beat cannot get what only a human can give.
+    const stop = await escalated(result);
+    if (stop) return stop;
 
     // Per-task stall detection (driver-observable: this task's HEAD + verify out).
     const head = await gitHead({ task });
@@ -181,17 +244,17 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
 
     // Evidence Rule floor.
     const { exitCode, output } = await runVerify({ task, cmd: task.verify ?? verifyCommand });
-    task.evidence = { exit_code: exitCode, output_hash: hashString(output) };
+    task.evidence = { exit_code: exitCode, output_hash: verifyHash(output) };
     await audit(`task ${task.id}: beat ${task.iterations.current} verify exit=${exitCode}`);
     if (exitCode !== 0) {
-      task.status = "rejected";
+      await reject({ verifyExit: exitCode, verifyOutput: output, from: before });
       continue; // retry
     }
     // Independent Checker above the green floor.
     if (runChecker) {
       const cr = await runChecker({ task });
       if ((cr?.exitCode ?? 1) !== 0) {
-        task.status = "rejected";
+        await reject({ verifyExit: exitCode, verifyOutput: output, checker: cr, from: before });
         continue;
       }
     }
@@ -214,6 +277,7 @@ export async function runSwarm(state, deps) {
     merge = null,
     predictConflict = null, // ({task}) → {conflicted, files[], method}
     gitHead,
+    changedFiles = null, // ({task, from}) → string[]: files a beat changed (A13), optional
     assignWorktree = async () => null, // ({task}) → {path,branch}
     now,
     persist,
@@ -303,7 +367,7 @@ export async function runSwarm(state, deps) {
     const results = await Promise.all(
       wave.map((t) =>
         processTask(t, {
-          verifyCommand, runBeat, runVerify, runChecker, gitHead, now, budget, audit,
+          verifyCommand, runBeat, runVerify, runChecker, gitHead, changedFiles, now, budget, audit,
           roles: state.roles,
           tddSplit: splitForTask(t, state),
         })
@@ -311,7 +375,12 @@ export async function runSwarm(state, deps) {
     );
     state.iterations.current = budget.beats;
 
-    for (const { task, outcome } of results) {
+    for (const { task, outcome, reason } of results) {
+      if (outcome === "escalated") {
+        task.status = "failed";
+        await writeInbox(state, `task ${task.id} escalated by the Maker (beat ${task.escalation?.beat ?? "?"}): ${reason}`);
+        continue;
+      }
       if (outcome !== "passed") {
         task.status = "failed";
         await audit(`task ${task.id}: failed (${outcome})`);
@@ -394,7 +463,9 @@ export async function runSwarm(state, deps) {
   }
 
   if (!terminal) {
-    terminal = state.tasks.every((t) => t.status === "merged") ? "completed" : "stalled";
+    if (state.tasks.every((t) => t.status === "merged")) terminal = "completed";
+    else if (state.tasks.some((t) => t.escalation)) terminal = "escalated";
+    else terminal = "stalled";
   }
   state.status = terminal;
   await persist(state);

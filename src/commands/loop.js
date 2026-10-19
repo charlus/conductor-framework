@@ -14,7 +14,7 @@ import { runLoop, normalizeState, resolveVerifyCommand, beatCeiling } from "../l
 import { resolveAdapter } from "../loop/adapters/index.js";
 import { createWorktree, teardownWorktree, worktreePlan, taskWorktreePlan, materializeConductorContext, CONTEXT_ANCHORS, hasUniqueCommits } from "../loop/worktree.js";
 import { autoCommit, autoCommitMessage } from "../loop/autocommit.js";
-import { harvestWorkQueue, renderAssignment } from "../loop/harvester.js";
+import { harvestWorkQueue, renderAssignment, renderAttempts } from "../loop/harvester.js";
 import { applyClaim, applyDone } from "../loop/writeback.js";
 import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, isInfraReason, VERDICT_REL } from "../loop/checker.js";
 import { openPullRequest, planMergeAction } from "../loop/merge.js";
@@ -678,7 +678,9 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       const infra = tally.reasons.length > 0 && tally.reasons.every(isInfraReason);
       await audit(`${infra ? "checker infra-failure" : "checker rejected"}: ${tally.reasons.join(" | ")}`);
     }
-    return { exitCode: verdictToExitCode(tally) };
+    // A13: the reasons and findings travel to the next Maker beat.
+    const findings = verdicts.flatMap((v) => v.findings ?? []).slice(0, 10);
+    return { exitCode: verdictToExitCode(tally), reasons: tally.approved ? [] : tally.reasons, findings: tally.approved ? [] : findings };
   };
 
   // PR-gated merge for a worktree branch (never a direct push to a protected branch).
@@ -859,6 +861,23 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     }
   }
 
+  // The Maker's whole signal file: { done, escalate, reason }. Absent or
+  // malformed → no signal this beat.
+  async function readSignalAt(cwd) {
+    try {
+      const sig = JSON.parse(await readFile(join(cwd, "conductor/1-workbench/maker-signal.json"), "utf8"));
+      return sig && typeof sig === "object" ? sig : {};
+    } catch {
+      return {};
+    }
+  }
+  // A13: the files a beat changed, from the HEAD before it to the HEAD after it.
+  async function changedFilesIn(cwd, from) {
+    if (!from) return [];
+    const r = await runCli("git", ["diff", "--name-only", from, "HEAD"], cwd);
+    return r.ok ? r.stdout.split("\n").filter(Boolean) : [];
+  }
+
   // -------------------------------------------------------------------------
   async function runPairMode() {
     // Isolation: the Maker runs in a dedicated worktree during execution.
@@ -898,12 +917,21 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       }
     };
 
+    // A13: when earlier beats were rejected, the Maker's prompt carries why.
+    const pairWorkflowText = (await exists(promptPath)) ? await readFile(promptPath, "utf8") : "";
+    const pairPromptPath = join(tmpdir(), `conductor-pair-beat-${process.pid}.md`);
     const deps = {
       verifyCommand,
-      runBeat: async () => {
+      runBeat: async ({ escalateModel } = {}) => {
         await rm(makerSignalPath, { force: true }).catch(() => {}); // clear stale signal
+        let beatPrompt = promptPath;
+        if (state.attempts?.length) {
+          await writeFile(pairPromptPath, `${pairWorkflowText}\n\n---\n\n${renderAttempts(state.attempts)}\n`, "utf8");
+          beatPrompt = pairPromptPath;
+        }
         const result = await adapter.runBeat({
-          promptPath,
+          escalateModel,
+          promptPath: beatPrompt,
           cwd: workCwd,
           permissionMode: "acceptEdits",
           settingsPath: sandboxSettingsPath,
@@ -930,6 +958,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       gitHead: () => gitHead(workCwd),
       runChecker: makeChecker(workCwd),
       readMakerDone,
+      readMakerSignal: () => readSignalAt(workCwd),
+      changedFiles: ({ from }) => changedFilesIn(workCwd, from),
       merge: makeMerge(workCwd, state.worktree?.branch, `Conductor loop: ${state.goal_description || "goal"}`),
       // Empty done-claim guard: only ship if the loop branch carries committed work
       // beyond master (a maker commit or a P0.1 auto-capture). Blueprint/non-execution
@@ -1007,8 +1037,10 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         await updateConductorSource(task, applyClaim, `chore(loop): claim ${task.id}`);
         return { path: plan.path, branch: plan.branch };
       },
-      runBeat: async ({ task, role, phase }) => {
+      runBeat: async ({ task, role, phase, escalateModel }) => {
         const taskCwd = cwdFor.get(task.id) ?? root;
+        // F3: the swarm reads the Maker's signal too; clear the last beat's first.
+        await rm(join(taskCwd, "conductor/1-workbench/maker-signal.json"), { force: true }).catch(() => {});
         // FB-4: hand the agent its work item by appending the routed assignment to
         // the loop workflow prompt, via a scratch file. Nothing lands in the
         // worktree (no tracked pollution) and no templates change.
@@ -1025,6 +1057,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           // implementer). The agent also reads task.role/phase from loop-state.
           role,
           phase,
+          escalateModel,
         });
         // P0.1 backstop (per-task worktree): never let uncommitted work be lost.
         const cap = await autoCommit({
@@ -1036,9 +1069,10 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           stdout.write(`[CONDUCTOR SWARM] ${note}\n`);
           await audit(note);
         }
-        return result;
+        return { ...result, signal: await readSignalAt(taskCwd) };
       },
       runVerify: ({ task, cmd }) => sh(cmd, cwdFor.get(task.id) ?? root),
+      changedFiles: ({ task, from }) => changedFilesIn(cwdFor.get(task.id) ?? root, from),
       runChecker: async ({ task }) => makeChecker(cwdFor.get(task.id) ?? root, await checkerPromptFor(task))(),
       // F7: would this branch collide with the base before we push it? Asked
       // against the object store from the ROOT checkout, so no working tree is

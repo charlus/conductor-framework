@@ -10,13 +10,13 @@ import { buildArgv } from "../src/loop/adapters/claude.js";
 
 test("loop.models absent → no model for either role", () => {
   const c = parseLoopConfig({});
-  assert.deepEqual(c.models, { maker: null, checker: null });
+  assert.deepEqual(c.models, { maker: null, checker: null, maker_escalation: null });
   assert.deepEqual(c.errors, []);
 });
 
 test("loop.models accepts model ids and aliases per role", () => {
   const c = parseLoopConfig({ loop: { models: { maker: "sonnet", checker: "claude-opus-5-5[1m]" } } });
-  assert.deepEqual(c.models, { maker: "sonnet", checker: "claude-opus-5-5[1m]" });
+  assert.deepEqual(c.models, { maker: "sonnet", checker: "claude-opus-5-5[1m]", maker_escalation: null });
   assert.deepEqual(c.errors, []);
 });
 

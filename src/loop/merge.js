@@ -18,13 +18,20 @@ export function planMergeAction({ autonomyLevel, phase }) {
   return "none"; // L1/L2 and non-execution hand off to the human without merging
 }
 
-/** The argv for opening a PR/MR on the chosen forge (pure — for testing). */
-export function prCommand(forge, { branch, title }) {
+export const DEFAULT_PR_BODY = "Opened by `conductor loop`: verify passed and the independent Checker approved. A human merges.";
+
+/**
+ * The argv for opening a PR/MR on the chosen forge (pure — for testing). The
+ * driver has already pushed the branch, so no flag may push again: glab's
+ * `--fill` does, which re-runs the whole pre-push gate (live evals included) and
+ * failed the first real crossing's MR step. Title and body are passed explicitly.
+ */
+export function prCommand(forge, { branch, title, body = DEFAULT_PR_BODY }) {
   if (forge === "gh") {
-    return ["gh", ["pr", "create", "--head", branch, "--title", title, "--fill"]];
+    return ["gh", ["pr", "create", "--head", branch, "--title", title, "--body", body]];
   }
   if (forge === "glab") {
-    return ["glab", ["mr", "create", "--source-branch", branch, "--title", title, "--fill"]];
+    return ["glab", ["mr", "create", "--source-branch", branch, "--title", title, "--description", body, "--yes"]];
   }
   throw new Error(`Unknown forge '${forge}'`);
 }
@@ -38,6 +45,12 @@ export function prLookupCommand(forge, { branch }) {
     return ["glab", ["mr", "list", "--source-branch", branch]];
   }
   throw new Error(`Unknown forge '${forge}'`);
+}
+
+/** The last 300 characters of a failed CLI's stderr (else stdout), on one line. */
+function cliError(res) {
+  const text = String(res?.stderr || res?.stdout || "").replace(/\s+/g, " ").trim();
+  return text.length > 300 ? `…${text.slice(-300)}` : text;
 }
 
 /** First http(s) URL found in a blob of CLI output, or null. */
@@ -69,7 +82,7 @@ async function findExistingPr(forge, branch, run) {
  *   forge: "gh" | "glab" | null — resolved from the origin host or loop.forge (config.js)
  * @returns {Promise<{ok:boolean, branch?:string, prUrl?:string, reason?:string}>}
  */
-export async function openPullRequest({ branch, title, git, run, forge }) {
+export async function openPullRequest({ branch, title, body, git, run, forge }) {
   if (!forge) {
     return { ok: false, reason: "no forge resolved to open a PR (set loop.forge in conductor.config.json)" };
   }
@@ -85,11 +98,12 @@ export async function openPullRequest({ branch, title, git, run, forge }) {
     await git(["fetch", "origin", branch]);
     push = await git(["push", "--force-with-lease", "-u", "origin", branch]);
     if (!push.ok) {
-      return { ok: false, branch, reason: `git push failed for ${branch}` };
+      const detail = cliError(push);
+      return { ok: false, branch, reason: `git push failed for ${branch}${detail ? `: ${detail}` : ""}` };
     }
   }
 
-  const [cmd, argv] = prCommand(forge, { branch, title });
+  const [cmd, argv] = prCommand(forge, { branch, title, ...(body ? { body } : {}) });
   const pr = await run(cmd, argv);
   if (!pr.ok) {
     // Don't escalate on a bare non-zero: `create` also fails when a PR already
@@ -97,7 +111,10 @@ export async function openPullRequest({ branch, title, git, run, forge }) {
     // merge genuinely succeeded — reuse it instead of a false-negative reject.
     const existing = await findExistingPr(forge, branch, run);
     if (existing) return { ok: true, branch, prUrl: existing, reused: true };
-    return { ok: false, branch, reason: `${forge} failed to open the PR/MR` };
+    // Keep the forge's own words: "failed to open" alone sent the first real
+    // crossing to a manual re-run to find the cause.
+    const detail = cliError(pr);
+    return { ok: false, branch, reason: `${forge} failed to open the PR/MR${detail ? `: ${detail}` : ""}` };
   }
   // gh/glab print the PR/MR URL on stdout.
   const url = firstUrl(pr.stdout);

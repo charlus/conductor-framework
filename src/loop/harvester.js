@@ -10,6 +10,8 @@
 // repo. The IO wrapper that reads the actual files lives in the command shell
 // (src/commands/loop.js), which passes their contents here.
 
+import { envelopeUntrusted } from "./untrusted.js";
+
 /** kebab-slug, bounded — mirrors worktree.slugify so ids/branches line up. */
 export function slugify(text, fallback = "item") {
   const s = String(text ?? "")
@@ -182,6 +184,74 @@ export function workflowForType(type) {
   return ".agents/workflows/build.md";
 }
 
+/** How many rejected attempts a beat is shown, and how much of each. */
+export const ATTEMPTS_KEPT = 3;
+const TAIL_LINES = 40;
+const TAIL_BYTES = 4096;
+const FINDINGS_KEPT = 10;
+
+/** The last 40 lines of verify output, at most 4 KB. */
+export function verifyTail(output) {
+  const lines = String(output ?? "").trimEnd().split("\n").slice(-TAIL_LINES).join("\n");
+  return lines.length > TAIL_BYTES ? lines.slice(-TAIL_BYTES) : lines;
+}
+
+/** Append one rejected attempt, keeping only the last ATTEMPTS_KEPT. Mutates `holder`. */
+export function recordAttempt(holder, { beat, verifyExit, verifyOutput = "", checkerReasons = [], checkerFindings = [], files = [] }) {
+  const attempts = Array.isArray(holder.attempts) ? holder.attempts : [];
+  attempts.push({
+    beat,
+    verify_exit: verifyExit,
+    verify_tail: verifyTail(verifyOutput),
+    checker_reason: checkerReasons.length ? checkerReasons.join(" | ").slice(0, 1500) : null,
+    checker_findings: (checkerFindings ?? []).slice(0, FINDINGS_KEPT),
+    files: (files ?? []).slice(0, 50),
+  });
+  holder.attempts = attempts.slice(-ATTEMPTS_KEPT);
+  return holder.attempts;
+}
+
+function findingLine(f) {
+  if (!f || typeof f !== "object") return `- ${String(f).slice(0, 200)}`;
+  const head = [f.severity, f.class ?? f.category].filter(Boolean).join(" ");
+  const text = f.summary ?? f.message ?? f.issue ?? f.quote ?? JSON.stringify(f);
+  return `- ${head ? `${head}: ` : ""}${String(text).replace(/\s+/g, " ").slice(0, 200)}`;
+}
+
+/**
+ * What the next beat must know about the beats that were rejected before it.
+ * The driver writes this, never the agent. Verify output and Checker text are
+ * repository and model output, so they reach the Maker inside the untrusted
+ * envelope. Empty string when there is nothing to tell.
+ */
+export function renderAttempts(attempts) {
+  const kept = (attempts ?? []).slice(-ATTEMPTS_KEPT);
+  if (!kept.length) return "";
+  const body = kept
+    .map((a) => {
+      const parts = [`### Beat ${a.beat}: verify exit ${a.verify_exit}${a.checker_reason ? ", rejected by the Checker" : ""}`];
+      if (a.checker_reason) parts.push(`Checker: ${a.checker_reason}`);
+      if (a.checker_findings?.length) parts.push(a.checker_findings.map(findingLine).join("\n"));
+      if (a.files?.length) parts.push(`Files changed in that beat: ${a.files.join(", ")}`);
+      if (a.verify_tail) parts.push(`Verify output (tail):\n${verifyTail(a.verify_tail)}`);
+      return parts.join("\n\n");
+    })
+    .join("\n\n");
+  return [
+    "## Previous attempts were rejected",
+    "",
+    "Read why before you start, and fix what they name. Do not repeat an approach that already failed.",
+    "",
+    envelopeUntrusted(body, { source: "earlier loop beats (verify output and Checker verdicts)" }),
+  ].join("\n");
+}
+
+/** The escalate instruction every beat carries (F3). */
+export const ESCALATE_HINT =
+  "If you cannot go on without something only a human can give (an approval, access, a decision), write " +
+  "`conductor/1-workbench/maker-signal.json` `{ \"escalate\": true, \"reason\": \"<what you need, at most 1500 characters>\" }` " +
+  "and stop. The driver ends the run and puts your reason in the inbox. Retrying a beat you know is blocked only burns budget.";
+
 /** Render the per-beat assignment a fleet agent reads to know its work item. */
 export function renderAssignment(task) {
   const route = ROUTING[task.type] ?? ROUTING.task;
@@ -198,5 +268,8 @@ export function renderAssignment(task) {
     ...(task.details ? ["", "**Item details** (from the backlog, verbatim):", "", task.details] : []),
     "",
     `**Brief:** ${route.brief}`,
+    "",
+    `**Blocked?** ${ESCALATE_HINT}`,
+    ...(task.attempts?.length ? ["", renderAttempts(task.attempts)] : []),
   ].join("\n");
 }

@@ -1,5 +1,5 @@
 {
-  "$comment": "Conductor loop cli-native sandbox profile. Passed to headless `claude -p` via `--settings` when loop-state.json has \"sandbox\": \"cli-native\". Enables Anthropic's built-in bubblewrap+socat sandbox (no Docker; host needs `bubblewrap` + `socat`). failIfUnavailable makes it fail-closed: if the sandbox can't start, the beat exits non-zero rather than running unsandboxed. The credentials block and the Read denies withhold the forge logins from the beat: the driver pushes and opens the PR from outside the sandbox, so a beat that could do it itself would bypass the PR gate. Add YOUR git host + package registries to loop.allowed_domains in conductor.config.json, not here: upgrade replaces this file, and the loop merges that list into a generated copy. A headless beat cannot answer a permission prompt, so every sandboxed Bash command is allowed (a command that starts with a variable assignment would otherwise prompt and fail); allowUnsandboxedCommands: false keeps that allow from approving an unsandboxed retry, and the deny rules keep pushing and opening PRs with the driver.",
+  "$comment": "Conductor loop cli-native sandbox profile. Passed to headless `claude -p` via `--settings` when loop-state.json has \"sandbox\": \"cli-native\". Enables Anthropic's built-in bubblewrap+socat sandbox (no Docker; host needs `bubblewrap` + `socat`). failIfUnavailable makes it fail-closed: if the sandbox can't start, the beat exits non-zero rather than running unsandboxed. The credentials block and the Read denies withhold the forge, cloud and container logins from the beat: the driver pushes and opens the PR from outside the sandbox, so a beat that could do it itself would bypass the PR gate. Add YOUR git host + package registries to loop.allowed_domains in conductor.config.json, not here: upgrade replaces this file, and the loop merges that list into a generated copy. A headless beat cannot answer a permission prompt, so every sandboxed Bash command is allowed (a command that starts with a variable assignment would otherwise prompt and fail); allowUnsandboxedCommands: false keeps that allow from approving an unsandboxed retry, and the deny rules keep pushing and opening PRs with the driver.",
   "sandbox": {
     "enabled": true,
     "failIfUnavailable": true,
@@ -42,6 +42,26 @@
         {
           "path": "~/.netrc",
           "mode": "deny"
+        },
+        {
+          "path": "~/.config/gcloud",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.aws",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.azure",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.kube",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.docker/config.json",
+          "mode": "deny"
         }
       ],
       "envVars": [
@@ -72,6 +92,34 @@
         {
           "name": "DBUS_SESSION_BUS_ADDRESS",
           "mode": "deny"
+        },
+        {
+          "name": "GOOGLE_APPLICATION_CREDENTIALS",
+          "mode": "deny"
+        },
+        {
+          "name": "CLOUDSDK_AUTH_ACCESS_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_ACCESS_KEY_ID",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_SECRET_ACCESS_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_SESSION_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "AZURE_CLIENT_SECRET",
+          "mode": "deny"
+        },
+        {
+          "name": "KUBECONFIG",
+          "mode": "deny"
         }
       ]
     }
@@ -87,6 +135,11 @@
       "Read(~/.git-credentials)",
       "Read(~/.config/git/credentials)",
       "Read(~/.netrc)",
+      "Read(~/.config/gcloud/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.azure/**)",
+      "Read(~/.kube/**)",
+      "Read(~/.docker/config.json)",
       "Bash(git push *)",
       "Bash(gh pr *)",
       "Bash(glab mr *)"

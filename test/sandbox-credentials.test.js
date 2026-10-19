@@ -14,8 +14,13 @@ import { mergeSandboxSettings } from "../src/loop/config.js";
 
 const profile = JSON.parse(readFileSync(new URL("../templates/.agents/sandbox/claude-sandbox.settings.json", import.meta.url), "utf8"));
 
-const CREDENTIAL_FILES = ["~/.ssh", "~/.config/gh", "~/.config/glab-cli", "~/.git-credentials", "~/.config/git/credentials", "~/.netrc"];
-const CREDENTIAL_ENV = ["GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITLAB_TOKEN", "GLAB_TOKEN", "SSH_AUTH_SOCK", "DBUS_SESSION_BUS_ADDRESS"];
+const CREDENTIAL_FILES = ["~/.ssh", "~/.config/gh", "~/.config/glab-cli", "~/.git-credentials", "~/.config/git/credentials", "~/.netrc",
+  // R2 (2026-10-19, before the evalapp-v2 run): cloud and container logins. The
+  // sandbox reads most of the home folder; the network allowlist was the only
+  // thing keeping a beat from using them.
+  "~/.config/gcloud", "~/.aws", "~/.azure", "~/.kube", "~/.docker/config.json"];
+const CREDENTIAL_ENV = ["GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITLAB_TOKEN", "GLAB_TOKEN", "SSH_AUTH_SOCK", "DBUS_SESSION_BUS_ADDRESS",
+  "GOOGLE_APPLICATION_CREDENTIALS", "CLOUDSDK_AUTH_ACCESS_TOKEN", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AZURE_CLIENT_SECRET", "KUBECONFIG"];
 
 const denied = (entries, key) => new Set((entries ?? []).filter((e) => e.mode === "deny").map((e) => e[key]));
 

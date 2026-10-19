@@ -34,10 +34,13 @@ project (or you) to maintain but a host package.
   - **Forge credentials are withheld.** Claude Code's sandbox has no built-in
     credential deny list: sandboxed commands read most of the home directory and
     inherit the environment. The profile denies `~/.ssh`, `~/.config/gh`,
-    `~/.config/glab-cli` and the git credential files to the shell
+    `~/.config/glab-cli`, the git credential files, and the cloud and container
+    logins (`~/.config/gcloud`, `~/.aws`, `~/.azure`, `~/.kube`,
+    `~/.docker/config.json`) to the shell
     (`sandbox.credentials`) and to Claude's Read tool (`permissions.deny`), and
-    unsets `GH_TOKEN`, `GITHUB_TOKEN`, `GITLAB_TOKEN`, `SSH_AUTH_SOCK` and the
-    keyring bus. A beat cannot push or open a PR: the driver does both, from
+    unsets `GH_TOKEN`, `GITHUB_TOKEN`, `GITLAB_TOKEN`, `SSH_AUTH_SOCK`, the
+    keyring bus and the cloud credential variables (`GOOGLE_APPLICATION_CREDENTIALS`,
+    `AWS_*`, `AZURE_CLIENT_SECRET`, `KUBECONFIG`). A beat cannot push or open a PR: the driver does both, from
     outside the sandbox. Put an SSH fetch of a private dependency in `loop.setup`.
   - **Headless beats run any sandboxed command.** A beat cannot answer a
     permission prompt, and Claude Code prompts for some sandboxed commands, such

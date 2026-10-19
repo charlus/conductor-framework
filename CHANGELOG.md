@@ -8,6 +8,20 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.20.0] — 2026-10-19 — The upgrade says which waiver it logged; the doctor checks your own checkout
+
+Compatibility: upgrade only
+
+### Fixed
+
+- **`conductor upgrade` no longer says "No waiver needed" and then commits a waiver.** The upgrade does need the protected-path waiver; it sets and logs it itself. The message now names the waiver's commit and says you type nothing (finding F7 of the first unattended crossing).
+
+### Added
+
+- **`conductor loop doctor` checks your main checkout too.** When verify is green in a fresh worktree, the doctor runs it where you work. Red there means your local environment is older than the code, as on eurassistant, where the `.venv` still held the old SDK after the loop's MR changed the lock file and the next push failed at import. It is a warning: loop runs push from their own worktree.
+
+---
+
 ## [6.19.0] — 2026-10-19 — A loop Maker logs the decisions it makes alone
 
 Compatibility: upgrade only

@@ -164,16 +164,21 @@ async function commitUpgrade({ targetDir, version, snap, noCommit, structural, e
     return printManual(`the commit was refused${why ? `: ${why}` : ""}`);
   }
   const sha = (await git(["rev-parse", "--short", "HEAD"], targetDir)).stdout;
-  await commitWaiverLine(targetDir, version);
+  // F7: the upgrade does need the protected-path waiver. It sets and logs it
+  // itself, so say that, instead of "No waiver needed" followed by a waiver commit.
+  const waiverSha = await commitWaiverLine(targetDir, version);
+  const waiverNote = waiverSha
+    ? ` Its protected-path waiver is logged in the ship-log (commit ${waiverSha}): you type nothing.`
+    : "";
   if (target.mode === "branch") {
     stdout.write(
-      `\n   ✅ Committed the upgrade as ${sha} on its own branch, ${target.branch}. No waiver needed.\n` +
+      `\n   ✅ Committed the upgrade as ${sha} on its own branch, ${target.branch}.${waiverNote}\n` +
         `   Push it and open a merge request:  git push -u ${target.remote} ${target.branch}\n` +
         "   You are now on that branch. Start new work from the default branch once it is merged.\n",
     );
     return;
   }
-  stdout.write(`\n   ✅ Committed the upgrade as ${sha}. Push as usual — no waiver needed.\n`);
+  stdout.write(`\n   ✅ Committed the upgrade as ${sha}.${waiverNote} Push as usual.\n`);
 }
 
 /**
@@ -185,10 +190,12 @@ async function commitUpgrade({ targetDir, version, snap, noCommit, structural, e
 async function commitWaiverLine(targetDir, version) {
   const log = "conductor/0-compass/ship-log.md";
   const diff = await git(["diff", "-U0", "--", log], targetDir);
-  if (!diff.ok) return;
+  if (!diff.ok) return null;
   const changed = diff.stdout.split("\n").filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---) /.test(l));
-  if (!changed.length || !changed.every((l) => /^\+- \[[\d-]+ [\d:]+\] Hook waiver \(/.test(l))) return;
-  await git(["commit", "-q", "-m", `chore: log the Conductor ${version} upgrade waiver`, "--", log], targetDir);
+  if (!changed.length || !changed.every((l) => /^\+- \[[\d-]+ [\d:]+\] Hook waiver \(/.test(l))) return null;
+  const c = await git(["commit", "-q", "-m", `chore: log the Conductor ${version} upgrade waiver`, "--", log], targetDir);
+  if (!c.ok) return null;
+  return (await git(["rev-parse", "--short", "HEAD"], targetDir)).stdout || null;
 }
 
 function getTemplateDir() {

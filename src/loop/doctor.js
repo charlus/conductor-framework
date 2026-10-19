@@ -110,6 +110,25 @@ export function diagnose(f) {
     }
   }
 
+  // The main checkout: green in a fresh worktree but red here means the local
+  // environment is older than the code (eurassistant, 2026-10-19: the .venv
+  // still held the old SDK after the loop's MR changed the lock file). Loop runs
+  // push from their own worktree, so it is a warning; the owner's next push fails.
+  const rv = f.rootVerify;
+  if (rv && pr?.verify?.exitCode === 0) {
+    out.push(
+      rv.exitCode === 0
+        ? check("local-env", "pass", "verify is green in your main checkout too")
+        : check(
+            "local-env",
+            "warn",
+            `verify is red in your main checkout (exit ${rv.exitCode}) but green in a fresh worktree`,
+            rv.tail ?? "",
+            "Your local environment is older than the code, for example dependencies installed from an older lock file, or uncommitted changes. Reinstall the dependencies as loop.setup does, or commit or discard the changes. Your next push fails until then."
+          )
+    );
+  }
+
   const b = f.beat;
   if (b?.ran) {
     if (b.blocked) out.push(check("beat", "fail", "a sandboxed beat could not run the verify command", b.blocked, "Run `conductor upgrade`; if it persists, the command needs a host or path the sandbox blocks: add it to loop.allowed_domains or loop.setup."));

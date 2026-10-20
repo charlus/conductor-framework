@@ -12,6 +12,7 @@
 
 import { envelopeUntrusted } from "./untrusted.js";
 import { rulingHint } from "./rulings.js";
+import { stageWorkflowPath } from "./stages.js";
 import { roundKey as roundKeyOf } from "./questions.js";
 
 /** kebab-slug, bounded — mirrors worktree.slugify so ids/branches line up. */
@@ -178,7 +179,7 @@ export const ROUTING = Object.freeze({
   },
   build: { workflow: ".agents/workflows/build.md", brief: "Build this Implementation's next steps following the Build workflow (per-task TDD)." },
   slice: {
-    workflow: ".agents/workflows/build.md",
+    workflow: stageWorkflowPath("build"),
     brief:
       "Build this slice following the Build workflow, from implementation-plan.md and feature-spec.md in its folder, one task per TDD cycle. Keep task-tracker.md current after every task: it is your memory across beats. Write `{ \"done\": true }` only when the whole slice is ship-ready; until then end each beat with the tracker current and no signal.",
   },

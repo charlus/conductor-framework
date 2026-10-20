@@ -8,6 +8,23 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.29.0] — 2026-10-20 — A test fails when the loop leaves Conductor's workflows
+
+Compatibility: upgrade only
+
+Build step 6 of [`docs/roadmap/Unattended-Lifecycle.md`](docs/roadmap/Unattended-Lifecycle.md).
+
+### Added
+
+- **The stage map is code.** `src/loop/stages.js` names, for each stage, the workflow its beat runs, the `unattended-loop.md` section it gets and the gate before the next stage. The driver reads its routes from it: Spec-It, Ship, the four Blueprint stages and Build's assignment no longer name their workflow files on their own.
+- **A conformance test.** `test/loop-stage-conformance.test.js` checks that the table names real workflow files and sections and matches the roadmap's Stage map row by row. It then runs the real `conductor loop` command through a whole project, Blueprint, merge, then a slice, with a stub engine on `PATH` that saves every prompt. Each beat must start with its stage's workflow, and each stage must pass its review before the next one starts. A stage whose beat writes nothing must be stopped by its gate. Sensitivity checked: routing Spec-It to `build.md`, or removing the spec review, turns it red. No model is called. This is also the first test of the command layer, where the last two live-run bugs were.
+
+### Changed
+
+- **The roadmap says the Retrospective stage is not built.** It listed an optional `loop.retrospective` that never existed. The test now fails when the roadmap names a stage the loop does not run without saying so.
+
+---
+
 ## [6.28.0] — 2026-10-20 — The loop writes the Blueprint, and one MR is your sign-off
 
 Compatibility: upgrade only

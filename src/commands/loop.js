@@ -25,7 +25,7 @@ import { mineRecurringFailures, renderImprovementReport } from "../loop/improver
 import { parseTriggerPayload, applyTrigger, renderTriggerDoc } from "../loop/trigger.js";
 import { allowedToolsFor } from "../loop/untrusted.js";
 import { writeBeatLog, BEAT_LOG_DIR } from "../loop/beat-log.js";
-import { syncLoopStateInto, hideFromGit } from "../loop/state-sync.js";
+import { syncLoopStateInto, hideFromGit, MAKER_SIGNAL_REL, untrackedPaths, hideSetupArtifacts } from "../loop/state-sync.js";
 import { QUESTIONS_REL, roundKey, parseRound, checkRound, roundAnswered } from "../loop/questions.js";
 import { stage as loopStage, stageWorkflowPath } from "../loop/stages.js";
 import { commandHelp } from "../usage.js";
@@ -33,11 +33,12 @@ import { nextAfterLoop } from "../next-step.js";
 import { BLUEPRINT_STAGES, DISCOVERY, TEMPLATE_FOR, harvestBlueprints, blueprintStageEvidence, carryOver } from "../loop/blueprint.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
+import { codePaths, ensureCodeWorktree, codeHasWork, mergeNested, stateMrBody, codeMrBody, unionBranches, refusedNestedRepos, checkerNestedNote } from "../loop/nested.js";
 import { recordUsage, usageSummary } from "../loop/usage.js";
 import { newRulings, rulingInboxLines, rulingsPrBody, rulingsForChecker, RULINGS_REL } from "../loop/rulings.js";
 import { renderShipAssignment, shipBeatSection, sectionOf, checkShipEvidence, PR_BODY_REL } from "../loop/ship.js";
 import { harvestSlices, specEvidence as checkSpecEvidence, PROJECTS_REL } from "../loop/slices.js";
-import { pruneMergedLoopWorktrees, remoteLoopBranches, mergedBranches, skipClaimed } from "../loop/reconcile.js";
+import { pruneMergedLoopWorktrees, remoteLoopBranches, mergedBranches, skipClaimed, defaultBranchRef } from "../loop/reconcile.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels } from "../loop/config.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
@@ -211,11 +212,14 @@ export async function hasNpmTestScript(root) {
   }
 }
 
-export async function configVerify(root) {
+export async function configVerify(root, codeDir = null) {
   const cfgPath = join(root, "conductor.config.json");
   if (!(await exists(cfgPath))) return "";
   try {
-    return (await readJson(cfgPath)).verify ?? "";
+    const cfg = await readJson(cfgPath);
+    // Step 7: in the outer layout the code repository's own push check is the loop's verify.
+    if (codeDir) return cfg.repos?.[codeDir]?.verify ?? "";
+    return cfg.verify ?? "";
   } catch {
     return "";
   }
@@ -430,7 +434,10 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     if (harvestedQueue.length) {
       const rootGit = makeGit(root);
       if (!dryRun) await runCli("git", ["fetch", "-q", "origin"], root);
-      const remote = await remoteLoopBranches(rootGit);
+      // Step 7: an item is taken when its branch is on either remote.
+      const codeDirAbs = loopConfig.codeDir ? join(root, loopConfig.codeDir) : null;
+      if (codeDirAbs && !dryRun) await runCli("git", ["fetch", "-q", "origin"], codeDirAbs);
+      const remote = codeDirAbs ? unionBranches(await remoteLoopBranches(rootGit), await remoteLoopBranches(makeGit(codeDirAbs))) : await remoteLoopBranches(rootGit);
       if (remote === null) {
         stderr.write("[CONDUCTOR LOOP] ⚠️  could not read the remote's loop branches: items in review elsewhere are not skipped\n");
       } else {
@@ -454,7 +461,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   // Resolve the verify command up front (mirrors conductor_verify_cmd).
   const verifyCommand = resolveVerifyCommand({
     stateCommand: state.verification.command,
-    configVerify: await configVerify(root),
+    configVerify: loopConfig.codeDir ? await configVerify(root, loopConfig.codeDir) : await configVerify(root),
     hasNpmTestScript: await hasNpmTestScript(root),
   });
 
@@ -492,13 +499,18 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   // D1: an outer conductor repo whose code lives in a gitignored nested repo
   // cannot work: worktrees of THIS repo never contain that code, so every beat
   // would run against the wrong repository. Refuse and say why.
-  const nestedRepos = loopConfig.allowNestedRepo ? [] : await ignoredNestedRepos(root);
+  // Step 7: the repository named by loop.code_dir is the code, not a mistake.
+  const nestedRepos = loopConfig.allowNestedRepo ? [] : refusedNestedRepos(await ignoredNestedRepos(root), loopConfig.codeDir);
+  if (loopConfig.codeDir && !(await exists(join(root, loopConfig.codeDir, ".git")))) {
+    stderr.write(`⛔  loop.code_dir is "${loopConfig.codeDir}", but ${join(root, loopConfig.codeDir)} is not a git repository. Clone the code repository there, or fix the setting.\n`);
+    return 1;
+  }
   if (nestedRepos.length) {
     stderr.write(
       nestedRepos
         .map((d) => `⛔  '${d}' is a separate git repository that this repo ignores. conductor loop works on ONE repository: its worktrees, commits and PRs would be in this repo, without that code.\n`)
         .join("") +
-        "    Run conductor in the code repository itself. If that directory is unrelated to the work, set loop.allow_nested_repo: true in conductor.config.json.\n"
+        "    If it holds the code, set loop.code_dir to it in conductor.config.json (the outer layout). If it is unrelated to the work, set loop.allow_nested_repo: true.\n"
     );
     return 1;
   }
@@ -552,6 +564,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         ...(loopConfig.models.maker || loopConfig.models.checker ? [`  models:   maker ${loopConfig.models.maker ?? "default"}, checker ${loopConfig.models.checker ?? "default"}${resolved.name === "claude" ? "" : "  (only applies to the claude engine)"}`] : []),
         `  detected: ${detected.length ? detected.join(", ") : "none on PATH"}`,
         `  worktree: ${state.phase === "execution" ? "created for execution phase (isolated Maker)" : "n/a (not execution phase)"}`,
+        ...(loopConfig.codeDir ? [`  code:     ${loopConfig.codeDir}/ (nested repository: a code worktree per item, from its default branch; code MR first, then the state MR)`] : []),
         "",
       ].join("\n")
     );
@@ -776,6 +789,46 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
 
   const audit = (m) => appendShipLog(root, m, Date.now());
 
+  // Step 7, the outer layout: a beat's code worktree sits at <outer worktree>/<code_dir>.
+  // Never the owner's own checkout: a beat in the root has no code worktree.
+  const codeWtOf = (cwd) => (loopConfig.codeDir && resolve(cwd) !== resolve(root) ? join(cwd, loopConfig.codeDir) : null);
+  const codeRoot = loopConfig.codeDir ? join(root, loopConfig.codeDir) : null;
+  const codeForge = async () => {
+    const r = await runCli("git", ["remote", "get-url", "origin"], codeRoot);
+    return resolveForge({ override: loopConfig.forge, remoteUrl: r.ok ? r.stdout : "" }).forge;
+  };
+  // Commit what a beat left, in the code worktree first, then in the outer one.
+  async function captureAll(cwd, message) {
+    const code = codeWtOf(cwd);
+    const c = code && (await exists(join(code, ".git"))) ? await autoCommit({ git: makeGit(code), message }) : { committed: false, bypassedHooks: false };
+    const o = await autoCommit({ git: makeGit(cwd), message });
+    return { committed: c.committed || o.committed, bypassedHooks: Boolean(c.bypassedHooks || o.bypassedHooks) };
+  }
+  const nestedNote = () =>
+    loopConfig.codeDir
+      ? `\n\n- **Code repository:** \`${loopConfig.codeDir}/\` is a separate git repository on this same branch name. Commit code there; Conductor documents stay here. Run tests inside \`${loopConfig.codeDir}/\`.\n`
+      : "";
+  // Every Checker prompt, in this layout, says where the code diff is.
+  async function withNestedNote(promptFile, key) {
+    if (!loopConfig.codeDir) return promptFile;
+    const p = join(tmpdir(), `conductor-checker-nested-${String(key).replace(/[^a-z0-9]+/gi, "-")}.md`);
+    await writeFile(p, `${(await exists(promptFile)) ? await readFile(promptFile, "utf8") : ""}${checkerNestedNote(loopConfig.codeDir)}`, "utf8");
+    return p;
+  }
+  // The two MRs (owner decision 2026-10-20): code first, then the state MR naming it.
+  const makeNestedMerge = (cwd, branch, title, rulings = async () => [], shipBody = () => null) => async () => {
+    if (!branch) return { ok: false, reason: "no worktree branch to open a PR from" };
+    const code = codeWtOf(cwd);
+    const body = rulingsPrBody(await rulings(), shipBody()?.trim() || DEFAULT_PR_BODY);
+    return mergeNested({
+      hasCode: code ? await codeHasWork({ codeGit: makeGit(codeRoot), branch }) : false,
+      openCode: async () =>
+        openPullRequest({ branch, title, body: codeMrBody({ body }), git: makeGit(code), run: (cmd, argv) => runCli(cmd, argv, code), forge: await codeForge() }),
+      openState: ({ codeUrl }) =>
+        openPullRequest({ branch, title: `${title} (Conductor state)`, body: stateMrBody({ codeUrl, body }), git: makeGit(cwd), run: (cmd, argv) => runCli(cmd, argv, cwd), forge: forgeInfo.forge }),
+    });
+  };
+
 
 
   // F2: run loop.setup once per worktree, before its first beat. The marker lives
@@ -788,7 +841,12 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const marker = markerRel.ok ? resolve(worktreePath, markerRel.stdout) : null;
     if (marker && (await exists(marker))) return { ok: true, skipped: true };
     stdout.write(`[CONDUCTOR LOOP] setup: ${loopConfig.setup} (in ${worktreePath})\n`);
-    const res = await sh(loopConfig.setup, worktreePath);
+    // CONDUCTOR_ROOT / CONDUCTOR_CODE_ROOT: the owner's checkouts, e.g. to link an untracked venv.
+    const env = `export CONDUCTOR_ROOT=${JSON.stringify(root)}${codeRoot ? ` CONDUCTOR_CODE_ROOT=${JSON.stringify(codeRoot)}` : ""}; `;
+    const before = await untrackedPaths({ git: makeGit(worktreePath) });
+    const res = await sh(`${env}${loopConfig.setup}`, worktreePath);
+    const hidden = await hideSetupArtifacts({ before, cwd: worktreePath, git: makeGit(worktreePath) });
+    if (hidden.length) await audit(`setup made ${hidden.join(", ")}: kept out of the branch`);
     if (res.exitCode !== 0) {
       const tail = res.output.trim().split("\n").slice(-5).join(" | ");
       return { ok: false, reason: `exit ${res.exitCode}: ${tail || "(no output)"}` };
@@ -892,17 +950,30 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
 
   // Unattended Lifecycle step 2: clean up what earlier runs left, now merged.
   {
-    const p = await pruneMergedLoopWorktrees({ git: makeGit(root) });
+    // Step 7: the code repository's merged worktrees first, then the outer ones
+    // that no longer hold a code worktree.
+    const code = loopConfig.codeDir ? await pruneMergedLoopWorktrees({ git: makeGit(join(root, loopConfig.codeDir)) }) : { removed: [], kept: [] };
+    for (const w of code.removed) stdout.write(`[CONDUCTOR LOOP] removed the merged code worktree ${w.path} (${w.branch})\n`);
+    const p = await pruneMergedLoopWorktrees({
+      git: makeGit(root),
+      skip: async (w) => (loopConfig.codeDir && (await exists(join(w.path, loopConfig.codeDir, ".git"))) ? "its code worktree is still open (the code MR is not merged yet)" : null),
+    });
     for (const w of p.removed) stdout.write(`[CONDUCTOR LOOP] removed the merged loop worktree ${basename(w.path)} (${w.branch})\n`);
     for (const w of p.kept) stdout.write(`[CONDUCTOR LOOP] kept the merged loop worktree ${basename(w.path)}: ${w.reason}\n`);
   }
 
+  // Step 7: the outer layout runs work items (--from-conductor), not a free goal.
+  if (loopConfig.codeDir && !(Array.isArray(state.tasks) && state.tasks.length > 0)) {
+    await releaseLock(root);
+    stderr.write("⛔  With loop.code_dir, the loop runs work items from conductor/: use --from-conductor. A single --goal run (pair mode) is not supported in the outer layout.\n");
+    return 1;
+  }
   try {
     const code =
       Array.isArray(state.tasks) && state.tasks.length > 0 ? await runSwarmMode() : await runPairMode();
     try {
       const after = await readJson(statePath);
-      const prUrls = [after.merge?.pr_url, ...(after.tasks ?? []).map((t) => t.merge?.pr_url)].filter((u) => u && u !== "n/a");
+      const prUrls = [after.merge?.pr_url, ...(after.tasks ?? []).flatMap((t) => [t.merge?.code_pr_url, t.merge?.pr_url])].filter((u) => u && u !== "n/a");
       const hint = nextAfterLoop(after.status, { prUrls: [...new Set(prUrls)] });
       if (hint) stdout.write(`\n[CONDUCTOR LOOP] ${hint}\n`);
     } catch {
@@ -978,7 +1049,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const ship = (await exists(shipPath)) ? await readFile(shipPath, "utf8") : "";
     const rules = shipBeatSection((await exists(promptPath)) ? await readFile(promptPath, "utf8") : "");
     const p = join(tmpdir(), `conductor-ship-${String(key).replace(/[^a-z0-9]+/gi, "-")}.md`);
-    const parts = [ship, "---", rules, renderShipAssignment(task, { branch })];
+    const parts = [ship, "---", rules, `${renderShipAssignment(task, { branch })}${nestedNote()}`];
     if (attempts?.length) parts.push(renderAttempts(attempts));
     await writeFile(p, `${parts.join("\n\n")}\n`, "utf8");
     return p;
@@ -997,7 +1068,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       role: "ship",
       task,
     });
-    const cap = await autoCommit({ git: makeGit(cwd), message: autoCommitMessage({ role: "ship", goal: `${state.goal_description} — ship ${key}` }) });
+    const cap = await captureAll(cwd, autoCommitMessage({ role: "ship", goal: `${state.goal_description} — ship ${key}` }));
     if (cap.committed) await audit(`ship ${key}: auto-captured uncommitted changes`);
     await collectRulings(holder, cwd, rulingsBefore);
     return { ...result, signal: await readSignalAt(cwd) };
@@ -1012,7 +1083,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       `# Spec assignment (this beat)\n\n- **Slice folder:** \`${task.source?.path}\`\n- **Project:** ${task.source?.project}\n` +
       `- **Questions file:** \`${QUESTIONS_REL}/${roundKey(task.id)}.md\` (only for a one-way door: see the loop workflow)` +
       (task.answered_round ? `\n- **Your questions were answered:** read \`${task.answered_round}\` first, apply each answer, and record it as a decision in the spec.` : "");
-    const parts = [specIt, "---", rules, assignment];
+    const parts = [specIt, "---", rules, `${assignment}${nestedNote()}`];
     if (task.attempts?.length) parts.push(renderAttempts(task.attempts));
     const p = join(tmpdir(), `conductor-spec-${task.id.replace(/[^a-z0-9]+/gi, "-")}.md`);
     await writeFile(p, `${parts.join("\n\n")}\n`, "utf8");
@@ -1021,7 +1092,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       promptPath: p, cwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath,
       sandbox: agySandbox, allowedTools: allowedToolsFor(state), role: "spec", task,
     });
-    const cap = await autoCommit({ git: makeGit(cwd), message: autoCommitMessage({ role: "spec", goal: `spec ${task.id}` }) });
+    const cap = await captureAll(cwd, autoCommitMessage({ role: "spec", goal: `spec ${task.id}` }));
     if (cap.committed) await audit(`spec ${task.id}: auto-captured uncommitted changes`);
     await collectRulings(task, cwd, rulingsBefore);
     return { ...result, signal: await readSignalAt(cwd) };
@@ -1063,7 +1134,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       `- **Stage:** ${stage.key} (\`${stage.workflow}\`), writes \`${task.source?.path}/${stage.doc}\`\n` +
       `- **Questions file:** \`${roundRel(task)}\` (only for a one-way door: see the loop workflow)` +
       (task.answered_round ? `\n- **Your questions were answered:** read \`${task.answered_round}\` first, apply each answer, and record it as a decision in the document.` : "");
-    const parts = [workflow, "---", rules, assignment];
+    const parts = [workflow, "---", rules, `${assignment}${nestedNote()}`];
     if (task.attempts?.length) parts.push(renderAttempts(task.attempts));
     const p = join(tmpdir(), `conductor-blueprint-${key}-${task.id.replace(/[^a-z0-9]+/gi, "-")}.md`);
     await writeFile(p, `${parts.join("\n\n")}\n`, "utf8");
@@ -1072,7 +1143,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       promptPath: p, cwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath,
       sandbox: agySandbox, allowedTools: allowedToolsFor(state), role: "blueprint", task,
     });
-    const cap = await autoCommit({ git: makeGit(cwd), message: autoCommitMessage({ role: "blueprint", goal: `${key} ${task.id}` }) });
+    const cap = await captureAll(cwd, autoCommitMessage({ role: "blueprint", goal: `${key} ${task.id}` }));
     if (cap.committed) await audit(`${key} ${task.id}: auto-captured uncommitted changes`);
     await collectRulings(task, cwd, rulingsBefore);
     return { ...result, signal: await readSignalAt(cwd) };
@@ -1192,8 +1263,15 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
 
   async function changedFilesIn(cwd, from) {
     if (!from) return [];
-    const r = await runCli("git", ["diff", "--name-only", from, "HEAD"], cwd);
-    return r.ok ? r.stdout.split("\n").filter(Boolean) : [];
+    const [outerFrom, codeFrom] = String(from).split(":");
+    const r = await runCli("git", ["diff", "--name-only", outerFrom, "HEAD"], cwd);
+    const files = r.ok ? r.stdout.split("\n").filter(Boolean) : [];
+    const code = codeWtOf(cwd);
+    if (code && codeFrom) {
+      const c = await runCli("git", ["diff", "--name-only", codeFrom, "HEAD"], code);
+      if (c.ok) files.push(...c.stdout.split("\n").filter(Boolean).map((f) => `${loopConfig.codeDir}/${f}`));
+    }
+    return files;
   }
 
   // -------------------------------------------------------------------------
@@ -1361,7 +1439,14 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         await materializeContextInto(plan.path);
         cwdFor.set(task.id, plan.path);
         await hideFromGit(roundRel(task), { cwd: plan.path, git: makeGit(plan.path) });
-        const setup = await runWorktreeSetup(plan.path);
+        // Step 7: the code worktree inside it, from the code repository's default branch.
+        if (loopConfig.codeDir) {
+          const { codeWorktree } = codePaths({ root, codeDir: loopConfig.codeDir, outerWorktree: plan.path });
+          const c = await ensureCodeWorktree({ codeGit: makeGit(codeRoot), path: codeWorktree, branch: plan.branch });
+          if (!c.ok) return { path: plan.path, branch: plan.branch, setup_error: `code worktree: ${c.reason}` };
+          for (const rel of [MAKER_SIGNAL_REL, VERDICT_REL, PR_BODY_REL]) await hideFromGit(rel, { cwd: codeWorktree, git: makeGit(codeWorktree) });
+        }
+        const setup = await runWorktreeSetup(codeWtOf(plan.path) ?? plan.path);
         if (!setup.ok) return { path: plan.path, branch: plan.branch, setup_error: setup.reason };
         // The claim is the loop branch itself (step 2): no commit on the owner's checkout.
         return { path: plan.path, branch: plan.branch };
@@ -1375,7 +1460,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         // the loop workflow prompt, via a scratch file. Nothing lands in the
         // worktree (no tracked pollution) and no templates change.
         const beatPromptPath = beatPromptFile(task.id);
-        await writeFile(beatPromptPath, `${swarmWorkflowText}\n\n---\n\n${renderAssignment(task)}\n`, "utf8");
+        await writeFile(beatPromptPath, `${swarmWorkflowText}\n\n---\n\n${renderAssignment(task)}${nestedNote()}\n`, "utf8");
         const result = await adapter.runBeat({
           promptPath: beatPromptPath,
           cwd: taskCwd,
@@ -1390,10 +1475,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           escalateModel,
         });
         // P0.1 backstop (per-task worktree): never let uncommitted work be lost.
-        const cap = await autoCommit({
-          git: makeGit(taskCwd),
-          message: autoCommitMessage({ role: role || "maker", goal: `${state.goal_description} — task ${task.id}` }),
-        });
+        const cap = await captureAll(taskCwd, autoCommitMessage({ role: role || "maker", goal: `${state.goal_description} — task ${task.id}` }));
         if (cap.committed) {
           const note = `task ${task.id}: auto-captured uncommitted changes${cap.bypassedHooks ? " (commit hook bypassed)" : ""}`;
           stdout.write(`[CONDUCTOR SWARM] ${note}\n`);
@@ -1402,19 +1484,19 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         await collectRulings(task, taskCwd, rulingsBefore);
         return { ...result, signal: await readSignalAt(taskCwd) };
       },
-      runVerify: ({ task, cmd }) => sh(cmd, cwdFor.get(task.id) ?? root),
+      runVerify: ({ task, cmd }) => sh(cmd, codeWtOf(cwdFor.get(task.id) ?? root) ?? cwdFor.get(task.id) ?? root),
       changedFiles: ({ task, from }) => changedFilesIn(cwdFor.get(task.id) ?? root, from),
       runChecker: async ({ task, phase }) =>
         makeChecker(
           cwdFor.get(task.id) ?? root,
           await checkerPromptWithRulings(
-            phase === "spec"
+            await withNestedNote(phase === "spec"
               ? await specCheckerPrompt(task)
               : phase === "questions"
                 ? await questionsCheckerPrompt(task)
                 : phase?.startsWith("blueprint:")
                   ? await blueprintCheckerPrompt(task, phase.slice("blueprint:".length))
-                  : await checkerPromptFor(task),
+                  : await checkerPromptFor(task), task.id),
             await branchRulings(cwdFor.get(task.id) ?? root),
             task.id
           )
@@ -1422,8 +1504,15 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       // F7: would this branch collide with the base before we push it? Asked
       // against the object store from the ROOT checkout, so no working tree is
       // touched and no worktree has to be clean for it to answer.
-      predictConflict: async ({ task }) =>
-        predictConflicts({ git, base: "HEAD", branch: task.worktree?.branch }),
+      predictConflict: async ({ task }) => {
+        const outer = await predictConflicts({ git, base: "HEAD", branch: task.worktree?.branch });
+        if (!loopConfig.codeDir || outer?.conflicted) return outer;
+        const codeGit = makeGit(codeRoot);
+        const base = await defaultBranchRef(codeGit);
+        if (!base || !(await codeHasWork({ codeGit, branch: task.worktree?.branch }))) return outer;
+        const code = await predictConflicts({ git: codeGit, base, branch: task.worktree?.branch });
+        return code?.conflicted ? { ...code, files: (code.files ?? []).map((f) => `${loopConfig.codeDir}/${f}`) } : outer;
+      },
       runShip: ({ task }) => runShipIn(cwdFor.get(task.id) ?? root, { key: task.id, task, branch: task.worktree?.branch, holder: task }),
       runSpec: ({ task }) => runSpecIn(cwdFor.get(task.id) ?? root, task),
       specEvidence: ({ task }) => specEvidenceIn(cwdFor.get(task.id) ?? root, task),
@@ -1436,14 +1525,18 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       // Ship beat), so merging the MR records the ship. Nothing is written to
       // the owner's checkout after the fact.
       merge: async ({ task }) =>
-        makeMerge(
+        (loopConfig.codeDir ? makeNestedMerge : makeMerge)(
           cwdFor.get(task.id) ?? root,
           task.worktree?.branch,
           `Conductor task ${task.id}: ${task.title || task.type}`,
           () => branchRulings(cwdFor.get(task.id) ?? root),
           () => task.ship?.body
         )(),
-      gitHead: ({ task }) => gitHead(cwdFor.get(task.id) ?? root),
+      gitHead: async ({ task }) => {
+        const cwd = cwdFor.get(task.id) ?? root;
+        const code = codeWtOf(cwd);
+        return code ? `${await gitHead(cwd)}:${await gitHead(code)}` : gitHead(cwd);
+      },
       audit,
       now: () => Date.now(),
       persist: (s) => atomicWriteJson(statePath, s),

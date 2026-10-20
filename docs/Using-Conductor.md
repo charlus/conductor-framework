@@ -46,7 +46,7 @@ The loop runs the same workflows, one stage per fresh beat, each behind an indep
    ```json
    { "loop": { "blueprint": ["<Project>"], "slices": ["<Project>"] } }
    ```
-   `blueprint`: after your Discovery, it writes the Blueprint as one MR, and merging it is your sign-off. `slices`: it builds the carved slices, from spec to MR. Backlog items tagged `(loop-ready)` are taken too.
+   `blueprint`: after your Discovery, it writes the Blueprint as one MR, and merging it is your sign-off. `slices`: it builds the carved slices, from spec to MR. Backlog items tagged `(loop-ready)` are taken too. If the code is a nested repository (an outer `conductor/` repository with the team's code in `repo/`), add `"code_dir": "repo"` and set its tests with `conductor verify --repo repo --set "<cmd>"`: each item then opens a code MR to the team's repository, and a state MR to yours. Merge the code MR first.
 2. Check the project: `conductor loop doctor .`
 3. Preview: `conductor loop . --from-conductor --dry-run`
 4. Run it in a separate terminal: `conductor loop . --from-conductor`
@@ -233,7 +233,7 @@ conductor loop doctor [dir] [--beat]
 | `doctor` | Check the project before an unattended run |
 | `doctor --beat` | Also run one real beat to prove the engine and sandbox |
 
-Reads: `verify`, `loop.forge`, `loop.setup`, `loop.allowed_domains`, `loop.require_ready`, `loop.priorities`, `loop.inbox`, `loop.allow_nested_repo`, `loop.models`, `loop.cost_aware`, `loop.slices`, `loop.blueprint`.
+Reads: `verify`, `loop.forge`, `loop.setup`, `loop.allowed_domains`, `loop.require_ready`, `loop.priorities`, `loop.inbox`, `loop.allow_nested_repo`, `loop.models`, `loop.cost_aware`, `loop.slices`, `loop.blueprint`, `loop.code_dir`.
 
 - `conductor loop doctor .`: is this project ready?
 - `conductor loop . --from-conductor --dry-run`: what would the next run do?
@@ -442,5 +442,6 @@ Reads: `verify`, `eval`.
 | `loop.cost_aware` | true: budget.max_cost_usd in loop-state.json stops a run |
 | `loop.slices` | ["<Project>"] or true: the project's carved slices are loop work, from spec to MR |
 | `loop.blueprint` | ["<Project>"] or true: after Discovery, the project's Blueprint is loop work, one MR |
+| `loop.code_dir` | "repo": the code is this nested repository (outer layout). Each item gets a code worktree and two MRs, code first; verify is repos.<code_dir>.verify |
 
 <!-- usage-reference:end -->

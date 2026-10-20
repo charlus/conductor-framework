@@ -6,7 +6,9 @@
 # loop` worktree whose branch is now contained in the default branch is
 # finished: remove it and its local branch, so nobody has to come back and say
 # "it is merged". Conservative: only a branch provably merged
-# (`merge-base --is-ancestor`), never a worktree with uncommitted changes.
+# (`merge-base --is-ancestor`), never a worktree with uncommitted changes, and
+# never one that still holds a nested code worktree (the outer layout: that one
+# goes when the code repository's own pull finds its branch merged).
 # Cleanup only: it never blocks, and always exits 0.
 # CONDUCTOR_HOOKS=off disables it, like every Conductor hook.
 # ============================================================
@@ -29,7 +31,8 @@ while IFS= read -r line; do
     "")
       if [ -n "$branch" ] && [ "${path#*/.agents/.worktrees/}" != "$path" ] \
         && git merge-base --is-ancestor "$branch" "$base" 2>/dev/null \
-        && [ -z "$(git -C "$path" status --porcelain 2>/dev/null)" ]; then
+        && [ -z "$(git -C "$path" status --porcelain 2>/dev/null)" ] \
+        && ! ls -d "$path"/*/.git >/dev/null 2>&1; then
         if git worktree remove --force "$path" 2>/dev/null; then
           git branch -q -d "$branch" 2>/dev/null
           echo "Conductor: removed the merged loop worktree ${path##*/} ($branch)."

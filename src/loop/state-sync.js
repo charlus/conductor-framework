@@ -63,3 +63,22 @@ export async function hideFromGit(rel, { cwd, git }) {
     await git(["update-index", "--skip-worktree", "--", rel]);
   }
 }
+
+/** Untracked, not ignored paths (directories collapsed), from the worktree root. */
+export async function untrackedPaths({ git }) {
+  const r = await git(["ls-files", "--others", "--exclude-standard", "--directory"]);
+  return r.ok ? r.stdout.split("\n").filter(Boolean).map((p) => p.replace(/\/$/, "")) : [];
+}
+
+/**
+ * What loop.setup created (a linked venv, installed dependencies) is the
+ * environment, not the work: hide each new untracked path from git, so the
+ * auto-capture never commits it (live run 2026-10-20: a `.venv` symlink, which
+ * a `.venv/` ignore rule does not match, reached the branch).
+ */
+export async function hideSetupArtifacts({ before, cwd, git }) {
+  const had = new Set(before);
+  const added = (await untrackedPaths({ git })).filter((p) => !had.has(p));
+  for (const rel of added) await hideFromGit(rel, { cwd, git });
+  return added;
+}

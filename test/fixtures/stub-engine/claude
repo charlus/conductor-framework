@@ -59,11 +59,16 @@ if (checker) {
     mkdirSync(dirname(from[2]), { recursive: true });
     renameSync(from[1], from[2]);
   }
+  if (prompt.includes("**Tick it in this branch:**")) {
+    const b = "conductor/2-backlog/task-backlog.md";
+    writeFileSync(b, readFileSync(b, "utf8").replace(/- \[ \] (.*?) \(loop-ready\)/, "- [x] $1 **Done 2026-10-20** stub"));
+  }
   appendFileSync("conductor/0-compass/ship-log.md", "\n## 2026-10-20 — stub ship\n\n**For you**\n- **Impact:** a\n- **Cost:** none\n- **Risk:** none\n- **Decide:** none\n");
   put("conductor/1-workbench/pr-body.md", body);
   done();
 } else if (prompt.includes("# Loop Assignment (this beat)")) {
-  put("src/built.js", "export const built = true;\n");
+  // In the outer layout ($STUB_CODE_DIR) the code goes into the nested repository.
+  put(join(process.env.STUB_CODE_DIR ?? ".", "src/built.js"), "export const built = true;\n");
   done();
 }
 console.log(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "stub", usage: { input_tokens: 1, output_tokens: 1 } }));

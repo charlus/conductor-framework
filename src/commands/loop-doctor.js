@@ -20,9 +20,12 @@ import { diagnose, renderDoctor, doctorExitCode } from "../loop/doctor.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
 import { packageVersion, readVersionStamp } from "../version.js";
-import { exists, readJson, sh, runCli, hasNpmTestScript, configVerify, readSlices } from "./loop.js";
+import { exists, readJson, sh, runCli, hasNpmTestScript, configVerify, readSlices, readBlueprints } from "./loop.js";
 import { harvestSlices } from "../loop/slices.js";
 import { ensureWorktreesExcluded } from "../loop/worktree.js";
+import { refusedNestedRepos } from "../loop/nested.js";
+import { defaultBranchRef } from "../loop/reconcile.js";
+import { harvestBlueprints } from "../loop/blueprint.js";
 import { nextAfterDoctor } from "../next-step.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
@@ -81,7 +84,7 @@ export async function loopDoctor(root, { stdout, beat = false }) {
   facts.state = state;
   const verifyCommand = resolveVerifyCommand({
     stateCommand: state.verification.command,
-    configVerify: await configVerify(root),
+    configVerify: loopConfig.codeDir ? await configVerify(root, loopConfig.codeDir) : await configVerify(root),
     hasNpmTestScript: await hasNpmTestScript(root),
   });
   facts.preflightHalt = preflight(state, { verifyCommand });
@@ -115,7 +118,22 @@ export async function loopDoctor(root, { stdout, beat = false }) {
     facts.forge = { needed: true, forge: fi.forge ?? null, host: fi.host ?? null, error: fi.error ?? null, authOk };
   }
 
-  facts.nestedRepos = loopConfig.allowNestedRepo ? [] : await ignoredNestedRepos(root);
+  facts.nestedRepos = loopConfig.allowNestedRepo ? [] : refusedNestedRepos(await ignoredNestedRepos(root), loopConfig.codeDir);
+  // Step 7: the nested code repository, its default branch and its forge.
+  const codeRoot = loopConfig.codeDir ? join(root, loopConfig.codeDir) : null;
+  let codeBase = null;
+  if (codeRoot) {
+    const isRepo = await exists(join(codeRoot, ".git"));
+    const codeGit = (a) => runCli("git", a, codeRoot);
+    if (isRepo) {
+      await runCli("git", ["fetch", "-q", "origin"], codeRoot);
+      codeBase = await defaultBranchRef(codeGit);
+    }
+    const remote = isRepo ? await runCli("git", ["remote", "get-url", "origin"], codeRoot) : { ok: false };
+    const fi = resolveForge({ override: loopConfig.forge, remoteUrl: remote.ok ? remote.stdout : "" });
+    const authOk = fi.forge ? (await runCli(fi.forge, ["auth", "status", ...(fi.host ? ["--hostname", fi.host] : [])], codeRoot)).ok : false;
+    facts.code = { dir: loopConfig.codeDir, isRepo, base: codeBase, forge: fi.forge ?? null, host: fi.host ?? null, authOk };
+  }
 
   const read = async (rel) => ((await exists(join(root, rel))) ? readFile(join(root, rel), "utf8") : "");
   const queue = harvestWorkQueue({
@@ -126,14 +144,15 @@ export async function loopDoctor(root, { stdout, beat = false }) {
     includeInbox: loopConfig.inbox,
   });
   const slices = loopConfig.slices === true || loopConfig.slices.length ? harvestSlices(await readSlices(root, loopConfig.slices)) : [];
-  facts.queue = { count: queue.length + slices.length, requireReady: loopConfig.requireReady };
+  const blueprints = loopConfig.blueprint === true || loopConfig.blueprint.length ? harvestBlueprints(await readBlueprints(root, loopConfig.blueprint)) : [];
+  facts.queue = { count: queue.length + slices.length + blueprints.length, requireReady: loopConfig.requireReady };
 
   const dotenvPresent = await exists(join(root, ".env"));
   const ignored = dotenvPresent && (await runCli("git", ["check-ignore", "-q", ".env"], root)).ok;
   facts.dotenv = { present: Boolean(ignored), copiedBySetup: /\.env\b/.test(loopConfig.setup ?? "") };
 
   for (const ci of [".gitlab-ci.yml", ".github/workflows", "bitbucket-pipelines.yml", ".circleci/config.yml"]) {
-    if (await exists(join(root, ci))) {
+    if (await exists(join(codeRoot ?? root, ci))) {
       facts.ciFile = ci;
       break;
     }
@@ -147,22 +166,26 @@ export async function loopDoctor(root, { stdout, beat = false }) {
   if (!added.ok) {
     facts.probe = { ran: true, setup: { configured: true, ok: false, reason: `could not create a worktree: ${tail(added.stderr)}` }, verify: null };
   } else {
+    // Step 7: setup and verify run where a beat runs them, in a code worktree from the default branch.
+    const codeProbe = codeRoot && codeBase ? join(probe, loopConfig.codeDir) : null;
+    if (codeProbe) await runCli("git", ["worktree", "add", "-q", "--detach", codeProbe, codeBase], codeRoot);
+    const where = codeProbe ?? probe;
     try {
       facts.probe = { ran: true, setup: { configured: Boolean(loopConfig.setup), ok: true }, verify: null };
       let setupOk = true;
       if (loopConfig.setup) {
         const t0 = Date.now();
-        const r = await sh(loopConfig.setup, probe);
+        const r = await sh(`export CONDUCTOR_ROOT=${JSON.stringify(root)}${codeRoot ? ` CONDUCTOR_CODE_ROOT=${JSON.stringify(codeRoot)}` : ""}; ${loopConfig.setup}`, where);
         setupOk = r.exitCode === 0;
         facts.probe.setup = { configured: true, ok: setupOk, secs: Math.round((Date.now() - t0) / 1000), reason: setupOk ? null : `exit ${r.exitCode}: ${tail(r.output)}` };
       }
       if (setupOk && verifyCommand) {
         const t0 = Date.now();
-        const v = await sh(verifyCommand, probe);
+        const v = await sh(verifyCommand, where);
         facts.probe.verify = { command: verifyCommand, exitCode: v.exitCode, secs: Math.round((Date.now() - t0) / 1000), tail: tail(v.output) };
         // The same command in the main checkout, where the owner pushes from.
         if (v.exitCode === 0) {
-          const r = await sh(verifyCommand, root);
+          const r = await sh(verifyCommand, codeRoot ?? root);
           facts.rootVerify = { exitCode: r.exitCode, tail: tail(r.output) };
         }
       }
@@ -177,6 +200,10 @@ export async function loopDoctor(root, { stdout, beat = false }) {
         }
       }
     } finally {
+      if (codeProbe) {
+        await runCli("git", ["worktree", "remove", "--force", codeProbe], codeRoot);
+        await runCli("git", ["worktree", "prune"], codeRoot);
+      }
       await runCli("git", ["worktree", "remove", "--force", probe], root);
     }
   }

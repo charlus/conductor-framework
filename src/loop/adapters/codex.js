@@ -30,7 +30,8 @@ export function mapMode(permissionMode) {
 
 /** Pure argv builder for one beat — unit-testable without spawning a process. */
 export function beatArgs({ prompt, permissionMode = "acceptEdits" } = {}) {
-  return ["exec", prompt, "-s", mapMode(permissionMode)];
+  // Flags first, then `--`, then the prompt, so a dash-leading prompt is never an option.
+  return ["exec", "-s", mapMode(permissionMode), "--", prompt];
 }
 
 /** True if the `codex` CLI is on PATH. */

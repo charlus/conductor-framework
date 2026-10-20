@@ -8,6 +8,22 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.23.0] — 2026-10-20 — The loop ships the way you do
+
+Compatibility: upgrade only
+
+Build step 1 of [`docs/roadmap/Unattended-Lifecycle.md`](docs/roadmap/Unattended-Lifecycle.md).
+
+### Changed
+
+- **A loop task is shipped before its MR, with Ship itself.** The loop used to run Build and then open the MR with a one-line log and a stub body, skipping Ship. Now a task bound for an MR gets a Ship beat that runs `ship.md` Phases 1–5 in its worktree, a fresh context as when you type `/ship`. Its bookkeeping goes in the task's branch: the ship-log entry with its **For you** block, the product area, the archive and the backlog tick, so merging the MR is what records the ship. The driver then re-runs verify and the Checker (Ship's review: Ship may change code), checks Ship's evidence in code, and opens the MR with the five-section body the Ship beat wrote. Missing bookkeeping is a rejection with its reason, and a second Ship beat fixes it. No MR opens without it. The loop no longer writes a "shipped" line or a done marker on your checkout. The rules for the Ship beat are a new section of `unattended-loop.md`; `ship.md` is unchanged. Verified live: one Ship beat, an MR carrying code, tests, the ship-log entry and the tick, and Ship's body.
+
+### Fixed
+
+- **A prompt that starts with a dash reaches the agent.** The claude and codex adapters passed the prompt as an argument, so a prompt opening with `---` (Ship's frontmatter) was read as an option. Every flag now comes first, then `--`, then the prompt. Verified live for claude; for codex the arguments parse (not run in a trusted repository).
+
+---
+
 ## [6.22.0] — 2026-10-19 — Fixes from the second unattended run
 
 Compatibility: upgrade only

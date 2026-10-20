@@ -1,6 +1,6 @@
 # Unattended Lifecycle — the loop runs Conductor's own workflows, stage by stage
 
-> **Status:** design, 2026-10-19. Owner decisions D1–D5 below. Nothing built. Sign-off on this doc, then build in the order of **Build plan**.
+> **Status:** signed off 2026-10-19. Step 1 (the Ship beat) shipped in 6.23.0 and verified live. Next: step 2, claims from git and reconcile on pull.
 > **Why:** two real crossings (`Unattended-Crossing.md`) showed that the loop follows Conductor up to Build and then leaves it. It skips Ship (bookkeeping, the report, the archive), never runs the Blueprint, and keeps its own claim and done markers. Unattended work was held to a lower standard than interactive work, on the steps that let the owner trust work he did not watch.
 
 ## The principle

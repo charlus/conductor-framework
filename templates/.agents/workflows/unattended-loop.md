@@ -84,3 +84,13 @@ Before you write code, run `conductor personas <the files this task will create 
 ## Step 3: Conclude the Beat
 * Save any content you produced (specs, code, commits) and any agent-owned fields you legitimately set (`maker_reported_done`, `history` notes).
 * **Leave `status`, `iterations`, `stall`, and `budget` to the driver.** It recomputes progress, enforces the guardrails, and transitions `status` between beats — then schedules the next beat. Output a clean one-line summary of what this beat did so the driver's log stays readable.
+
+## Ship beat (unattended)
+
+When your prompt is `.agents/workflows/ship.md` followed by this section, you are the owner typing `/ship` on work that Build already finished and the Checker approved on this branch. Run Ship as written, with these differences, because nobody is here and the driver does the rest:
+
+- **Phases 1, 2, 3 and 5: run them as written.** Phase 5's bookkeeping goes in this branch: the ship-log entry with its **For you** block, the product area, the archive, and the item's tick when your assignment names one. Merging the MR is what records the ship.
+- **Phase 4: do not start a reviewer.** After your beat the driver runs verify and its independent Checker on the shipped state. In the MR body's Evidence, write that the driver's Checker reviews the shipped state; never that the review was skipped.
+- **Phase 6: do not push and do not open the MR.** Skip steps 0 to 4 and 6. Write the MR body, the five sections of step 4, to `conductor/1-workbench/pr-body.md`; the driver keeps it out of the branch and opens the MR with it. In the ship-log entry, the Platform line names the branch instead of the MR link.
+- **Commit everything else** in this branch, then write `{ "done": true }` to `conductor/1-workbench/maker-signal.json`.
+- **Product decisions:** a two-way door, decide and log a ruling; a one-way door, escalate (step 5 above).

@@ -52,7 +52,9 @@ export function buildArgv({
 }) {
   // A14: the JSON result carries the text plus tokens and cost (a list-price
   // estimate on a subscription login). parseClaudeResult turns it back into text.
-  const argv = ["-p", prompt, "--output-format", "json", "--permission-mode", permissionMode];
+  // Every flag first, then `--`, then the prompt: a prompt that starts with a
+  // dash (ship.md opens with its `---` frontmatter) was read as an option.
+  const argv = ["-p", "--output-format", "json", "--permission-mode", permissionMode];
   if (model) argv.push("--model", model);
   if (settingsPath) argv.push("--settings", settingsPath);
   // An empty array is NOT passed: `--allowed-tools` with no values would be a
@@ -63,6 +65,7 @@ export function buildArgv({
     // allowlist: a tool not named there does not exist for this beat.
     argv.push("--tools", ...allowedTools, "--allowed-tools", ...allowedTools);
   }
+  argv.push("--", prompt);
   return argv;
 }
 

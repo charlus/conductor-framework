@@ -8,6 +8,29 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.25.0] — 2026-10-20 — Live state is checked, not remembered
+
+Compatibility: upgrade only
+
+An agent reported "!254 not deployed yet" from the state it had written the day before. The human had merged and deployed it in between, outside the conversation. The files hold history, and the agent read it as today's fact.
+
+### Added
+
+- **Live State Law**, a new always-on rule (`.agents/rules/live-state-law.md`). Before the agent states an MR, pipeline, deploy or branch status, it checks it. When no tool can check it, it says "not checked" and asks you. It quotes a record with its date and writes events, not statuses. You no longer have to report what you did outside the conversation.
+- **`conductor status --live`** asks the forge (`glab` / `gh`) for every MR the five newest ship-log entries name, and flags an entry whose "not merged" or "still open" a merge has since contradicted. Without `--live`, status makes no network call and says that MR and deploy status were not checked. `--live --json` carries the full list. Verified live on eurassistant and evalapp-v2: it found evalapp-v2's "MR !53, still open", merged since 2026-07-31.
+- **`deployCheck`** in `conductor.config.json` (top level, or per nested repository under `repos`): a read-only command that prints what runs in production. `status --live` runs it and shows its output. Without one, status says "ask the human", and the agent does.
+
+### Changed
+
+- **Ship writes events, not statuses.** The ship-log entry records the MR and the date it was opened, never "not merged yet" or "not deployed". The agent does not come back to record the merge or the deploy.
+- **Handoff** tells the receiver to re-check live state with `conductor status --live`.
+
+### Measured
+
+- `test/evals/live-state-eval.mjs` replays the incident with a real agent: this version checked, or said "not checked", in 4 of 4 runs. The framework without it repeated "Deploy !254" as fact in 3 of 4 (n=4, noise floor 25pp).
+
+---
+
 ## [6.24.0] — 2026-10-20 — Claims from git, cleanup on pull
 
 Compatibility: upgrade only

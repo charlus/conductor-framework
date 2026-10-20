@@ -10,6 +10,8 @@
 > slash shims, a table-free guard on the state files.
 > **Descoped on evidence:** flattening pipe tables out of 17 `conductor/` templates (§5).
 > **Deferred:** HTML review reports; diagram-bearing documents (§6).
+> **Extended 6.25.0:** `conductor status --live` (MR state from the forge, stale ship-log claims,
+> the project's `deployCheck`), with the Live State Law. Plain `status` stays offline.
 >
 > Every claim below is either live-verified and cited, or labelled as a prediction.
 

@@ -39,7 +39,7 @@ Classify what the user needs before acting:
 | "How does this framework work?" | `personas/conductor-assistant.md` |
 | **"Inbox: X", "Add to inbox: X"** | **`conductor inbox add "X"`, else append `X` verbatim to `conductor/1-workbench/inbox.md`. One-line confirm, stop.** |
 | **"Scratchpad: X"** | **Append `X` verbatim to `conductor/1-workbench/scratchpad.md`. Same rule.** |
-| **"What's on our plate", "status"** | **`conductor status`; show its output verbatim.** |
+| **"What's on our plate", "status"** | **`conductor status`; show its output verbatim. `--live` for MR or deploy status.** |
 | Small fix, bug, quick task (already well-scoped) | Add to `conductor/2-backlog/task-backlog.md` |
 | Not sure? | Default to `workflows/genesis.md` — it will help find the right scope |
 

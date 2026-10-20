@@ -34,7 +34,7 @@ const PRIORITY_COLOUR = { P1: "red", P2: "yellow", P3: "dim" };
 const MAX_QUEUE_ROWS = 6;
 const MAX_STALE_ROWS = 3;
 
-function painter(enabled) {
+export function painter(enabled) {
   return (text, ...styles) => {
     if (!enabled || !styles.length) return String(text);
     const codes = styles.map((s) => ANSI[s] ?? "").join("");
@@ -160,6 +160,45 @@ function waiversLine(waivers, c) {
   if (!waivers?.count) return c(`none in ${waivers?.days ?? 30} days`, "dim");
   const kinds = waivers.byKind.map((k) => `${k.kind} ×${k.count}`).join(", ");
   return c(`${waivers.count} in ${waivers.days} days · ${kinds}`, "yellow");
+}
+
+const MR_COLOUR = { merged: "green", open: "cyan", closed: "dim", unknown: "yellow" };
+/** Entries whose merged MRs are listed one by one; older ones collapse. */
+const MAX_LIVE_ENTRIES = 2;
+
+/**
+ * The live section of `conductor status --live`: each MR the newest ship-log
+ * entries name, as the forge reports it now, and the project's deploy check.
+ * The check time leads, because this block is only true at that moment.
+ *
+ * @param {object} live from collectLive
+ * @param {Function} c painter
+ * @returns {string}
+ */
+export function renderLive(live, c) {
+  const lines = [];
+  lines.push(`  ${c("Live", "bold")} ${c(`— checked ${live.checkedAt.slice(0, 16).replace("T", " ")} UTC, true only now`, "dim")}`);
+  if (!live.mrs.length) lines.push(`   ${c("no MR in the newest ship-log entries", "dim")}`);
+  // One screen: a merged MR from an older entry is the expected case, so it
+  // collapses. Open, unknown and stale ones always show; they are the point.
+  const recent = [...new Set(live.mrs.map((m) => m.entryDate))].sort().reverse().slice(0, MAX_LIVE_ENTRIES);
+  const shown = live.mrs.filter((m) => m.state !== "merged" || m.stale || recent.includes(m.entryDate));
+  const hidden = live.mrs.length - shown.length;
+  for (const mr of shown) {
+    const state = mr.state === "unknown" ? `unknown · ${mr.reason}` : `${mr.state}${mr.at ? ` ${mr.at}` : ""}`;
+    lines.push(`   ${mr.label.padEnd(6)} ${c(state, MR_COLOUR[mr.state] ?? "dim")}  ${c(`${mr.entryDate} ${mr.entryTitle}`, "dim")}`);
+    if (mr.stale) lines.push(`          ${c(`stale: ${mr.stale}, the forge says ${mr.state}`, "red")}`);
+  }
+  if (hidden) lines.push(`   ${c(`${hidden} older MR${hidden === 1 ? "" : "s"} merged · conductor status --live --json for all`, "dim")}`);
+  if (live.deploy.state === "ask") {
+    lines.push(`   ${"Deploy".padEnd(6)} ${c("not checked · no deployCheck in conductor.config.json · ask the human", "yellow")}`);
+  }
+  for (const d of live.deploy.checks) {
+    const where = d.repo ? ` (${d.repo}/)` : "";
+    lines.push(`   ${"Deploy".padEnd(6)} ${c(`$ ${d.command}${where} · exit ${d.code}`, d.code === 0 ? "dim" : "red")}`);
+    for (const l of d.output.split("\n").filter(Boolean)) lines.push(`          ${l}`);
+  }
+  return lines.join("\n");
 }
 
 /**

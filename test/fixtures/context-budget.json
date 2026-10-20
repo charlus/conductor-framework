@@ -1,8 +1,8 @@
 {
   "_comment": "Context budget ceilings in BYTES (exact, machine-independent). Regenerate with `node scripts/capture-context-budget.js` and commit the result in the SAME commit as the growth, so it is a visible decision. Ceilings ratchet DOWN after a reduction.",
-  "alwaysOnBytes": 15167,
+  "alwaysOnBytes": 16041,
   "eagerBytes": {
-    "workflows/ship.md": 19480,
+    "workflows/ship.md": 20120,
     "workflows/build.md": 15615,
     "workflows/technical-vision.md": 14925,
     "workflows/unattended-loop.md": 13937,
@@ -20,7 +20,7 @@
     "workflows/quick-path.md": 6761,
     "workflows/grand-prd.md": 6539,
     "skills/code-review": 6355,
-    "skills/handoff": 6165,
+    "skills/handoff": 6231,
     "skills/git-worktrees": 5896,
     "workflows/retrospective.md": 5752,
     "workflows/storyboard.md": 5721,

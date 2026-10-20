@@ -27,7 +27,7 @@ your-project/
 ├── .agents/              # AI agent core (rules, workflows, skills, personas, hooks)
 │   ├── AGENTS.md        # Source of the framework block in the root AGENTS.md (classifier)
 │   ├── how-it-works.md  # Full reference, read on demand
-│   ├── rules/           # Laws (Prime Directive, Verification, Test-Driven; loop guardrails)
+│   ├── rules/           # Laws (Prime Directive, Verification, Test-Driven, Live State; loop guardrails)
 │   ├── workflows/       # Genesis → Build → Ship pipeline
 │   ├── skills/          # 32 modular skills
 │   ├── personas/        # 10 thinking partners
@@ -198,6 +198,12 @@ conductor status
 Under the counts, three lines answer "is anything actually enforced here?": the **Push gate** command, whether the git **Gates** are armed (with the fix when they are not, and which opt-in agent guards are on), and the **Waivers** logged in the last 30 days. A fourth line, **Skipped**, appears when local commits or pushes in the last 14 days did not run the hooks (`--no-verify`, `CONDUCTOR_HOOKS=off`, or a git client that ignores hooks), with their hashes. Each hook writes a heartbeat line in the git directory and status compares it with the reflog. Commits from before `conductor install-hooks` are not judged.
 
 That queue is the **same** one `conductor loop` drains, in the same order, from the same parser — a preview of the fleet's next move, not a second opinion about it. `--json` for scripts, `--no-color` for pipes.
+
+**`--live`** adds what the files cannot know: the state of each MR the newest ship-log entries name, asked of `glab` or `gh` now, and the output of the project's `deployCheck` command. An entry that still says "not merged" for a merged MR is flagged. With no `deployCheck` in `conductor.config.json`, status says to ask you, and the agent does (the Live State Law). Plain `status` makes no network call.
+
+```json
+{ "deployCheck": "./scripts/what-is-deployed.sh", "repos": { "website-cms": { "deployCheck": "make deployed" } } }
+```
 
 Reading state this way costs **no tokens and no context**. Asking your agent to summarise the backlog costs a full turn, every time, for the question you ask most often in a day.
 

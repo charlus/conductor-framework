@@ -53,7 +53,7 @@ Rules:
 A fresh agent with clean context is your independent-review advantage (`skills/independent-review/SKILL.md`), not just a pair of hands. Don't hand it a work order — hand it a well-framed problem and let it think:
 
 - **License it to challenge the task.** Say explicitly: *decide whether this task is still real, whether the proposed direction is sound, and whether a smaller or better fix exists before proceeding.* The precise next action (above) is the starting hypothesis, not a command to execute blind.
-- **Tell it to re-check live state, not trust the snapshot.** By the time the handoff is picked up, branch/CI/issue state may have moved — instruct the receiver to re-verify GitHub/CI/working-tree status for itself. Your snapshot is a lead, not ground truth.
+- **Tell it to re-check live state, not trust the snapshot.** By the time the handoff is picked up, branch/CI/issue state may have moved — instruct the receiver to re-verify MR/CI/deploy/working-tree status for itself (`conductor status --live`, `.agents/rules/live-state-law.md`). Your snapshot is a lead, not ground truth.
 - **Set output boundaries.** The receiver does **not** push, merge, label, or post public comments unless the handoff explicitly authorizes it — same report-don't-act discipline as the review gate.
 
 ## In the autonomous loop

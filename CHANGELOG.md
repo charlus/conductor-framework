@@ -8,6 +8,18 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.25.0] — 2026-10-20 — The loop builds carved slices, from spec to MR
+
+Compatibility: upgrade only
+
+Build step 3 of [`docs/roadmap/Unattended-Lifecycle.md`](docs/roadmap/Unattended-Lifecycle.md).
+
+### Added
+
+- **The slice pipeline.** With `loop.slices: ["<Project>"]` (or `true`), `--from-conductor` takes the lowest open slice of each opted-in project (`project-backlog/<Project>/implementations/NN-<slice>/`) and runs it the way you would: a fresh Spec beat running `spec-it.md`, the spec checked in code (both files written, the Brief check answered), a fresh Checker reviewing the spec against the slice's acceptance criteria and the Blueprint before any code (D2), Build beats from the plan with the task tracker as memory until the Maker says the slice is ship-ready, then the Ship beat, which archives the slice in the branch. One MR per slice carries the spec, the code and the bookkeeping (D3). A slice whose spec is already on the default branch is yours and starts at Build. One slice per project at a time, the lowest number. The Spec beat's unattended rules are a new section of `unattended-loop.md`; `spec-it.md` and `build.md` are unchanged. `conductor loop doctor` counts the slices in its queue check. Verified live on a scratch product: one Spec beat, one Build beat, one Ship beat, three reviews, ≈ $1.16 at list price; the MR carried a spec with its Brief check, the code, 16 passing tests, the tracker, the ship-log entry, the product area and the archived slice.
+
+---
+
 ## [6.24.0] — 2026-10-20 — Claims from git, cleanup on pull
 
 Compatibility: upgrade only

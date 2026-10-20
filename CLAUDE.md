@@ -134,4 +134,4 @@ Stable pointers to where the big subsystems live:
 
 ## Credits
 
-Built on: [Test in Prod's Conductor](https://www.testinprod.co/), [Antigravity Kit](https://github.com/vudovn/antigravity-kit), [Antigravity Superpowers](https://github.com/skainguyen1412/antigravity-superpowers), [Superpowers](https://github.com/obra/superpowers).
+Built on: [Test in Prod's Conductor](https://www.testinprod.co/), [Antigravity Kit](https://github.com/vudovn/antigravity-kit), [Antigravity Superpowers](https://github.com/skainguyen1412/antigravity-superpowers), [Superpowers](https://github.com/obra/superpowers), [agentctl](https://code.euranova.eu/innovation/agentctl.git) (Euranova internal). The full list, with what each one gave: `README.md`, Credits & Acknowledgments.

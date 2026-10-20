@@ -1,0 +1,83 @@
+# Unattended Lifecycle — the loop runs Conductor's own workflows, stage by stage
+
+> **Status:** design, 2026-10-19. Owner decisions D1–D5 below. Nothing built. Sign-off on this doc, then build in the order of **Build plan**.
+> **Why:** two real crossings (`Unattended-Crossing.md`) showed that the loop follows Conductor up to Build and then leaves it. It skips Ship (bookkeeping, the report, the archive), never runs the Blueprint, and keeps its own claim and done markers. Unattended work was held to a lower standard than interactive work, on the steps that let the owner trust work he did not watch.
+
+## The principle
+
+Unattended means the loop does the owner's job while he is away, the way he does it: one stage at a time, **the same workflow and skills as an interactive session**, a fresh context for each stage, files as the only handoff. A loop beat is the owner typing `/spec-it slice 1`, `/clear`, `/build slice 1`, `/clear`, `/ship slice 1`.
+
+Every stage runs unattended except Discovery, which needs the owner. State that depends on a merge is carried by the MR or derived from git, never written after the merge.
+
+## Owner decisions (2026-10-19)
+
+| | Decision |
+|---|---|
+| D1 | **Stop only for one-way doors.** Grilling's product-decision test, split by reversibility. *One-way* (cannot be undone cheaply, contradicts an earlier decision, changes what the product costs to run): the stage stops and asks. *Two-way* (changes what a user sees or does, a small scope call, reversible in the MR): the agent applies its recommendation, logs a `high` ruling ("decided for you; overrule in the MR") and continues. Reason: the owner rubber-stamped stops he had no context for; a stop that adds no judgment only adds delay. |
+| D2 | **A fresh Checker reviews each spec** against the slice and the PRD before any Build beat. |
+| D3 | **One MR per slice**, carrying its spec, code and bookkeeping. |
+| D4 | **One owner sign-off per project:** the Blueprint and the Carve arrive as one MR. Merging it is the approval; no slice is built before. After it, each slice runs from Spec-It to its MR alone. |
+| D5 | **One-way questions arrive as one round.** A stage collects every one-way question, writes them to the inbox as one numbered round, each with a recommendation, and pauses that stage only. The owner answers by number; the next run reads the answers from the file. |
+
+## Stage map
+
+The driver decides each project's and each slice's stage from files, never from memory. Each stage is a fresh beat running the named workflow, then the named review.
+
+| Stage | Workflow (unchanged) | Input | Output (evidence) | Gate before the next stage |
+|---|---|---|---|---|
+| Discovery | `genesis.md`, `storyboard.md` | the owner | `genesis/`, storyboard | **human only**: the loop starts a project only after Discovery |
+| Grand PRD | `grand-prd.md` | Discovery outputs | `blueprint/grand-prd.md` | `independent-review` of the PRD; one-way questions answered |
+| UX/UI Brief | `ux-ui-design-brief.md` | PRD | `blueprint/ux-ui-design-brief.md`, `DESIGN.md` | `independent-review` |
+| Technical Vision | `technical-vision.md` | PRD, Brief, code | `4-context/technical/`, `architecture-checklist.md` | `independent-review` |
+| Carve | `carve.md` | Blueprint | `implementations/NN-<slice>/` folders | `independent-review` of the plan, then **D4: the Blueprint MR merged** |
+| Spec-It | `spec-it.md` | the slice folder | `feature-spec.md`, `implementation-plan.md` | **D2: Checker reviews the spec** |
+| Build | `build.md` | spec, plan, `task-tracker.md` | code, tests, tracker | verify green (Evidence Rule) + Checker, per task |
+| Ship | `ship.md` Phases 1–5 | the built slice | ship-log entry with **For you**, product area, archive, backlog tick, `pr-body.md` | the bookkeeping exists; the driver runs Phase 6's mechanics: push, open the MR (PR gate in code) |
+| Retrospective | `retrospective.md` | ship-log, tracker | lessons | optional, `loop.retrospective`, off by default (one beat per slice) |
+
+A small `task-backlog.md` line keeps its short route: Build, then Ship.
+
+## What the beat sees
+
+- **The prompt is the stage's own workflow file**, as an interactive session reads it, plus the assignment (which project, which slice, which inputs).
+- **One preamble**, `unattended-loop.md`, the only workflow that loop work changes. It becomes a preamble instead of a parallel method. It says: nobody is there to answer; read your inputs from the files listed; where the workflow says *ask the human* or *confirm with the human*, apply D1 (one-way: add it to this stage's question round; two-way: decide, log the ruling, go on); synthesize from the upstream documents, never re-interview; signal `done`, `escalate` or `questions` through `maker-signal.json`.
+- **The workflows themselves stay byte-identical.** The test that guards the interactive path stays as it is.
+
+## Product questions (D1, D5)
+
+- **The round file.** A stage with one-way questions writes `conductor/1-workbench/questions/<project>-<stage>.md`: each question numbered, in two sentences in user terms, the options with their consequence for a user, the recommendation and why, and what a wrong choice costs. The driver adds one inbox line pointing at it and pauses that stage; other projects and slices go on.
+- **The answer.** The owner writes the number of his choice under each question (or "your pick"). The next run sees the answers, resumes the stage and records each answer as a decision in the stage's document.
+- **The quality bar.** The stage's independent reviewer rejects a question that cannot be answered cold in one line, and a two-way door dressed as a one-way door.
+- **Measurement.** The ruling log already records each decision. `conductor status` shows how often the owner overrules a ruling and how often he takes the recommendation. Near-total acceptance means the loop asks too much.
+
+## Claims and cleanup (from the crossings)
+
+- **Claims come from git.** A slice or backlog item is in progress while its `conductor/loop/<id>` branch exists on the remote. The loop stops committing `🤖` claim markers into the owner's checkout. Two parallel runs read the same remote branches.
+- **Done rides in the MR.** The Ship beat ticks the item and archives the slice in the slice's branch, so merging the MR is what marks it done. A closed, unmerged MR leaves the item open, as it should.
+- **Reconcile on the next git touch.** A `post-merge` hook (fires on `git pull`), `conductor status` and the start of a loop run prune loop worktrees and local branches already merged, and run the doctor's stale-environment check. The owner never has to say "it is merged".
+
+## Safety envelope
+
+Unchanged and still in code: the PR-gated merge, the L3 sandbox gate, the Evidence Rule (verify by exit code), worktree isolation, the autonomy clamp, fail-safe on a missing verdict. New: a stage never advances on the agent's word; the driver checks the stage's output files and the reviewer's verdict.
+
+## Build plan
+
+Each step is its own PR, proven by a live run on a scratch product before the next.
+
+1. **Ship beat** for today's routes (backlog line, single slice): Ship Phases 1–5 in the task's worktree, `pr-body.md` used by the driver, done carried in the MR. Removes the loop's own ship-log line and stub body.
+2. **Claims from git, reconcile on pull** (the `post-merge` hook, `status`, loop start).
+3. **Slice pipeline**: harvester reads `implementations/NN-<slice>/`, stage detection from files, Spec-It beat, spec review (D2), Build, Ship, one MR (D3).
+4. **Question rounds** (D1, D5): the round file, pause and resume, the reviewer's quality bar, the overrule measurement.
+5. **Blueprint pipeline**: Grand PRD, UX/UI Brief, Technical Vision, Carve, each with its independent review, the Blueprint MR as the sign-off (D4).
+6. **Conformance test**: a table in code mapping each stage to its workflow file and its gate; a test fails when the loop routes a stage to anything else.
+
+## Risks
+
+- **R1 Cost.** A full project is many beats, each a fresh context reading its inputs. `conductor status` already shows cost by role (6.16.0). `loop.models` can put the Maker on a cheaper model.
+- **R2 Workflows written for a conversation.** Some steps say *ask*, *confirm*, *wait*. The preamble maps each one to D1; a workflow step it cannot map stops the stage with `escalate` and is a finding for the workflow.
+- **R3 Long documents.** A PRD and a brief can be long inputs for a fresh context. The handoff files and the stage's own reading order keep the input to what the stage needs.
+- **R4 The swarm's dependency gap.** In the swarm a dependency counts as merged once its PR is open (A11). Slices of one project depend on each other; until A11, slices run one at a time after the Blueprint MR.
+
+## Not in scope
+
+Discovery (human only). Self-evolving instructions (parked: `harness-rsi-paper-declined` memory). The swarm's file-scope admission (A10) and contracts (A11), still gated by their own condition.

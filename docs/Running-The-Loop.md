@@ -149,9 +149,10 @@ Which items it takes:
 - `--no-inbox` (or `loop.inbox: false`) skips inbox lines. `require_ready` and a priority filter skip them too, because an inbox line has neither.
 
 Then, per item, the fleet:
-1. **Claims it** — marks the item `🤖 … (in progress)` in `conductor/` so you (or another agent) won't double-book it.
+1. **Skips what is already claimed** — the claim is the item's loop branch on the remote (`conductor/loop/<item>`): an item whose branch is there is in progress or in review, and is skipped. Nothing is committed to your checkout to mark it. An item whose branch is already merged but which is still open in the backlog is skipped and named, so you can tick it.
 2. **Works it in an isolated worktree** — running the routed workflow (`bugfix`/`task` → Build with reproduce-first TDD; `triage` → file-it brief).
-3. **Writes back to the source of truth** — on a green + Checker-approved ship, it ticks the backlog item `- [x]` (or removes the triaged inbox line), appends `0-compass/ship-log.md`, and opens a **PR** (never a direct push).
+3. **Ships it in its branch** — at L3 a Ship beat ticks the item `- [x]`, writes the ship-log entry and the MR body, and the driver opens a **PR** (never a direct push). Merging the PR is what marks the item done.
+4. **Cleans up after you merge** — on your next `git pull` the `post-merge` hook removes the loop worktree and local branch that are now merged; a loop run does the same when it starts. A worktree with uncommitted changes, or one squash-merged (not provably merged), is kept.
 
 Because the queue is **re-harvested every run**, a human editing `conductor/` — in an editor, from chat, or with `conductor inbox add` — and the fleet draining it stay coherent: the folder is the truth, `loop-state.json` is just the run cache. To see what the fleet would pick up next without starting it, run **`conductor status`**; it renders the same harvested queue the driver does, in the same order, and shows the loop's own phase and status. For a real concurrent fleet, set `autonomy_level: "L3"`, `sandbox: "cli-native"`, and `concurrency: N` in the Spine (the swarm's safety gates require it); at `L1`/`concurrency: 1` it drains sequentially for review. Always `--dry-run` first to see the queue.
 

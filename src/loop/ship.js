@@ -89,6 +89,14 @@ function entryBody(log, heading) {
  * Did the Ship beat do Ship's bookkeeping? Pure: the caller reads the files.
  * @returns {{ok:boolean, reasons:string[]}}
  */
+/** The MR body the driver opens the MR with: present, with Ship's sections. */
+export function prBodyReasons(body) {
+  const text = String(body ?? "");
+  if (!text.trim()) return [`no MR body in ${PR_BODY_REL}`];
+  const missing = BODY_SECTIONS.filter((s) => !text.includes(s));
+  return missing.length ? [`the MR body lacks Ship's sections: ${missing.join(", ")}`] : [];
+}
+
 export function checkShipEvidence({ rootShipLog, branchShipLog, body, backlog = null, slice = null }) {
   const reasons = [];
   const seen = new Set(headingsOf(rootShipLog));
@@ -100,12 +108,7 @@ export function checkShipEvidence({ rootShipLog, branchShipLog, body, backlog = 
     const complete = /\*\*For you\*\*/.test(entry) && FOR_YOU_LINES.every((k) => new RegExp(`\\*\\*${k}:\\*\\*`).test(entry));
     if (!complete) reasons.push("the new ship-log entry has no complete For you block (Impact, Cost, Risk, Decide)");
   }
-  const text = String(body ?? "");
-  if (!text.trim()) reasons.push(`no MR body in ${PR_BODY_REL}`);
-  else {
-    const missing = BODY_SECTIONS.filter((s) => !text.includes(s));
-    if (missing.length) reasons.push(`the MR body lacks Ship's sections: ${missing.join(", ")}`);
-  }
+  reasons.push(...prBodyReasons(body));
   if (backlog?.title) {
     // The item's leading words, letters and digits only: the Maker may rewrite
     // markdown, spacing and the rest of the line when it ticks it.

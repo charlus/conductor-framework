@@ -1,6 +1,6 @@
 # Unattended Lifecycle — the loop runs Conductor's own workflows, stage by stage
 
-> **Status:** signed off 2026-10-19. Step 1 (the Ship beat) shipped in 6.23.0, step 2 (claims from git, cleanup on pull) in 6.24.0, both verified live. `conductor status` reports and does not delete: cleanup runs on `git pull` and at the start of a run. Step 3 (the slice pipeline) in 6.26.0, verified live on a scratch product. Step 4 (question rounds and the overrule measurement) in 6.27.0. Next: step 5, the Blueprint pipeline.
+> **Status:** signed off 2026-10-19. Step 1 (the Ship beat) shipped in 6.23.0, step 2 (claims from git, cleanup on pull) in 6.24.0, both verified live. `conductor status` reports and does not delete: cleanup runs on `git pull` and at the start of a run. Step 3 (the slice pipeline) in 6.26.0, verified live on a scratch product. Step 4 (question rounds and the overrule measurement) in 6.27.0. Step 5 (the Blueprint pipeline, one MR as the sign-off) in 6.28.0, opt-in with `loop.blueprint`. Next: step 6, the conformance test, and step 7, the nested code repository (`loop.code_dir`).
 > **Why:** two real crossings (`Unattended-Crossing.md`) showed that the loop follows Conductor up to Build and then leaves it. It skips Ship (bookkeeping, the report, the archive), never runs the Blueprint, and keeps its own claim and done markers. Unattended work was held to a lower standard than interactive work, on the steps that let the owner trust work they did not watch.
 
 ## The principle
@@ -70,6 +70,7 @@ Each step is its own PR, proven by a live run on a scratch product before the ne
 4. **Question rounds** (D1, D5): the round file, pause and resume, the reviewer's quality bar, the overrule measurement.
 5. **Blueprint pipeline**: Grand PRD, UX/UI Brief, Technical Vision, Carve, each with its independent review, the Blueprint MR as the sign-off (D4).
 6. **Conformance test**: a table in code mapping each stage to its workflow file and its gate; a test fails when the loop routes a stage to anything else.
+7. **Nested code repository** (`loop.code_dir`, owner decision 2026-10-20, reverses the 2026-10-02 refusal, after step 5): the beat's worktree is made from the nested code repository, `conductor/` stays in the outer one. The code MR goes to the code repository's forge, the state change to the outer repository, and a beat where one of the two fails is fail-safe. The evidence ledger, the merge queue, claims from git and post-merge cleanup read the code repository. The L3 sandbox binds both worktrees. Proven live on autopportunity or website. The opposite option, the scaffold inside the code repository with copy-back, stays declined.
 
 ## Risks
 

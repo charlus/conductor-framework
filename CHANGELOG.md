@@ -8,6 +8,26 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.28.0] — 2026-10-20 — The loop writes the Blueprint, and one MR is your sign-off
+
+Compatibility: upgrade only
+
+Build step 5 of [`docs/roadmap/Unattended-Lifecycle.md`](docs/roadmap/Unattended-Lifecycle.md) (D4).
+
+### Added
+
+- **The Blueprint pipeline.** With `loop.blueprint: ["<Project>"]` (or `true`), `--from-conductor` takes each listed project whose five Discovery documents are written and which has no slice yet. Grand PRD, UX/UI Brief (with `DESIGN.md`), Technical Vision and Carve each run as a fresh beat with their own workflow plus the new `## Blueprint beat` section of `unattended-loop.md`, each checked in code (its document written, the Brief's `DESIGN.md`, Carve's slice folders and MR body), then reviewed by a fresh Checker with that stage's lens from `independent-review`. A one-way door in any stage becomes a question round (6.27.0). A stage whose document you already wrote is skipped. All four land in one branch and one MR, whose body Carve writes: merging it is your sign-off, and only then do the slices exist for `loop.slices`. Discovery stays yours. The workflows themselves are unchanged.
+
+### Fixed
+
+- **What a stage earned survives the next run.** The harvest rebuilt the queue every run, so a passed spec review, an answered round and now a reviewed Blueprint stage were forgotten between runs. They are carried over by item id; the files are still checked before they count.
+- **The question inbox entry is titled "Questions" in swarm runs.** 6.27.0 fixed the title only in pair mode, and said it was fixed. Shown through the command layer with a stub engine.
+- **The loop's own files stay out of the MR at any depth.** A Blueprint beat wrote its signal and a round copy under `conductor/conductor/1-workbench/`, and both were committed. The git exclusion now matches those files in any folder.
+
+Verified live on a scratch product (a notes app, Discovery written by hand). Run 1: Grand PRD and UX/UI Brief passed their reviews. The Technical Vision Checker rejected a storage choice the Maker had called reversible (browser storage is bound to the site address, so a move strands every note), and the retry raised it as a question round instead. Paused after 4 beats, ≈ $1.96. Answered with the recommendation. Run 2: the two reviewed stages were not redone. Technical Vision and Carve passed, verify, one MR, ≈ $1.30. The MR carried the four documents, `DESIGN.md`, the architecture checklist, five slices and a body in Ship's four sections, with the review's open items under **What I need from you**. After the merge, a dry run harvested slice 01 and no Blueprint item.
+
+---
+
 ## [6.27.0] — 2026-10-20 — The loop asks one-way questions in one round, and goes on
 
 Compatibility: upgrade only

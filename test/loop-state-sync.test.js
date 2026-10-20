@@ -97,3 +97,15 @@ test("F18: the driver's signal files in the worktree are never committed", async
     assert.equal(git(wt, "show", "--name-only", "--format=", "HEAD"), "hello.txt");
   });
 });
+
+test("a driver file a beat writes under a wrong folder (conductor/conductor/…) is not committed either", async () => {
+  await repoWith({ track: true }, async (root, wt) => {
+    await syncLoopStateInto({ root, cwd: wt, git: run(wt) });
+    await mkdir(join(wt, "conductor/conductor/1-workbench"), { recursive: true });
+    await writeFile(join(wt, "conductor/conductor/1-workbench/maker-signal.json"), '{"done":true}');
+    await writeFile(join(wt, "hello.txt"), "hi\n");
+    git(wt, "add", "-A");
+    git(wt, "commit", "-qm", "auto-capture");
+    assert.equal(git(wt, "show", "--name-only", "--format=", "HEAD"), "hello.txt");
+  });
+});

@@ -8,6 +8,22 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.33.0] — 2026-10-20 — See every project, its stage, and whether the loop is on
+
+Compatibility: upgrade only
+
+### Added
+
+- **`conductor status` lists the projects.** One line each: its stage as the loop reads it (no Discovery yet, Blueprint 2 of 4 with the next stage, N slices open with the next one, every slice shipped, or the old flat slice layout the loop cannot read) and whether the loop is on for it.
+- **`conductor loop on` with no name** prints the same list and the command for the first project it can turn on.
+
+### Fixed
+
+- **A file in `project-backlog/` is not a project.** The Blueprint harvest read `.gitkeep` as one.
+- **The `Next:` line no longer asks for a push gate you turned off on purpose** (`"verify": "none"`). In the outer layout it told the owner to run `conductor verify --detect`.
+
+---
+
 ## [6.32.0] — 2026-10-20 — Turn the loop on for a project with one command
 
 Compatibility: upgrade only

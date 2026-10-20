@@ -8,7 +8,7 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
-## [6.23.0] — 2026-10-20 — Live state is checked, not remembered
+## [6.25.0] — 2026-10-20 — Live state is checked, not remembered
 
 Compatibility: upgrade only
 
@@ -27,7 +27,39 @@ An agent reported "!254 not deployed yet" from the state it had written the day 
 
 ### Measured
 
-- `test/evals/live-state-eval.mjs` replays the incident with a real agent: this version checked, or said "not checked", in 4 of 4 runs. 6.22.0 repeated "Deploy !254" as fact in 3 of 4 (n=4, noise floor 25pp).
+- `test/evals/live-state-eval.mjs` replays the incident with a real agent: this version checked, or said "not checked", in 4 of 4 runs. The framework without it repeated "Deploy !254" as fact in 3 of 4 (n=4, noise floor 25pp).
+
+---
+
+## [6.24.0] — 2026-10-20 — Claims from git, cleanup on pull
+
+Compatibility: upgrade only
+
+Build step 2 of [`docs/roadmap/Unattended-Lifecycle.md`](docs/roadmap/Unattended-Lifecycle.md).
+
+### Changed
+
+- **A loop claim is the item's branch, not a commit on your checkout.** The loop used to mark an item `🤖 … (in progress)` with a commit on whatever branch your checkout was on. Now an item whose `conductor/loop/<item>` branch exists on the remote is in progress or in review, and the next run skips it. An item whose branch is already merged but which is still open is skipped and named, so you can tick it.
+
+### Added
+
+- **`post-merge` hook: cleanup when you pull.** After you merge a loop MR on the forge, your next `git pull` removes its worktree and local branch. A loop run does the same when it starts. Only a branch provably merged into the default branch, and never a worktree with uncommitted changes. `conductor install-hooks` wires it with the others; it never blocks. `conductor status` names the merged loop worktrees still on disk, and deletes nothing. Verified live: an in-review item was skipped; after the merge on the forge, `git pull` removed the worktree and branch, and the queue was empty.
+
+---
+
+## [6.23.0] — 2026-10-20 — The loop ships the way you do
+
+Compatibility: upgrade only
+
+Build step 1 of [`docs/roadmap/Unattended-Lifecycle.md`](docs/roadmap/Unattended-Lifecycle.md).
+
+### Changed
+
+- **A loop task is shipped before its MR, with Ship itself.** The loop used to run Build and then open the MR with a one-line log and a stub body, skipping Ship. Now a task bound for an MR gets a Ship beat that runs `ship.md` Phases 1–5 in its worktree, a fresh context as when you type `/ship`. Its bookkeeping goes in the task's branch: the ship-log entry with its **For you** block, the product area, the archive and the backlog tick, so merging the MR is what records the ship. The driver then re-runs verify and the Checker (Ship's review: Ship may change code), checks Ship's evidence in code, and opens the MR with the five-section body the Ship beat wrote. Missing bookkeeping is a rejection with its reason, and a second Ship beat fixes it. No MR opens without it. The loop no longer writes a "shipped" line or a done marker on your checkout. The rules for the Ship beat are a new section of `unattended-loop.md`; `ship.md` is unchanged. Verified live: one Ship beat, an MR carrying code, tests, the ship-log entry and the tick, and Ship's body.
+
+### Fixed
+
+- **A prompt that starts with a dash reaches the agent.** The claude and codex adapters passed the prompt as an argument, so a prompt opening with `---` (Ship's frontmatter) was read as an option. Every flag now comes first, then `--`, then the prompt. Verified live for claude; for codex the arguments parse (not run in a trusted repository).
 
 ---
 

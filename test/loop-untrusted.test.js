@@ -371,7 +371,7 @@ describe("E4.8 — an untrusted run gets an explicit tool ALLOWLIST", () => {
 describe("E4.9 — the claude adapter passes the allowlist through", () => {
   test("no allowlist → no flag (unchanged behavior)", () => {
     const argv = buildArgv({ prompt: "p", permissionMode: "acceptEdits" });
-    assert.deepEqual(argv, ["-p", "p", "--output-format", "json", "--permission-mode", "acceptEdits"]);
+    assert.deepEqual(argv, ["-p", "--output-format", "json", "--permission-mode", "acceptEdits", "--", "p"]);
   });
 
   test("allowlist → one --allowed-tools flag with each tool as its own argv entry", () => {

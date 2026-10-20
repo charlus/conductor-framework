@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# ============================================================
+# Conductor post-merge hook: cleanup after `git pull`.
+#
+# When the owner pulls, the MRs he merged on the forge arrive. A `conductor
+# loop` worktree whose branch is now contained in the default branch is
+# finished: remove it and its local branch, so nobody has to come back and say
+# "it is merged". Conservative: only a branch provably merged
+# (`merge-base --is-ancestor`), never a worktree with uncommitted changes.
+# Cleanup only: it never blocks, and always exits 0.
+# CONDUCTOR_HOOKS=off disables it, like every Conductor hook.
+# ============================================================
+[ "${CONDUCTOR_HOOKS:-on}" = "off" ] && exit 0
+
+base="$(git rev-parse --abbrev-ref origin/HEAD 2>/dev/null)"
+if [ -z "$base" ] || [ "$base" = "origin/HEAD" ]; then
+  base=""
+  for ref in origin/main origin/master main master; do
+    if git rev-parse --verify -q "$ref" >/dev/null 2>&1; then base="$ref"; break; fi
+  done
+fi
+[ -n "$base" ] || exit 0
+
+path="" branch=""
+while IFS= read -r line; do
+  case "$line" in
+    "worktree "*) path="${line#worktree }"; branch="" ;;
+    "branch refs/heads/conductor/loop/"*) branch="${line#branch refs/heads/}" ;;
+    "")
+      if [ -n "$branch" ] && [ "${path#*/.agents/.worktrees/}" != "$path" ] \
+        && git merge-base --is-ancestor "$branch" "$base" 2>/dev/null \
+        && [ -z "$(git -C "$path" status --porcelain 2>/dev/null)" ]; then
+        if git worktree remove --force "$path" 2>/dev/null; then
+          git branch -q -d "$branch" 2>/dev/null
+          echo "Conductor: removed the merged loop worktree ${path##*/} ($branch)."
+        fi
+      fi
+      path="" branch="" ;;
+  esac
+done < <(git worktree list --porcelain 2>/dev/null; echo)
+exit 0

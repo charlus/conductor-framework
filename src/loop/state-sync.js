@@ -38,25 +38,28 @@ export async function syncLoopStateInto({ root, cwd, git }) {
   for (const rel of DRIVER_FILES) await hideFromGit(rel, { cwd, git });
 }
 
-/** Make `rel` invisible to git in this worktree, whether tracked, ignored or untracked. */
+/**
+ * Make `rel` invisible to git in this worktree, whether tracked, ignored or
+ * untracked. The exclude line matches at any depth: a beat that wrote the file
+ * under a wrong folder (`conductor/conductor/…`, live run 2026-10-20) must not
+ * commit it either.
+ */
 export async function hideFromGit(rel, { cwd, git }) {
+  const excludeRel = await git(["rev-parse", "--git-path", "info/exclude"]);
+  if (excludeRel.ok) {
+    const exclude = resolve(cwd, excludeRel.stdout);
+    const line = `**/${rel}`;
+    let current = "";
+    try {
+      current = await readFile(exclude, "utf8");
+    } catch {
+      await mkdir(dirname(exclude), { recursive: true });
+    }
+    if (!current.split("\n").includes(line)) {
+      await appendFile(exclude, `${current && !current.endsWith("\n") ? "\n" : ""}${line}\n`, "utf8");
+    }
+  }
   if ((await git(["ls-files", "--error-unmatch", "--", rel])).ok) {
     await git(["update-index", "--skip-worktree", "--", rel]);
-    return;
-  }
-  if ((await git(["check-ignore", "-q", "--", rel])).ok) return;
-
-  const excludeRel = await git(["rev-parse", "--git-path", "info/exclude"]);
-  if (!excludeRel.ok) return;
-  const exclude = resolve(cwd, excludeRel.stdout);
-  const line = `/${rel}`;
-  let current = "";
-  try {
-    current = await readFile(exclude, "utf8");
-  } catch {
-    await mkdir(dirname(exclude), { recursive: true });
-  }
-  if (!current.split("\n").includes(line)) {
-    await appendFile(exclude, `${current && !current.endsWith("\n") ? "\n" : ""}${line}\n`, "utf8");
   }
 }

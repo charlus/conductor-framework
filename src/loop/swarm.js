@@ -19,6 +19,7 @@ import { hashString, computeStallHash, normalizeVerifyOutput, preflight, describ
 import { costGate, costGateMessage } from "./usage.js";
 import { runShipStage } from "./ship.js";
 import { roundKey as roundKeyOf } from "./questions.js";
+import { BLUEPRINT_STAGES } from "./blueprint.js";
 import { recordAttempt } from "./harvester.js";
 import { orderMergeQueue } from "./conflict.js";
 import { planMergeAction } from "./merge.js";
@@ -145,6 +146,8 @@ export function normalizeTask(task, defaults = {}) {
     spec_ready: task.spec_ready === true,
     spec_reviewed: task.spec_reviewed === true,
     answered_round: task.answered_round ?? null,
+    stages_done: Array.isArray(task.stages_done) ? task.stages_done : [],
+    stages_reviewed: Array.isArray(task.stages_reviewed) ? task.stages_reviewed : [],
   };
 }
 
@@ -168,7 +171,7 @@ export function isBlocked(task, byId) {
  * Run one task's Maker→verify→Checker chain, retrying on rejection up to the
  * per-task ceiling, sharing the global budget. Mutates the task; returns outcome.
  */
-async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker, gitHead, changedFiles = null, now, budget, audit, roles = [], tddSplit = false, runSpec = null, specEvidence = null, roundFor = null, raiseRound = null }) {
+async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker, gitHead, changedFiles = null, now, budget, audit, roles = [], tddSplit = false, runSpec = null, specEvidence = null, roundFor = null, raiseRound = null, runStage = null, stageEvidence = null }) {
   // Step 4: a round of questions this item raised earlier. Unanswered: it waits,
   // no beat. Answered: it resumes, and the beat is told where the answers are.
   if (roundFor) {
@@ -236,54 +239,94 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
   task.status = "in_progress";
   if (tddSplit && !task.phase) task.phase = "contract";
 
+  // A document stage (step 3's Spec-It, step 5's Blueprint stages): a fresh beat
+  // running the stage's workflow, its output checked in code, then a fresh
+  // Checker with the stage's lens. Up to 2 beats. Returns null when the stage
+  // passed, else the task's outcome.
+  const docStage = async ({ label, run, evidence, phase }) => {
+    let last = "";
+    for (let i = 0; i < 2; i++) {
+      if (budget.beats >= budget.maxBeats) return { task, outcome: "failed", reason: "global iteration ceiling" };
+      task.iterations.current += 1;
+      budget.beats += 1;
+      const r = await run();
+      const dead = deadBeat(r);
+      if (dead) return dead;
+      const reason = escalationOf(r);
+      if (reason) {
+        task.escalation = { reason, beat: task.iterations.current };
+        await audit(`task ${task.id}: the ${label} beat escalated — ${reason}`);
+        return { task, outcome: "escalated", reason };
+      }
+      const asked = await askedQuestions(r);
+      if (asked === "retry") continue;
+      if (asked) return asked;
+      const ev = evidence ? await evidence() : { ok: true, reasons: [] };
+      if (!ev.ok) {
+        recordAttempt(task, { beat: task.iterations.current, verifyExit: 0, checkerReasons: ev.reasons.map((x) => `${label} evidence: ${x}`) });
+        last = ev.reasons.join("; ");
+        await audit(`task ${task.id}: ${label} beat: ${last}`);
+        continue;
+      }
+      const c = runChecker ? await runChecker({ task, phase }) : { exitCode: 0 };
+      if ((c?.exitCode ?? 1) !== 0) {
+        recordAttempt(task, { beat: task.iterations.current, verifyExit: 0, checkerReasons: c?.reasons ?? [`the Checker rejected the ${label}`], checkerFindings: c?.findings ?? [] });
+        last = `the ${label} review rejected it${c?.reasons?.length ? `: ${c.reasons.join(" | ")}` : ""}`;
+        await audit(`task ${task.id}: ${last}`);
+        continue;
+      }
+      task.attempts = [];
+      await audit(`task ${task.id}: ${label} written and reviewed`);
+      return { passed: true, evidence: ev };
+    }
+    return { task, outcome: "failed", reason: `${label} stage: ${last}` };
+  };
+
   // Step 3: a slice whose spec is still blank gets the Spec-It stage first, a
   // fresh beat running spec-it.md (as the owner types `/spec-it`), then the
   // spec checked in code, then a fresh Checker reviewing it (D2). No Build
   // beat runs on a spec that did not pass.
   if (task.type === "slice" && !task.spec_ready && !task.spec_reviewed && runSpec) {
-    let last = "";
-    for (let i = 0; i < 2 && !task.spec_reviewed; i++) {
-      if (budget.beats >= budget.maxBeats) return { task, outcome: "failed", reason: "global iteration ceiling" };
-      task.iterations.current += 1;
-      budget.beats += 1;
-      const r = await runSpec({ task });
-      const dead = classifyBeatResult(r);
-      if (dead.dead) {
-        task.iterations.current -= 1;
-        budget.beats -= 1;
-        task.status = "pending";
-        return { task, outcome: "usage_limit", resetHint: dead.resetHint };
+    const r = await docStage({ label: "spec", run: () => runSpec({ task }), evidence: specEvidence && (() => specEvidence({ task })), phase: "spec" });
+    if (!r.passed) return r;
+    task.spec_reviewed = true;
+  }
+
+  // Step 5 (D4): the Blueprint, stage by stage in one branch. A stage the owner
+  // wrote on the default branch, or one reviewed in an earlier run whose
+  // document is still there, is not redone. Then verify once, and one MR whose
+  // body Carve wrote: merging it is the owner's sign-off.
+  if (task.type === "blueprint" && runStage) {
+    let carved = null;
+    for (const stage of BLUEPRINT_STAGES) {
+      if (task.stages_done.includes(stage.key)) continue;
+      if (task.stages_reviewed.includes(stage.key)) {
+        const ev = stageEvidence ? await stageEvidence({ task, stage: stage.key }) : { ok: true };
+        if (ev.ok) {
+          if (stage.key === "carve") carved = ev;
+          continue;
+        }
+        task.stages_reviewed = task.stages_reviewed.filter((k) => k !== stage.key);
       }
-      const stop = await (async () => {
-        const reason = escalationOf(r);
-        if (!reason) return null;
-        task.escalation = { reason, beat: task.iterations.current };
-        await audit(`task ${task.id}: the Spec beat escalated — ${reason}`);
-        return { task, outcome: "escalated", reason };
-      })();
-      if (stop) return stop;
-      const asked = await askedQuestions(r);
-      if (asked === "retry") continue;
-      if (asked) return asked;
-      const ev = specEvidence ? await specEvidence({ task }) : { ok: true, reasons: [] };
-      if (!ev.ok) {
-        recordAttempt(task, { beat: task.iterations.current, verifyExit: 0, checkerReasons: ev.reasons.map((x) => `spec evidence: ${x}`) });
-        last = ev.reasons.join("; ");
-        await audit(`task ${task.id}: spec beat: ${last}`);
-        continue;
-      }
-      const c = runChecker ? await runChecker({ task, phase: "spec" }) : { exitCode: 0 };
-      if ((c?.exitCode ?? 1) !== 0) {
-        recordAttempt(task, { beat: task.iterations.current, verifyExit: 0, checkerReasons: c?.reasons ?? ["the Checker rejected the spec"], checkerFindings: c?.findings ?? [] });
-        last = `the spec review rejected it${c?.reasons?.length ? `: ${c.reasons.join(" | ")}` : ""}`;
-        await audit(`task ${task.id}: ${last}`);
-        continue;
-      }
-      task.spec_reviewed = true;
-      task.attempts = [];
-      await audit(`task ${task.id}: spec written and reviewed`);
+      task.stage = stage.key;
+      const r = await docStage({
+        label: stage.key,
+        run: () => runStage({ task, stage: stage.key }),
+        evidence: stageEvidence && (() => stageEvidence({ task, stage: stage.key })),
+        phase: `blueprint:${stage.key}`,
+      });
+      if (!r.passed) return r;
+      task.stages_reviewed = [...task.stages_reviewed, stage.key];
+      if (stage.key === "carve") carved = r.evidence;
     }
-    if (!task.spec_reviewed) return { task, outcome: "failed", reason: `spec stage: ${last}` };
+    task.stage = null;
+    const { exitCode, output } = await runVerify({ task, cmd: task.verify ?? verifyCommand });
+    task.evidence = { exit_code: exitCode, output_hash: verifyHash(output) };
+    await audit(`task ${task.id}: Blueprint verify exit=${exitCode}`);
+    if (exitCode !== 0) return { task, outcome: "failed", reason: `verify exit ${exitCode} on the Blueprint branch` };
+    task.ship = { body: carved?.body ?? null };
+    task.status = "passed";
+    return { task, outcome: "passed" };
   }
   while (task.iterations.current < task.iterations.max_allowed) {
     // Shared global budget across all concurrent tasks.
@@ -400,6 +443,8 @@ export async function runSwarm(state, deps) {
     raiseRound = null, // ({task}) → {ok, reasons, count}: the round the beat wrote (step 4)
     specEvidence = null, // ({task}) → {ok, reasons}: the spec and plan written (step 3)
     shipEvidence = null, // ({task}) → {ok, reasons, body}: Ship's bookkeeping, checked in code
+    runStage = null, // ({task, stage}) → beat result: one Blueprint stage's beat (step 5)
+    stageEvidence = null, // ({task, stage}) → {ok, reasons, body?}: that stage's output, checked in code
   } = deps;
 
   // Same deterministic gates as the pair (scoping, sandbox, autonomy, verify) —
@@ -486,7 +531,7 @@ export async function runSwarm(state, deps) {
     const results = await Promise.all(
       wave.map((t) =>
         processTask(t, {
-          verifyCommand, runBeat, runVerify, runChecker, gitHead, changedFiles, now, budget, audit, runSpec, specEvidence, roundFor, raiseRound,
+          verifyCommand, runBeat, runVerify, runChecker, gitHead, changedFiles, now, budget, audit, runSpec, specEvidence, roundFor, raiseRound, runStage, stageEvidence,
           roles: state.roles,
           tddSplit: splitForTask(t, state),
         })
@@ -549,6 +594,11 @@ export async function runSwarm(state, deps) {
       const shipped = [];
       for (const r of passed) {
         const t = r.task;
+        // A Blueprint is documents, not a build: Carve wrote its MR body.
+        if (t.type === "blueprint") {
+          shipped.push(r);
+          continue;
+        }
         const s = await runShipStage(t, {
           runShip: () => runShip({ task: t }),
           verify: () => runVerify({ task: t, cmd: t.verify ?? verifyCommand }),

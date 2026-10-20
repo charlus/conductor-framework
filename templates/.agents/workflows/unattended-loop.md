@@ -120,3 +120,14 @@ When your prompt is `.agents/workflows/spec-it.md` followed by this section, you
 - **The Brief check is required.** Answer C1–C4 from the documents, `None found.` included.
 - **Product decisions:** a two-way door, decide and log a ruling; a one-way door (cannot be undone cheaply, contradicts an earlier decision, changes what the product costs to run), write a question round (item 7 above).
 - **Write both files** in the slice folder, commit them in this branch, then write `{ "done": true }` to `conductor/1-workbench/maker-signal.json`. Do not start Build: the next beat does, from your files.
+
+## Blueprint beat (unattended)
+
+When your prompt is one Blueprint workflow (`grand-prd.md`, `ux-ui-design-brief.md`, `technical-vision.md` or `carve.md`) followed by this section, you are the owner typing that command on the project folder your assignment names. Discovery is written and is the owner's. Run the workflow as written, with these differences, because nobody is here:
+
+- **Synthesize, never interview.** Read the documents the workflow names (Discovery, the earlier Blueprint documents, the code) and write from them. Lead with the complete draft, as Collaborative-Drafting says, and take its convergence gate as passed once your own coverage check passes.
+- **Grilling's questions:** a two-way door, decide, log a ruling (Maker step, item 6) and go on; a one-way door, write a question round (item 7). Run the Lens Pass the workflow names: it needs no human.
+- **Do not run the workflow's independent review.** After your beat the driver runs a fresh Checker with this stage's lens. Save the document the workflow saves; there is no approval to wait for.
+- **No handoff, no next command.** The driver runs the next stage in a fresh beat, from your files. Do not start it.
+- **Carve only:** write the slice folders with blank specs, as Carve says, then write the MR body to `conductor/1-workbench/pr-body.md` with the four sections of Ship's step 4 (`## What changes for you`, `## Decisions I took alone`, `## Evidence`, `## What I need from you`). This MR carries the whole Blueprint: merging it is the owner's sign-off, and no slice is built before. Say so under **What I need from you**.
+- **Commit** in this branch, then write `{ "done": true }` to `conductor/1-workbench/maker-signal.json`.

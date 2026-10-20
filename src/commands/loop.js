@@ -27,6 +27,7 @@ import { allowedToolsFor } from "../loop/untrusted.js";
 import { writeBeatLog, BEAT_LOG_DIR } from "../loop/beat-log.js";
 import { syncLoopStateInto, hideFromGit } from "../loop/state-sync.js";
 import { QUESTIONS_REL, roundKey, parseRound, checkRound, roundAnswered } from "../loop/questions.js";
+import { BLUEPRINT_STAGES, DISCOVERY, TEMPLATE_FOR, harvestBlueprints, blueprintStageEvidence, carryOver } from "../loop/blueprint.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
 import { recordUsage, usageSummary } from "../loop/usage.js";
@@ -292,6 +293,24 @@ export async function readSlices(root, optIn) {
   return { projects, optIn, specTemplate: await tpl("feature-spec.md"), planTemplate: await tpl("implementation-plan.md") };
 }
 
+/** Step 5: the documents of each project, read from the root checkout, and their templates. */
+export async function readBlueprints(root, optIn) {
+  const read = async (p) => ((await exists(p)) ? readFile(p, "utf8") : "");
+  const templates = {};
+  for (const [rel, t] of Object.entries(TEMPLATE_FOR)) templates[rel] = await read(join(root, "conductor/5-templates", t));
+  const projects = [];
+  const base = join(root, PROJECTS_REL);
+  for (const name of (await exists(base)) ? await readdir(base) : []) {
+    const dir = join(base, name);
+    const docs = {};
+    for (const rel of [...DISCOVERY, ...BLUEPRINT_STAGES.map((s) => s.doc)]) docs[rel] = await read(join(dir, rel));
+    const impl = join(dir, "implementations");
+    const carved = (await exists(impl)) && (await readdir(impl)).length > 0;
+    projects.push({ name, docs, carved });
+  }
+  return { projects, optIn, templates };
+}
+
 export async function loopCommand(args, { cwd, stdout, stderr }) {
   // Before any state read or gate: help must never be refused.
   if (args.includes("--help") || args.includes("-h")) {
@@ -426,6 +445,10 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     if (loopConfig.slices === true || loopConfig.slices.length) {
       harvestedQueue = [...harvestedQueue, ...harvestSlices(await readSlices(root, loopConfig.slices))];
     }
+    // Step 5: the Blueprint of each opted-in project whose Discovery is done.
+    if (loopConfig.blueprint === true || loopConfig.blueprint.length) {
+      harvestedQueue = [...harvestedQueue, ...harvestBlueprints(await readBlueprints(root, loopConfig.blueprint))];
+    }
     // Unattended Lifecycle step 2: claims come from git. An item whose loop
     // branch is on the remote is in progress or in review elsewhere; nothing is
     // committed to the owner's checkout to mark it.
@@ -447,7 +470,9 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         harvestedQueue = claims.queue;
       }
     }
-    state.tasks = harvestedQueue; // swarm route; normalizeTask preserves title/source/route
+    // swarm route; normalizeTask preserves title/source/route, and what an item
+    // earned in the last run (a passed review, an answered round) is carried over.
+    state.tasks = carryOver(state.tasks, harvestedQueue);
     // persist + audit DEFERRED to the post-lock block below (dry-run stays read-only).
   }
 
@@ -630,6 +655,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     runChecker: logged("checker", modelled.runChecker),
     runShipBeat: logged("ship", modelled.runBeat),
     runSpecBeat: logged("spec", modelled.runBeat),
+    runBlueprintBeat: logged("blueprint", modelled.runBeat),
   };
   stdout.write(`[CONDUCTOR LOOP] platform: ${adapter.name}\n`);
   if (makerModel || checkerModel) {
@@ -1041,6 +1067,68 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     return p;
   }
 
+  // Step 5: a Blueprint beat is the stage's workflow, then its unattended rules, then the project.
+  async function runStageIn(cwd, task, key) {
+    const stage = BLUEPRINT_STAGES.find((s) => s.key === key);
+    await rm(join(cwd, "conductor/1-workbench/maker-signal.json"), { force: true }).catch(() => {});
+    const wfPath = join(root, ".agents/workflows", stage.workflow);
+    const workflow = (await exists(wfPath)) ? await readFile(wfPath, "utf8") : "";
+    const rules = sectionOf((await exists(promptPath)) ? await readFile(promptPath, "utf8") : "", "Blueprint beat");
+    const assignment =
+      `# Blueprint assignment (this beat)\n\n- **Project folder:** \`${task.source?.path}\` (the workflow's Target: read from it, do not ask)\n` +
+      `- **Stage:** ${stage.key} (\`${stage.workflow}\`), writes \`${task.source?.path}/${stage.doc}\`\n` +
+      `- **Questions file:** \`${roundRel(task)}\` (only for a one-way door: see the loop workflow)` +
+      (task.answered_round ? `\n- **Your questions were answered:** read \`${task.answered_round}\` first, apply each answer, and record it as a decision in the document.` : "");
+    const parts = [workflow, "---", rules, assignment];
+    if (task.attempts?.length) parts.push(renderAttempts(task.attempts));
+    const p = join(tmpdir(), `conductor-blueprint-${key}-${task.id.replace(/[^a-z0-9]+/gi, "-")}.md`);
+    await writeFile(p, `${parts.join("\n\n")}\n`, "utf8");
+    const rulingsBefore = await readRulingsAt(cwd);
+    const result = await adapter.runBlueprintBeat({
+      promptPath: p, cwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath,
+      sandbox: agySandbox, allowedTools: allowedToolsFor(state), role: "blueprint", task,
+    });
+    const cap = await autoCommit({ git: makeGit(cwd), message: autoCommitMessage({ role: "blueprint", goal: `${key} ${task.id}` }) });
+    if (cap.committed) await audit(`${key} ${task.id}: auto-captured uncommitted changes`);
+    await collectRulings(task, cwd, rulingsBefore);
+    return { ...result, signal: await readSignalAt(cwd) };
+  }
+  async function stageEvidenceIn(cwd, task, key) {
+    const read = async (p) => ((await exists(p)) ? readFile(p, "utf8") : "");
+    const dir = join(cwd, task.source?.path ?? "");
+    const docs = {};
+    const templates = {};
+    for (const s of BLUEPRINT_STAGES) {
+      docs[s.doc] = await read(join(dir, s.doc));
+      templates[s.doc] = await read(join(root, "conductor/5-templates", TEMPLATE_FOR[s.doc]));
+    }
+    const impl = join(dir, "implementations");
+    let sliceCount = 0;
+    for (const s of (await exists(impl)) ? await readdir(impl) : []) if (await exists(join(impl, s, "feature-spec.md"))) sliceCount += 1;
+    return blueprintStageEvidence(key, {
+      docs, templates, sliceCount,
+      hasDesignMd: await exists(join(cwd, "DESIGN.md")),
+      prBody: await read(join(cwd, PR_BODY_REL)),
+    });
+  }
+  // D4: each Blueprint stage is reviewed by a fresh Checker with the stage's lens.
+  async function blueprintCheckerPrompt(task, key) {
+    const stage = BLUEPRINT_STAGES.find((s) => s.key === key);
+    const base = (await exists(checkerPromptPath)) ? await readFile(checkerPromptPath, "utf8") : "";
+    const p = join(tmpdir(), `conductor-blueprint-review-${key}-${task.id.replace(/[^a-z0-9]+/gi, "-")}.md`);
+    await writeFile(
+      p,
+      `${base}\n\n---\n\n# This review: the ${stage.key} stage of the Blueprint (D4)\n\n` +
+        `Review \`${task.source?.path}/${stage.doc}\`${key === "ux-ui-brief" ? " and `DESIGN.md`" : ""}${key === "carve" ? ", the slice folders under `implementations/` and `conductor/1-workbench/pr-body.md`" : ""} ` +
+        `with the **${stage.lens}** lens of \`.agents/skills/independent-review/SKILL.md\` (its Review lenses table says what done means). ` +
+        `Read the inputs it builds on: Discovery (\`genesis/\`, \`storyboard/\`) and the earlier Blueprint documents in \`${task.source?.path}/blueprint/\`. ` +
+        "There is no code to test: do not run tests. A document that would send every later stage the wrong way is a BLOCKER. " +
+        "A one-way product decision (cannot be undone cheaply, contradicts an earlier decision, changes running cost) taken alone, without a question round, is a BLOCKER.\n",
+      "utf8"
+    );
+    return p;
+  }
+
   // Step 4: the round a beat wrote stays out of its branch; the owner answers
   // the copy in the root checkout, and the answered round rides in the branch.
   function roundRel(task) {
@@ -1336,7 +1424,13 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         makeChecker(
           cwdFor.get(task.id) ?? root,
           await checkerPromptWithRulings(
-            phase === "spec" ? await specCheckerPrompt(task) : phase === "questions" ? await questionsCheckerPrompt(task) : await checkerPromptFor(task),
+            phase === "spec"
+              ? await specCheckerPrompt(task)
+              : phase === "questions"
+                ? await questionsCheckerPrompt(task)
+                : phase?.startsWith("blueprint:")
+                  ? await blueprintCheckerPrompt(task, phase.slice("blueprint:".length))
+                  : await checkerPromptFor(task),
             await branchRulings(cwdFor.get(task.id) ?? root),
             task.id
           )
@@ -1351,6 +1445,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       specEvidence: ({ task }) => specEvidenceIn(cwdFor.get(task.id) ?? root, task),
       roundFor: ({ task }) => roundForIn(cwdFor.get(task.id) ?? root, task),
       raiseRound: ({ task }) => raiseRoundIn(cwdFor.get(task.id) ?? root, task),
+      runStage: ({ task, stage }) => runStageIn(cwdFor.get(task.id) ?? root, task, stage),
+      stageEvidence: ({ task, stage }) => stageEvidenceIn(cwdFor.get(task.id) ?? root, task, stage),
       shipEvidence: ({ task }) => shipEvidenceIn(cwdFor.get(task.id) ?? root, task),
       // The done tick and the ship-log entry now ride in the task's branch (the
       // Ship beat), so merging the MR records the ship. Nothing is written to
@@ -1367,7 +1463,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       audit,
       now: () => Date.now(),
       persist: (s) => atomicWriteJson(statePath, s),
-      writeInbox: (s, reason) => writeInbox(root, s, reason),
+      writeInbox: (s, reason, o) => writeInbox(root, s, reason, o),
       log: (m) => stdout.write(`${m}\n`),
       costAware: loopConfig.costAware,
     };

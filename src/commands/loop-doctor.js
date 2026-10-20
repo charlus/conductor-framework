@@ -23,6 +23,7 @@ import { packageVersion, readVersionStamp } from "../version.js";
 import { exists, readJson, sh, runCli, hasNpmTestScript, configVerify, readSlices } from "./loop.js";
 import { harvestSlices } from "../loop/slices.js";
 import { ensureWorktreesExcluded } from "../loop/worktree.js";
+import { nextAfterDoctor } from "../next-step.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
 const PROBE_REL = ".agents/.worktrees/conductor-doctor-probe";
@@ -183,5 +184,7 @@ export async function loopDoctor(root, { stdout, beat = false }) {
   const checks = diagnose(facts);
   stdout.write(renderDoctor(checks));
   if (!beat) stdout.write("  Add --beat to also run one sandboxed agent beat (costs one beat).\n");
-  return doctorExitCode(checks);
+  const code = doctorExitCode(checks);
+  stdout.write(`  ${nextAfterDoctor(code === 0)}\n`);
+  return code;
 }

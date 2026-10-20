@@ -2,6 +2,8 @@
 
 > Most people use Conductor purely as installed templates (`.agents/` + `conductor/`) and drive it by chatting with their agent. But Conductor also ships a **real headless outer loop** — `conductor loop` — that spawns and drives an agent CLI (`claude` / `agy` / `codex`) beat-by-beat against your repo, with deterministic guardrails the agent can't reason around. This guide shows how to run it.
 
+> Every option and setting, with the other commands: [`Using-Conductor.md`](Using-Conductor.md), or `conductor help loop`.
+
 ## What it is (30-second model)
 
 `conductor loop` is a deterministic driver (`src/loop/driver.js`). Each **beat** it launches a real agent process (e.g. `claude -p`) in an isolated git worktree, then — in code, not prose — runs your verification command, consults an independent Checker process, enforces an iteration ceiling / wall-clock budget / stall detection, and transitions state. It is **not** a chat; you steer it through a JSON file called **The Spine**.

@@ -28,6 +28,8 @@ import { writeBeatLog, BEAT_LOG_DIR } from "../loop/beat-log.js";
 import { syncLoopStateInto, hideFromGit } from "../loop/state-sync.js";
 import { QUESTIONS_REL, roundKey, parseRound, checkRound, roundAnswered } from "../loop/questions.js";
 import { stage as loopStage, stageWorkflowPath } from "../loop/stages.js";
+import { commandHelp } from "../usage.js";
+import { nextAfterLoop } from "../next-step.js";
 import { BLUEPRINT_STAGES, DISCOVERY, TEMPLATE_FOR, harvestBlueprints, blueprintStageEvidence, carryOver } from "../loop/blueprint.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
@@ -65,35 +67,7 @@ function autonomySummary(state) {
   }
 }
 
-const LOOP_HELP = [
-  "",
-  "  conductor loop [target-directory] [options]",
-  "  conductor loop doctor [target-directory] [--beat]   Check a project before an unattended run",
-  "",
-  "  Run the deterministic autonomous loop driver against conductor/1-workbench/loop-state.json.",
-  "",
-  "  Options:",
-  "    --dry-run             Print the run plan and exit. Writes nothing.",
-  "    --platform <name>     Engine: claude | codex | antigravity (default: loop-state, then auto-detect)",
-  "    --goal <text>         Set the goal for this run",
-  "    --event <file.json>   Seed the goal from a trigger payload",
-  "    --from-conductor      Harvest the work queue from the backlog and inbox",
-  "    --priority <P1[,P2]>  With --from-conductor: only backlog items under these headings",
-  "    --no-inbox            With --from-conductor: do not harvest inbox lines",
-  "    --unsafe-no-sandbox   Allow sandbox: none (only inside a VM you control)",
-  "    -h, --help            Show this help",
-  "",
-  "  Per-project settings, in the \"loop\" block of conductor.config.json (never overwritten by upgrade):",
-  "    forge            \"gh\" | \"glab\" (default: from the origin host, github.com → gh, else glab)",
-  "    setup            Shell command run once per new worktree, before the first beat",
-  "    allowed_domains  Extra hosts for the cli-native sandbox network list",
-  "    require_ready    true → only backlog items tagged loop-ready",
-  "    priorities       [\"P1\"] → only backlog items under these headings",
-  "    inbox            false → never harvest inbox lines",
-  "    allow_nested_repo true → run although a gitignored nested git repo exists",
-  "    models           { \"maker\": \"sonnet\", \"checker\": \"opus\" } → a model per loop role (claude engine)",
-  "",
-].join("\n");
+const LOOP_HELP = commandHelp("loop");
 
 /** The loop's own option tokens — used so `flagValue` never mistakes a missing
  *  value for the next flag (and vice-versa). */
@@ -592,6 +566,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         stdout.write(`    - [${t.type}${t.priority ? " " + t.priority : ""}] ${t.title}  → ${t.route ?? "(brief)"}\n`);
       }
     }
+    stdout.write(`\n  Next: run the same command without --dry-run to start it.\n`);
     return adapterError || !resolved.adapter || (willOpenPr && !forgeInfo.forge) ? 1 : 0;
   }
 
@@ -925,6 +900,14 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   try {
     const code =
       Array.isArray(state.tasks) && state.tasks.length > 0 ? await runSwarmMode() : await runPairMode();
+    try {
+      const after = await readJson(statePath);
+      const prUrls = [after.merge?.pr_url, ...(after.tasks ?? []).map((t) => t.merge?.pr_url)].filter((u) => u && u !== "n/a");
+      const hint = nextAfterLoop(after.status, { prUrls: [...new Set(prUrls)] });
+      if (hint) stdout.write(`\n[CONDUCTOR LOOP] ${hint}\n`);
+    } catch {
+      /* a hint never fails a run */
+    }
     // P2.1: mine the cross-run failure trail and propose rules (best-effort).
     await runSelfImprovement();
     return code;

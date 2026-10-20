@@ -139,6 +139,7 @@ test("the CLI runs a project through every loop stage, each beat on its stage's 
       "carve", "checker:carve",
     ]);
     assert.match(r1.stdout, /finished: completed/);
+    assert.match(r1.stdout, /Next: review and merge the MR/, "the run ends with the next command");
 
     // The owner merges the Blueprint MR: the slices now exist on the default branch.
     const branch = G(p.root, "ls-remote", "--heads", "origin", "conductor/loop/*").split("\t")[1].replace("refs/heads/", "");

@@ -39,7 +39,7 @@ async function projectGuide(cwd) {
     `  Conductor project: ${cwd}`,
     `  Inbox ${d.inboxCount ?? 0} · backlog open ${d.backlogOpen ?? 0} · question rounds waiting ${rounds.waiting.length}`,
     "",
-    `  ${nextAfterStatus({ waitingRounds: rounds.waiting, answeredRounds: rounds.answered.length, verifyConfigured: d.verify?.configured !== false, inboxCount: d.inboxCount ?? 0, queueLength: d.queueLength ?? 0, loopItems: await loopItems(cwd), loopOffProjects: await loopOffProjects(cwd) })}`,
+    `  ${nextAfterStatus({ waitingRounds: rounds.waiting, answeredRounds: rounds.answered.length, verifyConfigured: d.verify?.state !== "unset", inboxCount: d.inboxCount ?? 0, queueLength: d.queueLength ?? 0, loopItems: await loopItems(cwd), loopOffProjects: await loopOffProjects(cwd) })}`,
     "",
     "  Often used:  conductor status · conductor inbox add \"<idea>\" · conductor loop . --from-conductor --dry-run",
     "  All commands: conductor help   ·   Full guide: docs/Using-Conductor.md",

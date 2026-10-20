@@ -106,6 +106,14 @@ export async function statusCommand(args, context) {
 
   const colour = wantsColour(opts, context.stdout, env);
   context.stdout.write(`${renderStatus(state, { color: colour })}\n`);
+  // D1: every project, its stage as the loop reads it, and whether the loop is on.
+  {
+    const { readProjects, renderProjects } = await import("../projects.js");
+    const { readBlueprints, exists } = await import("./loop.js");
+    const config = JSON.parse(await readFile(join(root, "conductor.config.json"), "utf8").catch(() => "{}"));
+    const block = renderProjects(await readProjects(root, { config, readBlueprints, exists }));
+    if (block) context.stdout.write(`${block}\n\n`);
+  }
   if (live) context.stdout.write(`${renderLive(live, painter(colour))}\n\n`);
   else context.stdout.write("  MR and deploy status: not checked. Run conductor status --live.\n");
   // The project card: every session loads it, so a draft or stale card is worth a line.
@@ -146,7 +154,7 @@ export async function statusCommand(args, context) {
   const next = nextAfterStatus({
     waitingRounds: waiting.map((f) => `${QUESTIONS_REL}/${f}`),
     answeredRounds: ready.length,
-    verifyConfigured: state.digest?.verify?.configured !== false,
+    verifyConfigured: state.digest?.verify?.state !== "unset",
     inboxCount: state.digest?.inboxCount ?? 0,
     queueLength: state.digest?.queueLength ?? 0,
     loopItems: await loopItems(root),

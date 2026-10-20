@@ -279,7 +279,9 @@ export async function readBlueprints(root, optIn) {
   for (const [rel, t] of Object.entries(TEMPLATE_FOR)) templates[rel] = await read(join(root, "conductor/5-templates", t));
   const projects = [];
   const base = join(root, PROJECTS_REL);
-  for (const name of (await exists(base)) ? await readdir(base) : []) {
+  for (const entry of (await exists(base)) ? await readdir(base, { withFileTypes: true }) : []) {
+    if (!entry.isDirectory()) continue; // .gitkeep and other files are not projects
+    const name = entry.name;
     const dir = join(base, name);
     const docs = {};
     for (const rel of [...DISCOVERY, ...BLUEPRINT_STAGES.map((s) => s.doc)]) docs[rel] = await read(join(dir, rel));
@@ -300,7 +302,9 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   const sub = args.find((a) => !a.startsWith("-"));
   if (sub === "on" || sub === "off") {
     const rest = args.slice(args.indexOf(sub) + 1);
-    const [project, dir] = rest.filter((a, i) => !a.startsWith("-") && rest[i - 1] !== "--code-dir");
+    let [project, dir] = rest.filter((a, i) => !a.startsWith("-") && rest[i - 1] !== "--code-dir");
+    // A project name never holds a slash: `loop on ~/work/app` is the folder, not a project.
+    if (project && !dir && (project.includes("/") || project === ".")) [project, dir] = [undefined, project];
     const { loopOnCommand, loopOffCommand } = await import("./loop-on.js");
     return sub === "on"
       ? loopOnCommand(resolve(cwd, dir || "."), project, { args: rest, stdout, stderr })

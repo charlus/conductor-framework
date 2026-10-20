@@ -102,6 +102,7 @@ export const COMMANDS = Object.freeze([
       ["--priority <P1[,P2]>", "With --from-conductor: only backlog items under these headings"],
       ["--no-inbox", "With --from-conductor: skip inbox lines"],
       ["--unsafe-no-sandbox", "Allow sandbox: none (only inside a VM you control)"],
+      ["on", "List the projects, their stage, and which ones the loop can take"],
       ["on <project>", "Let the loop work on a project: shows each change in plain words, asks once, writes the settings"],
       ["on --yes", "Apply without asking (after you have seen the list)"],
       ["on --code-dir <dir>", "Name the nested code repository when there are several"],

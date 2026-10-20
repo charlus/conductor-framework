@@ -29,9 +29,19 @@ async function ask(question, { stdin = process.stdin, stdout }) {
 }
 
 export async function loopOnCommand(root, project, { args, stdout, stderr, confirm = null }) {
+  // D2: without a name, the projects and which ones it can turn on.
   if (!project) {
-    stderr.write("usage: conductor loop on <project> [dir] [--code-dir <dir>] [--yes] [--dry-run]\n");
-    return 1;
+    const { readProjects, renderProjects } = await import("../projects.js");
+    const config = await readJsonOr(join(root, CONFIG), {});
+    const list = await readProjects(root, { config, readBlueprints, exists });
+    if (!list.length) {
+      stdout.write("  No project in conductor/2-backlog/project-backlog/ yet. Start one in your agent with /genesis.\n");
+      return 0;
+    }
+    stdout.write(`\n${renderProjects(list)}\n\n`);
+    const off = list.filter((p) => p.canTurnOn && p.loop === "loop off");
+    stdout.write(off.length ? `  Next: \`conductor loop on ${off[0].name}\` (it shows what changes first).\n` : "  Every project the loop can take is on.\n");
+    return 0;
   }
   if (!(await exists(join(root, STATE_REL)))) {
     stderr.write(`No ${STATE_REL} found. Run 'conductor init' or 'conductor upgrade' first.\n`);

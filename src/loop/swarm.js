@@ -18,6 +18,7 @@
 import { hashString, computeStallHash, normalizeVerifyOutput, preflight, describeHalt, beatCeiling, classifyBeatResult } from "./driver.js";
 import { costGate, costGateMessage } from "./usage.js";
 import { runShipStage } from "./ship.js";
+import { roundKey as roundKeyOf } from "./questions.js";
 import { recordAttempt } from "./harvester.js";
 import { orderMergeQueue } from "./conflict.js";
 import { planMergeAction } from "./merge.js";
@@ -41,7 +42,9 @@ function verifyHash(output) {
 }
 
 /** Task-graph terminal states. */
-export const TASK_TERMINAL = Object.freeze(["merged", "failed"]);
+// `awaiting_answers` (step 4): the item asked a round of questions and waits
+// for the owner. Terminal for this run; the next run resumes it once answered.
+export const TASK_TERMINAL = Object.freeze(["merged", "failed", "awaiting_answers"]);
 
 export function isTaskTerminal(task) {
   return TASK_TERMINAL.includes(task.status);
@@ -141,6 +144,7 @@ export function normalizeTask(task, defaults = {}) {
     // on the default branch; spec_reviewed = the loop wrote it and the Checker passed it.
     spec_ready: task.spec_ready === true,
     spec_reviewed: task.spec_reviewed === true,
+    answered_round: task.answered_round ?? null,
   };
 }
 
@@ -164,7 +168,34 @@ export function isBlocked(task, byId) {
  * Run one task's Maker→verify→Checker chain, retrying on rejection up to the
  * per-task ceiling, sharing the global budget. Mutates the task; returns outcome.
  */
-async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker, gitHead, changedFiles = null, now, budget, audit, roles = [], tddSplit = false, runSpec = null, specEvidence = null }) {
+async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker, gitHead, changedFiles = null, now, budget, audit, roles = [], tddSplit = false, runSpec = null, specEvidence = null, roundFor = null, raiseRound = null }) {
+  // Step 4: a round of questions this item raised earlier. Unanswered: it waits,
+  // no beat. Answered: it resumes, and the beat is told where the answers are.
+  if (roundFor) {
+    const q = await roundFor({ task });
+    if (q?.state === "unanswered") return { task, outcome: "awaiting_answers", raised: false };
+    if (q?.state === "answered") task.answered_round = q.path;
+  }
+  // A beat that signals `questions`: the round's format is checked in code, a
+  // fresh Checker confirms each is a real one-way door answerable cold (D1),
+  // then the item pauses. A round that fails either is a rejection: retry.
+  const askedQuestions = async (result) => {
+    if (result?.signal?.questions !== true || !raiseRound) return null;
+    const r = await raiseRound({ task });
+    if (!r.ok) {
+      recordAttempt(task, { beat: task.iterations.current, verifyExit: 0, checkerReasons: r.reasons.map((x) => `question round: ${x}`) });
+      await audit(`task ${task.id}: question round rejected — ${r.reasons.join("; ")}`);
+      return "retry";
+    }
+    const c = runChecker ? await runChecker({ task, phase: "questions" }) : { exitCode: 0 };
+    if ((c?.exitCode ?? 1) !== 0) {
+      recordAttempt(task, { beat: task.iterations.current, verifyExit: 0, checkerReasons: c?.reasons ?? ["the Checker rejected the question round"], checkerFindings: c?.findings ?? [] });
+      await audit(`task ${task.id}: the Checker rejected the question round`);
+      return "retry";
+    }
+    await audit(`task ${task.id}: ${r.count} question(s) for the owner`);
+    return { task, outcome: "awaiting_answers", raised: true, count: r.count };
+  };
   const filesOf = async (from) => {
     if (!changedFiles) return [];
     try {
@@ -231,6 +262,9 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
         return { task, outcome: "escalated", reason };
       })();
       if (stop) return stop;
+      const asked = await askedQuestions(r);
+      if (asked === "retry") continue;
+      if (asked) return asked;
       const ev = specEvidence ? await specEvidence({ task }) : { ok: true, reasons: [] };
       if (!ev.ok) {
         recordAttempt(task, { beat: task.iterations.current, verifyExit: 0, checkerReasons: ev.reasons.map((x) => `spec evidence: ${x}`) });
@@ -302,6 +336,9 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
     // Checker: another beat cannot get what only a human can give.
     const stop = await escalated(result);
     if (stop) return stop;
+    const asked = await askedQuestions(result);
+    if (asked === "retry") continue;
+    if (asked) return asked;
 
     // Per-task stall detection (driver-observable: this task's HEAD + verify out).
     const head = await gitHead({ task });
@@ -359,6 +396,8 @@ export async function runSwarm(state, deps) {
     costAware = false, // loop.cost_aware: only then does budget.max_cost_usd act
     runShip = null, // ({task}) → beat result: the Ship beat (Unattended Lifecycle step 1)
     runSpec = null, // ({task}) → beat result: a slice's Spec-It beat (step 3)
+    roundFor = null, // ({task}) → {state: none|unanswered|answered, path?} (step 4)
+    raiseRound = null, // ({task}) → {ok, reasons, count}: the round the beat wrote (step 4)
     specEvidence = null, // ({task}) → {ok, reasons}: the spec and plan written (step 3)
     shipEvidence = null, // ({task}) → {ok, reasons, body}: Ship's bookkeeping, checked in code
   } = deps;
@@ -447,7 +486,7 @@ export async function runSwarm(state, deps) {
     const results = await Promise.all(
       wave.map((t) =>
         processTask(t, {
-          verifyCommand, runBeat, runVerify, runChecker, gitHead, changedFiles, now, budget, audit, runSpec, specEvidence,
+          verifyCommand, runBeat, runVerify, runChecker, gitHead, changedFiles, now, budget, audit, runSpec, specEvidence, roundFor, raiseRound,
           roles: state.roles,
           tddSplit: splitForTask(t, state),
         })
@@ -464,8 +503,15 @@ export async function runSwarm(state, deps) {
       );
       await audit(`swarm: usage limit reached${resetNote}`);
     }
-    for (const { task, outcome, reason } of results) {
+    for (const { task, outcome, reason, raised, count } of results) {
       if (outcome === "usage_limit") continue; // already back to pending
+      if (outcome === "awaiting_answers") {
+        task.status = "awaiting_answers";
+        if (raised) {
+          await writeInbox(state, `task ${task.id} has ${count} question${count === 1 ? "" : "s"} waiting for you: conductor/1-workbench/questions/${roundKeyOf(task.id)}.md — answer each by number, then run the loop again.`, { title: "Questions" });
+        }
+        continue;
+      }
       if (outcome === "escalated") {
         task.status = "failed";
         await writeInbox(state, `task ${task.id} escalated by the Maker (beat ${task.escalation?.beat ?? "?"}): ${reason}`);
@@ -602,6 +648,7 @@ export async function runSwarm(state, deps) {
 
   if (!terminal) {
     if (state.tasks.every((t) => t.status === "merged")) terminal = "completed";
+    else if (state.tasks.some((t) => t.status === "awaiting_answers")) terminal = "awaiting_answers";
     else if (state.tasks.some((t) => t.escalation)) terminal = "escalated";
     else terminal = "stalled";
   }

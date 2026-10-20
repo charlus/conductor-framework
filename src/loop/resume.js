@@ -75,5 +75,8 @@ export function startNewRun(state) {
   state.stall = { consecutive: 0, last_beat_hash: null };
   state.merge = null;
   state.ship = null;
+  // Step 4: an item paused on a question round is read again; still unanswered,
+  // it pauses again without a beat.
+  for (const t of state.tasks ?? []) if (t?.status === "awaiting_answers") t.status = "pending";
   return { reset: true, from };
 }

@@ -50,7 +50,7 @@ export function harvestSlices({ projects, optIn, specTemplate = "", planTemplate
       details: "",
       source: { kind: "slice", project: p.name, slice: s.name, path: `${PROJECTS_REL}/${p.name}/implementations/${s.name}` },
       // A spec already on the default branch is the owner's (an interactive
-      // Spec-It he converged on): no spec stage, no spec review.
+      // Spec-It they converged on): no spec stage, no spec review.
       spec_ready: !isBlankDoc(s.spec, specTemplate) && !isBlankDoc(s.plan, planTemplate),
     });
   }

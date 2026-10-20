@@ -69,8 +69,24 @@ Before you write code, run `conductor personas <the files this task will create 
      - *Orient before you build:* consult the knowledge relevant to THIS task — `0-compass/` (vision, principles), `3-product-areas/` (features/epics/technical for the area you're touching), `4-context/` (technical/design/product conventions) — and build consistently with it (reuse existing patterns; don't reinvent or contradict).
      - *Keep it current when warranted (NOT mechanically):* if your change adds or changes product behavior, architecture, or a convention, run the `context-updater` skill to update the relevant `3-product-areas/` / `4-context/` files **in this same commit** — so the knowledge base stays true and the update is reviewed on the PR alongside the code. If nothing conceptual changed, don't force an update. *(This is the maker-beat home of the product-KB update: the driver — not the agent — owns the `passed_by_checker` transition below, so this must happen here, in the beat that actually runs.)*
   4. Commit your changes. If (and only if) you believe the entire goal is now complete, write `conductor/1-workbench/maker-signal.json` with `{ "done": true }` — this is your one positive "done" signal. Do **not** edit `loop-state.json` yourself; the driver owns that file and reads your signal from `maker-signal.json` after the beat (a file the driver can't clobber). The driver still gates the claim behind a green verification + Checker before accepting `completed`.
-  5. **Blocked? Escalate, do not retry.** If you cannot go on without something only a human can give (an approval, access, a decision), write `conductor/1-workbench/maker-signal.json` with `{ "escalate": true, "reason": "<what you need, at most 1500 characters>" }` and stop. The driver ends the run as `escalated` and puts your reason in the inbox, with no verify and no Checker. A beat you already know is blocked only burns budget. When earlier beats were rejected, your prompt ends with **Previous attempts were rejected**: read it first and fix what it names.
+  5. **Blocked? Escalate, do not retry.** If you cannot go on without something only a human can give (an approval, access, a credential), write `conductor/1-workbench/maker-signal.json` with `{ "escalate": true, "reason": "<what you need, at most 1500 characters>" }` and stop. The driver ends the run as `escalated` and puts your reason in the inbox, with no verify and no Checker. A beat you already know is blocked only burns budget. When earlier beats were rejected, your prompt ends with **Previous attempts were rejected**: read it first and fix what it names.
   6. **Deciding alone? Log it.** When you decide something the spec does not settle, append one line to `conductor/1-workbench/rulings.md`: `- [YYYY-MM-DD HH:MM] <task id or goal> · <decision> · why: <reason> · if wrong: low|medium|high · <what breaks>`. Rate `high` anything a user would notice or that is hard to undo. The PR lists every ruling, a `high` one goes to the owner's inbox, and the Checker reviews them against the spec.
+  7. **A one-way door? Ask, in one round.** A decision that cannot be undone cheaply (data model, auth model, vendor, public API), contradicts an earlier decision, or changes what the product costs to run is the owner's. Do not decide it and do not escalate it. A decision that only changes what a user sees or does, and is reversible in the MR, is a two-way door: decide it and log a `high` ruling (item 6). Collect every such question this work needs, then write them to the **Questions file** your assignment names, in this format, and stop:
+     ```
+     # Questions: <task id> (<stage>)
+
+     ## Q1. <the question, one line>
+     <context the owner needs to answer cold, without the code: two or three sentences>
+
+     1. <option> — <what it means for the product>
+     2. <option> — <what it means for the product>
+
+     **Recommendation:** <number>, because <reason>
+     **If wrong:** <what it costs to change later>
+
+     Answer:
+     ```
+     Then write `{ "questions": true }` to `conductor/1-workbench/maker-signal.json`. The driver checks the format, a fresh Checker confirms each question is a real one-way door, and the item waits for the owner while other work goes on. A question you can decide and log as a ruling (item 6) is rejected. When the owner has answered, your assignment says **Your questions were answered**: read that file first, apply each answer, and record it as a decision in the stage's document.
   5. Stop to conclude the beat. **Do not set `status` yourself** — the driver transitions you to `ready_for_check` and then runs verification.
 
 * **If `ready_for_check`** (the driver's verification gate — Evidence Rule in code):
@@ -93,7 +109,7 @@ When your prompt is `.agents/workflows/ship.md` followed by this section, you ar
 - **Phase 4: do not start a reviewer.** After your beat the driver runs verify and its independent Checker on the shipped state. In the MR body's Evidence, write that the driver's Checker reviews the shipped state; never that the review was skipped.
 - **Phase 6: do not push and do not open the MR.** Skip steps 0 to 4 and 6. Write the MR body, the five sections of step 4, to `conductor/1-workbench/pr-body.md`; the driver keeps it out of the branch and opens the MR with it. In the ship-log entry, the Platform line names the branch instead of the MR link.
 - **Commit everything else** in this branch, then write `{ "done": true }` to `conductor/1-workbench/maker-signal.json`.
-- **Product decisions:** a two-way door, decide and log a ruling; a one-way door, escalate (step 5 above).
+- **Product decisions:** a two-way door, decide and log a ruling; a one-way door, write a question round (item 7 above).
 
 ## Spec beat (unattended)
 
@@ -102,5 +118,5 @@ When your prompt is `.agents/workflows/spec-it.md` followed by this section, you
 - **Synthesize, never interview.** Read the slice's `project-documentation.md` entry, the Blueprint and the code, as Spec-It's Phase 1 says, and write from them.
 - **"Feature Spec locked?" and "Implementation Plan locked?":** nobody can answer. Check the document against Spec-It's own coverage list yourself, then write it. A fresh Checker reviews both files after your beat, before any Build beat.
 - **The Brief check is required.** Answer C1–C4 from the documents, `None found.` included.
-- **Product decisions:** a two-way door, decide and log a ruling; a one-way door (cannot be undone cheaply, contradicts an earlier decision, changes what the product costs to run), escalate (step 5 above).
+- **Product decisions:** a two-way door, decide and log a ruling; a one-way door (cannot be undone cheaply, contradicts an earlier decision, changes what the product costs to run), write a question round (item 7 above).
 - **Write both files** in the slice folder, commit them in this branch, then write `{ "done": true }` to `conductor/1-workbench/maker-signal.json`. Do not start Build: the next beat does, from your files.

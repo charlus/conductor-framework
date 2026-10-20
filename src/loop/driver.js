@@ -25,6 +25,7 @@ export const TERMINAL_STATUSES = Object.freeze([
   "budget_exceeded",
   "usage_limit_reached",
   "escalated",
+  "awaiting_answers",
   "halted_scoping",
   "halted_no_verification",
   "halted_sandbox_required",

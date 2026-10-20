@@ -23,10 +23,11 @@ export function planLoopOn(f) {
   const state = structuredClone(f.state ?? {});
   const loop = (config.loop = { ...(config.loop ?? {}) });
 
-  if (!f.projects.includes(f.project)) {
+  const backlogOnly = Boolean(f.backlog && !f.project);
+  if (!backlogOnly && !f.projects.includes(f.project)) {
     return { ok: false, error: `no project "${f.project}" in conductor/2-backlog/project-backlog/. Projects: ${f.projects.join(", ") || "none"}.`, changes, notes, config, state };
   }
-  if (!f.carved && !f.discoveryDone) {
+  if (!backlogOnly && !f.carved && !f.discoveryDone) {
     return {
       ok: false,
       error: `${f.project} has no Discovery yet, and Discovery is yours: run /genesis then /storyboard on it in your agent, then this command again.`,
@@ -40,14 +41,24 @@ export function planLoopOn(f) {
     loop[key] = [...list, f.project];
     changes.push(what);
   };
-  if (!f.carved) {
+  if (!backlogOnly && !f.carved) {
     const all = ["Grand PRD", "UX/UI Brief", "Technical Vision", "Carve"];
     const done = f.stagesDone ?? [];
     const left = all.filter((s) => !done.includes(s));
     const say = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : xs[0]);
     add("blueprint", `The loop may write the ${say(left)} for ${f.project}${done.length ? ` (you wrote the ${say(done)})` : ""}, and send ${left.length > 1 ? "them" : "it"} as one MR. Merging it is your sign-off.`);
   }
-  add("slices", `The loop may build the slices of ${f.project}, one at a time, from spec to MR${f.carved ? "" : ", once you have merged the Blueprint MR"}.`);
+  if (!backlogOnly) add("slices", `The loop may build the slices of ${f.project}, one at a time, from spec to MR${f.carved ? "" : ", once you have merged the Blueprint MR"}.`);
+
+  // F11: never the whole backlog and inbox at once. An explicit choice is kept.
+  if (loop.require_ready === undefined) {
+    loop.require_ready = true;
+    changes.push("From the backlog, the loop takes only the items you tag (loop-ready) at the end of their line.");
+  }
+  if (loop.inbox === undefined) {
+    loop.inbox = false;
+    changes.push("Inbox thoughts are not loop work: triage them first.");
+  }
 
   // The outer layout: the code is a nested repository.
   const nested = (f.nestedRepos ?? []).map((d) => d.replace(/\/+$/, ""));
@@ -57,7 +68,7 @@ export function planLoopOn(f) {
     if (!pick) {
       return {
         ok: false,
-        error: `several nested repositories (${nested.join(", ")}): say which one holds the code, for example: conductor loop on ${f.project} --code-dir ${nested[0]}`,
+        error: `several nested repositories (${nested.join(", ")}): say which one holds the code, for example: conductor loop on ${f.project ?? "--backlog"} --code-dir ${nested[0]}`,
         changes, notes, config, state,
       };
     }
@@ -103,7 +114,7 @@ export function planLoopOn(f) {
   if (!verify || verify === "none") {
     notes.push(`No test command for ${codeDir ? `${codeDir}/` : "this repository"} yet, and the loop needs one: conductor verify ${codeDir ? `--repo ${codeDir} ` : ""}--detect`);
   }
-  if (!changes.length) notes.push(`${f.project} is already on.`);
+  if (!changes.length) notes.push(backlogOnly ? "The loop is already set up for tagged backlog items." : `${f.project} is already on.`);
   return { ok: true, changes, notes, config, state };
 }
 

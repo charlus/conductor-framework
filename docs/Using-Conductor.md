@@ -42,7 +42,7 @@ Each stage is one workflow, run in a fresh session. The workflow ends by naming 
 
 The loop runs the same workflows, one stage per fresh beat, each behind an independent review, and opens one MR per item. You merge.
 
-1. See your projects, their stage and whether the loop is on: `conductor status`, or `conductor loop on` with no name. Then turn it on for one: `conductor loop on <project>`. It shows each change in plain words and asks once: after your Discovery it writes the Blueprint stages you have not written as one MR (merging it is your sign-off), then it builds the slices, from spec to MR. If the code is a nested repository (`repo/` inside your `conductor/` repository), it finds it: each item then opens a code MR to the team's repository, then a state MR to yours. Merge the code MR first. If it says the code has no test command, run the command it prints. `conductor loop off <project>` takes the project out again. In your agent, "turn the loop on for <project>" does the same.
+1. See your projects, their stage and whether the loop is on: `conductor status`, or `conductor loop on` with no name. Then turn it on for one: `conductor loop on <project>`. It shows each change in plain words and asks once: after your Discovery it writes the Blueprint stages you have not written as one MR (merging it is your sign-off), then it builds the slices, from spec to MR. If the code is a nested repository (`repo/` inside your `conductor/` repository), it finds it: each item then opens a code MR to the team's repository, then a state MR to yours. Merge the code MR first. If it says the code has no test command, run the command it prints. For backlog items alone, tag each one `(loop-ready)` at the end of its line and run `conductor loop on --backlog` once. `conductor loop off <project>` takes the project out again. In your agent, "turn the loop on for <project>" does the same.
 2. Check the project: `conductor loop doctor .` (`loop on` runs it for you)
 3. Preview: `conductor loop . --from-conductor --dry-run`
 4. Run it in a separate terminal: `conductor loop . --from-conductor`
@@ -229,6 +229,7 @@ conductor loop doctor [dir] [--beat]
 | `--unsafe-no-sandbox` | Allow sandbox: none (only inside a VM you control) |
 | `on` | List the projects, their stage, and which ones the loop can take |
 | `on <project>` | Let the loop work on a project: shows each change in plain words, asks once, writes the settings |
+| `on --backlog` | Set the loop up for backlog items you tag (loop-ready), with no project |
 | `on --yes` | Apply without asking (after you have seen the list) |
 | `on --code-dir <dir>` | Name the nested code repository when there are several |
 | `off <project>` | The loop no longer works on that project |

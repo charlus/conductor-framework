@@ -82,6 +82,14 @@ export async function loopDoctor(root, { stdout, beat = false }) {
 
   const state = normalizeState(await readJson(statePath));
   facts.state = state;
+  // F12: never set up here: no work turned on, and loop-state.json still as init wrote it.
+  const lb = rawConfig.loop ?? {};
+  const workOn = ["blueprint", "slices", "require_ready", "code_dir"].some((k) => lb[k] !== undefined && lb[k] !== false && !(Array.isArray(lb[k]) && !lb[k].length));
+  if (!workOn && state.phase === "discovery") {
+    stdout.write(renderDoctor(diagnose({ notSetUp: true, state })));
+    stdout.write("  Next: `conductor loop on` (it lists your projects).\n");
+    return 1;
+  }
   const verifyCommand = resolveVerifyCommand({
     stateCommand: state.verification.command,
     configVerify: loopConfig.codeDir ? await configVerify(root, loopConfig.codeDir) : await configVerify(root),

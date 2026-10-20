@@ -104,6 +104,7 @@ export const COMMANDS = Object.freeze([
       ["--unsafe-no-sandbox", "Allow sandbox: none (only inside a VM you control)"],
       ["on", "List the projects, their stage, and which ones the loop can take"],
       ["on <project>", "Let the loop work on a project: shows each change in plain words, asks once, writes the settings"],
+      ["on --backlog", "Set the loop up for backlog items you tag (loop-ready), with no project"],
       ["on --yes", "Apply without asking (after you have seen the list)"],
       ["on --code-dir <dir>", "Name the nested code repository when there are several"],
       ["off <project>", "The loop no longer works on that project"],

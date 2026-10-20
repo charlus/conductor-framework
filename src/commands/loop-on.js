@@ -29,8 +29,9 @@ async function ask(question, { stdin = process.stdin, stdout }) {
 }
 
 export async function loopOnCommand(root, project, { args, stdout, stderr, confirm = null }) {
+  const backlog = args.includes("--backlog");
   // D2: without a name, the projects and which ones it can turn on.
-  if (!project) {
+  if (!project && !backlog) {
     const { readProjects, renderProjects } = await import("../projects.js");
     const config = await readJsonOr(join(root, CONFIG), {});
     const list = await readProjects(root, { config, readBlueprints, exists });
@@ -66,7 +67,8 @@ export async function loopOnCommand(root, project, { args, stdout, stderr, confi
   const stagesDone = (item?.stages_done ?? []).filter((k) => BLUEPRINT_STAGES.some((s) => s.key === k)).map((k) => NAMES[k]);
   const plan = planLoopOn({
     stagesDone,
-    project,
+    backlog,
+    project: project ?? null,
     projects,
     discoveryDone: p ? discoveryDone({ docs: p.docs, templates: bp.templates }) : false,
     carved: p?.carved ?? false,
@@ -81,7 +83,7 @@ export async function loopOnCommand(root, project, { args, stdout, stderr, confi
     stderr.write(`⛔  ${plan.error}\n`);
     return 1;
   }
-  stdout.write(`\n  conductor loop on ${project}\n\n`);
+  stdout.write(`\n  conductor loop on ${project ?? "--backlog"}\n\n`);
   for (const c of plan.changes) stdout.write(`  • ${c}\n`);
   for (const n of plan.notes) stdout.write(`  ⚠️  ${n}\n`);
   if (!plan.changes.length) return 0;

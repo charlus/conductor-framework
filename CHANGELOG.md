@@ -8,6 +8,24 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.34.0] — 2026-10-20 — The loop's setup, after its first doctor run on a real project
+
+Compatibility: upgrade only
+
+The owner's first `conductor loop doctor` on autopportunity, after the upgrade to 6.33.0, showed four problems.
+
+### Fixed
+
+- **`"verify": "none"` is never run.** It declares no tests on purpose; the doctor ran it as a command ("none: command not found"), and so would the loop have, on every beat.
+- **`conductor loop on` no longer lets the loop drain the whole backlog.** The doctor said `--from-conductor` "would take 70 items": every backlog line and every inbox thought. Turning the loop on now limits the backlog to items you tag `(loop-ready)` and leaves the inbox out, and says so in its list. A choice you made before is kept.
+- **One cause, one line.** On a project the loop was never set up for, the doctor printed three failures (scoping, sandbox, nested repository). It now says the loop is not set up, with the command.
+
+### Added
+
+- **`conductor loop on --backlog`** sets the loop up with no project, for backlog items you tag `(loop-ready)`: the same layout, venv link and run settings.
+
+---
+
 ## [6.33.0] — 2026-10-20 — See every project, its stage, and whether the loop is on
 
 Compatibility: upgrade only

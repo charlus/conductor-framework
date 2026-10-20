@@ -79,3 +79,9 @@ test("F12 through the CLI: on a project the loop has never run on, the doctor na
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("the .env advice: copy the example, never the real file, which holds secrets", () => {
+  const withExample = diagnose({ state: { phase: "execution" }, dotenv: { present: true, copiedBySetup: false, example: true } }).find((c) => c.id === "dotenv");
+  assert.match(withExample.fix, /cp \.env\.example \.env/);
+  assert.match(withExample.fix, /Never put the real \.env/);
+});

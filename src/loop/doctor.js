@@ -108,7 +108,9 @@ export function diagnose(f) {
   }
 
   if (f.dotenv?.present && !f.dotenv.copiedBySetup) {
-    out.push(check("dotenv", "warn", ".env is not in the worktree", "It is gitignored, so tests or evals that read it will skip or fail in a loop worktree, the push gate included.", "Copy it in loop.setup, for example `[ -f ../../../.env ] && cp ../../../.env .env`."));
+    out.push(check("dotenv", "warn", ".env is not in the worktree", "It is gitignored, so tests or evals that read it will skip or fail in a loop worktree, the push gate included.", f.dotenv.example
+          ? "Copy the example in loop.setup, as CI usually does: `cp .env.example .env`. Never put the real .env in a worktree: it holds secrets, and the beat can read every file there."
+          : "Copy it in loop.setup, for example `[ -f ../../../.env ] && cp ../../../.env .env`, only if it holds no secret the beat must not read."));
   }
 
   const pr = f.probe;

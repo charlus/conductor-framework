@@ -12,6 +12,7 @@
 // logic and the lifecycle branching are unit-testable without a real repo.
 
 import { join } from "node:path";
+import { defaultBranchRef } from "./reconcile.js";
 
 const WORKTREES_DIR = ".agents/.worktrees";
 
@@ -57,7 +58,9 @@ export async function createWorktree({ root, goalDescription, git }) {
   }
 
   // Prefer a new branch; fall back to attaching if the branch already exists.
-  let add = await git(["worktree", "add", "-b", branch, path]);
+  // F14: from the default branch, never from the branch the owner has checked out.
+  const base = (await defaultBranchRef(git)) ?? "HEAD";
+  let add = await git(["worktree", "add", "-b", branch, path, base]);
   if (!add.ok) add = await git(["worktree", "add", path, branch]);
   if (!add.ok) {
     throw new Error(`Failed to create worktree at ${path} (branch ${branch}).`);

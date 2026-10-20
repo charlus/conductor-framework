@@ -1447,7 +1447,9 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         const list = await git(["worktree", "list", "--porcelain"]);
         const alreadyThere = list.ok && list.stdout.includes(plan.path);
         if (!alreadyThere) {
-          const res = await git(["worktree", "add", "-b", plan.branch, plan.path]);
+          // F14: from the default branch, never from the branch the owner has checked out.
+          const base = (await defaultBranchRef(git)) ?? "HEAD";
+          const res = await git(["worktree", "add", "-b", plan.branch, plan.path, base]);
           if (!res.ok) await git(["worktree", "add", plan.path, plan.branch]);
         }
         // Conductor-enable the isolated Maker even if the scaffold is gitignored.
@@ -1520,7 +1522,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       // against the object store from the ROOT checkout, so no working tree is
       // touched and no worktree has to be clean for it to answer.
       predictConflict: async ({ task }) => {
-        const outer = await predictConflicts({ git, base: "HEAD", branch: task.worktree?.branch });
+        const outer = await predictConflicts({ git, base: (await defaultBranchRef(git)) ?? "HEAD", branch: task.worktree?.branch });
         if (!loopConfig.codeDir || outer?.conflicted) return outer;
         const codeGit = makeGit(codeRoot);
         const base = await defaultBranchRef(codeGit);

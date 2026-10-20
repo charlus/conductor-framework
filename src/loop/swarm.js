@@ -137,6 +137,10 @@ export function normalizeTask(task, defaults = {}) {
     rejected_beats: task.rejected_beats ?? 0,
     escalation: task.escalation ?? null,
     rulings: Array.isArray(task.rulings) ? task.rulings : [],
+    // Step 3: a slice's spec stage. spec_ready = the owner's spec was already
+    // on the default branch; spec_reviewed = the loop wrote it and the Checker passed it.
+    spec_ready: task.spec_ready === true,
+    spec_reviewed: task.spec_reviewed === true,
   };
 }
 
@@ -160,7 +164,7 @@ export function isBlocked(task, byId) {
  * Run one task's Maker→verify→Checker chain, retrying on rejection up to the
  * per-task ceiling, sharing the global budget. Mutates the task; returns outcome.
  */
-async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker, gitHead, changedFiles = null, now, budget, audit, roles = [], tddSplit = false }) {
+async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker, gitHead, changedFiles = null, now, budget, audit, roles = [], tddSplit = false, runSpec = null, specEvidence = null }) {
   const filesOf = async (from) => {
     if (!changedFiles) return [];
     try {
@@ -200,6 +204,53 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
   };
   task.status = "in_progress";
   if (tddSplit && !task.phase) task.phase = "contract";
+
+  // Step 3: a slice whose spec is still blank gets the Spec-It stage first, a
+  // fresh beat running spec-it.md (as the owner types `/spec-it`), then the
+  // spec checked in code, then a fresh Checker reviewing it (D2). No Build
+  // beat runs on a spec that did not pass.
+  if (task.type === "slice" && !task.spec_ready && !task.spec_reviewed && runSpec) {
+    let last = "";
+    for (let i = 0; i < 2 && !task.spec_reviewed; i++) {
+      if (budget.beats >= budget.maxBeats) return { task, outcome: "failed", reason: "global iteration ceiling" };
+      task.iterations.current += 1;
+      budget.beats += 1;
+      const r = await runSpec({ task });
+      const dead = classifyBeatResult(r);
+      if (dead.dead) {
+        task.iterations.current -= 1;
+        budget.beats -= 1;
+        task.status = "pending";
+        return { task, outcome: "usage_limit", resetHint: dead.resetHint };
+      }
+      const stop = await (async () => {
+        const reason = escalationOf(r);
+        if (!reason) return null;
+        task.escalation = { reason, beat: task.iterations.current };
+        await audit(`task ${task.id}: the Spec beat escalated — ${reason}`);
+        return { task, outcome: "escalated", reason };
+      })();
+      if (stop) return stop;
+      const ev = specEvidence ? await specEvidence({ task }) : { ok: true, reasons: [] };
+      if (!ev.ok) {
+        recordAttempt(task, { beat: task.iterations.current, verifyExit: 0, checkerReasons: ev.reasons.map((x) => `spec evidence: ${x}`) });
+        last = ev.reasons.join("; ");
+        await audit(`task ${task.id}: spec beat: ${last}`);
+        continue;
+      }
+      const c = runChecker ? await runChecker({ task, phase: "spec" }) : { exitCode: 0 };
+      if ((c?.exitCode ?? 1) !== 0) {
+        recordAttempt(task, { beat: task.iterations.current, verifyExit: 0, checkerReasons: c?.reasons ?? ["the Checker rejected the spec"], checkerFindings: c?.findings ?? [] });
+        last = `the spec review rejected it${c?.reasons?.length ? `: ${c.reasons.join(" | ")}` : ""}`;
+        await audit(`task ${task.id}: ${last}`);
+        continue;
+      }
+      task.spec_reviewed = true;
+      task.attempts = [];
+      await audit(`task ${task.id}: spec written and reviewed`);
+    }
+    if (!task.spec_reviewed) return { task, outcome: "failed", reason: `spec stage: ${last}` };
+  }
   while (task.iterations.current < task.iterations.max_allowed) {
     // Shared global budget across all concurrent tasks.
     if (budget.beats >= budget.maxBeats) return { task, outcome: "failed", reason: "global iteration ceiling" };
@@ -259,6 +310,10 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
     task.stall.last_beat_hash = beatHash;
     if (task.stall.consecutive >= MAX_TASK_STALLS) return { task, outcome: "failed", reason: "stalled" };
 
+    // A slice is many tasks over many beats: the tracker carries the work, and
+    // the slice is judged only when the Maker says the whole of it is ship-ready.
+    if (task.type === "slice" && result?.signal?.done !== true) continue;
+
     // Evidence Rule floor.
     const { exitCode, output } = await runVerify({ task, cmd: task.verify ?? verifyCommand });
     task.evidence = { exit_code: exitCode, output_hash: verifyHash(output) };
@@ -303,6 +358,8 @@ export async function runSwarm(state, deps) {
     writeInbox = () => {},
     costAware = false, // loop.cost_aware: only then does budget.max_cost_usd act
     runShip = null, // ({task}) → beat result: the Ship beat (Unattended Lifecycle step 1)
+    runSpec = null, // ({task}) → beat result: a slice's Spec-It beat (step 3)
+    specEvidence = null, // ({task}) → {ok, reasons}: the spec and plan written (step 3)
     shipEvidence = null, // ({task}) → {ok, reasons, body}: Ship's bookkeeping, checked in code
   } = deps;
 
@@ -390,7 +447,7 @@ export async function runSwarm(state, deps) {
     const results = await Promise.all(
       wave.map((t) =>
         processTask(t, {
-          verifyCommand, runBeat, runVerify, runChecker, gitHead, changedFiles, now, budget, audit,
+          verifyCommand, runBeat, runVerify, runChecker, gitHead, changedFiles, now, budget, audit, runSpec, specEvidence,
           roles: state.roles,
           tddSplit: splitForTask(t, state),
         })

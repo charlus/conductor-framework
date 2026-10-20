@@ -94,3 +94,13 @@ When your prompt is `.agents/workflows/ship.md` followed by this section, you ar
 - **Phase 6: do not push and do not open the MR.** Skip steps 0 to 4 and 6. Write the MR body, the five sections of step 4, to `conductor/1-workbench/pr-body.md`; the driver keeps it out of the branch and opens the MR with it. In the ship-log entry, the Platform line names the branch instead of the MR link.
 - **Commit everything else** in this branch, then write `{ "done": true }` to `conductor/1-workbench/maker-signal.json`.
 - **Product decisions:** a two-way door, decide and log a ruling; a one-way door, escalate (step 5 above).
+
+## Spec beat (unattended)
+
+When your prompt is `.agents/workflows/spec-it.md` followed by this section, you are the owner typing `/spec-it` on the slice folder your assignment names. Run Spec-It as written, with these differences, because nobody is here:
+
+- **Synthesize, never interview.** Read the slice's `project-documentation.md` entry, the Blueprint and the code, as Spec-It's Phase 1 says, and write from them.
+- **"Feature Spec locked?" and "Implementation Plan locked?":** nobody can answer. Check the document against Spec-It's own coverage list yourself, then write it. A fresh Checker reviews both files after your beat, before any Build beat.
+- **The Brief check is required.** Answer C1–C4 from the documents, `None found.` included.
+- **Product decisions:** a two-way door, decide and log a ruling; a one-way door (cannot be undone cheaply, contradicts an earlier decision, changes what the product costs to run), escalate (step 5 above).
+- **Write both files** in the slice folder, commit them in this branch, then write `{ "done": true }` to `conductor/1-workbench/maker-signal.json`. Do not start Build: the next beat does, from your files.

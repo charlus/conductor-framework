@@ -20,7 +20,8 @@ import { diagnose, renderDoctor, doctorExitCode } from "../loop/doctor.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
 import { packageVersion, readVersionStamp } from "../version.js";
-import { exists, readJson, sh, runCli, hasNpmTestScript, configVerify } from "./loop.js";
+import { exists, readJson, sh, runCli, hasNpmTestScript, configVerify, readSlices } from "./loop.js";
+import { harvestSlices } from "../loop/slices.js";
 import { ensureWorktreesExcluded } from "../loop/worktree.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
@@ -123,7 +124,8 @@ export async function loopDoctor(root, { stdout, beat = false }) {
     priorities: loopConfig.priorities,
     includeInbox: loopConfig.inbox,
   });
-  facts.queue = { count: queue.length, requireReady: loopConfig.requireReady };
+  const slices = loopConfig.slices === true || loopConfig.slices.length ? harvestSlices(await readSlices(root, loopConfig.slices)) : [];
+  facts.queue = { count: queue.length + slices.length, requireReady: loopConfig.requireReady };
 
   const dotenvPresent = await exists(join(root, ".env"));
   const ignored = dotenvPresent && (await runCli("git", ["check-ignore", "-q", ".env"], root)).ok;

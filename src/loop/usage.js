@@ -11,7 +11,7 @@
 // `loop.cost_aware` is on and `budget.max_cost_usd` is set. All functions are pure
 // over the state object they are given.
 
-const ROLES = ["maker", "checker", "ship"];
+const ROLES = ["maker", "checker", "spec", "ship"];
 
 /** Add one beat's usage to its role and to the run totals. Mutates `state.budget`. */
 export function recordUsage(state, { role, result }) {

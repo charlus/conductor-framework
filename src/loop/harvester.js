@@ -176,6 +176,11 @@ export const ROUTING = Object.freeze({
       "Fix this bug: first reproduce it with a failing test (systematic-debugging skill), then make it pass following the Build workflow. Never claim fixed without a reproduction that now passes.",
   },
   build: { workflow: ".agents/workflows/build.md", brief: "Build this Implementation's next steps following the Build workflow (per-task TDD)." },
+  slice: {
+    workflow: ".agents/workflows/build.md",
+    brief:
+      "Build this slice following the Build workflow, from implementation-plan.md and feature-spec.md in its folder, one task per TDD cycle. Keep task-tracker.md current after every task: it is your memory across beats. Write `{ \"done\": true }` only when the whole slice is ship-ready; until then end each beat with the tracker current and no signal.",
+  },
 });
 
 export function workflowForType(type) {
@@ -265,6 +270,7 @@ export function renderAssignment(task) {
     `- **Type:** ${task.type}`,
     `- **Item:** ${task.title}`,
     `- **Source:** ${task.source?.kind ?? "conductor"} (\`${task.source?.title ?? task.title}\`)`,
+    ...(task.source?.path ? [`- **Folder:** \`${task.source.path}\` (read your inputs from here)`] : []),
     route.workflow ? `- **Run workflow:** \`${route.workflow}\`` : "- **Run workflow:** (none — follow the brief)",
     ...(task.details ? ["", "**Item details** (from the backlog, verbatim):", "", task.details] : []),
     "",

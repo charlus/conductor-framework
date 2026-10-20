@@ -155,9 +155,11 @@ export async function loopDoctor(root, { stdout, beat = false }) {
   const blueprints = loopConfig.blueprint === true || loopConfig.blueprint.length ? harvestBlueprints(await readBlueprints(root, loopConfig.blueprint)) : [];
   facts.queue = { count: queue.length + slices.length + blueprints.length, requireReady: loopConfig.requireReady };
 
-  const dotenvPresent = await exists(join(root, ".env"));
-  const ignored = dotenvPresent && (await runCli("git", ["check-ignore", "-q", ".env"], root)).ok;
-  facts.dotenv = { present: Boolean(ignored), copiedBySetup: /\.env\b/.test(loopConfig.setup ?? "") };
+  // In the outer layout the tests run in the code repository: its .env is the one that matters.
+  const envRoot = codeRoot ?? root;
+  const dotenvPresent = await exists(join(envRoot, ".env"));
+  const ignored = dotenvPresent && (await runCli("git", ["check-ignore", "-q", ".env"], envRoot)).ok;
+  facts.dotenv = { present: Boolean(ignored), copiedBySetup: /\.env\b/.test(loopConfig.setup ?? ""), example: await exists(join(envRoot, ".env.example")) };
 
   for (const ci of [".gitlab-ci.yml", ".github/workflows", "bitbucket-pipelines.yml", ".circleci/config.yml"]) {
     if (await exists(join(codeRoot ?? root, ci))) {
@@ -170,6 +172,9 @@ export async function loopDoctor(root, { stdout, beat = false }) {
   await ensureWorktreesExcluded(root);
   const probe = join(root, PROBE_REL);
   await runCli("git", ["worktree", "remove", "--force", probe], root);
+  // A test worker can write after its worktree is removed: clear what an earlier probe left.
+  await rm(probe, { recursive: true, force: true });
+  await runCli("git", ["worktree", "prune"], root);
   const added = await runCli("git", ["worktree", "add", "-q", "--detach", probe, "HEAD"], root);
   if (!added.ok) {
     facts.probe = { ran: true, setup: { configured: true, ok: false, reason: `could not create a worktree: ${tail(added.stderr)}` }, verify: null };
@@ -213,6 +218,8 @@ export async function loopDoctor(root, { stdout, beat = false }) {
         await runCli("git", ["worktree", "prune"], codeRoot);
       }
       await runCli("git", ["worktree", "remove", "--force", probe], root);
+      await rm(probe, { recursive: true, force: true });
+      await runCli("git", ["worktree", "prune"], root);
     }
   }
 

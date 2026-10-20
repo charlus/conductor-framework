@@ -8,6 +8,18 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.35.0] — 2026-10-20 — Loop worktrees always start from the default branch
+
+Compatibility: upgrade only
+
+### Fixed
+
+- **A loop worktree never starts from the branch you have checked out.** The dry run on autopportunity found the owner's outer checkout on `docs/km-relief-technical-vision`: the state MR would have carried that work in progress. Every loop worktree, in one repository or the outer layout, pair or swarm, now starts from the default branch (`origin/HEAD`, else main or master), and merge conflicts are predicted against it. 6.31.0 did this for the code repository only.
+- **`loop doctor` clears its own probe folder.** A test worker wrote a bytecode file after the probe worktree was removed, and the next doctor run could not create its probe.
+- **The doctor's `.env` check looks where the tests run** (the code repository, in the outer layout) and, when there is a `.env.example`, recommends copying that, as CI does, never the real `.env`: it holds secrets, and a beat can read every file in its worktree. On autopportunity the tests needed `.env`, and the doctor said nothing.
+
+---
+
 ## [6.34.0] — 2026-10-20 — The loop's setup, after its first doctor run on a real project
 
 Compatibility: upgrade only

@@ -78,6 +78,11 @@ function outerLayout() {
 test("outer layout: a code worktree from main, the code in the code repository, two MRs with the code MR first", () => {
   const p = outerLayout();
   try {
+    // F14 (autopportunity, 2026-10-20): the owner works on a branch of the outer repository too.
+    G(p.root, "checkout", "-q", "-b", "docs/owner-tv");
+    writeFileSync(join(p.root, "conductor/owner-wip.md"), "# my technical vision, in progress\n");
+    G(p.root, "add", "-A");
+    G(p.root, "commit", "-qm", "owner wip");
     const r = spawnSync("node", [join(REPO, "bin/conductor.js"), "loop", p.root, "--from-conductor"], {
       cwd: p.root,
       encoding: "utf8",
@@ -106,9 +111,10 @@ test("outer layout: a code worktree from main, the code in the code repository, 
 
     // The state branch, in the outer repository, with Ship's bookkeeping and no code.
     G(p.root, "fetch", "-q", "origin", branch);
-    const outerFiles = G(p.root, "diff", "--name-only", "master", "FETCH_HEAD").split("\n");
+    const outerFiles = G(p.root, "diff", "--name-only", "origin/master", "FETCH_HEAD").split("\n");
     assert.ok(outerFiles.includes("conductor/0-compass/ship-log.md"));
     assert.ok(!outerFiles.some((f) => f.startsWith("repo/") || f === "src/built.js"));
+    assert.ok(!G(p.root, "ls-tree", "-r", "--name-only", "FETCH_HEAD").split("\n").includes("conductor/owner-wip.md"), "the owner's outer branch is not the base of the state MR");
 
     // The Checker was told where the code diff is.
     const prompts = readdirSync(join(p.base, "prompts")).map((f) => readFileSync(join(p.base, "prompts", f), "utf8"));

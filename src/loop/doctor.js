@@ -72,7 +72,7 @@ export function diagnose(f) {
   }
 
   if (f.nestedRepos?.length) {
-    out.push(check("nested", "fail", `nested repositories: ${f.nestedRepos.join(", ")}`, "Loop worktrees would not contain that code.", "If it holds the code, set loop.code_dir to it (the outer layout); if it is unrelated, set loop.allow_nested_repo: true."));
+    out.push(check("nested", "fail", `nested repositories: ${f.nestedRepos.join(", ")}`, "Loop worktrees would not contain that code.", "`conductor loop on <project>` sets it up (the code repository, and the others ignored). Or by hand: loop.code_dir for the code, loop.allow_nested_repo: true if unrelated."));
   }
   const cd = f.code;
   if (cd) {
@@ -89,7 +89,7 @@ export function diagnose(f) {
   const q = f.queue;
   if (q) {
     if (q.count === 0) {
-      out.push(check("queue", "warn", "--from-conductor would find no work", "", q.requireReady ? "Tag a backlog item `(loop-ready)`, or use --goal." : "Add a backlog item, or use --goal."));
+      out.push(check("queue", "warn", "--from-conductor would find no work", "", `Turn it on for a project: \`conductor loop on <project>\`. Or ${q.requireReady ? "tag a backlog item `(loop-ready)`" : "add a backlog item"}.`));
     } else {
       out.push(check("queue", "pass", `--from-conductor would take ${q.count} item${q.count === 1 ? "" : "s"}`));
     }

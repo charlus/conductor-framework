@@ -7,7 +7,7 @@
 const LOOP = "conductor loop . --from-conductor";
 
 /** After `conductor status` (and a bare `conductor` in a project). */
-export function nextAfterStatus({ waitingRounds = [], answeredRounds = 0, verifyConfigured = true, inboxCount = 0, queueLength = 0, loopItems = [] } = {}) {
+export function nextAfterStatus({ waitingRounds = [], answeredRounds = 0, verifyConfigured = true, inboxCount = 0, queueLength = 0, loopItems = [], loopOffProjects = [] } = {}) {
   if (waitingRounds.length) {
     return `Next: answer ${waitingRounds[0]} (an option number after each \`Answer:\`), then run \`${LOOP}\`.`;
   }
@@ -16,6 +16,7 @@ export function nextAfterStatus({ waitingRounds = [], answeredRounds = 0, verify
   if (loopItems.length) return `Next: \`${LOOP} --dry-run\` shows the loop's next work (${loopItems.slice(0, 2).join(", ")}${loopItems.length > 2 ? ", …" : ""}), then run it without --dry-run.`;
   if (queueLength) return `Next: \`${LOOP} --dry-run\` shows what the loop would take, or open the first item in your agent.`;
   if (inboxCount) return "Next: ask your agent to triage the inbox, or run `conductor inbox list` to read it.";
+  if (loopOffProjects.length) return `Next: \`conductor loop on ${loopOffProjects[0]}\` lets the loop work on it unattended (it shows what changes first).`;
   return 'Next: `conductor inbox add "<idea>"` captures the next thing to do.';
 }
 

@@ -296,6 +296,16 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     stdout.write(`${LOOP_HELP}\n`);
     return 0;
   }
+  // `conductor loop on|off <project> [dir]`: turn the loop on for a project, without JSON.
+  const sub = args.find((a) => !a.startsWith("-"));
+  if (sub === "on" || sub === "off") {
+    const rest = args.slice(args.indexOf(sub) + 1);
+    const [project, dir] = rest.filter((a, i) => !a.startsWith("-") && rest[i - 1] !== "--code-dir");
+    const { loopOnCommand, loopOffCommand } = await import("./loop-on.js");
+    return sub === "on"
+      ? loopOnCommand(resolve(cwd, dir || "."), project, { args: rest, stdout, stderr })
+      : loopOffCommand(resolve(cwd, dir || "."), project, { stdout, stderr });
+  }
   // `conductor loop doctor [dir]`: check a project before an unattended run.
   if (args.find((a) => !a.startsWith("-")) === "doctor") {
     const rest = args.slice(args.indexOf("doctor") + 1);

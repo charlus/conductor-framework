@@ -57,6 +57,19 @@ export async function loopItems(root) {
   }
 }
 
+/** Projects in the backlog the loop is not on for. Never throws. */
+export async function loopOffProjects(root) {
+  try {
+    const raw = JSON.parse(await readFile(join(root, "conductor.config.json"), "utf8")).loop ?? {};
+    const on = (k) => raw[k] === true || (Array.isArray(raw[k]) ? raw[k] : []);
+    if (on("blueprint") === true || on("slices") === true) return [];
+    const names = (await readdir(join(root, "conductor/2-backlog/project-backlog"), { withFileTypes: true })).filter((d) => d.isDirectory()).map((d) => d.name);
+    return names.filter((n) => !on("blueprint").includes(n) && !on("slices").includes(n));
+  } catch {
+    return [];
+  }
+}
+
 /** The question rounds in the root checkout: waiting for the owner, or answered and waiting for the loop. */
 export async function readRounds(root) {
   const files = (await readdir(join(root, QUESTIONS_REL)).catch(() => [])).filter((f) => f.endsWith(".md"));
@@ -137,6 +150,7 @@ export async function statusCommand(args, context) {
     inboxCount: state.digest?.inboxCount ?? 0,
     queueLength: state.digest?.queueLength ?? 0,
     loopItems: await loopItems(root),
+    loopOffProjects: await loopOffProjects(root),
   });
   context.stdout.write(`\n  ${next}\n`);
   return 0;

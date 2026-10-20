@@ -8,6 +8,21 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.27.0] — 2026-10-20 — The loop asks one-way questions in one round, and goes on
+
+Compatibility: upgrade only
+
+Build step 4 of [`docs/roadmap/Unattended-Lifecycle.md`](docs/roadmap/Unattended-Lifecycle.md) (D1, D5).
+
+### Added
+
+- **Question rounds.** A beat that meets a one-way door (cannot be undone cheaply, contradicts an earlier decision, changes what the product costs to run) no longer decides it alone or stops the run. It writes every such question to `conductor/1-workbench/questions/<item>.md`, each with numbered options and their consequence, a recommendation and its reason, and what a wrong choice costs, and signals `{ "questions": true }`. The driver checks the format in code, a fresh Checker rejects a two-way door dressed as a one-way door and a question you cannot answer cold, and a rejected round is retried with the reason. The item then waits as `awaiting_answers` while other items go on, and the inbox names the file. Write an option number or `your pick` after each `Answer:` and run the loop again: the item resumes, the answered round is committed in its branch, and the beat is told to apply each answer and record it in the stage's document. A run that ends on a round exits 0. Two-way doors are unchanged: decided and logged as a ruling. `escalate` stays for blockers that are not decisions (access, credentials). The rule is item 7 of `unattended-loop.md`'s Maker step and replaces "escalate" in its Ship and Spec beat sections.
+- **`conductor status` measures the owner's decisions.** It lists the rounds waiting for you, and shows how often you took the recommendation and overruled a ruling (add `· overruled: <why>` to its line in `rulings.md`). Near-total agreement means the loop asks too much. An answered round is reported as ready for the next run, not as waiting for you.
+
+Verified live on a scratch product whose slice left the storage backend open. Run 1: one Spec beat wrote one round (our server or the writer's cloud drive, recommendation 1), the Checker approved it, the run ended `awaiting_answers` with exit 0, ≈ $0.40. Answered 2, against the recommendation. Run 2: the Spec beat applied the answer and recorded it in the Brief check, then Build and Ship, three reviews, one MR with the answered round in the branch, ≈ $1.23. The live run found a crash the stubbed suites did not (a helper read before it was defined) and an inbox entry titled "Escalation"; both fixed.
+
+---
+
 ## [6.26.1] — 2026-10-20 — The test suite no longer fills /tmp
 
 Compatibility: upgrade only

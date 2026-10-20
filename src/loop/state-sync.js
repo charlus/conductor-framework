@@ -39,7 +39,7 @@ export async function syncLoopStateInto({ root, cwd, git }) {
 }
 
 /** Make `rel` invisible to git in this worktree, whether tracked, ignored or untracked. */
-async function hideFromGit(rel, { cwd, git }) {
+export async function hideFromGit(rel, { cwd, git }) {
   if ((await git(["ls-files", "--error-unmatch", "--", rel])).ok) {
     await git(["update-index", "--skip-worktree", "--", rel]);
     return;

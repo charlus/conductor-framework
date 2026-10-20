@@ -12,6 +12,9 @@ import { renderStatus, renderLive, painter } from "../view/status.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { cardState } from "./agents-md.js";
 import { mergedLoopWorktrees } from "../loop/reconcile.js";
+import { QUESTIONS_REL, decisionStats, parseRound, roundAnswered } from "../loop/questions.js";
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
 function parseArgs(args) {
@@ -81,6 +84,26 @@ export async function statusCommand(args, context) {
     context.stdout.write(
       `  ℹ️  ${merged.length} merged loop worktree${merged.length === 1 ? "" : "s"} (${merged.map((w) => w.branch).join(", ")}): removed on your next \`git pull\` or loop run.\n`
     );
+  }
+  // Step 4 (D1): rounds waiting for the owner, and how often the owner agrees.
+  const md = async (d) => (await readdir(join(root, d)).catch(() => [])).filter((f) => f.endsWith(".md"));
+  const rounds = await md(QUESTIONS_REL);
+  const isAnswered = await Promise.all(rounds.map(async (f) => roundAnswered(parseRound(await readFile(join(root, QUESTIONS_REL, f), "utf8")))));
+  const waiting = rounds.filter((_, i) => !isAnswered[i]);
+  const ready = rounds.filter((_, i) => isAnswered[i]);
+  if (ready.length) {
+    context.stdout.write(`  ℹ️  ${ready.length} answered question round${ready.length === 1 ? "" : "s"}: the next loop run resumes ${ready.length === 1 ? "its item" : "their items"}.\n`);
+  }
+  if (waiting.length) {
+    context.stdout.write(
+      `  ❓ ${waiting.length} question round${waiting.length === 1 ? "" : "s"} waiting for you: ${waiting.map((f) => `${QUESTIONS_REL}/${f}`).join(", ")}. Answer each by number, then run the loop again.\n`
+    );
+  }
+  const answeredRounds = await Promise.all((await md(`${QUESTIONS_REL}/answered`)).map((f) => readFile(join(root, QUESTIONS_REL, "answered", f), "utf8")));
+  const rulingsText = await readFile(join(root, "conductor/1-workbench/rulings.md"), "utf8").catch(() => "");
+  const st = decisionStats({ rulingsText, answeredRounds });
+  if (st.answered || st.rulings) {
+    context.stdout.write(`  ℹ️  Loop decisions: you took the recommendation ${st.tookRecommendation} of ${st.answered} times, and overruled ${st.overruled} of ${st.rulings} ruling${st.rulings === 1 ? "" : "s"}.\n`);
   }
   return 0;
 }

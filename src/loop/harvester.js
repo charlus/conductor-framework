@@ -12,6 +12,7 @@
 
 import { envelopeUntrusted } from "./untrusted.js";
 import { rulingHint } from "./rulings.js";
+import { roundKey as roundKeyOf } from "./questions.js";
 
 /** kebab-slug, bounded — mirrors worktree.slugify so ids/branches line up. */
 export function slugify(text, fallback = "item") {
@@ -271,6 +272,8 @@ export function renderAssignment(task) {
     `- **Item:** ${task.title}`,
     `- **Source:** ${task.source?.kind ?? "conductor"} (\`${task.source?.title ?? task.title}\`)`,
     ...(task.source?.path ? [`- **Folder:** \`${task.source.path}\` (read your inputs from here)`] : []),
+    `- **Questions file:** \`conductor/1-workbench/questions/${roundKeyOf(task.id)}.md\` (only for a one-way door: see the loop workflow)`,
+    ...(task.answered_round ? [`- **Your questions were answered:** read \`${task.answered_round}\` first, apply each answer, and record it as a decision in the stage's document.`] : []),
     route.workflow ? `- **Run workflow:** \`${route.workflow}\`` : "- **Run workflow:** (none — follow the brief)",
     ...(task.details ? ["", "**Item details** (from the backlog, verbatim):", "", task.details] : []),
     "",

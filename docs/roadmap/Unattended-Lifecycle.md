@@ -1,11 +1,11 @@
 # Unattended Lifecycle — the loop runs Conductor's own workflows, stage by stage
 
-> **Status:** signed off 2026-10-19. Step 1 (the Ship beat) shipped in 6.23.0, step 2 (claims from git, cleanup on pull) in 6.24.0, both verified live. `conductor status` reports and does not delete: cleanup runs on `git pull` and at the start of a run. Step 3 (the slice pipeline) in 6.26.0, verified live on a scratch product. Next: step 4, question rounds and the overrule measurement.
-> **Why:** two real crossings (`Unattended-Crossing.md`) showed that the loop follows Conductor up to Build and then leaves it. It skips Ship (bookkeeping, the report, the archive), never runs the Blueprint, and keeps its own claim and done markers. Unattended work was held to a lower standard than interactive work, on the steps that let the owner trust work he did not watch.
+> **Status:** signed off 2026-10-19. Step 1 (the Ship beat) shipped in 6.23.0, step 2 (claims from git, cleanup on pull) in 6.24.0, both verified live. `conductor status` reports and does not delete: cleanup runs on `git pull` and at the start of a run. Step 3 (the slice pipeline) in 6.26.0, verified live on a scratch product. Step 4 (question rounds and the overrule measurement) in 6.27.0. Next: step 5, the Blueprint pipeline.
+> **Why:** two real crossings (`Unattended-Crossing.md`) showed that the loop follows Conductor up to Build and then leaves it. It skips Ship (bookkeeping, the report, the archive), never runs the Blueprint, and keeps its own claim and done markers. Unattended work was held to a lower standard than interactive work, on the steps that let the owner trust work they did not watch.
 
 ## The principle
 
-Unattended means the loop does the owner's job while he is away, the way he does it: one stage at a time, **the same workflow and skills as an interactive session**, a fresh context for each stage, files as the only handoff. A loop beat is the owner typing `/spec-it slice 1`, `/clear`, `/build slice 1`, `/clear`, `/ship slice 1`.
+Unattended means the loop does the owner's job while they are away, the way they do it: one stage at a time, **the same workflow and skills as an interactive session**, a fresh context for each stage, files as the only handoff. A loop beat is the owner typing `/spec-it slice 1`, `/clear`, `/build slice 1`, `/clear`, `/ship slice 1`.
 
 Every stage runs unattended except Discovery, which needs the owner. State that depends on a merge is carried by the MR or derived from git, never written after the merge.
 
@@ -13,7 +13,7 @@ Every stage runs unattended except Discovery, which needs the owner. State that 
 
 | | Decision |
 |---|---|
-| D1 | **Stop only for one-way doors.** Grilling's product-decision test, split by reversibility. *One-way* (cannot be undone cheaply, contradicts an earlier decision, changes what the product costs to run): the stage stops and asks. *Two-way* (changes what a user sees or does, a small scope call, reversible in the MR): the agent applies its recommendation, logs a `high` ruling ("decided for you; overrule in the MR") and continues. Reason: the owner rubber-stamped stops he had no context for; a stop that adds no judgment only adds delay. |
+| D1 | **Stop only for one-way doors.** Grilling's product-decision test, split by reversibility. *One-way* (cannot be undone cheaply, contradicts an earlier decision, changes what the product costs to run): the stage stops and asks. *Two-way* (changes what a user sees or does, a small scope call, reversible in the MR): the agent applies its recommendation, logs a `high` ruling ("decided for you; overrule in the MR") and continues. Reason: the owner rubber-stamped stops they had no context for; a stop that adds no judgment only adds delay. |
 | D2 | **A fresh Checker reviews each spec** against the slice and the PRD before any Build beat. |
 | D3 | **One MR per slice**, carrying its spec, code and bookkeeping. |
 | D4 | **One owner sign-off per project:** the Blueprint and the Carve arrive as one MR. Merging it is the approval; no slice is built before. After it, each slice runs from Spec-It to its MR alone. |
@@ -45,10 +45,10 @@ A small `task-backlog.md` line keeps its short route: Build, then Ship.
 
 ## Product questions (D1, D5)
 
-- **The round file.** A stage with one-way questions writes `conductor/1-workbench/questions/<project>-<stage>.md`: each question numbered, in two sentences in user terms, the options with their consequence for a user, the recommendation and why, and what a wrong choice costs. The driver adds one inbox line pointing at it and pauses that stage; other projects and slices go on.
-- **The answer.** The owner writes the number of his choice under each question (or "your pick"). The next run sees the answers, resumes the stage and records each answer as a decision in the stage's document.
+- **The round file.** A stage with one-way questions writes `conductor/1-workbench/questions/<item>.md` (one round per work item, its id made file-safe): each question numbered, in two sentences in user terms, the options with their consequence for a user, the recommendation and why, and what a wrong choice costs. The driver adds one inbox line pointing at it and pauses that stage; other projects and slices go on.
+- **The answer.** The owner writes the number of their choice after each question's `Answer:` (or "your pick"). The next run sees the answers, resumes the stage and records each answer as a decision in the stage's document.
 - **The quality bar.** The stage's independent reviewer rejects a question that cannot be answered cold in one line, and a two-way door dressed as a one-way door.
-- **Measurement.** The ruling log already records each decision. `conductor status` shows how often the owner overrules a ruling and how often he takes the recommendation. Near-total acceptance means the loop asks too much.
+- **Measurement.** The ruling log already records each decision. `conductor status` shows how often the owner overrules a ruling and how often the owner takes the recommendation. Near-total acceptance means the loop asks too much.
 
 ## Claims and cleanup (from the crossings)
 

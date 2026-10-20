@@ -25,7 +25,8 @@ import { mineRecurringFailures, renderImprovementReport } from "../loop/improver
 import { parseTriggerPayload, applyTrigger, renderTriggerDoc } from "../loop/trigger.js";
 import { allowedToolsFor } from "../loop/untrusted.js";
 import { writeBeatLog, BEAT_LOG_DIR } from "../loop/beat-log.js";
-import { syncLoopStateInto } from "../loop/state-sync.js";
+import { syncLoopStateInto, hideFromGit } from "../loop/state-sync.js";
+import { QUESTIONS_REL, roundKey, parseRound, checkRound, roundAnswered } from "../loop/questions.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
 import { recordUsage, usageSummary } from "../loop/usage.js";
@@ -251,9 +252,9 @@ async function readRootConfig(root) {
   return readJson(cfgPath);
 }
 
-async function writeInbox(root, state, reason) {
+async function writeInbox(root, state, reason, { title = null } = {}) {
   const inbox = join(root, "conductor/1-workbench/inbox.md");
-  const line = `\n## [loop] Escalation — ${state.status}\n${reason}\n(goal: ${state.goal_description || "n/a"}, beat ${state.iterations.current}/${beatCeiling(state)})\n`;
+  const line = `\n## [loop] ${title ?? `Escalation — ${state.status}`}\n${reason}\n(goal: ${state.goal_description || "n/a"}, beat ${state.iterations.current}/${beatCeiling(state)})\n`;
   try {
     const prev = (await exists(inbox)) ? await readFile(inbox, "utf8") : "";
     await writeFile(inbox, prev + line, "utf8");
@@ -997,7 +998,10 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const specPath = join(root, ".agents/workflows/spec-it.md");
     const specIt = (await exists(specPath)) ? await readFile(specPath, "utf8") : "";
     const rules = sectionOf((await exists(promptPath)) ? await readFile(promptPath, "utf8") : "", "Spec beat");
-    const assignment = `# Spec assignment (this beat)\n\n- **Slice folder:** \`${task.source?.path}\`\n- **Project:** ${task.source?.project}`;
+    const assignment =
+      `# Spec assignment (this beat)\n\n- **Slice folder:** \`${task.source?.path}\`\n- **Project:** ${task.source?.project}\n` +
+      `- **Questions file:** \`${QUESTIONS_REL}/${roundKey(task.id)}.md\` (only for a one-way door: see the loop workflow)` +
+      (task.answered_round ? `\n- **Your questions were answered:** read \`${task.answered_round}\` first, apply each answer, and record it as a decision in the spec.` : "");
     const parts = [specIt, "---", rules, assignment];
     if (task.attempts?.length) parts.push(renderAttempts(task.attempts));
     const p = join(tmpdir(), `conductor-spec-${task.id.replace(/[^a-z0-9]+/gi, "-")}.md`);
@@ -1032,6 +1036,54 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         `Review \`${task.source?.path}/feature-spec.md\` and \`implementation-plan.md\` against the slice's entry in \`project-documentation.md\` and the project's Blueprint (\`blueprint/\`). ` +
         "There is no code yet: do not run tests. Approve only if every acceptance criterion of the slice is covered, the Brief check is answered, the plan builds what the spec says, " +
         "and no product decision is taken that is a one-way door. A spec that would build the wrong thing well is a BLOCKER.\n",
+      "utf8"
+    );
+    return p;
+  }
+
+  // Step 4: the round a beat wrote stays out of its branch; the owner answers
+  // the copy in the root checkout, and the answered round rides in the branch.
+  function roundRel(task) {
+    return `${QUESTIONS_REL}/${roundKey(task.id)}.md`;
+  }
+  async function raiseRoundIn(cwd, task) {
+    const file = join(cwd, roundRel(task));
+    if (!(await exists(file))) return { ok: false, reasons: [`the beat signalled questions but wrote no ${roundRel(task)}`], count: 0 };
+    const text = await readFile(file, "utf8");
+    const check = checkRound(parseRound(text));
+    if (!check.ok) return { ...check, count: 0 };
+    if (resolve(cwd) !== resolve(root)) {
+      await mkdir(join(root, QUESTIONS_REL), { recursive: true });
+      await writeFile(join(root, roundRel(task)), text, "utf8");
+    }
+    return { ok: true, reasons: [], count: parseRound(text).questions.length };
+  }
+  async function roundForIn(cwd, task) {
+    const rootFile = join(root, roundRel(task));
+    if (!(await exists(rootFile))) return { state: "none" };
+    const text = await readFile(rootFile, "utf8");
+    const round = parseRound(text);
+    if (!roundAnswered(round)) return { state: "unanswered", count: round.questions.length };
+    const answeredRel = `${QUESTIONS_REL}/answered/${roundKey(task.id)}.md`;
+    await mkdir(join(cwd, QUESTIONS_REL, "answered"), { recursive: true });
+    await writeFile(join(cwd, answeredRel), text, "utf8");
+    await rm(rootFile, { force: true });
+    if (resolve(cwd) !== resolve(root)) await rm(join(cwd, roundRel(task)), { force: true });
+    await audit(`task ${task.id}: the owner answered ${round.questions.length} question(s); resuming`);
+    return { state: "answered", path: answeredRel };
+  }
+  // D1: a fresh Checker confirms each question is a one-way door the owner can answer cold.
+  async function questionsCheckerPrompt(task) {
+    const base = (await exists(checkerPromptPath)) ? await readFile(checkerPromptPath, "utf8") : "";
+    const p = join(tmpdir(), `conductor-questions-review-${task.id.replace(/[^a-z0-9]+/gi, "-")}.md`);
+    await writeFile(
+      p,
+      `${base}\n\n---\n\n# This review: a round of questions for the owner (D1, D5)\n\n` +
+        `Review \`${roundRel(task)}\`. Do not run tests and do not review code. Approve only if every question is a one-way door: ` +
+        "a decision that cannot be undone cheaply (data model, auth model, vendor, public API), contradicts an earlier decision, or changes what the product costs to run. " +
+        "A two-way door (it only changes what a user sees or does, and the MR can reverse it) is a BLOCKER: name it, and say the Maker should decide it and log a high ruling. " +
+        "Each question must be answerable cold by a product owner who has not read the code: plain context, options with their consequence, a recommendation with its reason, the cost of a wrong choice. " +
+        "A question that needs the code or a long document to answer is a BLOCKER.\n",
       "utf8"
     );
     return p;
@@ -1170,7 +1222,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       audit,
       now: () => Date.now(),
       persist: (s) => atomicWriteJson(statePath, s),
-      writeInbox: (s, reason) => writeInbox(root, s, reason),
+      writeInbox: (s, reason, o) => writeInbox(root, s, reason, o),
       log: (m) => stdout.write(`${m}\n`),
       costAware: loopConfig.costAware,
     };
@@ -1236,6 +1288,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         // Conductor-enable the isolated Maker even if the scaffold is gitignored.
         await materializeContextInto(plan.path);
         cwdFor.set(task.id, plan.path);
+        await hideFromGit(roundRel(task), { cwd: plan.path, git: makeGit(plan.path) });
         const setup = await runWorktreeSetup(plan.path);
         if (!setup.ok) return { path: plan.path, branch: plan.branch, setup_error: setup.reason };
         // The claim is the loop branch itself (step 2): no commit on the owner's checkout.
@@ -1282,7 +1335,11 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       runChecker: async ({ task, phase }) =>
         makeChecker(
           cwdFor.get(task.id) ?? root,
-          await checkerPromptWithRulings(phase === "spec" ? await specCheckerPrompt(task) : await checkerPromptFor(task), await branchRulings(cwdFor.get(task.id) ?? root), task.id)
+          await checkerPromptWithRulings(
+            phase === "spec" ? await specCheckerPrompt(task) : phase === "questions" ? await questionsCheckerPrompt(task) : await checkerPromptFor(task),
+            await branchRulings(cwdFor.get(task.id) ?? root),
+            task.id
+          )
         )(),
       // F7: would this branch collide with the base before we push it? Asked
       // against the object store from the ROOT checkout, so no working tree is
@@ -1292,6 +1349,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       runShip: ({ task }) => runShipIn(cwdFor.get(task.id) ?? root, { key: task.id, task, branch: task.worktree?.branch, holder: task }),
       runSpec: ({ task }) => runSpecIn(cwdFor.get(task.id) ?? root, task),
       specEvidence: ({ task }) => specEvidenceIn(cwdFor.get(task.id) ?? root, task),
+      roundFor: ({ task }) => roundForIn(cwdFor.get(task.id) ?? root, task),
+      raiseRound: ({ task }) => raiseRoundIn(cwdFor.get(task.id) ?? root, task),
       shipEvidence: ({ task }) => shipEvidenceIn(cwdFor.get(task.id) ?? root, task),
       // The done tick and the ship-log entry now ride in the task's branch (the
       // Ship beat), so merging the MR records the ship. Nothing is written to
@@ -1321,6 +1380,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     }
     const merged = final.tasks.filter((t) => t.status === "merged").length;
     stdout.write(`\n[CONDUCTOR SWARM] finished: ${final.status} (${merged}/${final.tasks.length} tasks merged)\n`);
-    return final.status === "completed" || final.status === "awaiting_review" ? 0 : 1;
+    // A round of questions is a planned pause for the owner, not a failure.
+    return ["completed", "awaiting_review", "awaiting_answers"].includes(final.status) ? 0 : 1;
   }
 }

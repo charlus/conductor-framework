@@ -8,7 +8,7 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
-## [6.25.0] — 2026-10-20 — The loop builds carved slices, from spec to MR
+## [6.26.0] — 2026-10-20 — The loop builds carved slices, from spec to MR
 
 Compatibility: upgrade only
 
@@ -17,6 +17,29 @@ Build step 3 of [`docs/roadmap/Unattended-Lifecycle.md`](docs/roadmap/Unattended
 ### Added
 
 - **The slice pipeline.** With `loop.slices: ["<Project>"]` (or `true`), `--from-conductor` takes the lowest open slice of each opted-in project (`project-backlog/<Project>/implementations/NN-<slice>/`) and runs it the way you would: a fresh Spec beat running `spec-it.md`, the spec checked in code (both files written, the Brief check answered), a fresh Checker reviewing the spec against the slice's acceptance criteria and the Blueprint before any code (D2), Build beats from the plan with the task tracker as memory until the Maker says the slice is ship-ready, then the Ship beat, which archives the slice in the branch. One MR per slice carries the spec, the code and the bookkeeping (D3). A slice whose spec is already on the default branch is yours and starts at Build. One slice per project at a time, the lowest number. The Spec beat's unattended rules are a new section of `unattended-loop.md`; `spec-it.md` and `build.md` are unchanged. `conductor loop doctor` counts the slices in its queue check. Verified live on a scratch product: one Spec beat, one Build beat, one Ship beat, three reviews, ≈ $1.16 at list price; the MR carried a spec with its Brief check, the code, 16 passing tests, the tracker, the ship-log entry, the product area and the archived slice.
+
+---
+
+## [6.25.0] — 2026-10-20 — Live state is checked, not remembered
+
+Compatibility: upgrade only
+
+An agent reported "!254 not deployed yet" from the state it had written the day before. The human had merged and deployed it in between, outside the conversation. The files hold history, and the agent read it as today's fact.
+
+### Added
+
+- **Live State Law**, a new always-on rule (`.agents/rules/live-state-law.md`). Before the agent states an MR, pipeline, deploy or branch status, it checks it. When no tool can check it, it says "not checked" and asks you. It quotes a record with its date and writes events, not statuses. You no longer have to report what you did outside the conversation.
+- **`conductor status --live`** asks the forge (`glab` / `gh`) for every MR the five newest ship-log entries name, and flags an entry whose "not merged" or "still open" a merge has since contradicted. Without `--live`, status makes no network call and says that MR and deploy status were not checked. `--live --json` carries the full list. Verified live on eurassistant and evalapp-v2: it found evalapp-v2's "MR !53, still open", merged since 2026-07-31.
+- **`deployCheck`** in `conductor.config.json` (top level, or per nested repository under `repos`): a read-only command that prints what runs in production. `status --live` runs it and shows its output. Without one, status says "ask the human", and the agent does.
+
+### Changed
+
+- **Ship writes events, not statuses.** The ship-log entry records the MR and the date it was opened, never "not merged yet" or "not deployed". The agent does not come back to record the merge or the deploy.
+- **Handoff** tells the receiver to re-check live state with `conductor status --live`.
+
+### Measured
+
+- `test/evals/live-state-eval.mjs` replays the incident with a real agent: this version checked, or said "not checked", in 4 of 4 runs. The framework without it repeated "Deploy !254" as fact in 3 of 4 (n=4, noise floor 25pp).
 
 ---
 

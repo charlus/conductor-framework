@@ -227,6 +227,13 @@
   ],
   "rules": [
     {
+      "name": "live-state-law",
+      "file": "live-state-law.md",
+      "description": "Live state is checked, not remembered.",
+      "category": "core",
+      "default": true
+    },
+    {
       "name": "loop-guardrails",
       "file": "loop-guardrails.md",
       "description": "Loop-scoped safety limits (iteration ceiling, anti-stall, evidence rule). Loaded by the unattended-loop workflow — NOT always-on. Interactive sessions don't pay for it.",
@@ -420,6 +427,7 @@
         "Verification-Gate"
       ],
       "rules": [
+        "live-state-law",
         "loop-guardrails",
         "prime-directive",
         "test-driven-law",

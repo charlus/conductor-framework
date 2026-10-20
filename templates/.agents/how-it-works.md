@@ -101,6 +101,9 @@ Never rush to a solution. Read `conductor/4-context/` and `conductor/3-product-a
 ### Verification Iron Law
 No completion claims without fresh verification evidence. Applies to every workflow and skill, globally. See `.agents/rules/verification-iron-law.md`.
 
+### Live State Law
+`conductor/` is history. MR, pipeline, deploy and branch status are live: the human changes them outside the conversation. Check them when you state them (`conductor status --live`, which runs the project's `deployCheck`), or say "not checked" and ask. See `.agents/rules/live-state-law.md`.
+
 ### Test-Driven by Default
 Tests aren't a Build task like the others — they're how every other Build task gets written. There are three layers, and they don't overlap:
 
@@ -175,7 +178,7 @@ task-backlog.md → Do it → ship-log.md
 | "How does this framework work?" | Navigation | → load `conductor-assistant` persona |
 | "Inbox: X", "Add to inbox: X" | Capture | → `conductor inbox add "X"`, else append verbatim to `conductor/1-workbench/inbox.md`, no workflow |
 | "Scratchpad: X" | Capture | → append verbatim to `conductor/1-workbench/scratchpad.md`, no workflow |
-| "What's on our plate", "status" | Status | → `conductor status`; show its output verbatim |
+| "What's on our plate", "status" | Status | → `conductor status`; show its output verbatim. `--live` for MR or deploy status |
 | Small fix, bug, quick task (already well-scoped) | Task | → add to `conductor/2-backlog/task-backlog.md` |
 
 **Not sure what you need?**
@@ -216,7 +219,7 @@ Mechanics live in `.agents/skills/context-engineering/SKILL.md`.
 
 | Command | What it is for |
 |---|---|
-| `conductor status` | The daily question, answered in one screen: inbox depth, open tasks per priority, the work queue in the order the loop would drain it, stale documents, loop state, and whether the gates are armed (push command, git hooks wired, opt-in agent guards, waivers in the last 30 days, and the local commits and pushes that skipped the hooks). Costs no tokens and no context — never ask an agent to summarise state instead. |
+| `conductor status` | The daily question, answered in one screen: inbox depth, open tasks per priority, the work queue in the order the loop would drain it, stale documents, loop state, and whether the gates are armed (push command, git hooks wired, opt-in agent guards, waivers in the last 30 days, and the local commits and pushes that skipped the hooks). Costs no tokens and no context — never ask an agent to summarise state instead. `--live` adds each recent MR's state from `glab`/`gh`, flags a ship-log entry a merge has contradicted, and runs `deployCheck` from `conductor.config.json` (none: ask the human). |
 | `conductor inbox add "…"` / `conductor inbox list` | Deterministic quick capture and read-back. |
 | `conductor review <file.md>` | Hands one document to the human for sign-off: rendered in the browser, text-anchored comments, **Approve** / **Request changes**. Exit `0` approved, `2` changes requested, `1` no verdict; stdout is JSON. Run it in the background and read the JSON when it exits. |
 | `conductor survey [dir] [--out <file>]` | Facts about an existing codebase: languages, coverage by area (untested first), entry points, routes, config keys, dependencies. Used by `workflows/survey.md`. An area marked untested is a place to check, not a proven gap. |

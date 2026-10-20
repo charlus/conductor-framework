@@ -1,6 +1,6 @@
 # Unattended Lifecycle — the loop runs Conductor's own workflows, stage by stage
 
-> **Status:** signed off 2026-10-19. Step 1 (the Ship beat) shipped in 6.23.0, step 2 (claims from git, cleanup on pull) in 6.24.0, both verified live. `conductor status` reports and does not delete: cleanup runs on `git pull` and at the start of a run. Step 3 (the slice pipeline) in 6.25.0, verified live on a scratch product. Next: step 4, question rounds and the overrule measurement.
+> **Status:** signed off 2026-10-19. Step 1 (the Ship beat) shipped in 6.23.0, step 2 (claims from git, cleanup on pull) in 6.24.0, both verified live. `conductor status` reports and does not delete: cleanup runs on `git pull` and at the start of a run. Step 3 (the slice pipeline) in 6.26.0, verified live on a scratch product. Next: step 4, question rounds and the overrule measurement.
 > **Why:** two real crossings (`Unattended-Crossing.md`) showed that the loop follows Conductor up to Build and then leaves it. It skips Ship (bookkeeping, the report, the archive), never runs the Blueprint, and keeps its own claim and done markers. Unattended work was held to a lower standard than interactive work, on the steps that let the owner trust work he did not watch.
 
 ## The principle

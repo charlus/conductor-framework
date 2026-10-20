@@ -186,7 +186,7 @@ echo ""
 echo "6. Rules..."
 
 rules=(
-  "prime-directive" "verification-iron-law" "test-driven-law" "loop-guardrails"
+  "prime-directive" "verification-iron-law" "test-driven-law" "live-state-law" "loop-guardrails"
 )
 
 for rule in "${rules[@]}"; do

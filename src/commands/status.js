@@ -13,6 +13,7 @@ import { instructionWarningsFor } from "../claude-instructions.js";
 import { cardState } from "./agents-md.js";
 import { mergedLoopWorktrees } from "../loop/reconcile.js";
 import { QUESTIONS_REL, decisionStats, parseRound, roundAnswered } from "../loop/questions.js";
+import { nextAfterStatus } from "../next-step.js";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -36,6 +37,33 @@ function wantsColour(opts, stdout, env) {
   if (opts.color !== null) return opts.color;
   if (env.NO_COLOR) return false;
   return Boolean(stdout.isTTY);
+}
+
+/** The slices and Blueprints the loop would take, from `loop.slices` and `loop.blueprint`. Never throws. */
+export async function loopItems(root) {
+  try {
+    const { parseLoopConfig } = await import("../loop/config.js");
+    const { readSlices, readBlueprints } = await import("./loop.js");
+    const { harvestSlices } = await import("../loop/slices.js");
+    const { harvestBlueprints } = await import("../loop/blueprint.js");
+    const raw = JSON.parse(await readFile(join(root, "conductor.config.json"), "utf8"));
+    const cfg = parseLoopConfig(raw);
+    const items = [];
+    if (cfg.slices === true || cfg.slices.length) items.push(...harvestSlices(await readSlices(root, cfg.slices)));
+    if (cfg.blueprint === true || cfg.blueprint.length) items.push(...harvestBlueprints(await readBlueprints(root, cfg.blueprint)));
+    return items.map((t) => t.title);
+  } catch {
+    return [];
+  }
+}
+
+/** The question rounds in the root checkout: waiting for the owner, or answered and waiting for the loop. */
+export async function readRounds(root) {
+  const files = (await readdir(join(root, QUESTIONS_REL)).catch(() => [])).filter((f) => f.endsWith(".md"));
+  const answered = await Promise.all(files.map(async (f) => roundAnswered(parseRound(await readFile(join(root, QUESTIONS_REL, f), "utf8")))));
+  const waitingFiles = files.filter((_, i) => !answered[i]);
+  const answeredFiles = files.filter((_, i) => answered[i]);
+  return { waitingFiles, answeredFiles, waiting: waitingFiles.map((f) => `${QUESTIONS_REL}/${f}`), answered: answeredFiles };
 }
 
 export async function statusCommand(args, context) {
@@ -87,10 +115,7 @@ export async function statusCommand(args, context) {
   }
   // Step 4 (D1): rounds waiting for the owner, and how often the owner agrees.
   const md = async (d) => (await readdir(join(root, d)).catch(() => [])).filter((f) => f.endsWith(".md"));
-  const rounds = await md(QUESTIONS_REL);
-  const isAnswered = await Promise.all(rounds.map(async (f) => roundAnswered(parseRound(await readFile(join(root, QUESTIONS_REL, f), "utf8")))));
-  const waiting = rounds.filter((_, i) => !isAnswered[i]);
-  const ready = rounds.filter((_, i) => isAnswered[i]);
+  const { waitingFiles: waiting, answeredFiles: ready } = await readRounds(root);
   if (ready.length) {
     context.stdout.write(`  ℹ️  ${ready.length} answered question round${ready.length === 1 ? "" : "s"}: the next loop run resumes ${ready.length === 1 ? "its item" : "their items"}.\n`);
   }
@@ -105,5 +130,14 @@ export async function statusCommand(args, context) {
   if (st.answered || st.rulings) {
     context.stdout.write(`  ℹ️  Loop decisions: you took the recommendation ${st.tookRecommendation} of ${st.answered} times, and overruled ${st.overruled} of ${st.rulings} ruling${st.rulings === 1 ? "" : "s"}.\n`);
   }
+  const next = nextAfterStatus({
+    waitingRounds: waiting.map((f) => `${QUESTIONS_REL}/${f}`),
+    answeredRounds: ready.length,
+    verifyConfigured: state.digest?.verify?.configured !== false,
+    inboxCount: state.digest?.inboxCount ?? 0,
+    queueLength: state.digest?.queueLength ?? 0,
+    loopItems: await loopItems(root),
+  });
+  context.stdout.write(`\n  ${next}\n`);
   return 0;
 }

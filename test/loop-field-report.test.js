@@ -37,7 +37,7 @@ for (const flag of ["--help", "-h"]) {
       const stderr = sink();
       const code = await loopCommand([dir, flag], { cwd: dir, stdout, stderr });
       assert.equal(code, 0);
-      assert.match(stdout.text, /conductor loop \[target-directory\]/);
+      assert.match(stdout.text, /conductor loop \[dir\]/);
       assert.match(stdout.text, /--dry-run/);
       assert.doesNotMatch(stderr.text, /UNSANDBOXED/);
     });

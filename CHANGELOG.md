@@ -8,6 +8,24 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.30.0] — 2026-10-20 — The CLI says how to use it, and what to do next
+
+Compatibility: upgrade only
+
+Six loop features shipped in one day, and their flags and settings were findable only in the code. `loop --help` did not list `slices`, `blueprint` or `cost_aware`, and most commands ignored `--help`: `init --help` failed, `status --help` ran the command.
+
+### Added
+
+- **`docs/Using-Conductor.md`**, linked from the top of the README: what you want to do, and the exact command, in your agent and in the terminal; then every command, option and `conductor.config.json` setting.
+- **`conductor help <command>` and `conductor <command> --help`** work for every command and list its options and the settings it reads, without running it.
+- **The CLI says the next step.** `conductor status`, `conductor loop`, `conductor loop doctor` and a dry run end with one `Next:` line: the command to run from where the project stands (answer a question round, merge an MR, preview the loop's next slice). `conductor` on its own, inside a project, shows the inbox, the backlog, the waiting questions and that next command, instead of the full command list.
+
+### Changed
+
+- **One source for all of it.** `src/usage.js` holds every command, option and setting; the help, the main help and the page's reference are rendered from it (`node scripts/write-usage-reference.js`). A test fails when a command parses an option or the config reads a key that the source does not list, when the page is out of date, or when a command has no help.
+
+---
+
 ## [6.29.0] — 2026-10-20 — A test fails when the loop leaves Conductor's workflows
 
 Compatibility: upgrade only

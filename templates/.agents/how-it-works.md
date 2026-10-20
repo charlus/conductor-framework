@@ -215,6 +215,8 @@ Mechanics live in `.agents/skills/context-engineering/SKILL.md`.
 
 ## Human Surfaces (reading and writing `conductor/` from a terminal)
 
+`conductor help <command>` lists every option and the settings a command reads; `conductor` on its own, in a project, names the next command. When the human asks how to run something, answer with that command.
+
 `conductor/` is one source of truth with several renderers. The files stay markdown — that is what makes the autonomous loop, the evidence ledger and PR review work — and these commands are projections of them for a human working from a CLI, where the IDE's file tree and rendered preview are gone.
 
 | Command | What it is for |

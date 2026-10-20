@@ -37,6 +37,7 @@ conductor-framework/          ← You are here (package source)
 │   ├── kebab.js                 # kebab-case rename + checksum-key migration (used by upgrade)
 │   ├── update.js                # Diffs installed vs. latest templates for upgrade
 │   ├── bundles.js / checksums.js / prompt.js
+│   ├── usage.js / next-step.js  # every command, option and config key (help + docs/Using-Conductor.md); the `Next:` hints
 │   └── commands/
 │       ├── init.js            # conductor init: scaffolds .agents/ + conductor/ into target
 │       ├── upgrade.js         # conductor upgrade: replaces .agents/, kebab-case migration, conductor/ migration
@@ -128,9 +129,10 @@ Stable pointers to where the big subsystems live:
    git diff --name-only master..HEAD -- templates/.agents/workflows/ | grep -v unattended-loop   # empty for loop work
    ```
    Full install flow: `node bin/conductor.js init /tmp/test --all && bash /tmp/test/.agents/tests/check-conductor.sh`.
-5. **Documentation moves with the code, in the same PR, written as done.** Never a follow-up PR for docs. Add the change to `CHANGELOG.md` in the section of the version it ships in, with a `Compatibility:` line under the heading (`upgrade only`, `upgrade plus a step`, `breaking for scripts`, checked by `test/changelog-compatibility.test.js`), and bump `package.json` in the same PR (with an upgrade note when users must act), and update `README.md`, this file, `templates/.agents/how-it-works.md` and the roadmap status block it affects. What is removed from the code is removed from the docs. `test/docs-drift.test.js` checks the countable part (counts, commands, registries); the meaning is yours.
-6. **Commit** with Conventional Commits (`feat:`/`fix:`/`docs:`/`refactor:`); don't squash commits a roadmap doc cites by hash; keep the relevant roadmap status block + `memory/` current.
-7. **Hand off** merges and classifier-blocked / dangerous-flag actions to the human.
+5. **A new command, option or `conductor.config.json` key goes into `src/usage.js` in the same change**, then `node scripts/write-usage-reference.js` regenerates `docs/Using-Conductor.md`. `--help`, `conductor help` and the page come from that file; `test/usage-reference.test.js` fails when they drift. A command that ends in a state the owner must act on prints a `Next:` line (`src/next-step.js`).
+6. **Documentation moves with the code, in the same PR, written as done.** Never a follow-up PR for docs. Add the change to `CHANGELOG.md` in the section of the version it ships in, with a `Compatibility:` line under the heading (`upgrade only`, `upgrade plus a step`, `breaking for scripts`, checked by `test/changelog-compatibility.test.js`), and bump `package.json` in the same PR (with an upgrade note when users must act), and update `README.md`, this file, `templates/.agents/how-it-works.md` and the roadmap status block it affects. What is removed from the code is removed from the docs. `test/docs-drift.test.js` checks the countable part (counts, commands, registries); the meaning is yours.
+7. **Commit** with Conventional Commits (`feat:`/`fix:`/`docs:`/`refactor:`); don't squash commits a roadmap doc cites by hash; keep the relevant roadmap status block + `memory/` current.
+8. **Hand off** merges and classifier-blocked / dangerous-flag actions to the human.
 
 ## Credits
 

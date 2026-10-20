@@ -12,6 +12,8 @@ Conductor is a harness layer: it configures your AI coding assistant (Claude Cod
 - **One instruction file, every harness.** The root `AGENTS.md` (the AAIF standard) carries the framework's laws and a short **project card** — stack, commands, layout, purpose, conventions — so every session starts knowing the project, without a single tool call.
 - **Built for a terminal, not an IDE.** Project state stays plain markdown, so the loop and every git-based gate can read it — but you don't have to read it with `cat`. `conductor status` answers "what's on our plate" in one screen; `conductor view` renders every document into a single searchable HTML page with backlinks.
 
+**How to use it:** every command and setting, by what you want to do, is in [`docs/Using-Conductor.md`](docs/Using-Conductor.md). Inside a project, `conductor` on its own says where the project stands and the next command, and `conductor help <command>` shows every option.
+
 ---
 
 ## Quick Install

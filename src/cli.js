@@ -19,82 +19,30 @@ import { reviewCommand } from "./commands/review.js";
 import { surveyCommand } from "./commands/survey.js";
 import { personasCommand } from "./commands/personas.js";
 import { designCommand } from "./commands/design.js";
+import { mainHelp, commandHelp } from "./usage.js";
+import { nextAfterStatus } from "./next-step.js";
 
 function helpText() {
+  return mainHelp();
+}
+
+/** A bare `conductor` inside a project: where it stands and the next command, not the whole list. */
+async function projectGuide(cwd) {
+  const { collectState } = await import("./conductor-state.js");
+  const { readRounds, loopItems } = await import("./commands/status.js");
+  const { ok, state } = await collectState(cwd, {});
+  if (!ok) return null;
+  const rounds = await readRounds(cwd);
+  const d = state.digest ?? {};
   return [
     "",
-    "  conductor-framework",
+    `  Conductor project: ${cwd}`,
+    `  Inbox ${d.inboxCount ?? 0} · backlog open ${d.backlogOpen ?? 0} · question rounds waiting ${rounds.waiting.length}`,
     "",
-    "  The Conductor — AI Software Engineering framework",
-    "  for the full development lifecycle.",
+    `  ${nextAfterStatus({ waitingRounds: rounds.waiting, answeredRounds: rounds.answered.length, verifyConfigured: d.verify?.configured !== false, inboxCount: d.inboxCount ?? 0, queueLength: d.queueLength ?? 0, loopItems: await loopItems(cwd) })}`,
     "",
-    "  Usage:",
-    "    conductor status [target-directory] [--json] [--live] [--no-color]",
-    "    conductor inbox add <text> | conductor inbox list",
-    "    conductor view [target-directory] [--open] [--out <file>]",
-    "    conductor init [target-directory] [options]",
-    "    conductor upgrade [target-directory]",
-    "    conductor add <skill-name> [--registry <url>]",
-    "    conductor remove <skill-name> [--force]",
-    "    conductor list [--remote] [--tier <tier>]",
-    "    conductor search <query> [--tag <tag>]",
-    "    conductor verify [--repo <dir>] [--set <cmd> | --detect | --none] [--no-run]",
-    "    conductor review <file.md> [--timeout <min>]",
-    "    conductor survey [dir] [--json] [--out <file>]",
-    "    conductor personas [paths…] [--base <ref>] [--json]",
-    "    conductor design migrate [dir] [--repo <path>] [--dry-run]",
-    "    conductor install-hooks [--uninstall]",
-    "    conductor trust-verify [--revoke] [--list]",
-    "    conductor evidence <run|check|list> …",
-    "    conductor review-log <append|summary>",
-    "    conductor context-bill [dir] [--all] [--json] [--budget <file>]",
-    "    conductor agents-md <facts|write|check> [dir]",
-    "    conductor loop [target-directory] [--goal <text> | --event <file.json> | --from-conductor]",
-    "                   [--platform <name>] [--dry-run] [--unsafe-no-sandbox]",
-    "",
-    "  Commands:",
-    "    status          One-screen digest of conductor/ — inbox, backlog, next up",
-    "    inbox           Capture a thought (`add`) or read the inbox (`list`)",
-    "    view            Render conductor/ into one self-contained HTML dashboard",
-    "    init            Scaffold the Conductor framework in a new project",
-    "    upgrade         Upgrade an existing project to the latest framework",
-    "    add             Download a skill from the registry",
-    "    remove          Remove an installed skill",
-    "    list            List installed skills (or --remote for registry)",
-    "    search          Search the registry for skills",
-    "    verify          Show or set the command `git push` must pass (the push gate)",
-    "    review          Render a document in the browser and wait for approve / request-changes",
-    "    survey          Collect the facts about an existing codebase you have inherited",
-    "    personas        Which domain personas (Designer, Security…) a change needs",
-    "    design          Combine conductor/4-context/design/ into one DESIGN.md (`migrate`)",
-    "    install-hooks   Enable deterministic TDD/verification git hooks",
-    "    trust-verify    Record operator consent for this repo's verify command",
-    "    evidence        Record/grade verification evidence against the working tree",
-    "    review-log      Record review findings + dispositions; summarise the rubric",
-    "    context-bill    What the framework costs an agent per session (always-on vs eager)",
-    "    agents-md       The project card in AGENTS.md: print facts, refresh them, check the card",
-    "    loop            Run the deterministic autonomous loop driver",
-    "",
-    "  Init Options:",
-    "    -f, --force       Overwrite existing .agent directory",
-    "    --agent-only      Only copy .agents/ (skip .conductor/ folders)",
-    "    --no-detect       Skip tech stack detection",
-    "    -h, --help        Show this help message",
-    "",
-    "  Examples:",
-    "    conductor status                            what is on our plate today",
-    "    conductor inbox add \"rename the export button\"",
-    "    conductor view --open                       the full rendered dashboard",
-    "    conductor verify                            what does `git push` run here?",
-    "    conductor verify --set \"npm test\"           set it (runs it once first)",
-    "    npx conductor-framework init",
-    "    npx conductor-framework init ./my-project",
-    "    npx conductor-framework upgrade",
-    "    npx conductor-framework add react-components",
-    "    npx conductor-framework list --remote",
-    "    npx conductor-framework search react",
-    "    conductor loop --goal \"get all tests passing\" --dry-run",
-    "    conductor loop --from-conductor --dry-run   # preview the fleet's backlog queue",
+    "  Often used:  conductor status · conductor inbox add \"<idea>\" · conductor loop . --from-conductor --dry-run",
+    "  All commands: conductor help   ·   Full guide: docs/Using-Conductor.md",
     "",
   ].join("\n");
 }
@@ -102,13 +50,25 @@ function helpText() {
 export async function runCli(args, io = process) {
   const [command, ...rest] = args;
 
-  if (
-    !command ||
-    command === "-h" ||
-    command === "--help" ||
-    command === "help"
-  ) {
-    io.stdout.write(`${helpText()}\n`);
+  if (!command) {
+    const guide = await projectGuide(io.cwd?.() ?? process.cwd()).catch(() => null);
+    io.stdout.write(`${guide ?? helpText()}\n`);
+    return 0;
+  }
+  if (command === "-h" || command === "--help" || command === "help") {
+    const topic = command === "help" ? rest[0] : null;
+    const text = topic ? commandHelp(topic) : helpText();
+    if (!text) {
+      io.stderr.write(`Unknown command: ${topic}\n${helpText()}\n`);
+      return 1;
+    }
+    io.stdout.write(`${text}\n`);
+    return 0;
+  }
+  // `conductor <command> --help`: the flags before a `--` are the CLI's; after it, the wrapped command's.
+  const own = rest.includes("--") ? rest.slice(0, rest.indexOf("--")) : rest;
+  if ((own.includes("--help") || own.includes("-h")) && commandHelp(command)) {
+    io.stdout.write(`${commandHelp(command)}\n`);
     return 0;
   }
 

@@ -208,6 +208,7 @@ export function normalizeState(raw) {
     rejected_beats: s.rejected_beats ?? 0,
     // A12: decisions the Maker logged in rulings.md during this run.
     rulings: Array.isArray(s.rulings) ? s.rulings : [],
+    ship: s.ship ?? null,
     tasks: Array.isArray(s.tasks) ? s.tasks : [],
     roles: Array.isArray(s.roles) ? s.roles : ["maker", "checker"],
     concurrency: s.concurrency ?? 1,
@@ -333,6 +334,8 @@ export async function runLoop(state, deps) {
     readMakerSignal = null, // the whole signal: { done, escalate, reason }; wins over readMakerDone
     changedFiles = null, // ({from}) → string[]: the files a beat changed (A13), optional
     costAware = false, // loop.cost_aware: only then does budget.max_cost_usd act
+    runShip = null, // (o) → beat result: the Ship beat before the MR (Unattended Lifecycle step 1)
+    shipEvidence = null, // () → {ok, reasons, body}: Ship's bookkeeping, checked in code
     merge = null, // Phase 4: PR-gated merge at L3 (async → { ok, branch, prUrl, reason })
     branchHasWork = null, // (state)=>bool: does the branch carry committed work to ship?
     audit = () => {}, // Phase 4: append to the human-auditable ship-log trail
@@ -571,6 +574,38 @@ export async function runLoop(state, deps) {
             );
             await persist(state);
             break;
+          }
+          // Unattended Lifecycle step 1: ship before the MR, as the owner would
+          // type `/ship`. The Ship beat writes the bookkeeping into this branch
+          // and the MR body; verify and the Checker run again; the evidence is
+          // checked in code. No MR without it.
+          if (runShip && !state.ship) {
+            const { runShipStage } = await import("./ship.js");
+            const s = await runShipStage(state, {
+              runShip: () => runShip({ role: "ship", state }),
+              verify: () => runVerify(verifyCommand),
+              check: () => (runChecker ? runChecker({ role: "checker", state, phase: "ship" }) : { exitCode: 0 }),
+              evidence: () => (shipEvidence ? shipEvidence({ state }) : { ok: true, reasons: [] }),
+              charge: () => {
+                state.iterations.current += 1;
+              },
+              beatNo: () => state.iterations.current,
+              audit,
+            });
+            if (!s.ok) {
+              if (s.outcome === "usage_limit") {
+                state.status = "usage_limit_reached";
+                await writeInbox(state, `agent CLI reported a usage/session limit${s.resetHint ? ` — resets ${s.resetHint}` : ""} during the Ship beat. Re-run to resume.`);
+              } else if (s.outcome === "escalated") {
+                state.status = "escalated";
+                await writeInbox(state, `the Ship beat escalated: ${s.reason}`);
+              } else {
+                state.status = "awaiting_review";
+                await writeInbox(state, `the Ship beat did not complete Ship's bookkeeping: ${s.reason}. Branch kept, no MR opened.`);
+              }
+              await persist(state);
+              break;
+            }
           }
           // L3 execution: never a silent push to a protected branch — open a PR,
           // gated by the green floor + Checker approval already established above.

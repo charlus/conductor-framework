@@ -15,7 +15,7 @@ import { resolveAdapter } from "../loop/adapters/index.js";
 import { createWorktree, teardownWorktree, worktreePlan, taskWorktreePlan, materializeConductorContext, CONTEXT_ANCHORS, hasUniqueCommits, ensureWorktreesExcluded } from "../loop/worktree.js";
 import { autoCommit, autoCommitMessage } from "../loop/autocommit.js";
 import { harvestWorkQueue, renderAssignment, renderAttempts } from "../loop/harvester.js";
-import { applyClaim, applyDone } from "../loop/writeback.js";
+import { applyClaim } from "../loop/writeback.js";
 import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, isInfraReason, VERDICT_REL } from "../loop/checker.js";
 import { openPullRequest, planMergeAction, DEFAULT_PR_BODY } from "../loop/merge.js";
 import { runSwarm } from "../loop/swarm.js";
@@ -31,6 +31,7 @@ import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
 import { recordUsage, usageSummary } from "../loop/usage.js";
 import { newRulings, rulingInboxLines, rulingsPrBody, rulingsForChecker, RULINGS_REL } from "../loop/rulings.js";
+import { renderShipAssignment, shipBeatSection, checkShipEvidence, PR_BODY_REL } from "../loop/ship.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels } from "../loop/config.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
@@ -580,6 +581,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     ...modelled,
     runBeat: logged("maker", modelled.runBeat),
     runChecker: logged("checker", modelled.runChecker),
+    runShipBeat: logged("ship", modelled.runBeat),
   };
   stdout.write(`[CONDUCTOR LOOP] platform: ${adapter.name}\n`);
   if (makerModel || checkerModel) {
@@ -710,12 +712,12 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   };
 
   // PR-gated merge for a worktree branch (never a direct push to a protected branch).
-  const makeMerge = (cwd, branch, title, rulings = async () => []) => async () => {
+  const makeMerge = (cwd, branch, title, rulings = async () => [], shipBody = () => null) => async () => {
     if (!branch) return { ok: false, reason: "no worktree branch to open a PR from" };
     return openPullRequest({
       branch,
       title,
-      body: rulingsPrBody(await rulings(), DEFAULT_PR_BODY),
+      body: rulingsPrBody(await rulings(), shipBody()?.trim() || DEFAULT_PR_BODY),
       git: makeGit(cwd),
       run: (cmd, argv) => runCli(cmd, argv, cwd),
       forge: forgeInfo.forge,
@@ -921,6 +923,50 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   async function branchRulings(cwd) {
     return newRulings(await readRulingsAt(root), await readRulingsAt(cwd));
   }
+  // Unattended Lifecycle step 1: the Ship beat's prompt is Ship itself, then the
+  // unattended rules from unattended-loop.md, then what to ship, then why the
+  // last Ship beat was rejected, if it was.
+  async function writeShipPrompt(key, task, branch, attempts) {
+    const shipPath = join(root, ".agents/workflows/ship.md");
+    const ship = (await exists(shipPath)) ? await readFile(shipPath, "utf8") : "";
+    const rules = shipBeatSection((await exists(promptPath)) ? await readFile(promptPath, "utf8") : "");
+    const p = join(tmpdir(), `conductor-ship-${String(key).replace(/[^a-z0-9]+/gi, "-")}.md`);
+    const parts = [ship, "---", rules, renderShipAssignment(task, { branch })];
+    if (attempts?.length) parts.push(renderAttempts(attempts));
+    await writeFile(p, `${parts.join("\n\n")}\n`, "utf8");
+    return p;
+  }
+  async function runShipIn(cwd, { key, task, branch, holder }) {
+    await rm(join(cwd, "conductor/1-workbench/maker-signal.json"), { force: true }).catch(() => {});
+    await rm(join(cwd, PR_BODY_REL), { force: true }).catch(() => {});
+    const rulingsBefore = await readRulingsAt(cwd);
+    const result = await adapter.runShipBeat({
+      promptPath: await writeShipPrompt(key, task, branch, holder.attempts),
+      cwd,
+      permissionMode: "acceptEdits",
+      settingsPath: sandboxSettingsPath,
+      sandbox: agySandbox,
+      allowedTools: allowedToolsFor(state),
+      role: "ship",
+      task,
+    });
+    const cap = await autoCommit({ git: makeGit(cwd), message: autoCommitMessage({ role: "ship", goal: `${state.goal_description} — ship ${key}` }) });
+    if (cap.committed) await audit(`ship ${key}: auto-captured uncommitted changes`);
+    await collectRulings(holder, cwd, rulingsBefore);
+    return { ...result, signal: await readSignalAt(cwd) };
+  }
+  async function shipEvidenceIn(cwd, task) {
+    const read = async (base, rel) => ((await exists(join(base, rel))) ? readFile(join(base, rel), "utf8") : "");
+    const backlogRel = "conductor/2-backlog/task-backlog.md";
+    const res = checkShipEvidence({
+      rootShipLog: await read(root, "conductor/0-compass/ship-log.md"),
+      branchShipLog: await read(cwd, "conductor/0-compass/ship-log.md"),
+      body: await read(cwd, PR_BODY_REL),
+      backlog: task?.source?.kind === "backlog" ? { title: task.title, after: await read(cwd, backlogRel) } : null,
+    });
+    return { ...res, body: await read(cwd, PR_BODY_REL) };
+  }
+
   // The Checker's prompt plus the rulings it must review, via a scratch file.
   async function checkerPromptWithRulings(basePath, rulings, key) {
     const section = rulingsForChecker(rulings);
@@ -1022,7 +1068,9 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       readMakerDone,
       readMakerSignal: () => readSignalAt(workCwd),
       changedFiles: ({ from }) => changedFilesIn(workCwd, from),
-      merge: makeMerge(workCwd, state.worktree?.branch, `Conductor loop: ${state.goal_description || "goal"}`, () => branchRulings(workCwd)),
+      merge: makeMerge(workCwd, state.worktree?.branch, `Conductor loop: ${state.goal_description || "goal"}`, () => branchRulings(workCwd), () => state.ship?.body),
+      runShip: () => runShipIn(workCwd, { key: "pair", task: null, branch: state.worktree?.branch, holder: state }),
+      shipEvidence: () => shipEvidenceIn(workCwd, null),
       // Empty done-claim guard: only ship if the loop branch carries committed work
       // beyond master (a maker commit or a P0.1 auto-capture). Blueprint/non-execution
       // phases aren't gated on commits → true. `git` (root) sees the loop branch.
@@ -1151,20 +1199,19 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       // touched and no worktree has to be clean for it to answer.
       predictConflict: async ({ task }) =>
         predictConflicts({ git, base: "HEAD", branch: task.worktree?.branch }),
-      merge: async ({ task }) => {
-        const m = await makeMerge(
+      runShip: ({ task }) => runShipIn(cwdFor.get(task.id) ?? root, { key: task.id, task, branch: task.worktree?.branch, holder: task }),
+      shipEvidence: ({ task }) => shipEvidenceIn(cwdFor.get(task.id) ?? root, task),
+      // The done tick and the ship-log entry now ride in the task's branch (the
+      // Ship beat), so merging the MR records the ship. Nothing is written to
+      // the owner's checkout after the fact.
+      merge: async ({ task }) =>
+        makeMerge(
           cwdFor.get(task.id) ?? root,
           task.worktree?.branch,
           `Conductor task ${task.id}: ${task.title || task.type}`,
-          () => branchRulings(cwdFor.get(task.id) ?? root)
-        )();
-        if (m?.ok) {
-          // FB-3: reflect completion into the source of truth + ship-log.
-          await updateConductorSource(task, applyDone, `chore(loop): ${task.id} done`);
-          await appendShipLog(root, `shipped ${task.id} — ${task.title ?? task.type} (PR ${m.prUrl ?? "n/a"})`, Date.now());
-        }
-        return m;
-      },
+          () => branchRulings(cwdFor.get(task.id) ?? root),
+          () => task.ship?.body
+        )(),
       gitHead: ({ task }) => gitHead(cwdFor.get(task.id) ?? root),
       audit,
       now: () => Date.now(),

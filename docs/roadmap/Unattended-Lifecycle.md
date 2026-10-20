@@ -1,6 +1,6 @@
 # Unattended Lifecycle — the loop runs Conductor's own workflows, stage by stage
 
-> **Status:** signed off 2026-10-19. Step 1 (the Ship beat) shipped in 6.23.0, step 2 (claims from git, cleanup on pull) in 6.24.0, both verified live. `conductor status` reports and does not delete: cleanup runs on `git pull` and at the start of a run. Step 3 (the slice pipeline) in 6.26.0, verified live on a scratch product. Step 4 (question rounds and the overrule measurement) in 6.27.0. Step 5 (the Blueprint pipeline, one MR as the sign-off) in 6.28.0, opt-in with `loop.blueprint`. Next: step 6, the conformance test, and step 7, the nested code repository (`loop.code_dir`).
+> **Status:** signed off 2026-10-19. Step 1 (the Ship beat) shipped in 6.23.0, step 2 (claims from git, cleanup on pull) in 6.24.0, both verified live. `conductor status` reports and does not delete: cleanup runs on `git pull` and at the start of a run. Step 3 (the slice pipeline) in 6.26.0, verified live on a scratch product. Step 4 (question rounds and the overrule measurement) in 6.27.0. Step 5 (the Blueprint pipeline, one MR as the sign-off) in 6.28.0, opt-in with `loop.blueprint`. Step 6 (the conformance test) in 6.29.0: the stage map lives in `src/loop/stages.js`, the driver reads its routes from it, and `test/loop-stage-conformance.test.js` drives the real CLI through every stage with a stub engine. The Retrospective stage is not built. Next: step 7, the nested code repository (`loop.code_dir`).
 > **Why:** two real crossings (`Unattended-Crossing.md`) showed that the loop follows Conductor up to Build and then leaves it. It skips Ship (bookkeeping, the report, the archive), never runs the Blueprint, and keeps its own claim and done markers. Unattended work was held to a lower standard than interactive work, on the steps that let the owner trust work they did not watch.
 
 ## The principle
@@ -33,7 +33,7 @@ The driver decides each project's and each slice's stage from files, never from 
 | Spec-It | `spec-it.md` | the slice folder | `feature-spec.md`, `implementation-plan.md` | **D2: Checker reviews the spec** |
 | Build | `build.md` | spec, plan, `task-tracker.md` | code, tests, tracker | verify green (Evidence Rule) + Checker, per task |
 | Ship | `ship.md` Phases 1–5 | the built slice | ship-log entry with **For you**, product area, archive, backlog tick, `pr-body.md` | the bookkeeping exists; the driver runs Phase 6's mechanics: push, open the MR (PR gate in code) |
-| Retrospective | `retrospective.md` | ship-log, tracker | lessons | optional, `loop.retrospective`, off by default (one beat per slice) |
+| Retrospective | `retrospective.md` | ship-log, tracker | lessons | **not built**: planned as optional `loop.retrospective`, off by default (one beat per slice) |
 
 A small `task-backlog.md` line keeps its short route: Build, then Ship.
 

@@ -10,6 +10,7 @@
 
 import { isBlankDoc, PROJECTS_REL } from "./slices.js";
 import { prBodyReasons } from "./ship.js";
+import { stage } from "./stages.js";
 
 export const DISCOVERY = [
   "genesis/problem-solar-system.md",
@@ -21,10 +22,10 @@ export const DISCOVERY = [
 
 /** The stages in order: the workflow the beat runs, the document it writes, the lens it is reviewed with. */
 export const BLUEPRINT_STAGES = Object.freeze([
-  { key: "grand-prd", workflow: "grand-prd.md", doc: "blueprint/grand-prd.md", lens: "Grand PRD" },
-  { key: "ux-ui-brief", workflow: "ux-ui-design-brief.md", doc: "blueprint/ux-ui-design-brief.md", lens: "UX/design (the reviewer adopts `.agents/skills/ux-reviewer/SKILL.md`)" },
-  { key: "technical-vision", workflow: "technical-vision.md", doc: "blueprint/technical-vision.md", lens: "Technical Vision" },
-  { key: "carve", workflow: "carve.md", doc: "blueprint/implementation-overview.md", lens: "Carve slicing" },
+  { key: "grand-prd", workflow: stage("grand-prd").workflows[0], doc: "blueprint/grand-prd.md", lens: "Grand PRD" },
+  { key: "ux-ui-brief", workflow: stage("ux-ui-brief").workflows[0], doc: "blueprint/ux-ui-design-brief.md", lens: "UX/design (the reviewer adopts `.agents/skills/ux-reviewer/SKILL.md`)" },
+  { key: "technical-vision", workflow: stage("technical-vision").workflows[0], doc: "blueprint/technical-vision.md", lens: "Technical Vision" },
+  { key: "carve", workflow: stage("carve").workflows[0], doc: "blueprint/implementation-overview.md", lens: "Carve slicing" },
 ]);
 
 /** The template each document is compared with, relative to `conductor/5-templates/`. */

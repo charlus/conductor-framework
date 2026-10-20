@@ -1,0 +1,69 @@
+#!/usr/bin/env node
+// A stand-in for the `claude` CLI, for test/loop-stage-conformance.test.js.
+// It saves every prompt it gets to $STUB_LOG_DIR (so the test can see which
+// workflow each beat was routed to), then does the least work that passes the
+// beat's gate: the stage's document, the slice's spec, a code file, Ship's
+// bookkeeping, or an approving verdict. $STUB_SKIP names one stage key whose
+// beat writes nothing, so the test can watch that gate reject it.
+import { appendFileSync, mkdirSync, writeFileSync, readFileSync, existsSync, renameSync, readdirSync } from "node:fs";
+import { join, dirname } from "node:path";
+
+const argv = process.argv.slice(2);
+if (argv[0] === "--version") {
+  console.log("2.9.0 (stub)");
+  process.exit(0);
+}
+const prompt = argv[argv.length - 1] ?? "";
+const dir = process.env.STUB_LOG_DIR;
+if (dir) {
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `${String(readdirSync(dir).length).padStart(3, "0")}.txt`), prompt);
+}
+const put = (rel, text) => {
+  mkdirSync(dirname(rel), { recursive: true });
+  writeFileSync(rel, text);
+};
+const field = (label) => prompt.match(new RegExp(`\\*\\*${label}:\\*\\* \`([^\`]+)\``))?.[1];
+const done = () => put("conductor/1-workbench/maker-signal.json", '{ "done": true }');
+const body = "## What changes for you\nstub\n\n## Decisions I took alone\nnone\n\n## Evidence\nstub\n\n## What I need from you\nmerge\n";
+const doc = (title) => `# ${title}\n\nWritten by the stub engine for the conformance test.\n`;
+const skip = process.env.STUB_SKIP;
+
+const checker = existsSync(".agents/workflows/loop-checker.md") && prompt.startsWith(readFileSync(".agents/workflows/loop-checker.md", "utf8"));
+if (checker) {
+  put("conductor/1-workbench/checker-verdict.json", JSON.stringify({ approved: true, reason: "stub approves", findings: [] }));
+} else if (prompt.includes("# Blueprint assignment (this beat)")) {
+  const project = field("Project folder");
+  const key = prompt.match(/\*\*Stage:\*\* ([a-z-]+)/)[1];
+  if (key !== skip) {
+    const out = { "grand-prd": "grand-prd.md", "ux-ui-brief": "ux-ui-design-brief.md", "technical-vision": "technical-vision.md", carve: "implementation-overview.md" }[key];
+    put(join(project, "blueprint", out), doc(key));
+    if (key === "ux-ui-brief") put("DESIGN.md", doc("DESIGN"));
+    if (key === "carve") {
+      const tpl = (n) => readFileSync(join("conductor/5-templates/carve-workflow", n), "utf8");
+      put(join(project, "implementations/01-first/feature-spec.md"), tpl("feature-spec.md"));
+      put(join(project, "implementations/01-first/implementation-plan.md"), tpl("implementation-plan.md"));
+      put(join(project, "project-documentation.md"), "# Project documentation\n\n## 01-first\nA first slice.\n");
+      put("conductor/1-workbench/pr-body.md", body);
+    }
+    done();
+  }
+} else if (prompt.includes("# Spec assignment (this beat)")) {
+  const slice = field("Slice folder");
+  put(join(slice, "feature-spec.md"), "# Feature Spec\n\n## Brief check\n\n- **C1:** None found.\n\n## Stories\n- one\n");
+  put(join(slice, "implementation-plan.md"), "# Plan\n\n- step 1\n");
+  done();
+} else if (prompt.includes("# Ship assignment (this beat)")) {
+  const from = prompt.match(/move `([^`]+)` to `([^`]+)`/);
+  if (from) {
+    mkdirSync(dirname(from[2]), { recursive: true });
+    renameSync(from[1], from[2]);
+  }
+  appendFileSync("conductor/0-compass/ship-log.md", "\n## 2026-10-20 — stub ship\n\n**For you**\n- **Impact:** a\n- **Cost:** none\n- **Risk:** none\n- **Decide:** none\n");
+  put("conductor/1-workbench/pr-body.md", body);
+  done();
+} else if (prompt.includes("# Loop Assignment (this beat)")) {
+  put("src/built.js", "export const built = true;\n");
+  done();
+}
+console.log(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "stub", usage: { input_tokens: 1, output_tokens: 1 } }));

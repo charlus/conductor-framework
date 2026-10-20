@@ -27,6 +27,7 @@ import { allowedToolsFor } from "../loop/untrusted.js";
 import { writeBeatLog, BEAT_LOG_DIR } from "../loop/beat-log.js";
 import { syncLoopStateInto, hideFromGit } from "../loop/state-sync.js";
 import { QUESTIONS_REL, roundKey, parseRound, checkRound, roundAnswered } from "../loop/questions.js";
+import { stage as loopStage, stageWorkflowPath } from "../loop/stages.js";
 import { BLUEPRINT_STAGES, DISCOVERY, TEMPLATE_FOR, harvestBlueprints, blueprintStageEvidence, carryOver } from "../loop/blueprint.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
@@ -990,7 +991,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   // unattended rules from unattended-loop.md, then what to ship, then why the
   // last Ship beat was rejected, if it was.
   async function writeShipPrompt(key, task, branch, attempts) {
-    const shipPath = join(root, ".agents/workflows/ship.md");
+    const shipPath = join(root, stageWorkflowPath("ship"));
     const ship = (await exists(shipPath)) ? await readFile(shipPath, "utf8") : "";
     const rules = shipBeatSection((await exists(promptPath)) ? await readFile(promptPath, "utf8") : "");
     const p = join(tmpdir(), `conductor-ship-${String(key).replace(/[^a-z0-9]+/gi, "-")}.md`);
@@ -1021,9 +1022,9 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   // Step 3: the Spec beat is Spec-It itself, then its unattended rules, then the slice.
   async function runSpecIn(cwd, task) {
     await rm(join(cwd, "conductor/1-workbench/maker-signal.json"), { force: true }).catch(() => {});
-    const specPath = join(root, ".agents/workflows/spec-it.md");
+    const specPath = join(root, stageWorkflowPath("spec"));
     const specIt = (await exists(specPath)) ? await readFile(specPath, "utf8") : "";
-    const rules = sectionOf((await exists(promptPath)) ? await readFile(promptPath, "utf8") : "", "Spec beat");
+    const rules = sectionOf((await exists(promptPath)) ? await readFile(promptPath, "utf8") : "", loopStage("spec").section);
     const assignment =
       `# Spec assignment (this beat)\n\n- **Slice folder:** \`${task.source?.path}\`\n- **Project:** ${task.source?.project}\n` +
       `- **Questions file:** \`${QUESTIONS_REL}/${roundKey(task.id)}.md\` (only for a one-way door: see the loop workflow)` +
@@ -1071,9 +1072,9 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   async function runStageIn(cwd, task, key) {
     const stage = BLUEPRINT_STAGES.find((s) => s.key === key);
     await rm(join(cwd, "conductor/1-workbench/maker-signal.json"), { force: true }).catch(() => {});
-    const wfPath = join(root, ".agents/workflows", stage.workflow);
+    const wfPath = join(root, stageWorkflowPath(key));
     const workflow = (await exists(wfPath)) ? await readFile(wfPath, "utf8") : "";
-    const rules = sectionOf((await exists(promptPath)) ? await readFile(promptPath, "utf8") : "", "Blueprint beat");
+    const rules = sectionOf((await exists(promptPath)) ? await readFile(promptPath, "utf8") : "", loopStage(key).section);
     const assignment =
       `# Blueprint assignment (this beat)\n\n- **Project folder:** \`${task.source?.path}\` (the workflow's Target: read from it, do not ask)\n` +
       `- **Stage:** ${stage.key} (\`${stage.workflow}\`), writes \`${task.source?.path}/${stage.doc}\`\n` +

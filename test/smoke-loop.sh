@@ -27,16 +27,18 @@ no()   { echo "  [FAIL] $1"; fail=$((fail+1)); }
 mkdir -p "$BIN"
 cat > "$BIN/claude" <<'FAKE'
 #!/usr/bin/env bash
-# Fake agent. --version → ok. Otherwise arg 2 is the full prompt text and the run
-# carries `--permission-mode <mode>`. cwd is the worktree the driver put us in.
+# Fake agent. --version → ok. Otherwise the prompt is the argument after `--`
+# (every flag comes first, so a prompt starting with a dash is never an option)
+# and the run carries `--permission-mode <mode>`. cwd is the worktree the driver put us in.
 # It HONORS the permission mode: `plan` is read-only, so a checker in plan mode
 # cannot write its verdict — exactly the real constraint that let the live-run
 # bug through when the fake used to ignore the mode. Records each call for asserts.
 if [ "${1:-}" = "--version" ]; then echo "fake-claude 1.0"; exit 0; fi
-prompt="${2:-}"
+prompt=""
 mode=""
 while [ $# -gt 0 ]; do
   if [ "$1" = "--permission-mode" ]; then mode="${2:-}"; fi
+  if [ "$1" = "--" ]; then prompt="${2:-}"; break; fi
   shift
 done
 writable=1; [ "$mode" = "plan" ] && writable=0   # plan = read-only

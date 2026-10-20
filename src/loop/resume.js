@@ -74,5 +74,6 @@ export function startNewRun(state) {
   state.rulings = [];
   state.stall = { consecutive: 0, last_beat_hash: null };
   state.merge = null;
+  state.ship = null;
   return { reset: true, from };
 }

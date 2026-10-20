@@ -22,7 +22,8 @@ export const MAKER_SIGNAL_REL = "conductor/1-workbench/maker-signal.json";
 
 // F18: the driver's own files in a worktree. The auto-capture commit used to
 // sweep the signal files into the branch, so the PR carried them.
-const DRIVER_FILES = [STATE_REL, MAKER_SIGNAL_REL, VERDICT_REL];
+export const PR_BODY_REL = "conductor/1-workbench/pr-body.md";
+const DRIVER_FILES = [STATE_REL, MAKER_SIGNAL_REL, VERDICT_REL, PR_BODY_REL];
 
 /**
  * Copy the root's live loop-state.json into the worktree at `cwd`, and hide it

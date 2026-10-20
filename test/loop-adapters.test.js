@@ -100,9 +100,10 @@ test("codex: exec with a writable sandbox by default; plan is read-only", () => 
   assert.equal(codex.mapMode(undefined), "workspace-write"); // default writable
   assert.deepEqual(codex.beatArgs({ prompt: "P", permissionMode: "acceptEdits" }), [
     "exec",
-    "P",
     "-s",
     "workspace-write",
+    "--",
+    "P",
   ]);
   // danger-full-access is a real value but must never be emitted by the mapping.
   for (const m of ["acceptEdits", "plan", "anything", undefined]) {

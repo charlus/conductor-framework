@@ -17,6 +17,7 @@
 
 import { hashString, computeStallHash, normalizeVerifyOutput, preflight, describeHalt, beatCeiling, classifyBeatResult } from "./driver.js";
 import { costGate, costGateMessage } from "./usage.js";
+import { runShipStage } from "./ship.js";
 import { recordAttempt } from "./harvester.js";
 import { orderMergeQueue } from "./conflict.js";
 import { planMergeAction } from "./merge.js";
@@ -301,6 +302,8 @@ export async function runSwarm(state, deps) {
     log = () => {},
     writeInbox = () => {},
     costAware = false, // loop.cost_aware: only then does budget.max_cost_usd act
+    runShip = null, // ({task}) → beat result: the Ship beat (Unattended Lifecycle step 1)
+    shipEvidence = null, // ({task}) → {ok, reasons, body}: Ship's bookkeeping, checked in code
   } = deps;
 
   // Same deterministic gates as the pair (scoping, sandbox, autonomy, verify) —
@@ -433,7 +436,50 @@ export async function runSwarm(state, deps) {
     // verdict all leave the queue exactly as it was (wave order, merge
     // attempted). Prediction is an optimisation — the PR-gated merge is still
     // the gate.
-    const passed = results.filter((r) => r.outcome === "passed");
+    let passed = results.filter((r) => r.outcome === "passed");
+
+    // Unattended Lifecycle step 1: a task bound for an MR is shipped first, the
+    // way the owner would type `/ship`: a Ship beat, then verify and the
+    // Checker again, then Ship's evidence checked in code. Below L3 there is no
+    // MR, so no Ship beat: the branch waits for the human as before.
+    if (runShip && planMergeAction({ autonomyLevel: state.autonomy_level, phase: state.phase }) === "pr") {
+      const shipped = [];
+      for (const r of passed) {
+        const t = r.task;
+        const s = await runShipStage(t, {
+          runShip: () => runShip({ task: t }),
+          verify: () => runVerify({ task: t, cmd: t.verify ?? verifyCommand }),
+          check: () => (runChecker ? runChecker({ task: t, phase: "ship" }) : { exitCode: 0 }),
+          evidence: () => (shipEvidence ? shipEvidence({ task: t }) : { ok: true, reasons: [] }),
+          charge: () => {
+            budget.beats += 1;
+            t.iterations.current += 1;
+          },
+          beatNo: () => t.iterations.current,
+          audit: (m) => audit(`task ${t.id}: ${m}`),
+        });
+        state.iterations.current = budget.beats;
+        if (s.ok) {
+          shipped.push(r);
+          continue;
+        }
+        if (s.outcome === "usage_limit") {
+          t.status = "pending";
+          terminal = "usage_limit_reached";
+          await writeInbox(state, `agent CLI reported a usage/session limit${s.resetHint ? ` — resets ${s.resetHint}` : ""} during task ${t.id}'s Ship beat. Re-run to resume.`);
+          continue;
+        }
+        t.status = "failed";
+        if (s.outcome === "escalated") {
+          t.escalation = { reason: s.reason, beat: t.iterations.current };
+          await writeInbox(state, `task ${t.id} escalated by its Ship beat: ${s.reason}`);
+        } else {
+          await writeInbox(state, `task ${t.id}: the Ship beat did not complete Ship's bookkeeping after ${t.iterations.current} beats: ${s.reason}. Branch ${t.worktree?.branch ?? "(unknown)"} kept, no MR opened.`);
+        }
+        await audit(`task ${t.id}: failed (ship: ${s.outcome})`);
+      }
+      passed = shipped;
+    }
 
     // Same gate as the pair: a PR is opened only at L3 execution. Below that the
     // branch is kept for the human and nothing is pushed.

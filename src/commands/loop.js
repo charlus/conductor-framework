@@ -15,7 +15,6 @@ import { resolveAdapter } from "../loop/adapters/index.js";
 import { createWorktree, teardownWorktree, worktreePlan, taskWorktreePlan, materializeConductorContext, CONTEXT_ANCHORS, hasUniqueCommits, ensureWorktreesExcluded } from "../loop/worktree.js";
 import { autoCommit, autoCommitMessage } from "../loop/autocommit.js";
 import { harvestWorkQueue, renderAssignment, renderAttempts } from "../loop/harvester.js";
-import { applyClaim } from "../loop/writeback.js";
 import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, isInfraReason, VERDICT_REL } from "../loop/checker.js";
 import { openPullRequest, planMergeAction, DEFAULT_PR_BODY } from "../loop/merge.js";
 import { runSwarm } from "../loop/swarm.js";
@@ -32,6 +31,7 @@ import { ignoredNestedRepos } from "../nested-repos.js";
 import { recordUsage, usageSummary } from "../loop/usage.js";
 import { newRulings, rulingInboxLines, rulingsPrBody, rulingsForChecker, RULINGS_REL } from "../loop/rulings.js";
 import { renderShipAssignment, shipBeatSection, checkShipEvidence, PR_BODY_REL } from "../loop/ship.js";
+import { pruneMergedLoopWorktrees, remoteLoopBranches, mergedBranches, skipClaimed } from "../loop/reconcile.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels } from "../loop/config.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
@@ -400,6 +400,27 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       priorities: loopConfig.priorities,
       includeInbox: loopConfig.inbox,
     });
+    // Unattended Lifecycle step 2: claims come from git. An item whose loop
+    // branch is on the remote is in progress or in review elsewhere; nothing is
+    // committed to the owner's checkout to mark it.
+    if (harvestedQueue.length) {
+      const rootGit = makeGit(root);
+      if (!dryRun) await runCli("git", ["fetch", "-q", "origin"], root);
+      const remote = await remoteLoopBranches(rootGit);
+      if (remote === null) {
+        stderr.write("[CONDUCTOR LOOP] ⚠️  could not read the remote's loop branches: items in review elsewhere are not skipped\n");
+      } else {
+        const claims = skipClaimed(harvestedQueue, {
+          remoteBranches: remote,
+          mergedBranches: await mergedBranches(rootGit, [...remote]),
+          branchFor: (t) => taskWorktreePlan(root, state.goal_description, t.id).branch,
+        });
+        for (const t of claims.inReview) stdout.write(`[CONDUCTOR LOOP] skipped ${t.id}: its loop branch is on the remote (in progress or in review)\n`);
+        for (const t of claims.mergedButOpen)
+          stdout.write(`[CONDUCTOR LOOP] skipped ${t.id}: its loop branch is merged but the item is still open in the backlog — tick it\n`);
+        harvestedQueue = claims.queue;
+      }
+    }
     state.tasks = harvestedQueue; // swarm route; normalizeTask preserves title/source/route
     // persist + audit DEFERRED to the post-lock block below (dry-run stays read-only).
   }
@@ -726,25 +747,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
 
   const audit = (m) => appendShipLog(root, m, Date.now());
 
-  // FB-2/FB-3: reflect a task's lifecycle into the ./conductor/ source of truth in
-  // the MAIN repo (visible to a human in VS Code) — claim on dispatch, done on
-  // ship. Best-effort: a write-back failure never crashes the run.
-  async function updateConductorSource(task, transform, commitMsg) {
-    const rel = task?.source?.kind === "inbox" ? INBOX_REL : task?.source?.kind === "backlog" ? BACKLOG_REL : null;
-    if (!rel) return;
-    const p = join(root, rel);
-    try {
-      if (!(await exists(p))) return;
-      const before = await readFile(p, "utf8");
-      const after = transform(before, task);
-      if (after === before) return;
-      await writeFile(p, after, "utf8");
-      await runCli("git", ["add", rel], root);
-      await runCli("git", ["commit", "-m", commitMsg], root);
-    } catch {
-      /* best-effort source-of-truth update */
-    }
-  }
+
 
   // F2: run loop.setup once per worktree, before its first beat. The marker lives
   // in the worktree's private git dir, so it never shows in the tree or the PR,
@@ -856,6 +859,13 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       `harvested ${harvestedQueue.length} work item(s) from conductor/ (inbox + backlog)`,
       Date.now()
     );
+  }
+
+  // Unattended Lifecycle step 2: clean up what earlier runs left, now merged.
+  {
+    const p = await pruneMergedLoopWorktrees({ git: makeGit(root) });
+    for (const w of p.removed) stdout.write(`[CONDUCTOR LOOP] removed the merged loop worktree ${basename(w.path)} (${w.branch})\n`);
+    for (const w of p.kept) stdout.write(`[CONDUCTOR LOOP] kept the merged loop worktree ${basename(w.path)}: ${w.reason}\n`);
   }
 
   try {
@@ -1149,9 +1159,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         cwdFor.set(task.id, plan.path);
         const setup = await runWorktreeSetup(plan.path);
         if (!setup.ok) return { path: plan.path, branch: plan.branch, setup_error: setup.reason };
-        // FB-2: mark the item claimed in ./conductor/ so a human won't double-book it.
-        // applyClaim is idempotent — a re-claim on resume no-ops (no diff → no commit).
-        await updateConductorSource(task, applyClaim, `chore(loop): claim ${task.id}`);
+        // The claim is the loop branch itself (step 2): no commit on the owner's checkout.
         return { path: plan.path, branch: plan.branch };
       },
       runBeat: async ({ task, role, phase, escalateModel }) => {

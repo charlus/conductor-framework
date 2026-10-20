@@ -8,6 +8,22 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.24.0] — 2026-10-20 — Claims from git, cleanup on pull
+
+Compatibility: upgrade only
+
+Build step 2 of [`docs/roadmap/Unattended-Lifecycle.md`](docs/roadmap/Unattended-Lifecycle.md).
+
+### Changed
+
+- **A loop claim is the item's branch, not a commit on your checkout.** The loop used to mark an item `🤖 … (in progress)` with a commit on whatever branch your checkout was on. Now an item whose `conductor/loop/<item>` branch exists on the remote is in progress or in review, and the next run skips it. An item whose branch is already merged but which is still open is skipped and named, so you can tick it.
+
+### Added
+
+- **`post-merge` hook: cleanup when you pull.** After you merge a loop MR on the forge, your next `git pull` removes its worktree and local branch. A loop run does the same when it starts. Only a branch provably merged into the default branch, and never a worktree with uncommitted changes. `conductor install-hooks` wires it with the others; it never blocks. `conductor status` names the merged loop worktrees still on disk, and deletes nothing. Verified live: an in-review item was skipped; after the merge on the forge, `git pull` removed the worktree and branch, and the queue was empty.
+
+---
+
 ## [6.23.0] — 2026-10-20 — The loop ships the way you do
 
 Compatibility: upgrade only

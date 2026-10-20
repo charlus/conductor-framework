@@ -11,6 +11,7 @@
 | `pre-commit` | **Goodhart boundary** | `git commit` | a test file is deleted, a test is disabled (`.skip`/`.only`/`@pytest.mark.skip`/`#[ignore]`/`t.Skip`/`@Disabled`…), or the staged tests net-lose assertions (waiver: `CONDUCTOR_NO_BOUNDARY="reason"`) |
 | `pre-commit` | **Protected paths** | `git commit` | the change edits `.agents/hooks/`, `.agents/rules/`, `.agents/sandbox/` or the reviewer brief (waiver: `CONDUCTOR_NO_PROTECTED="reason"`) |
 | `pre-push` | **Verification Iron Law** | `git push` | the configured verification command exits non-zero |
+| `post-merge` | cleanup, not a gate | `git pull` (a merge) | never: it removes `conductor loop` worktrees and local branches already merged into the default branch, and keeps any worktree with uncommitted changes |
 | `verification-stop-hook.sh` | Verification Iron Law (interactive) | Claude Code `Stop` | **opt-in** — code changed since HEAD and verify is red |
 | `pretooluse-no-bypass.sh` | every gate above | Claude Code `PreToolUse` | **opt-in** — a Bash call tries to skip the git hooks (`--no-verify`, `-n`, `-c core.hooksPath=`) |
 | `pretooluse-fact-gate.sh` | investigate before you write | Claude Code `PreToolUse` | **opt-in** — the first edit/creation of a file, and the first run of each destructive command, until the facts are stated (off: `CONDUCTOR_FACT_GATE=off`) |

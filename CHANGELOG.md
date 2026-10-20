@@ -8,6 +8,21 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.36.0] — 2026-10-20 — A beat can commit in the nested code repository
+
+Compatibility: upgrade only
+
+The first real run on autopportunity stopped after a 75-minute beat that had done the work: the sandbox makes the working directory's own git store writable, not the nested code repository's, so `git commit` in `repo/` failed and the Maker escalated. The driver's auto-capture then committed the code and had to bypass the Eval-Driven Law gate, which wanted a waiver only the Maker could give.
+
+### Fixed
+
+- **In the outer layout the sandbox may write what a commit writes in the code repository**: its `objects`, `refs`, `logs` and `worktrees`, and nothing else. Its `config` and `hooks` stay read-only, so a beat cannot switch the commit gates off. Proven with sandboxed commits outside `/tmp`: without the grant, `index.lock: Read-only file system`; with it, the commit exits 0 and a write to `config` is still refused. `loop doctor --beat` uses the same grant.
+- **The beat is told how to commit there**, that a `packed-refs.lock` line is harmless when the commit exits 0, and that a failed commit is never a reason to escalate: the driver commits what a beat leaves.
+
+Why the scratch run of 6.31.0 did not show it: the sandbox lets a beat write anywhere under `/tmp`, where that scratch layout lived. Live tests of the loop now run outside `/tmp`.
+
+---
+
 ## [6.35.0] — 2026-10-20 — Loop worktrees always start from the default branch
 
 Compatibility: upgrade only

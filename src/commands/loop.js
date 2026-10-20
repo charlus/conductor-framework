@@ -33,7 +33,7 @@ import { nextAfterLoop } from "../next-step.js";
 import { BLUEPRINT_STAGES, DISCOVERY, TEMPLATE_FOR, harvestBlueprints, blueprintStageEvidence, carryOver } from "../loop/blueprint.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
-import { codePaths, ensureCodeWorktree, codeHasWork, mergeNested, stateMrBody, codeMrBody, unionBranches, refusedNestedRepos, checkerNestedNote } from "../loop/nested.js";
+import { codePaths, ensureCodeWorktree, codeHasWork, mergeNested, stateMrBody, codeMrBody, unionBranches, refusedNestedRepos, checkerNestedNote, nestedSandboxWrites } from "../loop/nested.js";
 import { recordUsage, usageSummary } from "../loop/usage.js";
 import { newRulings, rulingInboxLines, rulingsPrBody, rulingsForChecker, RULINGS_REL } from "../loop/rulings.js";
 import { renderShipAssignment, shipBeatSection, sectionOf, checkShipEvidence, PR_BODY_REL } from "../loop/ship.js";
@@ -700,13 +700,17 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       // F3: the template is framework-owned (upgrade overwrites it), so project
       // domains live in loop.allowed_domains and are merged into a generated copy
       // in a private (0700) temp dir, outside every worktree.
-      if (loopConfig.allowedDomains.length) {
-        const merged = mergeSandboxSettings(await readJson(p), loopConfig.allowedDomains);
+      // F15: in the outer layout, a beat must be able to commit in the code repository.
+      const codeGitDir = loopConfig.codeDir ? await runCli("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], join(root, loopConfig.codeDir)) : null;
+      const extraWrites = codeGitDir?.ok ? nestedSandboxWrites(codeGitDir.stdout.trim()) : [];
+      if (loopConfig.allowedDomains.length || extraWrites.length) {
+        const merged = mergeSandboxSettings(await readJson(p), loopConfig.allowedDomains, extraWrites);
         const dir = await mkdtemp(join(tmpdir(), "conductor-sandbox-"));
         process.once("exit", () => rmSync(dir, { recursive: true, force: true }));
         sandboxSettingsPath = join(dir, "claude-sandbox.settings.json");
         await writeFile(sandboxSettingsPath, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
-        stdout.write(`[CONDUCTOR LOOP] sandbox network: + ${loopConfig.allowedDomains.join(", ")}\n`);
+        if (loopConfig.allowedDomains.length) stdout.write(`[CONDUCTOR LOOP] sandbox network: + ${loopConfig.allowedDomains.join(", ")}\n`);
+        if (extraWrites.length) stdout.write(`[CONDUCTOR LOOP] sandbox: commits allowed in ${loopConfig.codeDir}/ (its config and hooks stay read-only)\n`);
       }
       stdout.write(`[CONDUCTOR LOOP] sandbox: cli-native (Anthropic bubblewrap via ${sandboxSettingsPath === p ? ".agents/sandbox/claude-sandbox.settings.json" : sandboxSettingsPath})\n`);
     } else {
@@ -821,7 +825,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   }
   const nestedNote = () =>
     loopConfig.codeDir
-      ? `\n\n- **Code repository:** \`${loopConfig.codeDir}/\` is a separate git repository on this same branch name. Commit code there; Conductor documents stay here. Run tests inside \`${loopConfig.codeDir}/\`.\n`
+      ? `\n\n- **Code repository:** \`${loopConfig.codeDir}/\` is a separate git repository on this same branch name. Commit code there (\`git -C ${loopConfig.codeDir} commit\`), with its hooks and waivers as usual; Conductor documents stay here. Run tests inside \`${loopConfig.codeDir}/\`. A line \`packed-refs.lock: Read-only file system\` during a commit is harmless when the commit exits 0. Whatever you leave uncommitted, the driver commits after your beat: a failed commit is never a reason to escalate.\n`
       : "";
   // Every Checker prompt, in this layout, says where the code diff is.
   async function withNestedNote(promptFile, key) {

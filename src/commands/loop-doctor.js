@@ -23,7 +23,7 @@ import { packageVersion, readVersionStamp } from "../version.js";
 import { exists, readJson, sh, runCli, hasNpmTestScript, configVerify, readSlices, readBlueprints } from "./loop.js";
 import { harvestSlices } from "../loop/slices.js";
 import { ensureWorktreesExcluded } from "../loop/worktree.js";
-import { refusedNestedRepos } from "../loop/nested.js";
+import { refusedNestedRepos, nestedSandboxWrites } from "../loop/nested.js";
 import { defaultBranchRef } from "../loop/reconcile.js";
 import { harvestBlueprints } from "../loop/blueprint.js";
 import { nextAfterDoctor } from "../next-step.js";
@@ -205,7 +205,8 @@ export async function loopDoctor(root, { stdout, beat = false }) {
       if (beat && setupOk && verifyCommand && claudeOk && state.sandbox === "cli-native" && profile) {
         const dir = await mkdtemp(join(tmpdir(), "conductor-doctor-"));
         const settingsPath = join(dir, "claude-sandbox.settings.json");
-        await writeFile(settingsPath, JSON.stringify(mergeSandboxSettings(profile, loopConfig.allowedDomains)), "utf8");
+        const cg = codeRoot ? await runCli("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], codeRoot) : null;
+        await writeFile(settingsPath, JSON.stringify(mergeSandboxSettings(profile, loopConfig.allowedDomains, cg?.ok ? nestedSandboxWrites(cg.stdout.trim()) : [])), "utf8");
         try {
           facts.beat = await probeBeat({ cwd: probe, verifyCommand, settingsPath });
         } finally {

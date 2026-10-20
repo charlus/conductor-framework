@@ -83,6 +83,17 @@ export function codeMrBody({ body }) {
   return `${body ?? ""}\n\n> A second MR in the Conductor repository records this work (spec, tracker, ship-log). Merge this one first.\n`;
 }
 
+/**
+ * F15 (autopportunity, 2026-10-20): the sandbox makes the working directory's
+ * own git store writable, not the nested code repository's, so a beat could not
+ * commit there. These are exactly what a commit writes. `config` and `hooks`
+ * stay read-only, so a beat cannot switch the commit gates off. Proven by a
+ * sandboxed commit outside /tmp (the sandbox lets anything under /tmp be written).
+ */
+export function nestedSandboxWrites(codeGitDir) {
+  return ["objects", "refs", "logs", "worktrees"].map((d) => join(codeGitDir, d));
+}
+
 /** Claims from git, both repositories: an item is taken when its branch is on either remote. */
 export function unionBranches(outer, code) {
   if (outer === null && code === null) return null;

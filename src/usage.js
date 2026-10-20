@@ -105,7 +105,7 @@ export const COMMANDS = Object.freeze([
       ["doctor", "Check the project before an unattended run"],
       ["doctor --beat", "Also run one real beat to prove the engine and sandbox"],
     ],
-    config: ["verify", "loop.forge", "loop.setup", "loop.allowed_domains", "loop.require_ready", "loop.priorities", "loop.inbox", "loop.allow_nested_repo", "loop.models", "loop.cost_aware", "loop.slices", "loop.blueprint"],
+    config: ["verify", "loop.forge", "loop.setup", "loop.allowed_domains", "loop.require_ready", "loop.priorities", "loop.inbox", "loop.allow_nested_repo", "loop.models", "loop.cost_aware", "loop.slices", "loop.blueprint", "loop.code_dir"],
     examples: [
       ["conductor loop doctor .", "is this project ready?"],
       ["conductor loop . --from-conductor --dry-run", "what would the next run do?"],
@@ -215,6 +215,7 @@ export const CONFIG_KEYS = Object.freeze([
   ["loop.cost_aware", "true: budget.max_cost_usd in loop-state.json stops a run"],
   ["loop.slices", "[\"<Project>\"] or true: the project's carved slices are loop work, from spec to MR"],
   ["loop.blueprint", "[\"<Project>\"] or true: after Discovery, the project's Blueprint is loop work, one MR"],
+  ["loop.code_dir", "\"repo\": the code is this nested repository (outer layout). Each item gets a code worktree and two MRs, code first; verify is repos.<code_dir>.verify"],
 ]);
 
 const pad = (s, n) => (s.length >= n ? `${s}  ` : s.padEnd(n));

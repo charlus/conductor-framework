@@ -8,6 +8,25 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.31.0] — 2026-10-20 — The loop works when the code is a nested repository
+
+Compatibility: upgrade only
+
+Build step 7 of [`docs/roadmap/Unattended-Lifecycle.md`](docs/roadmap/Unattended-Lifecycle.md). It reverses the 2026-10-02 refusal, on owner decision.
+
+### Added
+
+- **The outer layout, `loop.code_dir`.** When `conductor/` lives in a private outer repository and the team's code is a nested, gitignored repository, set `"code_dir": "repo"`. Each item gets the layout an interactive session has: an outer worktree, and inside it a worktree of the code repository on the same branch name, made from the code repository's default branch, never from the branch you have checked out. Verify is `repos.<code_dir>.verify` and runs in the code worktree, and so does `loop.setup`, with `CONDUCTOR_ROOT` and `CONDUCTOR_CODE_ROOT` set (to link an untracked venv, say). Every prompt names the code repository, and every Checker is told where the code diff is. Each item opens two MRs (owner decision 2026-10-20): the code MR to the team's forge first, then the state MR (spec, tracker, ship-log, archive, rulings) to your repository, naming the code MR. If the code MR fails, no state MR is opened; if the state MR fails, the inbox names the open code MR. Never a direct push. An item is taken while its branch is on either remote, merge conflicts are predicted in both repositories, and cleanup never removes an outer worktree that still holds an open code worktree (in the loop, and in the `post-merge` hook). Any other nested repository still stops the loop. Only `--from-conductor` runs in this layout. `conductor loop doctor` checks the code repository, its default branch and forge login, and runs setup and verify in a code worktree.
+
+### Fixed
+
+- **What `loop.setup` makes stays out of the MR.** New untracked paths after setup are hidden from git in that worktree. A live run committed the `.venv` symlink a setup had linked, which a `.venv/` ignore rule does not match.
+- **`loop doctor` counts Blueprint items** in its queue check.
+
+Verified live on a scratch outer layout, with a real model, local remotes and a stub forge: the code repository's checkout sat on a feature branch with a work-in-progress commit, tests ran from an untracked venv linked by `loop.setup`. One Build beat, one Ship beat, two reviews, ≈ $0.74. The code branch carried the fix and its tests, from `main`, without the work-in-progress commit and without any Conductor file; the state branch carried the ship-log entry, the ticked backlog item and the ruling, without code. The code MR was opened from the code worktree first, and the state MR named it. The same run found the setup symlink in the branch, fixed above. `test/loop-nested-run.test.js` runs the same path through the CLI with a stub engine. Not yet run on a real team repository: autopportunity is the next step.
+
+---
+
 ## [6.30.0] — 2026-10-20 — The CLI says how to use it, and what to do next
 
 Compatibility: upgrade only

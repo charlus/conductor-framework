@@ -12,6 +12,7 @@
 //   allow_nested_repo true → run even though a gitignored nested git repo exists
 //   slices           ["<Project>"] | true → carved slices of these projects are loop work
 //   blueprint        ["<Project>"] | true → these projects' Blueprint, after Discovery, is loop work
+//   code_dir         "repo" → the code is this nested, gitignored repository (the outer layout)
 //   cost_aware       true → budget.max_cost_usd halts the run (off: cost is shown, never acts)
 //   models           { maker, checker, maker_escalation } → the model each loop role runs on
 //                    (claude engine); maker_escalation runs a Maker beat after two rejections
@@ -33,7 +34,7 @@ const DOMAIN_RE = /^(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a
 export function parseLoopConfig(config) {
   const raw = config && typeof config === "object" && config.loop && typeof config.loop === "object" ? config.loop : {};
   const errors = [];
-  const out = { forge: null, setup: null, allowedDomains: [], requireReady: false, priorities: [], inbox: true, allowNestedRepo: false, models: { maker: null, checker: null, maker_escalation: null }, costAware: false, slices: [], blueprint: [], errors };
+  const out = { forge: null, setup: null, allowedDomains: [], requireReady: false, priorities: [], inbox: true, allowNestedRepo: false, models: { maker: null, checker: null, maker_escalation: null }, costAware: false, slices: [], blueprint: [], codeDir: null, errors };
 
   if (raw.forge !== undefined && raw.forge !== null) {
     if (FORGES.includes(raw.forge)) out.forge = raw.forge;
@@ -83,6 +84,11 @@ export function parseLoopConfig(config) {
     if (raw.blueprint === true) out.blueprint = true;
     else if (Array.isArray(raw.blueprint) && raw.blueprint.every((p) => typeof p === "string" && p.trim())) out.blueprint = raw.blueprint.map((p) => p.trim());
     else errors.push('loop.blueprint must be true or a list of project folder names, such as ["evaluations"]');
+  }
+  if (raw.code_dir !== undefined) {
+    const d = typeof raw.code_dir === "string" ? raw.code_dir.trim().replace(/\/+$/, "") : "";
+    if (d && !d.startsWith("/") && !d.split("/").includes("..")) out.codeDir = d;
+    else errors.push('loop.code_dir must be the relative path of the nested code repository, such as "repo"');
   }
   if (raw.cost_aware !== undefined) {
     if (typeof raw.cost_aware === "boolean") out.costAware = raw.cost_aware;

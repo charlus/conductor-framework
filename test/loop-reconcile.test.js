@@ -135,3 +135,41 @@ test("conductor status names merged loop worktrees and deletes nothing", async (
     rmSync(base, { recursive: true, force: true });
   }
 });
+
+test("step 7: a merged outer worktree that still holds a code worktree is kept, by the loop and by the post-merge hook", async () => {
+  const { base, repo } = setup();
+  try {
+    const hooks = join(repo, ".agents/hooks");
+    execFileSync("mkdir", ["-p", hooks]);
+    for (const f of ["post-merge", "lib.sh"]) writeFileSync(join(hooks, f), execFileSync("cat", [new URL(`../templates/.agents/hooks/${f}`, import.meta.url).pathname]));
+    execFileSync("chmod", ["+x", join(hooks, "post-merge")]);
+    const path = loopWorktree(repo, "slice");
+    // The code worktree of another repository, inside the outer one (gitignored there).
+    const code = join(base, "code");
+    G(base, "init", "-q", "-b", "main", "code");
+    G(code, "config", "user.email", "t@t");
+    G(code, "config", "user.name", "t");
+    writeFileSync(join(code, "a.py"), "a\n");
+    G(code, "add", "-A");
+    G(code, "commit", "-qm", "init");
+    G(code, "worktree", "add", "-q", "-b", "conductor/loop/slice", join(path, "repo"));
+    const forge = join(base, "forge");
+    execFileSync("git", ["clone", "-q", join(base, "origin.git"), forge], { stdio: "pipe" });
+    G(forge, "config", "user.email", "t@t");
+    G(forge, "config", "user.name", "t");
+    G(forge, "merge", "-q", "--no-ff", "-m", "merge state MR", "origin/conductor/loop/slice");
+    G(forge, "push", "-q", "origin", "master");
+    G(repo, "fetch", "-q", "origin");
+
+    const keep = async (w) => (existsSync(join(w.path, "repo", ".git")) ? "its code worktree is still open" : null);
+    const pruned = await pruneMergedLoopWorktrees({ git: git(repo), skip: keep });
+    assert.deepEqual(pruned.removed, []);
+    assert.match(pruned.kept[0].reason, /code worktree/);
+
+    G(repo, "config", "core.hooksPath", ".agents/hooks");
+    execFileSync("git", ["pull", "-q", "--no-rebase", "origin", "master"], { cwd: repo, stdio: "pipe" });
+    assert.equal(existsSync(join(path, "repo", "a.py")), true, "the pull did not delete the open code worktree");
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});

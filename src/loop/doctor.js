@@ -72,7 +72,18 @@ export function diagnose(f) {
   }
 
   if (f.nestedRepos?.length) {
-    out.push(check("nested", "fail", `nested repositories: ${f.nestedRepos.join(", ")}`, "Loop worktrees would not contain that code.", "Run the loop in the code repository, or set loop.allow_nested_repo if it is unrelated."));
+    out.push(check("nested", "fail", `nested repositories: ${f.nestedRepos.join(", ")}`, "Loop worktrees would not contain that code.", "If it holds the code, set loop.code_dir to it (the outer layout); if it is unrelated, set loop.allow_nested_repo: true."));
+  }
+  const cd = f.code;
+  if (cd) {
+    if (!cd.isRepo) out.push(check("code", "fail", `loop.code_dir ${cd.dir}/ is not a git repository`, "", "Clone the code repository there, or fix loop.code_dir."));
+    else if (!cd.base) out.push(check("code", "fail", `code repository ${cd.dir}/ has no default branch to start from`, "", `Run \`git -C ${cd.dir} remote set-head origin --auto\`.`));
+    else {
+      out.push(check("code", "pass", `code repository ${cd.dir}/: each item gets a code worktree from ${cd.base}, and two MRs, code first`));
+      if (!cd.forge) out.push(check("code-forge", "fail", `cannot tell which forge opens the code MR`, "", 'Set loop.forge to "gh" or "glab".'));
+      else if (!cd.authOk) out.push(check("code-forge", "fail", `${cd.forge} is not logged in${cd.host ? ` to ${cd.host}` : ""} (code MR)`, "", `Run \`${cd.forge} auth login${cd.host ? ` --hostname ${cd.host}` : ""}\`.`));
+      else out.push(check("code-forge", "pass", `${cd.forge} is logged in${cd.host ? ` to ${cd.host}` : ""} (code MR)`));
+    }
   }
 
   const q = f.queue;

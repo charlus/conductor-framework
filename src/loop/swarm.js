@@ -682,8 +682,8 @@ export async function runSwarm(state, deps) {
       const m = await merge({ task });
       if (m?.ok) {
         task.status = "merged";
-        task.merge = { branch: m.branch ?? null, pr_url: m.prUrl ?? null };
-        await audit(`task ${task.id}: merged (PR ${m.prUrl ?? "n/a"})`);
+        task.merge = { branch: m.branch ?? null, pr_url: m.prUrl ?? null, ...(m.codeUrl ? { code_pr_url: m.codeUrl } : {}) };
+        await audit(`task ${task.id}: merged (PR ${m.prUrl ?? "n/a"}${m.codeUrl ? `, code MR ${m.codeUrl}` : ""})`);
       } else {
         // Conflict / PR failure → pause and escalate (do not silently drop).
         task.status = "passed";

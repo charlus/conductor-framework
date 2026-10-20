@@ -55,13 +55,19 @@ export async function mergedLoopWorktrees({ git }) {
 
 /**
  * Remove merged loop worktrees and their local branches. A worktree with
- * uncommitted changes is kept, with the reason. Never throws.
+ * uncommitted changes is kept, with the reason, and so is one `skip` names. Never throws.
  * @returns {Promise<{removed: object[], kept: object[]}>}
  */
-export async function pruneMergedLoopWorktrees({ git }) {
+export async function pruneMergedLoopWorktrees({ git, skip = async () => null }) {
   const removed = [];
   const kept = [];
   for (const w of await mergedLoopWorktrees({ git })) {
+    // Step 7: an outer worktree that still holds an open code worktree stays.
+    const why = await skip(w);
+    if (why) {
+      kept.push({ ...w, reason: why });
+      continue;
+    }
     const dirty = await git(["-C", w.path, "status", "--porcelain"]);
     if (!dirty.ok || dirty.stdout) {
       kept.push({ ...w, reason: dirty.ok ? "it has uncommitted changes" : "its status could not be read" });

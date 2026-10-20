@@ -218,8 +218,9 @@ export async function configVerify(root, codeDir = null) {
   try {
     const cfg = await readJson(cfgPath);
     // Step 7: in the outer layout the code repository's own push check is the loop's verify.
-    if (codeDir) return cfg.repos?.[codeDir]?.verify ?? "";
-    return cfg.verify ?? "";
+    const v = String((codeDir ? cfg.repos?.[codeDir]?.verify : cfg.verify) ?? "").trim();
+    // "none" declares no tests on purpose (conductor verify --none): never a command to run.
+    return v.toLowerCase() === "none" ? "" : v;
   } catch {
     return "";
   }

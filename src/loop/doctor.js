@@ -20,6 +20,18 @@ function check(id, level, title, detail = "", fix = "") {
 export function diagnose(f) {
   const out = [];
   const s = f.state ?? {};
+  // F12: one cause, one line. Every other check would only restate it.
+  if (f.notSetUp) {
+    return [
+      check(
+        "setup",
+        "fail",
+        "the loop is not set up for this project yet",
+        `loop-state.json says ${s.phase ?? "no phase"}, sandbox ${s.sandbox ?? "unset"}, and no work is turned on.`,
+        "`conductor loop on` lists your projects; `conductor loop on <project>` sets the loop up for one, after showing each change; `conductor loop on --backlog` for backlog items you tag (loop-ready)."
+      ),
+    ];
+  }
 
   if (f.configErrors?.length) {
     out.push(check("config", "fail", "conductor.config.json loop block", f.configErrors.join("; "), "Fix the listed values; the run refuses an invalid loop block."));

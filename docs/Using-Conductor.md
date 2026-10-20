@@ -42,12 +42,8 @@ Each stage is one workflow, run in a fresh session. The workflow ends by naming 
 
 The loop runs the same workflows, one stage per fresh beat, each behind an independent review, and opens one MR per item. You merge.
 
-1. Say which projects it may take, in `conductor.config.json`:
-   ```json
-   { "loop": { "blueprint": ["<Project>"], "slices": ["<Project>"] } }
-   ```
-   `blueprint`: after your Discovery, it writes the Blueprint as one MR, and merging it is your sign-off. `slices`: it builds the carved slices, from spec to MR. Backlog items tagged `(loop-ready)` are taken too. If the code is a nested repository (an outer `conductor/` repository with the team's code in `repo/`), add `"code_dir": "repo"` and set its tests with `conductor verify --repo repo --set "<cmd>"`: each item then opens a code MR to the team's repository, and a state MR to yours. Merge the code MR first.
-2. Check the project: `conductor loop doctor .`
+1. Turn it on for a project: `conductor loop on <project>`. It shows each change in plain words and asks once: after your Discovery it writes the Blueprint stages you have not written as one MR (merging it is your sign-off), then it builds the slices, from spec to MR. If the code is a nested repository (`repo/` inside your `conductor/` repository), it finds it: each item then opens a code MR to the team's repository, then a state MR to yours. Merge the code MR first. If it says the code has no test command, run the command it prints. `conductor loop off <project>` takes the project out again. In your agent, "turn the loop on for <project>" does the same.
+2. Check the project: `conductor loop doctor .` (`loop on` runs it for you)
 3. Preview: `conductor loop . --from-conductor --dry-run`
 4. Run it in a separate terminal: `conductor loop . --from-conductor`
 5. When it stops, it prints the next step. Usually one of these:
@@ -217,6 +213,7 @@ Run the autonomous loop: beats, reviews, one MR per item.
 
 ```
 conductor loop [dir] [--from-conductor | --goal <text> | --event <file.json>] [options]
+conductor loop on|off <project> [dir] [--yes] [--dry-run]
 conductor loop doctor [dir] [--beat]
 ```
 
@@ -230,11 +227,16 @@ conductor loop doctor [dir] [--beat]
 | `--priority <P1[,P2]>` | With --from-conductor: only backlog items under these headings |
 | `--no-inbox` | With --from-conductor: skip inbox lines |
 | `--unsafe-no-sandbox` | Allow sandbox: none (only inside a VM you control) |
+| `on <project>` | Let the loop work on a project: shows each change in plain words, asks once, writes the settings |
+| `on --yes` | Apply without asking (after you have seen the list) |
+| `on --code-dir <dir>` | Name the nested code repository when there are several |
+| `off <project>` | The loop no longer works on that project |
 | `doctor` | Check the project before an unattended run |
 | `doctor --beat` | Also run one real beat to prove the engine and sandbox |
 
 Reads: `verify`, `loop.forge`, `loop.setup`, `loop.allowed_domains`, `loop.require_ready`, `loop.priorities`, `loop.inbox`, `loop.allow_nested_repo`, `loop.models`, `loop.cost_aware`, `loop.slices`, `loop.blueprint`, `loop.code_dir`.
 
+- `conductor loop on km-workload-relief`: let the loop work on this project
 - `conductor loop doctor .`: is this project ready?
 - `conductor loop . --from-conductor --dry-run`: what would the next run do?
 - `conductor loop . --from-conductor`: the real run

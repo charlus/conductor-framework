@@ -92,7 +92,7 @@ export const COMMANDS = Object.freeze([
   },
   {
     name: "loop", group: "loop", summary: "Run the autonomous loop: beats, reviews, one MR per item",
-    usage: "conductor loop [dir] [--from-conductor | --goal <text> | --event <file.json>] [options]\n  conductor loop doctor [dir] [--beat]",
+    usage: "conductor loop [dir] [--from-conductor | --goal <text> | --event <file.json>] [options]\n  conductor loop on|off <project> [dir] [--yes] [--dry-run]\n  conductor loop doctor [dir] [--beat]",
     flags: [
       ["--from-conductor", "Take the work from conductor/: backlog, inbox, slices, Blueprints"],
       ["--dry-run", "Show what the run would pick up and do, write nothing"],
@@ -102,11 +102,16 @@ export const COMMANDS = Object.freeze([
       ["--priority <P1[,P2]>", "With --from-conductor: only backlog items under these headings"],
       ["--no-inbox", "With --from-conductor: skip inbox lines"],
       ["--unsafe-no-sandbox", "Allow sandbox: none (only inside a VM you control)"],
+      ["on <project>", "Let the loop work on a project: shows each change in plain words, asks once, writes the settings"],
+      ["on --yes", "Apply without asking (after you have seen the list)"],
+      ["on --code-dir <dir>", "Name the nested code repository when there are several"],
+      ["off <project>", "The loop no longer works on that project"],
       ["doctor", "Check the project before an unattended run"],
       ["doctor --beat", "Also run one real beat to prove the engine and sandbox"],
     ],
     config: ["verify", "loop.forge", "loop.setup", "loop.allowed_domains", "loop.require_ready", "loop.priorities", "loop.inbox", "loop.allow_nested_repo", "loop.models", "loop.cost_aware", "loop.slices", "loop.blueprint", "loop.code_dir"],
     examples: [
+      ["conductor loop on km-workload-relief", "let the loop work on this project"],
       ["conductor loop doctor .", "is this project ready?"],
       ["conductor loop . --from-conductor --dry-run", "what would the next run do?"],
       ["conductor loop . --from-conductor", "the real run"],

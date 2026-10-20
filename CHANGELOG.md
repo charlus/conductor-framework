@@ -8,6 +8,20 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.32.0] — 2026-10-20 — Turn the loop on for a project with one command
+
+Compatibility: upgrade only
+
+Using the loop meant writing a `loop` block of JSON by hand. Owner: "I will never remember that."
+
+### Added
+
+- **`conductor loop on <project>`.** It reads the project and lists what it will change, in plain words, then asks once: the Blueprint stages you have not written (it names them), the slices, the nested code repository when there is one (taken from your `repos` setting when there are several, the others ignored), a `loop.setup` that links an untracked `.venv` or `node_modules`, and `loop-state.json` set to execution, L3 and the engine's sandbox. Then it writes `conductor.config.json` and `loop-state.json` and runs `loop doctor`. A project without Discovery is refused with what to run. `--dry-run` only shows the list, `--yes` applies without asking, `--code-dir <dir>` names the code repository. Without a terminal and without `--yes`, it writes nothing.
+- **`conductor loop off <project>`** takes the project out of the Blueprint and the slices, and changes nothing else.
+- **The CLI points at it.** `loop doctor` says `conductor loop on <project>` when there is no work or an unexplained nested repository, and `conductor status` (or `conductor` alone) suggests it for a project the loop is not on. In your agent, "turn the loop on for <project>" runs it: the agent shows you the list first.
+
+---
+
 ## [6.31.0] — 2026-10-20 — The loop works when the code is a nested repository
 
 Compatibility: upgrade only

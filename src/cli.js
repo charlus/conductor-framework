@@ -29,7 +29,7 @@ function helpText() {
 /** A bare `conductor` inside a project: where it stands and the next command, not the whole list. */
 async function projectGuide(cwd) {
   const { collectState } = await import("./conductor-state.js");
-  const { readRounds, loopItems } = await import("./commands/status.js");
+  const { readRounds, loopItems, loopOffProjects } = await import("./commands/status.js");
   const { ok, state } = await collectState(cwd, {});
   if (!ok) return null;
   const rounds = await readRounds(cwd);
@@ -39,7 +39,7 @@ async function projectGuide(cwd) {
     `  Conductor project: ${cwd}`,
     `  Inbox ${d.inboxCount ?? 0} · backlog open ${d.backlogOpen ?? 0} · question rounds waiting ${rounds.waiting.length}`,
     "",
-    `  ${nextAfterStatus({ waitingRounds: rounds.waiting, answeredRounds: rounds.answered.length, verifyConfigured: d.verify?.configured !== false, inboxCount: d.inboxCount ?? 0, queueLength: d.queueLength ?? 0, loopItems: await loopItems(cwd) })}`,
+    `  ${nextAfterStatus({ waitingRounds: rounds.waiting, answeredRounds: rounds.answered.length, verifyConfigured: d.verify?.configured !== false, inboxCount: d.inboxCount ?? 0, queueLength: d.queueLength ?? 0, loopItems: await loopItems(cwd), loopOffProjects: await loopOffProjects(cwd) })}`,
     "",
     "  Often used:  conductor status · conductor inbox add \"<idea>\" · conductor loop . --from-conductor --dry-run",
     "  All commands: conductor help   ·   Full guide: docs/Using-Conductor.md",

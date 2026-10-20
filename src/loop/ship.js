@@ -23,8 +23,13 @@ const FOR_YOU_LINES = ["Impact", "Cost", "Risk", "Decide"];
 
 /** The `## Ship beat` section of unattended-loop.md: the beat's unattended rules. */
 export function shipBeatSection(text) {
+  return sectionOf(text, "Ship beat");
+}
+
+/** A `## <heading>` section of a workflow file, up to the next `## ` heading. */
+export function sectionOf(text, heading) {
   const lines = String(text ?? "").split("\n");
-  const start = lines.findIndex((l) => /^## Ship beat\b/.test(l));
+  const start = lines.findIndex((l) => l.startsWith(`## ${heading}`));
   if (start < 0) return "";
   let end = lines.findIndex((l, i) => i > start && /^## /.test(l));
   if (end < 0) end = lines.length;
@@ -58,6 +63,9 @@ export function renderShipAssignment(task, { branch } = {}) {
       );
     }
   }
+  if (task?.source?.kind === "slice" && task.source.path) {
+    lines.push(`- **Archive it in this branch:** move \`${task.source.path}\` to \`conductor/6-archive/completed-implementations/${task.source.slice}\` (ship.md Phase 5).`);
+  }
   if (branch) lines.push(`- **Branch:** \`${branch}\`. In the ship-log entry write \`Platform: branch ${branch} — MR opened by conductor loop\`.`);
   return lines.join("\n");
 }
@@ -81,7 +89,7 @@ function entryBody(log, heading) {
  * Did the Ship beat do Ship's bookkeeping? Pure: the caller reads the files.
  * @returns {{ok:boolean, reasons:string[]}}
  */
-export function checkShipEvidence({ rootShipLog, branchShipLog, body, backlog = null }) {
+export function checkShipEvidence({ rootShipLog, branchShipLog, body, backlog = null, slice = null }) {
   const reasons = [];
   const seen = new Set(headingsOf(rootShipLog));
   const added = headingsOf(branchShipLog).filter((h) => !seen.has(h)).sort();
@@ -106,6 +114,9 @@ export function checkShipEvidence({ rootShipLog, branchShipLog, body, backlog = 
       .split("\n")
       .find((l) => /^\s*- \[[ xX]\]/.test(l) && matchKey(l.replace(/^\s*- \[[ xX]\]\s*/, "")).startsWith(want));
     if (!line || !/^\s*- \[[xX]\]/.test(line)) reasons.push(`the backlog item is not ticked: ${cleanTitle(backlog.title)}`);
+  }
+  if (slice && (slice.stillInBacklog || !slice.archived)) {
+    reasons.push("the slice folder is not archived to conductor/6-archive/completed-implementations/ (ship.md Phase 5)");
   }
   return { ok: reasons.length === 0, reasons };
 }

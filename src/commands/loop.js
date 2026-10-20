@@ -30,7 +30,8 @@ import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
 import { recordUsage, usageSummary } from "../loop/usage.js";
 import { newRulings, rulingInboxLines, rulingsPrBody, rulingsForChecker, RULINGS_REL } from "../loop/rulings.js";
-import { renderShipAssignment, shipBeatSection, checkShipEvidence, PR_BODY_REL } from "../loop/ship.js";
+import { renderShipAssignment, shipBeatSection, sectionOf, checkShipEvidence, PR_BODY_REL } from "../loop/ship.js";
+import { harvestSlices, specEvidence as checkSpecEvidence, PROJECTS_REL } from "../loop/slices.js";
 import { pruneMergedLoopWorktrees, remoteLoopBranches, mergedBranches, skipClaimed } from "../loop/reconcile.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels } from "../loop/config.js";
 
@@ -270,6 +271,26 @@ async function writeTriggerDoc(root, provenance) {
   }
 }
 
+/** Step 3: the opted-in projects' open slices and the carve templates, from the root checkout. */
+export async function readSlices(root, optIn) {
+  const read = async (p) => ((await exists(p)) ? readFile(p, "utf8") : "");
+  const tpl = (name) => read(join(root, "conductor/5-templates/carve-workflow", name));
+  const projects = [];
+  const base = join(root, PROJECTS_REL);
+  for (const name of (await exists(base)) ? await readdir(base) : []) {
+    const impl = join(base, name, "implementations");
+    if (!(await exists(impl))) continue;
+    const slices = [];
+    for (const s of await readdir(impl)) {
+      const dir = join(impl, s);
+      if (!(await exists(join(dir, "feature-spec.md"))) && !(await exists(join(dir, "implementation-plan.md")))) continue;
+      slices.push({ name: s, spec: await read(join(dir, "feature-spec.md")), plan: await read(join(dir, "implementation-plan.md")) });
+    }
+    projects.push({ name, slices });
+  }
+  return { projects, optIn, specTemplate: await tpl("feature-spec.md"), planTemplate: await tpl("implementation-plan.md") };
+}
+
 export async function loopCommand(args, { cwd, stdout, stderr }) {
   // Before any state read or gate: help must never be refused.
   if (args.includes("--help") || args.includes("-h")) {
@@ -400,6 +421,10 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       priorities: loopConfig.priorities,
       includeInbox: loopConfig.inbox,
     });
+    // Unattended Lifecycle step 3: the lowest open slice of each opted-in project.
+    if (loopConfig.slices === true || loopConfig.slices.length) {
+      harvestedQueue = [...harvestedQueue, ...harvestSlices(await readSlices(root, loopConfig.slices))];
+    }
     // Unattended Lifecycle step 2: claims come from git. An item whose loop
     // branch is on the remote is in progress or in review elsewhere; nothing is
     // committed to the owner's checkout to mark it.
@@ -603,6 +628,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     runBeat: logged("maker", modelled.runBeat),
     runChecker: logged("checker", modelled.runChecker),
     runShipBeat: logged("ship", modelled.runBeat),
+    runSpecBeat: logged("spec", modelled.runBeat),
   };
   stdout.write(`[CONDUCTOR LOOP] platform: ${adapter.name}\n`);
   if (makerModel || checkerModel) {
@@ -965,6 +991,52 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     await collectRulings(holder, cwd, rulingsBefore);
     return { ...result, signal: await readSignalAt(cwd) };
   }
+  // Step 3: the Spec beat is Spec-It itself, then its unattended rules, then the slice.
+  async function runSpecIn(cwd, task) {
+    await rm(join(cwd, "conductor/1-workbench/maker-signal.json"), { force: true }).catch(() => {});
+    const specPath = join(root, ".agents/workflows/spec-it.md");
+    const specIt = (await exists(specPath)) ? await readFile(specPath, "utf8") : "";
+    const rules = sectionOf((await exists(promptPath)) ? await readFile(promptPath, "utf8") : "", "Spec beat");
+    const assignment = `# Spec assignment (this beat)\n\n- **Slice folder:** \`${task.source?.path}\`\n- **Project:** ${task.source?.project}`;
+    const parts = [specIt, "---", rules, assignment];
+    if (task.attempts?.length) parts.push(renderAttempts(task.attempts));
+    const p = join(tmpdir(), `conductor-spec-${task.id.replace(/[^a-z0-9]+/gi, "-")}.md`);
+    await writeFile(p, `${parts.join("\n\n")}\n`, "utf8");
+    const rulingsBefore = await readRulingsAt(cwd);
+    const result = await adapter.runSpecBeat({
+      promptPath: p, cwd, permissionMode: "acceptEdits", settingsPath: sandboxSettingsPath,
+      sandbox: agySandbox, allowedTools: allowedToolsFor(state), role: "spec", task,
+    });
+    const cap = await autoCommit({ git: makeGit(cwd), message: autoCommitMessage({ role: "spec", goal: `spec ${task.id}` }) });
+    if (cap.committed) await audit(`spec ${task.id}: auto-captured uncommitted changes`);
+    await collectRulings(task, cwd, rulingsBefore);
+    return { ...result, signal: await readSignalAt(cwd) };
+  }
+  async function specEvidenceIn(cwd, task) {
+    const read = async (p) => ((await exists(p)) ? readFile(p, "utf8") : "");
+    const dir = join(cwd, task.source?.path ?? "");
+    return checkSpecEvidence({
+      spec: await read(join(dir, "feature-spec.md")),
+      plan: await read(join(dir, "implementation-plan.md")),
+      specTemplate: await read(join(root, "conductor/5-templates/carve-workflow/feature-spec.md")),
+      planTemplate: await read(join(root, "conductor/5-templates/carve-workflow/implementation-plan.md")),
+    });
+  }
+  // D2: the spec review is the Checker, told what it is reviewing this time.
+  async function specCheckerPrompt(task) {
+    const base = (await exists(checkerPromptPath)) ? await readFile(checkerPromptPath, "utf8") : "";
+    const p = join(tmpdir(), `conductor-spec-review-${task.id.replace(/[^a-z0-9]+/gi, "-")}.md`);
+    await writeFile(
+      p,
+      `${base}\n\n---\n\n# This review: the slice's spec, before any code (D2)\n\n` +
+        `Review \`${task.source?.path}/feature-spec.md\` and \`implementation-plan.md\` against the slice's entry in \`project-documentation.md\` and the project's Blueprint (\`blueprint/\`). ` +
+        "There is no code yet: do not run tests. Approve only if every acceptance criterion of the slice is covered, the Brief check is answered, the plan builds what the spec says, " +
+        "and no product decision is taken that is a one-way door. A spec that would build the wrong thing well is a BLOCKER.\n",
+      "utf8"
+    );
+    return p;
+  }
+
   async function shipEvidenceIn(cwd, task) {
     const read = async (base, rel) => ((await exists(join(base, rel))) ? readFile(join(base, rel), "utf8") : "");
     const backlogRel = "conductor/2-backlog/task-backlog.md";
@@ -973,6 +1045,13 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       branchShipLog: await read(cwd, "conductor/0-compass/ship-log.md"),
       body: await read(cwd, PR_BODY_REL),
       backlog: task?.source?.kind === "backlog" ? { title: task.title, after: await read(cwd, backlogRel) } : null,
+      slice:
+        task?.source?.kind === "slice"
+          ? {
+              stillInBacklog: await exists(join(cwd, task.source.path)),
+              archived: await exists(join(cwd, "conductor/6-archive/completed-implementations", task.source.slice)),
+            }
+          : null,
     });
     return { ...res, body: await read(cwd, PR_BODY_REL) };
   }
@@ -1200,14 +1279,19 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       },
       runVerify: ({ task, cmd }) => sh(cmd, cwdFor.get(task.id) ?? root),
       changedFiles: ({ task, from }) => changedFilesIn(cwdFor.get(task.id) ?? root, from),
-      runChecker: async ({ task }) =>
-        makeChecker(cwdFor.get(task.id) ?? root, await checkerPromptWithRulings(await checkerPromptFor(task), await branchRulings(cwdFor.get(task.id) ?? root), task.id))(),
+      runChecker: async ({ task, phase }) =>
+        makeChecker(
+          cwdFor.get(task.id) ?? root,
+          await checkerPromptWithRulings(phase === "spec" ? await specCheckerPrompt(task) : await checkerPromptFor(task), await branchRulings(cwdFor.get(task.id) ?? root), task.id)
+        )(),
       // F7: would this branch collide with the base before we push it? Asked
       // against the object store from the ROOT checkout, so no working tree is
       // touched and no worktree has to be clean for it to answer.
       predictConflict: async ({ task }) =>
         predictConflicts({ git, base: "HEAD", branch: task.worktree?.branch }),
       runShip: ({ task }) => runShipIn(cwdFor.get(task.id) ?? root, { key: task.id, task, branch: task.worktree?.branch, holder: task }),
+      runSpec: ({ task }) => runSpecIn(cwdFor.get(task.id) ?? root, task),
+      specEvidence: ({ task }) => specEvidenceIn(cwdFor.get(task.id) ?? root, task),
       shipEvidence: ({ task }) => shipEvidenceIn(cwdFor.get(task.id) ?? root, task),
       // The done tick and the ship-log entry now ride in the task's branch (the
       // Ship beat), so merging the MR records the ship. Nothing is written to

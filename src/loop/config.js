@@ -10,6 +10,7 @@
 //   priorities       ["P1", …] → only backlog items under these headings
 //   inbox            false → inbox lines are not harvested
 //   allow_nested_repo true → run even though a gitignored nested git repo exists
+//   slices           ["<Project>"] | true → carved slices of these projects are loop work
 //   cost_aware       true → budget.max_cost_usd halts the run (off: cost is shown, never acts)
 //   models           { maker, checker, maker_escalation } → the model each loop role runs on
 //                    (claude engine); maker_escalation runs a Maker beat after two rejections
@@ -31,7 +32,7 @@ const DOMAIN_RE = /^(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a
 export function parseLoopConfig(config) {
   const raw = config && typeof config === "object" && config.loop && typeof config.loop === "object" ? config.loop : {};
   const errors = [];
-  const out = { forge: null, setup: null, allowedDomains: [], requireReady: false, priorities: [], inbox: true, allowNestedRepo: false, models: { maker: null, checker: null, maker_escalation: null }, costAware: false, errors };
+  const out = { forge: null, setup: null, allowedDomains: [], requireReady: false, priorities: [], inbox: true, allowNestedRepo: false, models: { maker: null, checker: null, maker_escalation: null }, costAware: false, slices: [], errors };
 
   if (raw.forge !== undefined && raw.forge !== null) {
     if (FORGES.includes(raw.forge)) out.forge = raw.forge;
@@ -71,6 +72,11 @@ export function parseLoopConfig(config) {
         else if (typeof model === "string" && MODEL_RE.test(model)) out.models[role] = model;
         else errors.push(`loop.models.${role}: ${JSON.stringify(model)} is not a model id or alias`);
       }
+  }
+  if (raw.slices !== undefined) {
+    if (raw.slices === true) out.slices = true;
+    else if (Array.isArray(raw.slices) && raw.slices.every((p) => typeof p === "string" && p.trim())) out.slices = raw.slices.map((p) => p.trim());
+    else errors.push('loop.slices must be true or a list of project folder names, such as ["evaluations"]');
   }
   if (raw.cost_aware !== undefined) {
     if (typeof raw.cost_aware === "boolean") out.costAware = raw.cost_aware;

@@ -8,6 +8,16 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.26.1] — 2026-10-20 — The test suite no longer fills /tmp
+
+Compatibility: upgrade only
+
+### Fixed
+
+- **Developing Conductor: the test suite cleans up after itself.** Each full run left about 108 temp folders in `/tmp`, each a full Conductor install, some 21,000 inodes a run; on 2026-10-20 `/tmp` ran out of inodes for every session on the machine. Every `npm run test*` script now runs under `scripts/with-test-tmp.mjs`, which gives the run its own `TMPDIR` and deletes it at the end, whatever the tests left and however they exit. A test fails when a test script is added without it. Verified: all suites now leave 0 entries in `/tmp`. Nothing changes for installed projects.
+
+---
+
 ## [6.26.0] — 2026-10-20 — The loop builds carved slices, from spec to MR
 
 Compatibility: upgrade only

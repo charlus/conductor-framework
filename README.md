@@ -422,7 +422,7 @@ Conductor was built by standing on the shoulders of giants. Each entry names wha
 
 - **[AI-DLC](https://github.com/awslabs/aidlc-workflows)** by AWS Labs (MIT-0) — Failing a verification run that changes files while it runs, the hook heartbeat that shows when the hooks stopped firing, and the `Compatibility:` line on each release entry. What we took, what we left and why: [`docs/roadmap/AIDLC-Harvest.md`](docs/roadmap/AIDLC-Harvest.md).
 
-- **agentctl** (Euranova internal agent orchestrator, private) — The diagnosis that review loops fail to converge when the reviewer's question is unbounded, the finding that round count tracks the size of the instruction corpus, and the architecture-checklist idea. We diverged on self-improvement: Conductor proposes rules, it never auto-appends them.
+- **[agentctl](https://code.euranova.eu/innovation/agentctl.git)** (Euranova internal repository, reachable only from the Euranova network) — The diagnosis that review loops fail to converge when the reviewer's question is unbounded, the finding that round count tracks the size of the instruction corpus, and the architecture-checklist idea. We diverged on self-improvement: Conductor proposes rules, it never auto-appends them.
 
 - **The Ralph loop** by Geoff Huntley — `while :; do cat PROMPT.md | agent; done`, the pattern `conductor loop` hardens with a Maker/Checker split, worktree isolation, a PR-gated merge, and fail-safe verdicts.
 

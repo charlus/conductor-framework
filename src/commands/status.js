@@ -10,6 +10,8 @@ import { collectState } from "../conductor-state.js";
 import { renderStatus } from "../view/status.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { cardState } from "./agents-md.js";
+import { mergedLoopWorktrees } from "../loop/reconcile.js";
+import { spawnSync } from "node:child_process";
 
 function parseArgs(args) {
   const opts = { color: null, json: false, staleDays: 30, dir: null };
@@ -60,5 +62,17 @@ export async function statusCommand(args, context) {
   else if (card?.stale) context.stdout.write(`  ⚠️  Project card in AGENTS.md is stale: ${card.stale.join(", ")} changed. Run the agents-md workflow (/agents-md).\n`);
   // D9: anything that makes Claude Code skip the root AGENTS.md, and so the framework.
   for (const w of await instructionWarningsFor(root)) context.stdout.write(`  ⚠️  ${w}\n`);
+  // Unattended Lifecycle step 2: status reports, it never deletes. The cleanup
+  // runs on `git pull` (post-merge hook) and at the start of a loop run.
+  const git = async (a) => {
+    const r = spawnSync("git", a, { cwd: root, encoding: "utf8" });
+    return { ok: r.status === 0, stdout: (r.stdout || "").trim() };
+  };
+  const merged = await mergedLoopWorktrees({ git });
+  if (merged.length) {
+    context.stdout.write(
+      `  ℹ️  ${merged.length} merged loop worktree${merged.length === 1 ? "" : "s"} (${merged.map((w) => w.branch).join(", ")}): removed on your next \`git pull\` or loop run.\n`
+    );
+  }
   return 0;
 }

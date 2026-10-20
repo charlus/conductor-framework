@@ -13,6 +13,8 @@ const HOOKS_REL = ".agents/hooks";
 const EXECUTABLE_HOOKS = [
   "pre-commit",
   "pre-push",
+  // Cleanup after `git pull`: removes merged `conductor loop` worktrees.
+  "post-merge",
   "verification-stop-hook.sh",
   // Opt-in Claude Code PreToolUse hook. Not wired by core.hooksPath (that is
   // git's), but it still needs the bit set for settings.json to invoke it.
@@ -171,10 +173,10 @@ export async function installHooksCommand(args, { cwd, stdout, stderr }) {
   await writeInstalledHeartbeat(targetDir);
 
   const present = new Set(await readdir(hooksDir));
-  const wired = ["pre-commit", "pre-push"].filter((h) => present.has(h));
+  const wired = ["pre-commit", "pre-push", "post-merge"].filter((h) => present.has(h));
   stdout.write(
     `✅ Conductor enforcement hooks enabled (core.hooksPath → ${HOOKS_REL}): ${wired.join(", ")}\n` +
-      `   Test-Driven Law on commit, Verification Iron Law on push. Bypass is logged; see ${HOOKS_REL}/README.md.\n`
+      `   Test-Driven Law on commit, Verification Iron Law on push${present.has("post-merge") ? ", merged loop worktrees cleaned up on pull" : ""}. Bypass is logged; see ${HOOKS_REL}/README.md.\n`
   );
   reportNested(await wireNestedRepos(targetDir), stdout);
   return 0;

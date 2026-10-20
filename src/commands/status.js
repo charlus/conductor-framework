@@ -7,15 +7,17 @@
 // for the question asked most often in a day.
 
 import { collectState } from "../conductor-state.js";
-import { renderStatus } from "../view/status.js";
+import { collectLive } from "../live-state.js";
+import { renderStatus, renderLive, painter } from "../view/status.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { cardState } from "./agents-md.js";
 
 function parseArgs(args) {
-  const opts = { color: null, json: false, staleDays: 30, dir: null };
+  const opts = { color: null, json: false, live: false, staleDays: 30, dir: null };
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg === "--json") opts.json = true;
+    else if (arg === "--live") opts.live = true;
     else if (arg === "--no-color" || arg === "--no-colour") opts.color = false;
     else if (arg === "--color" || arg === "--colour") opts.color = true;
     else if (arg === "--stale-days") opts.staleDays = Number(args[++i]) || 30;
@@ -46,14 +48,20 @@ export async function statusCommand(args, context) {
     return 1;
   }
 
+  // MR and deploy status are live: the human changes them outside any
+  // conversation, so they are fetched on request and never read from the files.
+  const live = opts.live ? await collectLive(root, { run: context.run }) : null;
+
   if (opts.json) {
-    context.stdout.write(`${JSON.stringify(state.digest, null, 2)}\n`);
+    const digest = live ? { ...state.digest, live } : state.digest;
+    context.stdout.write(`${JSON.stringify(digest, null, 2)}\n`);
     return 0;
   }
 
-  context.stdout.write(
-    `${renderStatus(state, { color: wantsColour(opts, context.stdout, env) })}\n`
-  );
+  const colour = wantsColour(opts, context.stdout, env);
+  context.stdout.write(`${renderStatus(state, { color: colour })}\n`);
+  if (live) context.stdout.write(`${renderLive(live, painter(colour))}\n\n`);
+  else context.stdout.write("  MR and deploy status: not checked. Run conductor status --live.\n");
   // The project card: every session loads it, so a draft or stale card is worth a line.
   const card = await cardState(root);
   if (card === "draft") context.stdout.write("  ⚠️  Project card in AGENTS.md is a draft. Run the agents-md workflow (/agents-md).\n");

@@ -177,6 +177,8 @@ Then re-review **once**: a fresh reviewer, given round-1 findings *plus your dis
     ```
     **Two blocks, one reading order.** *For you* is the four lines the human reads; *For the record* is what the project and the framework grep later. Write `none` rather than inventing a line, and never move an engineering detail up into *For you* — `Impact` is what changed for a user, not what you changed in the code.
 
+    **Events, not statuses** (`.agents/rules/live-state-law.md`). The entry is read later as history, by an agent that does not know what the human did since. Write what happened, with its date: "MR !254 opened 2026-10-19", "deploy is the human's step". Never a status the human can change outside the conversation: "not merged yet", "not deployed", "next batch". `conductor status --live` reports those, from the forge and the project's `deployCheck`, and flags an entry that a merge has contradicted.
+
     **`Decide` is a queue, not a note.** Anything other than `none` surfaces at the top of `conductor status` under *Waiting on you*, and stays there until the entry is edited. Put one question there, answerable in a line, or write `none`.
 
     The `Framework lesson` line is how a project teaches the framework: one grep across every ship-log finds them all.
@@ -233,7 +235,7 @@ Then re-review **once**: a fresh reviewer, given round-1 findings *plus your dis
 
     * Summarise the independent-review verdict inside **Evidence** (what was reviewed, that a fresh-context reviewer approved it).
     * If the ship-log's `Decide` line is not `none`, that question goes in **What I need from you** verbatim, so the two surfaces never disagree.
-5.  **Close the ship-log entry:** replace the `MR/PR link added in Phase 6` placeholder in the Phase 5 entry with the MR/PR URL. This is the only bookkeeping that can happen after the MR, because the URL does not exist before it.
+5.  **Close the ship-log entry:** replace the `MR/PR link added in Phase 6` placeholder in the Phase 5 entry with the MR/PR URL and the date it was opened. This is the only bookkeeping that can happen after the MR, because the URL does not exist before it. Do not come back later to record the merge or the deploy: the forge and `conductor status --live` hold that.
 6.  **Release Notes (Optional):**
     * If this marks a significant milestone, generate release notes or update `CHANGELOG.md`.
 

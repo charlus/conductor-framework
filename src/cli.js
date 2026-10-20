@@ -29,7 +29,7 @@ function helpText() {
     "  for the full development lifecycle.",
     "",
     "  Usage:",
-    "    conductor status [target-directory] [--json] [--no-color]",
+    "    conductor status [target-directory] [--json] [--live] [--no-color]",
     "    conductor inbox add <text> | conductor inbox list",
     "    conductor view [target-directory] [--open] [--out <file>]",
     "    conductor init [target-directory] [options]",

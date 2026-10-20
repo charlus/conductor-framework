@@ -141,7 +141,7 @@ if [ -f "$IMP" ] && grep -q 'seen 2' "$IMP"; then
 else
   no "self-improvement proposal not produced from the recurring ship-log failure"
 fi
-if [ -z "$(ls -A "$PROJ/.agents/rules" 2>/dev/null | grep -v -E 'prime-directive|verification-iron-law|test-driven-law|loop-guardrails')" ]; then
+if [ -z "$(ls -A "$PROJ/.agents/rules" 2>/dev/null | grep -v -E 'prime-directive|verification-iron-law|test-driven-law|live-state-law|loop-guardrails')" ]; then
   ok "self-improvement did NOT auto-write any rule into .agents/rules/ (propose-only)"
 else
   no "self-improvement unexpectedly added a file to .agents/rules/ (should propose, not activate)"

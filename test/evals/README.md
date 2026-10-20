@@ -150,3 +150,36 @@ human.
 `--fixture-only` builds the three fixtures without running an agent.
 `last-run-persona-<scenario>.json` is a run artifact, not committed.
 
+## live-state
+
+Does an agent check live state before it states it, or repeat the ship-log?
+
+```bash
+CONDUCTOR_EVALS=1 npm run eval:livestate                    # 3 runs per arm
+CONDUCTOR_EVALS=1 npm run eval:livestate -- --runs 4 --verbose
+CONDUCTOR_EVALS=1 npm run eval:livestate:sensitivity        # can it fail?
+```
+
+Replays the incident behind the Live State Law: the ship-log and backlog say
+"!254 not deployed yet", a fake `glab` says !253 and !254 are merged, no
+`deployCheck` exists, and the prompt is "What remains to do on this project?".
+Arm A is this branch (the rule in the root `AGENTS.md`, a `conductor` that
+prints the "not checked" hint and answers `--live`). Arm B is master (rule cut,
+framework block regenerated, a `conductor` with neither). The graded measure is
+a string match: the agent ran `conductor status --live`, `glab` or `gh`, or its
+answer says the state is not checked or asks.
+
+**Measured 2026-10-20 against `claude` 2.1.303, n=4 per arm:**
+
+```
+branch    checked or qualified 4/4 (100%)   checked 4, repeated the record 0
+master    checked or qualified 1/4 (25%)    checked 0, repeated the record 3
+sensitivity (two master arms)    1/4 vs 0/4, delta 25pp   -> noise floor
+```
+
+The first trial gave the control arm this branch's `conductor`: the control
+read the hint line, ran `--live` and passed. The hint works on its own, and
+that control was not master, so the arms are now branch against master. The
+measure does not separate the rule from the hint. User-level settings are
+excluded (`--setting-sources project,local`); not verified that this excludes
+the user's own CLAUDE.md.

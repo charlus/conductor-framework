@@ -23,7 +23,8 @@
 
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts } from "../src/loop/checker.js";
+import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, groundFindings } from "../src/loop/checker.js";
+import { renderAttempts } from "../src/loop/harvester.js";
 
 const blocker = (over = {}) => ({
   severity: "BLOCKER",
@@ -184,5 +185,47 @@ describe("E3.4 — multi-vote tally still fails safe", () => {
     const t = tallyVerdicts([{ approved: true }, unproven], 2);
     assert.equal(t.approved, false);
     assert.match(t.reasons.join(" "), /unproven|malformed|no quoted evidence/i);
+  });
+});
+
+// Harness Engineering 101 harvest, F3: rubric v2 demanded a quote but never
+// checked that the quote is in the code. A model judging a model must cite
+// something real; an invented quote is a Checker defect, not a Maker defect.
+describe("F3 — a BLOCKER's quote is checked against the code", () => {
+  const SRC = "export function find(id) {\n  return db.raw(`SELECT ${id}`);\n}\n";
+  const source = (file) => (file === "src/db.js" ? SRC : null);
+
+  test("a quote found in the file stays a proven BLOCKER", () => {
+    const v = groundFindings(verdict({ approved: false, reason: "injection", findings: [blocker()] }), source);
+    assert.equal(v.provenBlockers, 1);
+    assert.equal(v.findings[0].ungrounded, undefined);
+    assert.doesNotMatch(v.reason, /WARNING/);
+  });
+
+  test("whitespace and line breaks do not matter", () => {
+    const v = groundFindings(verdict({ approved: false, findings: [blocker({ quote: "export function find(id) {\n    return db.raw(`SELECT ${id}`);" })] }), source);
+    assert.equal(v.provenBlockers, 1);
+  });
+
+  test("an invented quote still rejects, but is flagged and marked for the next Maker", () => {
+    const v = groundFindings(verdict({ approved: false, reason: "injection", findings: [blocker({ quote: "db.query(userInput)" })] }), source);
+    assert.equal(v.approved, false, "direction: grounding never turns a reject into an approval");
+    assert.equal(v.provenBlockers, 0);
+    assert.equal(v.findings[0].ungrounded, true);
+    assert.match(v.reason, /WARNING/);
+    assert.match(v.reason, /not found in src\/db\.js/);
+    const shown = renderAttempts([{ beat: 1, verify_exit: 0, checker_reason: v.reason, checker_findings: v.findings }]);
+    assert.match(shown, /quote not found/i);
+  });
+
+  test("a file it cannot read leaves the finding as it was", () => {
+    const v = groundFindings(verdict({ approved: false, findings: [blocker({ file: "gone.js", quote: "anything" })] }), source);
+    assert.equal(v.provenBlockers, 1);
+    assert.equal(v.findings[0].ungrounded, undefined);
+  });
+
+  test("an approval is returned unchanged", () => {
+    const before = verdict({ approved: true, reason: "ok" });
+    assert.deepEqual(groundFindings(before, source), before);
   });
 });

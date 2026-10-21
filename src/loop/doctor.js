@@ -12,6 +12,13 @@
 
 const ICON = { pass: "✔", warn: "⚠", fail: "✖" };
 
+/** Claude model families ranked by strength; null for a default or a family not ranked here. */
+const TIERS = [["haiku", 1], ["sonnet", 2], ["opus", 3]];
+export function modelTier(model) {
+  const m = String(model ?? "").toLowerCase();
+  return TIERS.find(([family]) => m.includes(family))?.[1] ?? null;
+}
+
 function check(id, level, title, detail = "", fix = "") {
   return { id, level, title, detail, fix };
 }
@@ -105,6 +112,14 @@ export function diagnose(f) {
     } else {
       out.push(check("queue", "pass", `--from-conductor would take ${q.count} item${q.count === 1 ? "" : "s"}`));
     }
+  }
+
+  // F4 (Harness Engineering 101 harvest): the loop acts on the Checker's approval
+  // without a second look, so the Checker must not be weaker than the Maker.
+  const makerTier = modelTier(f.models?.maker);
+  const checkerTier = modelTier(f.models?.checker);
+  if (makerTier !== null && checkerTier !== null && checkerTier < makerTier) {
+    out.push(check("models", "warn", `the Checker runs on ${f.models.checker}, a weaker model than the Maker's ${f.models.maker}`, "The loop opens an MR on the Checker's approval alone. A weaker reviewer passes mistakes the Maker made.", "In conductor.config.json, give `loop.models.checker` the Maker's model or a stronger one."));
   }
 
   if (f.dotenv?.present && !f.dotenv.copiedBySetup) {

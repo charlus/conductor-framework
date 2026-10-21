@@ -129,7 +129,7 @@ export function checkShipEvidence({ rootShipLog, branchShipLog, body, backlog = 
  * run state (pair): it receives `attempts` (A13) and, on success, `ship.body`.
  * Each callback is bound by the caller to its own mode. Up to SHIP_ATTEMPTS
  * Ship beats; each rejected one tells the next why.
- * @returns {Promise<{ok:boolean, outcome?:string, reason?:string, resetHint?:string|null}>}
+ * @returns {Promise<{ok:boolean, outcome?:string, reason?:string, verdict?:object}>}
  */
 export async function runShipStage(holder, { runShip, verify, check, evidence, charge = () => {}, beatNo = () => 0, audit = () => {} }) {
   let last = "";
@@ -137,7 +137,7 @@ export async function runShipStage(holder, { runShip, verify, check, evidence, c
     charge();
     const r = await runShip();
     const dead = classifyBeatResult(r);
-    if (dead.dead) return { ok: false, outcome: "usage_limit", resetHint: dead.resetHint };
+    if (dead.dead) return { ok: false, outcome: "dead", verdict: dead };
     if (r?.signal?.escalate === true) {
       const reason = String(r.signal.reason ?? "").replace(/\s+/g, " ").trim().slice(0, 1500) || "the Ship beat escalated without a reason";
       return { ok: false, outcome: "escalated", reason };

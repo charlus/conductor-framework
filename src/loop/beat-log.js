@@ -19,7 +19,7 @@ export function beatLogName({ now, label }) {
 }
 
 /** A14: role, model, task, duration, tokens and cost of one beat, on one line. */
-export function usageLine({ role, model, task, duration_s, tokens, cost_usd }) {
+export function usageLine({ role, model, task, duration_s, tokens, cost_usd, cache_pct = null }) {
   return [
     `role=${role}`,
     `model=${model ?? "default"}`,
@@ -27,6 +27,7 @@ export function usageLine({ role, model, task, duration_s, tokens, cost_usd }) {
     `duration=${duration_s ?? "?"}s`,
     `tokens=${tokens ?? "unknown"}`,
     `cost=${cost_usd === null || cost_usd === undefined ? "unknown" : `$${cost_usd.toFixed(4)}`}`,
+    ...(cache_pct === null ? [] : [`cached=${cache_pct}%`]),
   ].join(" ");
 }
 

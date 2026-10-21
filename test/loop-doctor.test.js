@@ -151,3 +151,23 @@ test("conductor loop doctor runs the real checks on a scratch project", async ()
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+// Harness Engineering 101 harvest, F4: the loop trusts the Checker's approval
+// without a second look, so the Checker must not run on a weaker model than the
+// Maker whose work it judges.
+test("doctor warns when the Checker runs on a weaker model than the Maker", () => {
+  const weaker = diagnose({ state: {}, models: { maker: "opus", checker: "haiku" } }).find((c) => c.id === "models");
+  assert.equal(weaker?.level, "warn");
+  assert.match(weaker.title, /checker.*haiku.*maker.*opus/i);
+  assert.equal(diagnose({ state: {}, models: { maker: "claude-sonnet-5-5", checker: "claude-haiku-5-5" } }).find((c) => c.id === "models")?.level, "warn");
+  // Same tier, a stronger Checker, a default model or a family it cannot rank: no warning.
+  for (const models of [
+    { maker: "sonnet", checker: "sonnet" },
+    { maker: "sonnet", checker: "opus" },
+    { maker: "opus", checker: null },
+    { maker: null, checker: "haiku" },
+    { maker: "gpt-6.1-sol", checker: "haiku" },
+  ]) {
+    assert.equal(diagnose({ state: {}, models }).find((c) => c.id === "models"), undefined, JSON.stringify(models));
+  }
+});

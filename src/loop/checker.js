@@ -126,6 +126,57 @@ export function parseCheckerVerdict(text) {
   };
 }
 
+/**
+ * Check each proven BLOCKER's quote against the code it names (Harness
+ * Engineering 101 harvest, F3). A model judging a model must cite something
+ * real: a quote that is not in the file is an invented quote, a Checker defect.
+ *
+ * Direction (Operating Truth 4): this only ever lowers `provenBlockers` and adds
+ * a WARNING. It never changes `approved`, so an invented quote still rejects.
+ * The finding is marked `ungrounded` so the next Maker does not chase it blindly.
+ *
+ * @param {object} verdict a parseCheckerVerdict result
+ * @param {(file:string)=>string|null} sourceFor the text the quote may come from
+ *   (the file, and its diff), or null when it cannot be read: then the finding is left as it was
+ */
+export function groundFindings(verdict, sourceFor) {
+  if (verdict.approved || !verdict.provenBlockers) return verdict;
+  const malformed = new Set(verdict.malformedFindings.map((m) => m.finding));
+  const malformedFindings = [...verdict.malformedFindings];
+  let provenBlockers = verdict.provenBlockers;
+  const findings = verdict.findings.map((f) => {
+    if (malformed.has(f) || String(f?.severity ?? "").toUpperCase() !== "BLOCKER") return f;
+    let source = null;
+    try {
+      source = sourceFor(String(f.file));
+    } catch {
+      source = null;
+    }
+    if (source == null || flatten(source).includes(flatten(f.quote))) return f;
+    const marked = { ...f, ungrounded: true };
+    malformedFindings.push({ problem: `BLOCKER quote not found in ${f.file}`, finding: marked });
+    provenBlockers -= 1;
+    return marked;
+  });
+  const blockerCount = findings.filter((f) => String(f?.severity ?? "").toUpperCase() === "BLOCKER").length;
+  const reason =
+    provenBlockers === 0 && !/WARNING/.test(verdict.reason)
+      ? `${verdict.reason} — WARNING: rejected with no quoted evidence (all ${blockerCount} BLOCKER finding(s) malformed: ` +
+        `${malformedFindings.map((m) => m.problem).join("; ")})`
+      : verdict.reason;
+  return { ...verdict, reason, findings, malformedFindings, provenBlockers };
+}
+
+/** Whitespace-insensitive form, with diff markers removed, for quote matching. */
+function flatten(text) {
+  return String(text ?? "")
+    .split("\n")
+    .map((l) => l.replace(/^[+-](?![+-])/, ""))
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Map a verdict onto the exit-code contract the driver's runChecker expects. */
 export function verdictToExitCode(verdict) {
   return verdict.approved ? 0 : 1;

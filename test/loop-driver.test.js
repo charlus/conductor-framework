@@ -342,6 +342,45 @@ test("(k) a usage-limit beat halts as usage_limit_reached without charging the i
   assert.match(inbox[0], /1:20am/, "the reset time must reach the inbox");
 });
 
+// Harness Engineering 101 harvest, F2: an engine that cannot log in ran beats
+// until the stall detector stopped the run, and the inbox said "stall".
+
+test("classifyBeatResult flags an authentication failure from claude and codex", () => {
+  const claude = classifyBeatResult({ exitCode: 1, stdout: "Invalid API key · Fix external API key", apiErrorStatus: 401 });
+  assert.equal(claude.dead, true);
+  assert.equal(claude.kind, "auth_failed");
+  assert.equal(classifyBeatResult({ exitCode: 1, stdout: "x", apiErrorStatus: 403 }).kind, "auth_failed");
+  // Captured from `codex exec` with an invalid key (codex-cli 0.163.0).
+  const codex = classifyBeatResult({
+    exitCode: 1,
+    stderr: "ERROR: unexpected status 401 Unauthorized: Missing bearer or basic authentication in header, url: https://api.openai.com/v1/responses",
+  });
+  assert.equal(codex.kind, "auth_failed");
+  // A transient server error is not terminal: the stall detector bounds it.
+  assert.equal(classifyBeatResult({ exitCode: 1, stdout: "Overloaded", apiErrorStatus: 529 }).dead, false);
+  // Maker output that merely mentions a 401 is not a dead beat.
+  assert.equal(classifyBeatResult({ exitCode: 0, stdout: "the endpoint now returns 401 Unauthorized when the token is missing" }).dead, false);
+  assert.equal(classifyBeatResult({ exitCode: 0, stdout: "ERROR: unexpected status 401 Unauthorized" }).dead, false);
+});
+
+test("(k2) an authentication failure halts as auth_failed, refunded, and the inbox says to log in", async () => {
+  const inbox = [];
+  let beats = 0;
+  const { state, deps } = harness({
+    max_allowed: 60,
+    runBeat: async () => ((beats += 1), { exitCode: 1, stdout: "Invalid API key · Fix external API key", apiErrorStatus: 401, tokens: 0 }),
+  });
+  deps.writeInbox = async (_s, reason) => inbox.push(reason);
+  const final = await runLoop(state, deps);
+  assert.equal(beats, 1);
+  assert.equal(final.status, "auth_failed");
+  assert.ok(isTerminal("auth_failed"), "must be a terminal status");
+  assert.equal(final.iterations.current, 0, "the dead beat must be refunded");
+  assert.equal(inbox.length, 1);
+  assert.match(inbox[0], /log/i);
+  assert.match(inbox[0], /401/);
+});
+
 // Field report F8: budget.max_beats was read but never enforced; only
 // iterations.max_allowed capped the run. The lower of the two is the ceiling.
 test("F8: budget.max_beats caps the run when lower than iterations.max_allowed", async () => {

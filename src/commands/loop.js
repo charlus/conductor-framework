@@ -15,7 +15,7 @@ import { resolveAdapter } from "../loop/adapters/index.js";
 import { createWorktree, teardownWorktree, worktreePlan, taskWorktreePlan, materializeConductorContext, CONTEXT_ANCHORS, hasUniqueCommits, ensureWorktreesExcluded } from "../loop/worktree.js";
 import { autoCommit, autoCommitMessage } from "../loop/autocommit.js";
 import { harvestWorkQueue, renderAssignment, renderAttempts } from "../loop/harvester.js";
-import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, isInfraReason, VERDICT_REL } from "../loop/checker.js";
+import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, isInfraReason, groundFindings, VERDICT_REL } from "../loop/checker.js";
 import { openPullRequest, planMergeAction, DEFAULT_PR_BODY } from "../loop/merge.js";
 import { runSwarm } from "../loop/swarm.js";
 import { predictConflicts } from "../loop/conflict.js";
@@ -34,7 +34,7 @@ import { BLUEPRINT_STAGES, DISCOVERY, TEMPLATE_FOR, harvestBlueprints, blueprint
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
 import { codePaths, ensureCodeWorktree, codeHasWork, mergeNested, stateMrBody, codeMrBody, unionBranches, refusedNestedRepos, checkerNestedNote, nestedSandboxWrites } from "../loop/nested.js";
-import { recordUsage, usageSummary } from "../loop/usage.js";
+import { recordUsage, usageSummary, cacheShare } from "../loop/usage.js";
 import { newRulings, rulingInboxLines, rulingsPrBody, rulingsForChecker, RULINGS_REL } from "../loop/rulings.js";
 import { renderShipAssignment, shipBeatSection, sectionOf, checkShipEvidence, PR_BODY_REL } from "../loop/ship.js";
 import { harvestSlices, specEvidence as checkSpecEvidence, PROJECTS_REL } from "../loop/slices.js";
@@ -162,6 +162,37 @@ async function gitHead(cwd) {
 }
 
 /** Structured git runner for the worktree module: git(args) -> {ok, stdout}. */
+/**
+ * F3: the text each BLOCKER's quote may come from, read once per verdict: the
+ * file as it is now and its diff from the default branch (a quote of a removed
+ * line), under each root (the outer layout reviews a nested code repository).
+ * Returns a lookup for `groundFindings`; null for a file no root can read.
+ */
+async function checkerSources(verdict, roots) {
+  const texts = new Map();
+  const files = new Set(verdict.findings.filter((f) => String(f?.severity ?? "").toUpperCase() === "BLOCKER" && f.file).map((f) => String(f.file)));
+  for (const file of files) {
+    const parts = [];
+    for (const dir of roots) {
+      const path = resolve(dir, file);
+      if (!path.startsWith(resolve(dir) + sep)) continue; // a path outside the worktree is never read
+      try {
+        parts.push(await readFile(path, "utf8"));
+      } catch {
+        /* not under this root */
+      }
+      const git = makeGit(dir);
+      const base = await defaultBranchRef(git);
+      if (base) {
+        const diff = await git(["diff", `${base}...HEAD`, "--", file]);
+        if (diff.ok && diff.stdout) parts.push(diff.stdout);
+      }
+    }
+    texts.set(file, parts.length ? parts.join("\n") : null);
+  }
+  return (file) => texts.get(file) ?? null;
+}
+
 function makeGit(cwd) {
   return (gitArgs) => runCli("git", gitArgs, cwd);
 }
@@ -641,6 +672,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           duration_s: Math.round((Date.now() - startedAt) / 1000),
           tokens: result?.tokens ?? null,
           cost_usd: result?.costUsd ?? null,
+          cache_pct: Number.isFinite(result?.inputTokens) ? cacheShare(result.cacheReadTokens, result.inputTokens) : null,
         };
         const path = await writeBeatLog(beatLogDir, { now: Date.now(), label, cwd: opts.cwd ?? root, result, usage });
         await audit(`${kind} log: ${path}`);
@@ -774,7 +806,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       return null; // still absent after the retry → fail safe (reject)
     };
     for (let i = 0; i < votes; i++) {
-      verdicts.push(parseCheckerVerdict(await runCheckerVote()));
+      const parsed = parseCheckerVerdict(await runCheckerVote());
+      verdicts.push(groundFindings(parsed, await checkerSources(parsed, [cwd, codeWtOf(cwd)].filter(Boolean))));
     }
     const tally = tallyVerdicts(verdicts, votes);
     stdout.write(`[CONDUCTOR LOOP] checker: ${tally.approved ? "APPROVED" : "REJECTED"} — ${tally.reason}\n`);

@@ -79,6 +79,7 @@ export async function loopDoctor(root, { stdout, beat = false }) {
   }
   const loopConfig = parseLoopConfig(rawConfig);
   facts.configErrors = [...(facts.configErrors ?? []), ...loopConfig.errors];
+  facts.models = loopConfig.models;
 
   const state = normalizeState(await readJson(statePath));
   facts.state = state;

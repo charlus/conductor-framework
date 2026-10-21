@@ -42,6 +42,7 @@ Two guardrails were structurally neutralized, plus one miner defect:
 - Maker branch: on a dead beat, **refund** the iteration (it did no work), set
   `usage_limit_reached`, write the reset time to the inbox, audit, stop. A non-zero CLI exit
   that isn't a usage limit is logged/audited for diagnosis (repetition is bounded by the now-working stall detector), not given its own terminal state.
+  *Changed in 6.37.0:* a refused login (HTTP 401/403) is now a dead beat too, with its own status `auth_failed`. See `Harness-Engineering-101-Harvest.md`, F2.
 - No adapter change: `adapters/claude.js` already returns `{exitCode, stdout, stderr}`.
 
 **Acceptance:** first beat returns the session-limit banner → run stops `usage_limit_reached`,

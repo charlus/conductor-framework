@@ -24,6 +24,7 @@ export const TERMINAL_STATUSES = Object.freeze([
   "max_iterations_exceeded",
   "budget_exceeded",
   "usage_limit_reached",
+  "auth_failed",
   "escalated",
   "awaiting_answers",
   "halted_scoping",
@@ -147,7 +148,34 @@ export function classifyBeatResult(result) {
     const m = text.match(/resets?\s+(?:at\s+)?(\d{1,2}:\d{2}\s*(?:[ap]m)?)/i);
     return { dead: true, kind: "usage_limit", resetHint: m ? m[1].replace(/\s+/g, "") : null };
   }
+  // An engine that cannot log in fails every beat the same way. Only on a failed
+  // exit, so Maker output that mentions a 401 never halts the run. A 5xx is
+  // transient and stays with the stall detector.
+  if (result?.exitCode) {
+    const status = AUTH_STATUSES.includes(result.apiErrorStatus) ? result.apiErrorStatus : Number(text.match(AUTH_FAILURE_PATTERN)?.[1]);
+    if (AUTH_STATUSES.includes(status)) return { dead: true, kind: "auth_failed", status, resetHint: null };
+  }
   return { dead: false };
+}
+
+/** HTTP statuses that mean the engine CLI is not logged in or not allowed. */
+const AUTH_STATUSES = Object.freeze([401, 403]);
+/** `codex exec` (0.163.0) prints this line when its key or login is refused. */
+const AUTH_FAILURE_PATTERN = /^ERROR: unexpected status (401|403)\b/m;
+
+/** The terminal status for a dead beat. */
+export function deadBeatStatus(verdict) {
+  return verdict?.kind === "auth_failed" ? "auth_failed" : "usage_limit_reached";
+}
+
+/** The inbox line for a dead beat; `where` names the beat, e.g. "during task a's Ship beat". */
+export function deadBeatMessage(verdict, where = "") {
+  const at = where ? ` ${where}` : "";
+  if (verdict?.kind === "auth_failed") {
+    return `the agent CLI could not log in (HTTP ${verdict.status})${at}. No work was done; log the CLI in again, then re-run to resume.`;
+  }
+  const resetNote = verdict?.resetHint ? ` — resets ${verdict.resetHint}` : "";
+  return `agent CLI reported a usage/session limit${resetNote}${at}. No work was done; raise the limit or wait, then re-run to resume.`;
 }
 
 /**
@@ -396,19 +424,16 @@ export async function runLoop(state, deps) {
         // (src/loop/usage.js), for Maker and Checker alike.
 
         // Dead-beat guard: a beat where the agent CLI never really ran (a usage
-        // limit) is external and terminal — stop truthfully instead of burning the
+        // limit, a refused login) is external and terminal — stop truthfully instead of burning the
         // remaining budget. Refund the iteration we just charged: it did no work.
         const outcome = classifyBeatResult(result);
         if (outcome.dead) {
           state.iterations.current -= 1;
           state.current_worker = null;
-          state.status = "usage_limit_reached";
+          state.status = deadBeatStatus(outcome);
           const resetNote = outcome.resetHint ? ` — resets ${outcome.resetHint}` : "";
-          await writeInbox(
-            state,
-            `agent CLI reported a usage/session limit${resetNote}. No work was done this beat; raise the limit or wait, then re-run.`
-          );
-          await audit(`beat ${state.iterations.current + 1}: dead (usage limit) → usage_limit_reached${resetNote}`);
+          await writeInbox(state, deadBeatMessage(outcome));
+          await audit(`beat ${state.iterations.current + 1}: dead (${outcome.kind}) → ${state.status}${resetNote}`);
           await persist(state);
           break;
         }
@@ -594,9 +619,9 @@ export async function runLoop(state, deps) {
               audit,
             });
             if (!s.ok) {
-              if (s.outcome === "usage_limit") {
-                state.status = "usage_limit_reached";
-                await writeInbox(state, `agent CLI reported a usage/session limit${s.resetHint ? ` — resets ${s.resetHint}` : ""} during the Ship beat. Re-run to resume.`);
+              if (s.outcome === "dead") {
+                state.status = deadBeatStatus(s.verdict);
+                await writeInbox(state, deadBeatMessage(s.verdict, "during the Ship beat"));
               } else if (s.outcome === "escalated") {
                 state.status = "escalated";
                 await writeInbox(state, `the Ship beat escalated: ${s.reason}`);

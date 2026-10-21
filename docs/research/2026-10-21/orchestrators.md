@@ -2,7 +2,7 @@
 
 **Question (owner):** five products are developed in parallel through 16 interactive Claude Code terminals, which is not sustainable. Is there an orchestrator, meta-harness or agent framework that can drive the development unattended with the owner's Claude Code subscription and his framework, instead of `conductor loop`?
 
-**Decision (owner, 2026-10-21):** D5 keep `conductor loop` as the engine; D8 test a first-party Claude Code session as the owner's channel; D3 (the gates as a required CI check) next. Positioning D4, decided the same day: Conductor is the discipline that holds under any orchestrator.
+**Decision (owner, 2026-10-21):** D5 keep `conductor loop` as the engine; D8 test a first-party Claude Code session as the owner's channel. D3 (the gates as a required CI check) was scheduled, then dropped: the framework must not leak into the teams' CI. Positioning D4, decided the same day: Conductor is the discipline that holds under any orchestrator.
 
 ## Criteria
 
@@ -34,7 +34,7 @@ C3 and C4 come from `conductor loop`'s own design, so the comparison favours it 
 
 - No tool found beats `conductor loop` as the engine under all six criteria. The constraints themselves are not unusual: agentctl and dots, both built at Euranova, target exactly self-hosted GitLab and a Claude Code subscription (owner, 2026-10-21). What differs is the discipline: whether the repository's own method and test-first gate apply (C3), and whether only a human merges an MR that no agent could push (C4). Public products mostly assume GitHub or API billing.
 - The open needs are an **always-on host** (every option needs one) and a **channel** to the owner (D8).
-- The mainstream path for teams with the same need is code on GitHub plus a vendor cloud agent, with branch protection and required CI checks. D3 (the gates as a required CI check) is what lets Conductor's discipline hold if a constraint changes and that path opens.
+- The mainstream path for teams with the same need is code on GitHub plus a vendor cloud agent, with branch protection and required CI checks. Conductor's discipline would follow it only through a CI check, which the owner ruled out for team repositories (D3 dropped).
 - Found on the way, fixed in the method: Build treated a blank carved spec as present (6.41.0).
 
 ## Sources

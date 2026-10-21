@@ -14,7 +14,7 @@ Compatibility: upgrade only
 
 ### Added
 
-- **`conductor watch --all`.** One live screen for every product the loop works on, on this machine: a block per product with its run, each item's beat in progress and last step, what it has been through, the last news, and the question rounds waiting for you, under a header that counts the products running and waiting for you. It refreshes every few seconds and keeps running until you leave it; `--once` prints one screen; `conductor watch <dir> <dir>…` shows just those. Built for running several products in parallel without one terminal per product.
+- **`conductor watch --all`, the watch tower.** One live screen for every product the loop works on, on this machine. A header counts the products running (▶), waiting for you (?), done (✔) and stopped (✖), with the cost at list price. One line per product, running ones first, then those waiting for you, then the finished ones. Under each, its items: a beat in progress shows its stage, an elapsed bar full at 30 minutes, the model, the steps and the last step; a finished item is one line with its MR numbers, code before state (`!261 + state !84`), and what it went through; a waiting question round shows its file. Colour on a terminal (`NO_COLOR` or `--no-color` turns it off); the symbols carry the meaning without it. It refreshes every few seconds and keeps running until you leave it; `--once` prints one screen; `conductor watch <dir> <dir>…` shows just those. Built for running several products in parallel without one terminal per product.
 - **`conductor loop on` registers the product** in `~/.config/conductor/loop-projects.json` (or `$CONDUCTOR_HOME`), machine state that never enters a repository.
 
 ---

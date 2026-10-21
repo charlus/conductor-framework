@@ -20,30 +20,19 @@ function eventsPath(root) {
   }
 }
 
-/** One product's block for the watch tower: its name, its run, its waiting questions. */
-async function productBlock(root, now) {
-  const path = eventsPath(root);
-  const m = watchModel(readEvents(path ? await readFile(path, "utf8").catch(() => "") : ""));
+async function towerScreen(roots, now, { color = false } = {}) {
+  const { access } = await import("node:fs/promises");
   const { readRounds } = await import("./status.js");
-  const rounds = await readRounds(root).catch(() => ({ waiting: [] }));
-  const body = renderWatch(m, now).replace(/\n$/, "").replace(/^/gm, "  ");
-  const waiting = rounds.waiting.length ? `\n    ${rounds.waiting.length} question round${rounds.waiting.length === 1 ? "" : "s"} waiting for you: ${rounds.waiting.join(", ")}` : "";
-  const state = !m ? "idle" : m.ended ? (["awaiting_answers", "escalated"].includes(m.ended.status) ? "waiting" : "ended") : "running";
-  return { state: rounds.waiting.length ? "waiting" : state, text: `  ── ${basename(root)} · ${root}\n${body}${waiting}\n` };
-}
-
-async function towerScreen(roots, now) {
-  roots = await (async () => {
-    const { access } = await import("node:fs/promises");
-    const kept = [];
-    for (const r of roots) if (await access(r).then(() => true, () => false)) kept.push(r);
-    return kept;
-  })();
-  if (!roots.length) return "  No product registered for the loop on this machine. `conductor loop on <project>` (or `--backlog`) in a product registers it.\n";
-  const blocks = [];
-  for (const r of roots) blocks.push(await productBlock(r, now));
-  const n = (s) => blocks.filter((b) => b.state === s).length;
-  return `  ${roots.length} product${roots.length === 1 ? "" : "s"} · ${n("running")} running · ${n("waiting")} waiting for you\n\n${blocks.map((b) => b.text).join("\n")}`;
+  const { renderTower } = await import("../loop/tower.js");
+  const products = [];
+  for (const root of roots) {
+    if (!(await access(root).then(() => true, () => false))) continue;
+    const path = eventsPath(root);
+    const model = watchModel(readEvents(path ? await readFile(path, "utf8").catch(() => "") : ""));
+    const rounds = await readRounds(root).catch(() => ({ waiting: [] }));
+    products.push({ name: basename(root), root, model, waiting: rounds.waiting });
+  }
+  return renderTower(products, now, { color });
 }
 
 export async function watchCommand(args, { cwd, stdout }) {
@@ -57,7 +46,8 @@ export async function watchCommand(args, { cwd, stdout }) {
       return 0;
     }
     for (;;) {
-      stdout.write(`\x1b[2J\x1b[H  conductor watch --all · ${new Date().toTimeString().slice(0, 8)} · Ctrl-C to leave\n\n${await towerScreen(roots, Date.now())}`);
+      const color = !process.env.NO_COLOR && !args.includes("--no-color");
+      stdout.write(`\x1b[2J\x1b[H${await towerScreen(roots, Date.now(), { color })}\n  Ctrl-C to leave\n`);
       await new Promise((r) => setTimeout(r, 3000));
     }
   }

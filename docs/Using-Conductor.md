@@ -259,6 +259,7 @@ conductor watch --all [--once]
 |---|---|
 | `--all` | The watch tower: every product the loop is on, on one screen (registered by conductor loop on) |
 | `--once` | Print one screen and exit (it refreshes every few seconds otherwise) |
+| `--no-color` | Plain text on a terminal (NO_COLOR does the same) |
 
 - `conductor watch --all`: every product's run, beat, last news and waiting questions
 - `conductor watch`: this product only

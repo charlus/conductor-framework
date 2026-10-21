@@ -51,7 +51,7 @@ test("`conductor loop on` registers the product for the tower, even when nothing
     execFileSync("node", [join(REPO, "bin/conductor.js"), "loop", "on", "--backlog", root, "--yes"], { stdio: "pipe", env });
     const r = spawnSync("node", [join(REPO, "bin/conductor.js"), "watch", "--all", "--once"], { encoding: "utf8", env });
     assert.match(r.stdout, /1 product · /);
-    assert.match(r.stdout, /── app ·/);
+    assert.match(r.stdout, /· app +no run yet/);
   } finally {
     rmSync(base, { recursive: true, force: true });
   }
@@ -81,13 +81,30 @@ test("`conductor watch --all --once`: one block per registered product, its run,
     writeFileSync(join(home, "loop-projects.json"), JSON.stringify({ projects: [a, b, c, join(base, "deleted-since")] }));
     const r = spawnSync("node", [join(REPO, "bin/conductor.js"), "watch", "--all", "--once"], { encoding: "utf8", env });
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /alpha[\s\S]*now: Build beat on sonnet[\s\S]*last step \d\d:\d\d: Bash: npm test/);
-    assert.match(r.stdout, /beta[\s\S]*Run ended \d\d:\d\d: awaiting_answers[\s\S]*1 question round waiting for you/);
-    assert.match(r.stdout, /gamma[\s\S]*No loop run recorded/);
-    assert.match(r.stdout, /3 products · 1 running · 1 waiting for you/);
+    assert.match(r.stdout, /3 products · ▶ 1 running · \? 1 waiting for you · ✔ 0 done/);
+    assert.match(r.stdout, /▶ alpha[\s\S]*● a {2,}.*Build [▓░]{10} \d+ min · sonnet · 1 steps[\s\S]*last step \d\d:\d\d {2}Bash: npm test/);
+    assert.match(r.stdout, /\? beta[\s\S]*question round waiting for you → conductor\/1-workbench\/questions\/task-a\.md/);
+    assert.match(r.stdout, /· gamma +no run yet/);
+    const order = ["alpha", "beta", "gamma"].map((n) => r.stdout.indexOf(` ${n}`));
+    assert.deepEqual([...order].sort((x, y) => x - y), order, "running first, then waiting, then idle");
+    assert.doesNotMatch(r.stdout, /\x1b\[/, "no colour codes without a terminal");
     const none = spawnSync("node", [join(REPO, "bin/conductor.js"), "watch", "--all", "--once"], { encoding: "utf8", env: { ...process.env, CONDUCTOR_HOME: join(base, "empty") } });
     assert.match(none.stdout, /No product registered[\s\S]*conductor loop on/);
   } finally {
     rmSync(base, { recursive: true, force: true });
   }
+});
+
+test("a finished item is one line with its MR numbers, code before state", async () => {
+  const { renderTower, mrRef, bar } = await import("../src/loop/tower.js");
+  assert.equal(mrRef("https://code.euranova.eu/innovation/Autopportunity/-/merge_requests/261"), "!261");
+  assert.equal(mrRef("https://github.com/o/r/pull/12"), "#12");
+  assert.equal(bar(15), "▓▓▓▓▓░░░░░");
+  const t0 = Date.parse("2026-10-21T12:49:00Z");
+  const model = { started: new Date(t0).toISOString(), ended: { at: new Date(t0 + 87 * 60000).toISOString(), status: "completed" }, beats: 10, cost: 7.71, planned: [],
+    items: [{ task: "task:kb-profile-save-can-wipe-experience-link", beats: { maker: 1, checker: 3, ship: 2 }, red: 0, rejected: 0, done: "merged", mr: { url: "https://x/-/merge_requests/84", code: "https://y/-/merge_requests/261" } }] };
+  const s = renderTower([{ name: "autopportunity", root: "/w/a", model, waiting: [] }], t0 + 90 * 60000);
+  assert.match(s, /✔ autopportunity +ended \d\d:\d\d completed · 87 min · 10 beats · \$7\.71/);
+  assert.match(s, /✔ kb-profile-save-can-wipe-experience- +!261 \+ state !84 · 1 Build, 3 Review, 2 Ship/);
+  assert.match(renderTower([{ name: "a", root: "/a", model, waiting: [] }], t0, { color: true }), /\x1b\[32m/);
 });

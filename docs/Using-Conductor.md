@@ -42,7 +42,7 @@ Each stage is one workflow, run in a fresh session. The workflow ends by naming 
 
 The loop runs the same workflows, one stage per fresh beat, each behind an independent review, and opens one MR per item. You merge.
 
-1. See your projects, their stage and whether the loop is on: `conductor status`, or `conductor loop on` with no name. Then turn it on for one: `conductor loop on <project>`. It shows each change in plain words and asks once: after your Discovery it writes the Blueprint stages you have not written as one MR (merging it is your sign-off), then it builds the slices, from spec to MR. If the code is a nested repository (`repo/` inside your `conductor/` repository), it finds it: each item then opens a code MR to the team's repository, then a state MR to yours. Merge the code MR first. If it says the code has no test command, run the command it prints. For backlog items alone, tag each one `(loop-ready)` at the end of its line and run `conductor loop on --backlog` once. `conductor loop off <project>` takes the project out again. In your agent, "turn the loop on for <project>" does the same.
+1. See your projects, their stage and whether the loop is on: `conductor status`, or `conductor loop on` with no name. Then turn it on for one: `conductor loop on <project>`. It shows each change in plain words and asks once: after your Discovery it writes the Blueprint stages you have not written as one MR (merging it is your sign-off), then it builds the slices, from spec to MR. If the code is a nested repository (`repo/` inside your `conductor/` repository), it finds it: each item then opens a code MR to the team's repository, then a state MR to yours. Merge the code MR first. If it says the code has no test command, run the command it prints. For backlog items alone, tag each one `(loop-ready)` at the end of its line and run `conductor loop on --backlog` once. `conductor loop off <project>` takes the project out again. `conductor loop profile` shows which model each role uses and the last run's cost; `conductor loop profile balanced` lowers the cost per beat (Sonnet writes code, Opus reviews and writes specs), `quality` uses Opus everywhere. In your agent, "turn the loop on for <project>" does the same.
 2. Check the project: `conductor loop doctor .` (`loop on` runs it for you)
 3. Preview: `conductor loop . --from-conductor --dry-run`
 4. Run it in a separate terminal: `conductor loop . --from-conductor`
@@ -214,6 +214,7 @@ Run the autonomous loop: beats, reviews, one MR per item.
 ```
 conductor loop [dir] [--from-conductor | --goal <text> | --event <file.json>] [options]
 conductor loop on|off <project> [dir] [--yes] [--dry-run]
+conductor loop profile [quality|balanced] [dir]
 conductor loop doctor [dir] [--beat]
 ```
 
@@ -233,10 +234,12 @@ conductor loop doctor [dir] [--beat]
 | `on --yes` | Apply without asking (after you have seen the list) |
 | `on --code-dir <dir>` | Name the nested code repository when there are several |
 | `off <project>` | The loop no longer works on that project |
+| `profile` | Show the model profile, each role's model and the last run's cost per role |
+| `profile quality|balanced` | Pick the models by budget: Opus everywhere, or Sonnet for code with Opus for review, specs and designs |
 | `doctor` | Check the project before an unattended run |
 | `doctor --beat` | Also run one real beat to prove the engine and sandbox |
 
-Reads: `verify`, `loop.forge`, `loop.setup`, `loop.allowed_domains`, `loop.require_ready`, `loop.priorities`, `loop.inbox`, `loop.allow_nested_repo`, `loop.models`, `loop.cost_aware`, `loop.slices`, `loop.blueprint`, `loop.code_dir`.
+Reads: `verify`, `loop.forge`, `loop.setup`, `loop.allowed_domains`, `loop.require_ready`, `loop.priorities`, `loop.inbox`, `loop.allow_nested_repo`, `loop.models`, `loop.cost_aware`, `loop.slices`, `loop.blueprint`, `loop.code_dir`, `loop.profile`.
 
 - `conductor loop on km-workload-relief`: let the loop work on this project
 - `conductor loop doctor .`: is this project ready?
@@ -442,7 +445,8 @@ Reads: `verify`, `eval`.
 | `loop.priorities` | ["P1"]: only backlog items under these headings |
 | `loop.inbox` | false: never take inbox lines |
 | `loop.allow_nested_repo` | true: run although a gitignored nested git repository exists |
-| `loop.models` | { "maker": "sonnet", "checker": "opus", "maker_escalation": … }: a model per role (claude engine) |
+| `loop.profile` | "quality" (Opus everywhere) or "balanced" (Sonnet for code and ship, Opus for review, specs and designs): set it with conductor loop profile |
+| `loop.models` | { "maker": "sonnet", … }: one role's model over the profile (roles: maker, maker_escalation, checker, spec, blueprint, ship; claude engine) |
 | `loop.cost_aware` | true: budget.max_cost_usd in loop-state.json stops a run |
 | `loop.slices` | ["<Project>"] or true: the project's carved slices are loop work, from spec to MR |
 | `loop.blueprint` | ["<Project>"] or true: after Discovery, the project's Blueprint is loop work, one MR |

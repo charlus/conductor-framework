@@ -31,7 +31,7 @@ const NOT_OURS = {
   upgrade: ["-c", "--cached", "--git-path", "--is-inside-work-tree", "-m", "--porcelain", "-q", "--quiet", "--short", "--verify"],
   view: ["--quiet"],
 };
-const COMMAND_FOR_FILE = { "loop-doctor": "loop", "loop-on": "loop" };
+const COMMAND_FOR_FILE = { "loop-doctor": "loop", "loop-on": "loop", "loop-profile": "loop" };
 
 test("every flag a command parses is in the usage source", () => {
   for (const f of readdirSync(join(REPO, "src/commands")).filter((x) => x.endsWith(".js"))) {

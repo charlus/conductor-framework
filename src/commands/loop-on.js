@@ -86,6 +86,8 @@ export async function loopOnCommand(root, project, { args, stdout, stderr, confi
   stdout.write(`\n  conductor loop on ${project ?? "--backlog"}\n\n`);
   for (const c of plan.changes) stdout.write(`  • ${c}\n`);
   for (const n of plan.notes) stdout.write(`  ⚠️  ${n}\n`);
+  const prof = plan.config.loop?.profile;
+  stdout.write(`  Models: ${prof ? `the ${prof} profile` : "the engine's default for every role"}. \`conductor loop profile\` shows them and switches by budget.\n`);
   if (!plan.changes.length) return 0;
   if (args.includes("--dry-run")) {
     stdout.write("\n  Nothing written (dry run).\n");

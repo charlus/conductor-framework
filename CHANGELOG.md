@@ -8,6 +8,19 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.38.0] — 2026-10-21 — Pick the loop's models by budget: two profiles
+
+Compatibility: upgrade only
+
+### Added
+
+- **`conductor loop profile quality|balanced`.** `quality`: Opus for every role. `balanced`: Sonnet writes the code and the ship bookkeeping and moves to Opus after two rejections; Opus reviews and writes specs and designs. That is the planner–executor practice as it is measured: Anthropic's `opusplan` and its advisor study, Aider's architect/editor benchmarks and a 2025 SWE-bench study all find the split cheaper and a few points lower on code than the strong model alone, and best when the strong model takes over where the work gets hard. Without a name, the command shows the profile, each role's model and the last run's cost per role, and says what that cost means: money with an API key, quota use on a Claude subscription. No profile set: every role uses the engine's default model, as before. `conductor loop on` names the profile in use.
+- **Spec, Blueprint and Ship beats have their own model role.** They ran on the Maker's model, so a cheaper Maker would also have written specs and designs. `loop.models` overrides one role over the profile (`maker`, `maker_escalation`, `checker`, `spec`, `blueprint`, `ship`); `loop doctor` still warns when that leaves the Checker weaker than the Maker.
+
+The conformance test runs the whole lifecycle under `balanced` through the real CLI and checks the model each beat starts with.
+
+---
+
 ## [6.37.0] — 2026-10-21 — The loop reports what really happened: logins, invented quotes, cache
 
 Compatibility: upgrade only

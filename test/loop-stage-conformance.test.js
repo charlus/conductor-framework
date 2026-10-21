@@ -104,8 +104,10 @@ function loop({ base, root, bin }, logDir, env = {}) {
     timeout: 120000,
   });
   const dir = join(base, logDir);
-  const prompts = existsSync(dir) ? readdirSync(dir).sort().map((f) => readFileSync(join(dir, f), "utf8")) : [];
-  return { ...r, prompts };
+  const files = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".txt")).sort() : [];
+  const prompts = files.map((f) => readFileSync(join(dir, f), "utf8"));
+  const models = files.map((f) => readFileSync(join(dir, f.replace(/\.txt$/, ".model")), "utf8"));
+  return { ...r, prompts, models };
 }
 
 /** What each prompt was routed to: the stage whose workflow it starts with, or the review it carries. */
@@ -152,6 +154,33 @@ test("the CLI runs a project through every loop stage, each beat on its stage's 
     assert.equal(r2.status, 0, r2.stdout + r2.stderr);
     assert.deepEqual(r2.prompts.map((x) => routeOf(x, p.root)), ["spec", "checker:spec", "build", "checker:code", "ship", "checker:code"]);
     assert.match(r2.stdout, /finished: completed/);
+  } finally {
+    rmSync(p.base, { recursive: true, force: true });
+  }
+});
+
+test("the balanced profile: each beat starts on its role's model, through the real CLI", () => {
+  const p = project();
+  try {
+    const cfgPath = join(p.root, "conductor.config.json");
+    const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
+    cfg.loop.profile = "balanced";
+    writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+    G(p.root, "commit", "-qam", "profile");
+    G(p.root, "push", "-q", "origin", "master");
+    const r1 = loop(p, "log1");
+    const at = (routes, models, name) => models[routes.indexOf(name)];
+    const routes1 = r1.prompts.map((x) => routeOf(x, p.root));
+    assert.equal(at(routes1, r1.models, "grand-prd"), "opus", "designs on Opus");
+    assert.equal(at(routes1, r1.models, "checker:grand-prd"), "opus", "review on Opus");
+    const branch = G(p.root, "ls-remote", "--heads", "origin", "conductor/loop/*").split("\t")[1].replace("refs/heads/", "");
+    G(p.root, "fetch", "-q", "origin", branch);
+    G(p.root, "merge", "-q", "--no-ff", "-m", "merge", "FETCH_HEAD");
+    G(p.root, "push", "-q", "origin", "master");
+    const r2 = loop(p, "log2");
+    const routes2 = r2.prompts.map((x) => routeOf(x, p.root));
+    assert.deepEqual(["spec", "build", "ship"].map((k) => at(routes2, r2.models, k)), ["opus", "sonnet", "sonnet"]);
+    assert.ok(r2.models.filter((_, i) => routes2[i].startsWith("checker")).every((m) => m === "opus"));
   } finally {
     rmSync(p.base, { recursive: true, force: true });
   }

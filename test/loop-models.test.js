@@ -10,13 +10,13 @@ import { buildArgv } from "../src/loop/adapters/claude.js";
 
 test("loop.models absent → no model for either role", () => {
   const c = parseLoopConfig({});
-  assert.deepEqual(c.models, { maker: null, checker: null, maker_escalation: null });
+  assert.deepEqual(c.models, {});
   assert.deepEqual(c.errors, []);
 });
 
 test("loop.models accepts model ids and aliases per role", () => {
   const c = parseLoopConfig({ loop: { models: { maker: "sonnet", checker: "claude-opus-5-5[1m]" } } });
-  assert.deepEqual(c.models, { maker: "sonnet", checker: "claude-opus-5-5[1m]", maker_escalation: null });
+  assert.deepEqual(c.models, { maker: "sonnet", checker: "claude-opus-5-5[1m]" });
   assert.deepEqual(c.errors, []);
 });
 
@@ -46,7 +46,10 @@ test("withRoleModels gives the maker and the checker their own model", async () 
   assert.deepEqual(calls, [["maker", "sonnet"], ["checker", "opus"]]);
 });
 
-test("withRoleModels leaves the adapter untouched when no model is set", () => {
-  const adapter = { name: "claude", runBeat: () => {}, runChecker: () => {} };
-  assert.equal(withRoleModels(adapter, { maker: null, checker: null }), adapter);
+test("withRoleModels adds no model to any beat when no model is set", async () => {
+  const seen = [];
+  const adapter = { name: "claude", runBeat: async (o) => seen.push(o), runChecker: async (o) => seen.push(o) };
+  const a = withRoleModels(adapter, {});
+  for (const run of [a.runBeat, a.runChecker, a.runSpecBeat, a.runBlueprintBeat, a.runShipBeat]) await run({ cwd: "x" });
+  assert.ok(seen.every((o) => !("model" in o)));
 });

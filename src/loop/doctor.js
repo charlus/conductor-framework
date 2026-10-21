@@ -119,7 +119,7 @@ export function diagnose(f) {
   const makerTier = modelTier(f.models?.maker);
   const checkerTier = modelTier(f.models?.checker);
   if (makerTier !== null && checkerTier !== null && checkerTier < makerTier) {
-    out.push(check("models", "warn", `the Checker runs on ${f.models.checker}, a weaker model than the Maker's ${f.models.maker}`, "The loop opens an MR on the Checker's approval alone. A weaker reviewer passes mistakes the Maker made.", "In conductor.config.json, give `loop.models.checker` the Maker's model or a stronger one."));
+    out.push(check("models", "warn", `the Checker runs on ${f.models.checker}, a weaker model than the Maker's ${f.models.maker}`, "The loop opens an MR on the Checker's approval alone. A weaker reviewer passes mistakes the Maker made.", "Use a profile: `conductor loop profile quality` or `balanced` both review on Opus. Or give `loop.models.checker` the Maker's model or a stronger one."));
   }
 
   if (f.dotenv?.present && !f.dotenv.copiedBySetup) {

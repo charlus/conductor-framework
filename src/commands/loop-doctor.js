@@ -13,7 +13,7 @@ import { readFile, writeFile, rm, mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { normalizeState, resolveVerifyCommand, preflight, describeHalt } from "../loop/driver.js";
-import { parseLoopConfig, resolveForge, mergeSandboxSettings } from "../loop/config.js";
+import { parseLoopConfig, resolveForge, mergeSandboxSettings, effectiveModels } from "../loop/config.js";
 import { planMergeAction } from "../loop/merge.js";
 import { harvestWorkQueue } from "../loop/harvester.js";
 import { diagnose, renderDoctor, doctorExitCode } from "../loop/doctor.js";
@@ -79,7 +79,7 @@ export async function loopDoctor(root, { stdout, beat = false }) {
   }
   const loopConfig = parseLoopConfig(rawConfig);
   facts.configErrors = [...(facts.configErrors ?? []), ...loopConfig.errors];
-  facts.models = loopConfig.models;
+  facts.models = effectiveModels(loopConfig);
 
   const state = normalizeState(await readJson(statePath));
   facts.state = state;

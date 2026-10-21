@@ -39,7 +39,8 @@ import { newRulings, rulingInboxLines, rulingsPrBody, rulingsForChecker, RULINGS
 import { renderShipAssignment, shipBeatSection, sectionOf, checkShipEvidence, PR_BODY_REL } from "../loop/ship.js";
 import { harvestSlices, specEvidence as checkSpecEvidence, PROJECTS_REL } from "../loop/slices.js";
 import { pruneMergedLoopWorktrees, remoteLoopBranches, mergedBranches, skipClaimed, defaultBranchRef } from "../loop/reconcile.js";
-import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels } from "../loop/config.js";
+import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels, effectiveModels } from "../loop/config.js";
+import { describeModels } from "../loop/profiles.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
 const LOCK_REL = "conductor/1-workbench/loop.lock";
@@ -332,6 +333,13 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   }
   // `conductor loop on|off <project> [dir]`: turn the loop on for a project, without JSON.
   const sub = args.find((a) => !a.startsWith("-"));
+  // `conductor loop profile [quality|balanced] [dir]`: the models, by budget.
+  if (sub === "profile") {
+    let [name, dir] = args.slice(args.indexOf(sub) + 1).filter((a) => !a.startsWith("-"));
+    if (name && !dir && (name.includes("/") || name === ".")) [name, dir] = [undefined, name];
+    const { loopProfileCommand } = await import("./loop-profile.js");
+    return loopProfileCommand(resolve(cwd, dir || "."), name, { stdout, stderr });
+  }
   if (sub === "on" || sub === "off") {
     const rest = args.slice(args.indexOf(sub) + 1);
     let [project, dir] = rest.filter((a, i) => !a.startsWith("-") && rest[i - 1] !== "--code-dir");
@@ -607,7 +615,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         `  checker:  ${state.checker_votes > 1 ? `${state.checker_votes}-vote (adversarial, majority)` : "single verdict"}`,
         `  platform: ${platformPref ?? "(auto-detect)"}`,
         `  adapter:  ${adapterError ? `ERROR: ${adapterError}` : resolved.name ?? "(none available)"}`,
-        ...(loopConfig.models.maker || loopConfig.models.checker ? [`  models:   maker ${loopConfig.models.maker ?? "default"}, checker ${loopConfig.models.checker ?? "default"}${resolved.name === "claude" ? "" : "  (only applies to the claude engine)"}`] : []),
+        ...(Object.keys(effectiveModels(loopConfig)).length ? [`  models:   ${loopConfig.profile ? `profile ${loopConfig.profile} — ` : ""}${describeModels(effectiveModels(loopConfig), { inline: true })}${resolved.name === "claude" ? "" : "  (only applies to the claude engine)"}`] : []),
         `  detected: ${detected.length ? detected.join(", ") : "none on PATH"}`,
         `  worktree: ${state.phase === "execution" ? "created for execution phase (isolated Maker)" : "n/a (not execution phase)"}`,
         ...(loopConfig.codeDir ? [`  code:     ${loopConfig.codeDir}/ (nested repository: a code worktree per item, from its default branch; code MR first, then the state MR)`] : []),
@@ -682,21 +690,21 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     }
     return result;
   };
-  const { maker: makerModel, checker: checkerModel } = loopConfig.models;
-  const roleModels = resolved.adapter.name === "claude" ? loopConfig.models : { maker: null, checker: null };
+  const models = effectiveModels(loopConfig);
+  const roleModels = resolved.adapter.name === "claude" ? models : {};
   const modelled = withRoleModels(resolved.adapter, roleModels);
   const adapter = {
     ...modelled,
     runBeat: logged("maker", modelled.runBeat),
     runChecker: logged("checker", modelled.runChecker),
-    runShipBeat: logged("ship", modelled.runBeat),
-    runSpecBeat: logged("spec", modelled.runBeat),
-    runBlueprintBeat: logged("blueprint", modelled.runBeat),
+    runShipBeat: logged("ship", modelled.runShipBeat),
+    runSpecBeat: logged("spec", modelled.runSpecBeat),
+    runBlueprintBeat: logged("blueprint", modelled.runBlueprintBeat),
   };
   stdout.write(`[CONDUCTOR LOOP] platform: ${adapter.name}\n`);
-  if (makerModel || checkerModel) {
-    if (adapter.name === "claude") stdout.write(`[CONDUCTOR LOOP] models: maker ${makerModel ?? "default"}, checker ${checkerModel ?? "default"}\n`);
-    else stderr.write(`[CONDUCTOR LOOP] ⚠️  loop.models applies to the claude engine only; ${adapter.name} runs its own default model\n`);
+  if (Object.keys(models).length) {
+    if (adapter.name === "claude") stdout.write(`[CONDUCTOR LOOP] models: ${loopConfig.profile ? `profile ${loopConfig.profile} — ` : ""}${describeModels(models, { inline: true })}\n`);
+    else stderr.write(`[CONDUCTOR LOOP] ⚠️  the model profile applies to the claude engine only; ${adapter.name} runs its own default model\n`);
   }
 
   // D9: a claude beat that cannot read the root AGENTS.md runs without the laws.

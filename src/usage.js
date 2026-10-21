@@ -92,7 +92,7 @@ export const COMMANDS = Object.freeze([
   },
   {
     name: "loop", group: "loop", summary: "Run the autonomous loop: beats, reviews, one MR per item",
-    usage: "conductor loop [dir] [--from-conductor | --goal <text> | --event <file.json>] [options]\n  conductor loop on|off <project> [dir] [--yes] [--dry-run]\n  conductor loop doctor [dir] [--beat]",
+    usage: "conductor loop [dir] [--from-conductor | --goal <text> | --event <file.json>] [options]\n  conductor loop on|off <project> [dir] [--yes] [--dry-run]\n  conductor loop profile [quality|balanced] [dir]\n  conductor loop doctor [dir] [--beat]",
     flags: [
       ["--from-conductor", "Take the work from conductor/: backlog, inbox, slices, Blueprints"],
       ["--dry-run", "Show what the run would pick up and do, write nothing"],
@@ -108,10 +108,12 @@ export const COMMANDS = Object.freeze([
       ["on --yes", "Apply without asking (after you have seen the list)"],
       ["on --code-dir <dir>", "Name the nested code repository when there are several"],
       ["off <project>", "The loop no longer works on that project"],
+      ["profile", "Show the model profile, each role's model and the last run's cost per role"],
+      ["profile quality|balanced", "Pick the models by budget: Opus everywhere, or Sonnet for code with Opus for review, specs and designs"],
       ["doctor", "Check the project before an unattended run"],
       ["doctor --beat", "Also run one real beat to prove the engine and sandbox"],
     ],
-    config: ["verify", "loop.forge", "loop.setup", "loop.allowed_domains", "loop.require_ready", "loop.priorities", "loop.inbox", "loop.allow_nested_repo", "loop.models", "loop.cost_aware", "loop.slices", "loop.blueprint", "loop.code_dir"],
+    config: ["verify", "loop.forge", "loop.setup", "loop.allowed_domains", "loop.require_ready", "loop.priorities", "loop.inbox", "loop.allow_nested_repo", "loop.models", "loop.cost_aware", "loop.slices", "loop.blueprint", "loop.code_dir", "loop.profile"],
     examples: [
       ["conductor loop on km-workload-relief", "let the loop work on this project"],
       ["conductor loop doctor .", "is this project ready?"],
@@ -218,7 +220,8 @@ export const CONFIG_KEYS = Object.freeze([
   ["loop.priorities", "[\"P1\"]: only backlog items under these headings"],
   ["loop.inbox", "false: never take inbox lines"],
   ["loop.allow_nested_repo", "true: run although a gitignored nested git repository exists"],
-  ["loop.models", "{ \"maker\": \"sonnet\", \"checker\": \"opus\", \"maker_escalation\": … }: a model per role (claude engine)"],
+  ["loop.profile", "\"quality\" (Opus everywhere) or \"balanced\" (Sonnet for code and ship, Opus for review, specs and designs): set it with conductor loop profile"],
+  ["loop.models", "{ \"maker\": \"sonnet\", … }: one role's model over the profile (roles: maker, maker_escalation, checker, spec, blueprint, ship; claude engine)"],
   ["loop.cost_aware", "true: budget.max_cost_usd in loop-state.json stops a run"],
   ["loop.slices", "[\"<Project>\"] or true: the project's carved slices are loop work, from spec to MR"],
   ["loop.blueprint", "[\"<Project>\"] or true: after Discovery, the project's Blueprint is loop work, one MR"],

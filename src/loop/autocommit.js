@@ -15,11 +15,18 @@
 
 /** Build a conventional-commit message for an auto-captured beat. Deterministic. */
 export function autoCommitMessage({ role = "maker", beat, goal } = {}) {
-  const scope = role || "loop";
-  const g = String(goal ?? "").trim().replace(/\s+/g, " ");
-  const subject = g ? g.slice(0, 60) : "unattended beat";
+  // C3-F21: the message names the work; the loop's internal task id stays out of
+  // the team's history. `role` stays in the signature for the callers.
+  void role;
+  const g = String(goal ?? "")
+    .replace(/\s*—\s*(task|ship)\s+\S+$/i, "")
+    .replace(/\b(task|slice|blueprint):\S+/g, "")
+    .replace(/\(loop-ready\)|\*+/gi, "")
+    .trim()
+    .replace(/\s+/g, " ");
+  const subject = g ? g.slice(0, 60) : "an unattended beat";
   const beatStr = beat != null ? ` (beat ${beat})` : "";
-  return `chore(${scope}): auto-capture ${subject}${beatStr}`;
+  return `chore: capture uncommitted work: ${subject}${beatStr}`;
 }
 
 /**

@@ -76,11 +76,11 @@ test("autoCommit: a failing git status fails safe (does not commit)", async () =
 
 test("autoCommitMessage: deterministic, bounded, conventional", () => {
   const m = autoCommitMessage({ role: "maker", beat: 3, goal: "x".repeat(200) });
-  assert.match(m, /^chore\(maker\): auto-capture /);
+  assert.match(m, /^chore: capture uncommitted work: /);
   assert.match(m, /\(beat 3\)$/);
   // subject is bounded to 60 chars of goal
   assert.ok(m.length < 120, `message should be bounded, got ${m.length}`);
-  assert.equal(autoCommitMessage(), "chore(maker): auto-capture unattended beat");
+  assert.equal(autoCommitMessage(), "chore: capture uncommitted work: an unattended beat");
 });
 
 // ---- P0.2 teardown dirty-tree guard ---------------------------------------

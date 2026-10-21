@@ -124,7 +124,7 @@ The first run of the outer layout (`loop.code_dir`, 6.31.0) on a team repository
 | C3-F17 | runs 1, 2 | each Build beat took 67 to 75 minutes: the Maker re-ran the whole suite inside the sandbox, where six Gemini-calling test files hang on the blocked network; the driver's own verify takes 2.5 minutes outside it | 6.36.0: test what you changed; the driver runs the full suite |
 | C3-F18 | run 2, stopped at 17:40 | the owner had to close the laptop during Ship; a resume would have redone the Build beat although the same code had passed verify and review | 6.36.0: a passed review records its head; unchanged, the run resumes at Ship |
 | C3-F19 | logs | Maker and Checker ran on Opus (no `loop.models`): slower and dearer per beat | the owner's cost choice |
-| C3-F21 | the code MR | the team sees the loop's plumbing: the MR title starts "Conductor task task:kb-retire…", and the history holds a `chore(maker): auto-capture … [hook-bypassed]` commit from run 1 | open: a plain title for the code MR; squash on merge meanwhile |
+| C3-F21 | the code MR | the team sees the loop's plumbing: the MR title starts "Conductor task task:kb-retire…", and the history holds a `chore(maker): auto-capture … [hook-bypassed]` commit from run 1 | 6.40.0: the item's own title, GitLab squash on merge, auto-capture messages without the task id |
 | C3-F20 | the resume, next morning | a resume keeps the interrupted run's clock, so the night counted against the 120-minute cap and the run stopped at once with `budget_exceeded` | 6.36.0: a resume restarts the wall clock; spent beats still count |
 
 ### Lessons

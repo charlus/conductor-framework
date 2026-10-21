@@ -345,6 +345,7 @@ Facts an agent needs when it works on, or inside, a `conductor loop` run. Full g
 - **Ship before the MR.** At L3 a task's Ship beat runs `ship.md` Phases 1–5 in its worktree (the `## Ship beat` section of `unattended-loop.md` says what the driver does instead of Phases 4 and 6). The bookkeeping rides in the MR; the driver opens it with the body the Ship beat wrote.
 - **Decisions made alone.** The Maker logs each decision the spec did not settle in `conductor/1-workbench/rulings.md` (`- [YYYY-MM-DD HH:MM] <task id> · <decision> · why: … · if wrong: low|medium|high · …`). The PR lists every ruling on its branch, a `high` one goes to the inbox while the run continues, and the Checker reviews them against the spec.
 - **Before a run.** `conductor loop doctor [dir] [--beat]` checks the setup, the verify command in a fresh worktree, the sandbox profile and the forge login, and prints each fix.
+- **Following a run.** `conductor watch` (from the event log `.git/conductor-loop-logs/events.ndjson`): each item's beat in progress and the last recorded fact.
 - **Evidence after a run.** The run's cost by role in `conductor status`, escalations in `conductor/1-workbench/inbox.md`, the trail in `0-compass/ship-log.md`, and each beat's full agent output in `.git/conductor-loop-logs/`.
 
 ---

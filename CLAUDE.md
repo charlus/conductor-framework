@@ -50,7 +50,8 @@ conductor-framework/          ← You are here (package source)
 │       ├── review-log.js / context-bill.js   # conductor review-log|context-bill: measurement
 │       ├── agents-md.js       # conductor agents-md: the project card
 │       ├── loop.js            # conductor loop: the autonomous driver
-│       └── loop-doctor.js     # conductor loop doctor: checks a project before an unattended run
+│       ├── loop-doctor.js     # conductor loop doctor: checks a project before an unattended run
+│       └── watch.js           # conductor watch: what a loop run is doing, from its event log (src/loop/events.js)
 ├── templates/                 # THESE files get installed into user projects
 │   ├── .agents/                # Agent core (AGENTS.md, how-it-works.md, registry.json, rules, workflows, skills, personas)
 │   ├── conductor/              # Project state (numbered folders 0-compass..6-archive)

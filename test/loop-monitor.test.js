@@ -49,10 +49,14 @@ test("watch: the latest run only, the beat in progress, and the last recorded fa
   assert.match(screen, /now: Review beat on opus, 6 min so far/);
   assert.match(screen, /last news \d\d:\d\d: Review beat started \(opus\)/);
   assert.match(screen, /so far: 1 Build$/m);
+  const stepped = renderWatch(watchModel([...RUN, { run: "r1", at: at(27), type: "step", task: "task:a", kind: "checker", tool: "Bash", detail: "npm test" }]), T0 + 31 * 60000);
+  assert.match(stepped, /now: Review beat on opus, 6 min so far, 1 step/);
+  assert.match(stepped, /last step \d\d:\d\d: Bash: npm test/);
   const red = renderWatch(watchModel([...RUN.slice(0, 5), { run: "r1", at: at(24), type: "verify", task: "task:a", exit: 1 }, { run: "r1", at: at(26), type: "verdict", task: "task:a", approved: false, reason: "x" }]), T0 + 30 * 60000);
   assert.match(red, /so far: 1 Build \(1 red verify, 1 rejected review\)/);
   assert.doesNotMatch(screen, /task:old/);
   assert.match(screen, /Running\./);
+  assert.doesNotMatch(screen, /last step/, "no step recorded, none shown");
 });
 
 test("watch: an ended run says how it ended; no run says how to start one", () => {

@@ -673,7 +673,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       stderr.write(`[CONDUCTOR LOOP] ⚠️  could not copy loop-state.json into ${opts.cwd}: ${e.message}\n`);
     }
     const startedAt = Date.now();
-    const result = await run(opts);
+    // M3: each tool step of the beat, as the engine streams it.
+    const result = await run({ ...opts, onStep: (s) => emit("step", { task: eventTask, kind, tool: s.tool, detail: s.detail }) });
     await emit("beat_end", { task: eventTask, kind, duration_s: Math.round((Date.now() - startedAt) / 1000), cost_usd: result?.costUsd ?? null, exit: result?.exitCode ?? null });
     // A14: the one accounting point for every beat, Maker and Checker, pair and
     // swarm. A failure to record never fails a beat.

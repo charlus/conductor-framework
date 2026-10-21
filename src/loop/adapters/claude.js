@@ -50,11 +50,13 @@ export function buildArgv({
   allowedTools = null,
   model = null,
 }) {
-  // A14: the JSON result carries the text plus tokens and cost (a list-price
+  // A14: the result carries the text plus tokens and cost (a list-price
   // estimate on a subscription login). parseClaudeResult turns it back into text.
+  // Loop Monitor M3: the stream (`stream-json`, which needs `--verbose` with
+  // -p) carries each step as it happens; its last line is the same result.
   // Every flag first, then `--`, then the prompt: a prompt that starts with a
   // dash (ship.md opens with its `---` frontmatter) was read as an option.
-  const argv = ["-p", "--output-format", "json", "--permission-mode", permissionMode];
+  const argv = ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", permissionMode];
   if (model) argv.push("--model", model);
   if (settingsPath) argv.push("--settings", settingsPath);
   // An empty array is NOT passed: `--allowed-tools` with no values would be a
@@ -76,13 +78,28 @@ export function buildArgv({
  * caller keeps the raw stdout and records the usage as unknown.
  */
 export function parseClaudeResult(stdout) {
-  let obj;
-  try {
-    obj = JSON.parse(String(stdout ?? "").trim());
-  } catch {
-    return null;
+  // The stream's last `result` line, or the single object of `--output-format json`.
+  let obj = null;
+  for (const line of String(stdout ?? "").trim().split("\n").reverse()) {
+    try {
+      const o = JSON.parse(line);
+      if (o && typeof o === "object" && !Array.isArray(o) && o.type === "result") {
+        obj = o;
+        break;
+      }
+    } catch {
+      /* not a JSON line */
+    }
   }
-  if (!obj || typeof obj !== "object" || Array.isArray(obj) || obj.type !== "result") return null;
+  if (!obj) {
+    try {
+      const o = JSON.parse(String(stdout ?? "").trim());
+      if (o && o.type === "result") obj = o;
+    } catch {
+      /* no result object */
+    }
+  }
+  if (!obj) return null;
   const u = obj.usage ?? {};
   const counts = [u.input_tokens, u.output_tokens, u.cache_creation_input_tokens, u.cache_read_input_tokens].filter(Number.isFinite);
   const inputs = [u.input_tokens, u.cache_creation_input_tokens, u.cache_read_input_tokens].filter(Number.isFinite);
@@ -100,6 +117,38 @@ export function parseClaudeResult(stdout) {
   };
 }
 
+/** The lines of stdout that are not JSON: what a crash or a usage-limit banner printed. */
+function plainLines(stdout) {
+  return String(stdout ?? "")
+    .split("\n")
+    .filter((l) => {
+      try {
+        JSON.parse(l);
+        return false;
+      } catch {
+        return l.trim() !== "";
+      }
+    })
+    .join("\n");
+}
+
+const DETAIL_KEYS = ["file_path", "command", "pattern", "path", "url", "query", "description", "prompt"];
+
+/** One tool step from a stream line, `{tool, detail}` with the detail cut at 120 characters, or null. */
+export function stepOf(line) {
+  let o;
+  try {
+    o = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  if (o?.type !== "assistant") return null;
+  const use = (o.message?.content ?? []).find((c) => c?.type === "tool_use");
+  if (!use) return null;
+  const key = DETAIL_KEYS.find((k) => typeof use.input?.[k] === "string");
+  return { tool: use.name, detail: key ? use.input[key].replace(/\s+/g, " ").slice(0, 120) : "" };
+}
+
 /**
  * Run one beat: `claude -p "<prompt>" --permission-mode <mode>` in `cwd`.
  * The agent re-reads the workflow prompt each beat (the soft layer); the driver
@@ -112,6 +161,7 @@ export async function runBeat({
   settingsPath = null,
   allowedTools = null,
   model = null,
+  onStep = null, // ({tool, detail}) → void: each tool step, while the beat runs (Loop Monitor M3)
 }) {
   const prompt = await readFile(promptPath, "utf8");
   return await new Promise((resolve, reject) => {
@@ -119,15 +169,34 @@ export async function runBeat({
     const child = spawn("claude", argv, { cwd, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (d) => (stdout += d.toString()));
+    let pending = "";
+    child.stdout.on("data", (d) => {
+      const chunk = d.toString();
+      stdout += chunk;
+      if (!onStep) return;
+      pending += chunk;
+      const lines = pending.split("\n");
+      pending = lines.pop();
+      for (const line of lines) {
+        const step = stepOf(line);
+        if (step) {
+          try {
+            onStep(step);
+          } catch {
+            /* a monitor never fails a beat */
+          }
+        }
+      }
+    });
     child.stderr.on("data", (d) => (stderr += d.toString()));
     child.on("error", reject);
     child.on("close", (exitCode) => {
       const parsed = parseClaudeResult(stdout);
       resolve({
         exitCode: exitCode ?? 1,
-        // The verdict and usage-limit checks read the same text as before.
-        stdout: parsed ? parsed.text : stdout,
+        // The verdict and usage-limit checks read the same text as before. With
+        // no result line (R3), only what was not JSON: a banner, never the stream.
+        stdout: parsed ? parsed.text : plainLines(stdout),
         stderr,
         tokens: parsed?.tokens ?? null,
         costUsd: parsed?.costUsd ?? null,

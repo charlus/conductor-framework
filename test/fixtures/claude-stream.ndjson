@@ -1,0 +1,11 @@
+{"type": "system", "subtype": "init", "model": "claude-haiku-5-5", "cwd": "/work/app", "session_id": "s1"}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_01LVkGmtcVSHRwV7oX8RCgs4", "name": "Read", "input": {"file_path": "/home/u/.cache/conductor-stream-sample/a.txt"}}]}}
+{"type": "user", "message": {"content": [{"type": "tool_result", "content": "(output)"}]}}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_01UuZ7z77WdcTfQcXFB2a7tS", "name": "Bash", "input": {"command": "echo hi", "description": "Print hi"}}]}}
+{"type": "rate_limit_event", "subtype": null}
+{"type": "user", "message": {"content": [{"type": "tool_result", "content": "(output)"}]}}
+{"type": "system", "subtype": "thinking_tokens"}
+{"type": "system", "subtype": "thinking_tokens"}
+{"type": "assistant", "message": {"content": [{"type": "thinking"}]}}
+{"type": "assistant", "message": {"content": [{"type": "text", "text": "done"}]}}
+{"type": "result", "subtype": "success", "is_error": false, "result": "done", "total_cost_usd": 0.00604605, "usage": {"input_tokens": 4, "cache_creation_input_tokens": 28410, "cache_read_input_tokens": 24265, "output_tokens": 242, "output_tokens_details": {"thinking_tokens": 96}, "server_tool_use": {"web_search_requests": 0, "web_fetch_requests": 0}, "service_tier": "standard", "cache_creation": {"ephemeral_1h_input_tokens": 28410, "ephemeral_5m_input_tokens": 0}, "inference_geo": "global", "iterations": [{"input_tokens": 2, "output_tokens": 99, "cache_read_input_tokens": 24265, "cache_creation_input_tokens": 4145, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 4145}, "type": "message"}], "speed": "standard", "fallback_credit": null}, "modelUsage": {"claude-haiku-5-5": {}}, "num_turns": 3, "duration_ms": 2955, "api_error_status": null}

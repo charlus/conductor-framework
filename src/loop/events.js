@@ -88,6 +88,14 @@ export function watchModel(events) {
     if (e.task) {
       const it = items.get(e.task) ?? { task: e.task, active: null, last: null, beats: {}, red: 0, rejected: 0 };
       if (e.type === "beat_start") it.active = { kind: e.kind, model: e.model ?? null, since: e.at };
+      if (e.type === "step") {
+        if (it.active) {
+          it.active.steps = (it.active.steps ?? 0) + 1;
+          it.active.lastStep = { at: e.at, text: `${e.tool}${e.detail ? `: ${e.detail}` : ""}` };
+        }
+        items.set(e.task, it);
+        continue;
+      }
       if (e.type === "verify" && e.exit !== 0) it.red += 1;
       if (e.type === "verdict" && !e.approved) it.rejected += 1;
       if (e.type === "beat_end") {
@@ -114,7 +122,8 @@ export function renderWatch(m, now) {
   for (const it of m.items) {
     lines.push(`  ${it.task}`);
     if (it.active) {
-      lines.push(`    now: ${STAGE_LABEL[it.active.kind] ?? it.active.kind} beat${it.active.model ? ` on ${it.active.model}` : ""}, ${Math.round((now - Date.parse(it.active.since)) / 60000)} min so far`);
+      lines.push(`    now: ${STAGE_LABEL[it.active.kind] ?? it.active.kind} beat${it.active.model ? ` on ${it.active.model}` : ""}, ${Math.round((now - Date.parse(it.active.since)) / 60000)} min so far${it.active.steps ? `, ${it.active.steps} step${it.active.steps === 1 ? "" : "s"}` : ""}`);
+      if (it.active.lastStep) lines.push(`    last step ${hhmm(it.active.lastStep.at)}: ${it.active.lastStep.text}`);
     }
     const done = Object.entries(it.beats).map(([k, n]) => `${n} ${STAGE_LABEL[k] ?? k}`);
     const trouble = [it.red && `${it.red} red verify`, it.rejected && `${it.rejected} rejected review`].filter(Boolean);
@@ -122,6 +131,6 @@ export function renderWatch(m, now) {
     if (it.last) lines.push(`    last news ${hhmm(it.last.at)}: ${it.last.text}`);
   }
   lines.push("");
-  lines.push(m.ended ? `  Run ended ${hhmm(m.ended.at)}: ${m.ended.status}.` : "  Running. A beat reports when it ends: between beats, the last news is the newest fact.");
+  lines.push(m.ended ? `  Run ended ${hhmm(m.ended.at)}: ${m.ended.status}.` : "  Running. Steps come from the engine as they happen (claude); verdicts and MRs when they land.");
   return `${lines.join("\n")}\n`;
 }

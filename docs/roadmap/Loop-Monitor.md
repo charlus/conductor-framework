@@ -1,6 +1,6 @@
 # Loop Monitor — see what an unattended run is doing
 
-> **Status:** M1 (event log) and M2 (`conductor watch`, terminal first) in 6.39.0. Next: M3, the agent's steps inside a beat. Owner decision 2026-10-20: after step 7, in the order M1 → M4.
+> **Status:** M1 (event log), M2 (`conductor watch`, terminal first) and M3 (the agent's steps, claude engine) in 6.39.0. Next: M4, the browser view. Owner decision 2026-10-20: after step 7, in the order M1 → M4.
 > **Why:** a run lasts up to an hour and prints about ten lines. The owner cannot tell what each beat or each swarm worker is doing until it ends. agentctl (credited in the README) showed each agent live, in its own tmux pane.
 
 ## What limits us today

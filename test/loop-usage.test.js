@@ -29,7 +29,7 @@ const RESULT = JSON.stringify({
 
 test("the claude adapter asks for the JSON result", () => {
   const argv = buildArgv({ prompt: "p" });
-  assert.equal(argv[argv.indexOf("--output-format") + 1], "json");
+  assert.equal(argv[argv.indexOf("--output-format") + 1], "stream-json");
 });
 
 test("parseClaudeResult reads the text, tokens, cost and model", () => {

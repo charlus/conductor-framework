@@ -8,6 +8,22 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.39.0] — 2026-10-21 — Follow a loop run while it runs, step by step: `conductor watch`
+
+Compatibility: upgrade only
+
+Build M1, M2 and M3 of [`docs/roadmap/Loop-Monitor.md`](docs/roadmap/Loop-Monitor.md). A run can last hours and printed about ten lines.
+
+### Added
+
+- **The event log.** Every swarm run appends one line per event to `.git/conductor-loop-logs/events.ndjson`: the run's start and end, each beat's start and end (item, stage, role, model, duration, cost), each verify exit code, each review verdict with its first reason, question rounds, escalations, failures and MRs. It is never committed, rotates at 5 MB, and a write that fails never fails the run.
+- **The agent's steps, as they happen (claude engine).** The adapter reads the engine's stream (`--output-format stream-json`) and records each tool step with a short detail (the file read, the command run), cut at 120 characters. The beat's result still comes from the stream's final `result` line, so verdicts, costs and the usage-limit and login checks read the same text as before. A stream that ends without that line fails safe: the beat's text is then only what was not JSON, such as a usage-limit banner.
+- **`conductor watch [dir]`.** In a second terminal: each item, the beat in progress (stage, model, minutes so far, steps) and its last step, what it has been through ("2 Build, 2 Review, 1 Ship (1 red verify)"), the last recorded fact with its time, and the run's beats and cost at list price. It refreshes every 2 seconds and stops once the run has ended; `--once` prints one screen. It shows only what was recorded: between beats, the last news is the newest fact, never a guess.
+
+Verified live: a real run on a scratch project under the `balanced` profile, watched mid-run ("now: Review beat on opus") and after it ended; its event log held every beat, both verifies (one red) and both verdicts. Not yet: the browser view (M4). The codex and agy engines report no steps. Pair mode (`--goal`) writes no events yet.
+
+---
+
 ## [6.38.0] — 2026-10-21 — Pick the loop's models by budget: two profiles
 
 Compatibility: upgrade only

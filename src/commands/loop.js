@@ -41,6 +41,7 @@ import { harvestSlices, specEvidence as checkSpecEvidence, PROJECTS_REL } from "
 import { pruneMergedLoopWorktrees, remoteLoopBranches, mergedBranches, skipClaimed, defaultBranchRef } from "../loop/reconcile.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels, effectiveModels } from "../loop/config.js";
 import { describeModels } from "../loop/profiles.js";
+import { makeEmitter } from "../loop/events.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
 const LOCK_REL = "conductor/1-workbench/loop.lock";
@@ -655,14 +656,26 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   //      nothing can be diagnosed after teardown. Best-effort.
   const gitCommonDir = await runCli("git", ["rev-parse", "--git-common-dir"], root);
   const beatLogDir = gitCommonDir.ok ? join(resolve(root, gitCommonDir.stdout), BEAT_LOG_DIR) : null;
+  // Loop Monitor M1: one event log per repository, read by `conductor watch`.
+  const emit = makeEmitter(beatLogDir, new Date().toISOString());
+  const cwdTask = new Map(); // worktree path → task id, so every beat names its item
+  const modelFor = (kind, opts) => {
+    const m = effectiveModels(loopConfig);
+    if (kind === "maker") return (opts?.escalateModel && m.maker_escalation) || m.maker || null;
+    return m[kind] ?? null;
+  };
   const logged = (kind, run) => async (opts) => {
+    const eventTask = opts.task?.id ?? cwdTask.get(resolve(opts.cwd ?? root)) ?? "run";
+    await emit("beat_start", { task: eventTask, kind, model: modelFor(kind, opts) });
     try {
       await syncLoopStateInto({ root, cwd: opts.cwd ?? root, git: makeGit(opts.cwd ?? root) });
     } catch (e) {
       stderr.write(`[CONDUCTOR LOOP] ⚠️  could not copy loop-state.json into ${opts.cwd}: ${e.message}\n`);
     }
     const startedAt = Date.now();
-    const result = await run(opts);
+    // M3: each tool step of the beat, as the engine streams it.
+    const result = await run({ ...opts, onStep: (s) => emit("step", { task: eventTask, kind, tool: s.tool, detail: s.detail }) });
+    await emit("beat_end", { task: eventTask, kind, duration_s: Math.round((Date.now() - startedAt) / 1000), cost_usd: result?.costUsd ?? null, exit: result?.exitCode ?? null });
     // A14: the one accounting point for every beat, Maker and Checker, pair and
     // swarm. A failure to record never fails a beat.
     try {
@@ -1500,6 +1513,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         // Conductor-enable the isolated Maker even if the scaffold is gitignored.
         await materializeContextInto(plan.path);
         cwdFor.set(task.id, plan.path);
+        cwdTask.set(resolve(plan.path), task.id);
         await hideFromGit(roundRel(task), { cwd: plan.path, git: makeGit(plan.path) });
         // Step 7: the code worktree inside it, from the code repository's default branch.
         if (loopConfig.codeDir) {
@@ -1546,10 +1560,15 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         await collectRulings(task, taskCwd, rulingsBefore);
         return { ...result, signal: await readSignalAt(taskCwd) };
       },
-      runVerify: ({ task, cmd }) => sh(cmd, codeWtOf(cwdFor.get(task.id) ?? root) ?? cwdFor.get(task.id) ?? root),
+      runVerify: async ({ task, cmd }) => {
+        const t0 = Date.now();
+        const r = await sh(cmd, codeWtOf(cwdFor.get(task.id) ?? root) ?? cwdFor.get(task.id) ?? root);
+        await emit("verify", { task: task.id, exit: r.exitCode, duration_s: Math.round((Date.now() - t0) / 1000) });
+        return r;
+      },
       changedFiles: ({ task, from }) => changedFilesIn(cwdFor.get(task.id) ?? root, from),
-      runChecker: async ({ task, phase }) =>
-        makeChecker(
+      runChecker: async ({ task, phase }) => {
+        const c = await makeChecker(
           cwdFor.get(task.id) ?? root,
           await checkerPromptWithRulings(
             await withNestedNote(phase === "spec"
@@ -1562,7 +1581,10 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
             await branchRulings(cwdFor.get(task.id) ?? root),
             task.id
           )
-        )(),
+        )();
+        await emit("verdict", { task: task.id, phase: phase ?? "code", approved: (c?.exitCode ?? 1) === 0, reason: c?.reasons?.[0] ?? null });
+        return c;
+      },
       // F7: would this branch collide with the base before we push it? Asked
       // against the object store from the ROOT checkout, so no working tree is
       // touched and no worktree has to be clean for it to answer.
@@ -1605,6 +1627,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       writeInbox: (s, reason, o) => writeInbox(root, s, reason, o),
       log: (m) => stdout.write(`${m}\n`),
       costAware: loopConfig.costAware,
+      emit,
     };
 
     const final = await runSwarm(state, deps);

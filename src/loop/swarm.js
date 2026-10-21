@@ -456,6 +456,7 @@ export async function runSwarm(state, deps) {
     shipEvidence = null, // ({task}) → {ok, reasons, body}: Ship's bookkeeping, checked in code
     runStage = null, // ({task, stage}) → beat result: one Blueprint stage's beat (step 5)
     stageEvidence = null, // ({task, stage}) → {ok, reasons, body?}: that stage's output, checked in code
+    emit = async () => {}, // (type, data): the Loop Monitor's event log (M1)
   } = deps;
 
   // Same deterministic gates as the pair (scoping, sandbox, autonomy, verify) —
@@ -482,6 +483,7 @@ export async function runSwarm(state, deps) {
   };
 
   await audit(`swarm start: ${state.tasks.length} tasks, concurrency=${concurrency}`);
+  await emit("run_start", { items: state.tasks.map((t) => t.id) });
 
   let terminal = null;
   while (!terminal) {
@@ -560,16 +562,19 @@ export async function runSwarm(state, deps) {
       if (outcome === "awaiting_answers") {
         task.status = "awaiting_answers";
         if (raised) {
+          await emit("questions", { task: task.id, count });
           await writeInbox(state, `task ${task.id} has ${count} question${count === 1 ? "" : "s"} waiting for you: conductor/1-workbench/questions/${roundKeyOf(task.id)}.md — answer each by number, then run the loop again.`, { title: "Questions" });
         }
         continue;
       }
       if (outcome === "escalated") {
+        await emit("escalated", { task: task.id, reason });
         task.status = "failed";
         await writeInbox(state, `task ${task.id} escalated by the Maker (beat ${task.escalation?.beat ?? "?"}): ${reason}`);
         continue;
       }
       if (outcome !== "passed") {
+        await emit("failed", { task: task.id, reason: reason ?? outcome });
         task.status = "failed";
         await audit(`task ${task.id}: failed (${outcome})`);
       }
@@ -691,6 +696,7 @@ export async function runSwarm(state, deps) {
         task.status = "merged";
         task.merge = { branch: m.branch ?? null, pr_url: m.prUrl ?? null, ...(m.codeUrl ? { code_pr_url: m.codeUrl } : {}) };
         await audit(`task ${task.id}: merged (PR ${m.prUrl ?? "n/a"}${m.codeUrl ? `, code MR ${m.codeUrl}` : ""})`);
+        await emit("merged", { task: task.id, url: m.prUrl ?? null, code_url: m.codeUrl ?? null });
       } else {
         // Conflict / PR failure → pause and escalate (do not silently drop).
         task.status = "passed";
@@ -711,6 +717,7 @@ export async function runSwarm(state, deps) {
   }
   state.status = terminal;
   await persist(state);
+  await emit("run_end", { status: terminal });
   log(`[CONDUCTOR SWARM] terminal: ${terminal}`);
   await audit(`swarm terminal: ${terminal}`);
   return state;

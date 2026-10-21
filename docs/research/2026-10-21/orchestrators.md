@@ -32,7 +32,7 @@ C3 and C4 come from `conductor loop`'s own design, so the comparison favours it 
 
 ## What it means
 
-- No tool found beats `conductor loop` as the engine under all six criteria. Each owner constraint is common alone (self-hosted GitLab, a subscription, an enforced framework, an MR the owner merges); together no product targets them.
+- No tool found beats `conductor loop` as the engine under all six criteria. The constraints themselves are not unusual: agentctl and dots, both built at Euranova, target exactly self-hosted GitLab and a Claude Code subscription (owner, 2026-10-21). What differs is the discipline: whether the repository's own method and test-first gate apply (C3), and whether only a human merges an MR that no agent could push (C4). Public products mostly assume GitHub or API billing.
 - The open needs are an **always-on host** (every option needs one) and a **channel** to the owner (D8).
 - The mainstream path for teams with the same need is code on GitHub plus a vendor cloud agent, with branch protection and required CI checks. D3 (the gates as a required CI check) is what lets Conductor's discipline hold if a constraint changes and that path opens.
 - Found on the way, fixed in the method: Build treated a blank carved spec as present (6.41.0).

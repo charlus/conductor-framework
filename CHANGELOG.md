@@ -8,6 +8,16 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.41.0] — 2026-10-21 — Build refuses a slice whose spec is still the carved template
+
+Compatibility: upgrade only
+
+### Fixed
+
+- **Build treats a blank carved spec as missing.** Its prerequisite checked only that `feature-spec.md` and `implementation-plan.md` exist, and Carve creates both as blank templates, so a session asked to "implement slice 01" built from `project-documentation.md` and skipped Spec-It, its Brief check and its review. Found by the orchestrator trial of 2026-10-21 (an Orchestrator.inc worker in a Conductor project). A file that still holds the template's placeholders now counts as missing, and Build routes to Spec-It. This is the method's text, advisory in an interactive session; `conductor loop` already enforces it in code.
+
+---
+
 ## [6.40.0] — 2026-10-21 — What the team sees of the loop
 
 Compatibility: upgrade only

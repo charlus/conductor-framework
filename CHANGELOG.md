@@ -8,6 +8,16 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.43.0] — 2026-10-21 — The loop runs the full test suite once, outside the sandbox
+
+Compatibility: upgrade only
+
+### Fixed
+
+- **The Checker and the Ship beat no longer re-run the whole test suite.** On autopportunity (2026-10-21) the driver's own verify ran the unit suite in 124–141 s, outside the sandbox; inside it, the Checker ran the same suite in 618 s and the Ship beat twice in 605 s, about 30 of the run's 87 minutes, some tests probably waiting on a network the sandbox blocks. A code review is now told that the driver already ran the full verification command on this exact state and that it passed, and to run only the tests of the files the change touches. The Ship beat runs the regression tests it writes, never the whole suite. The Maker got this rule in 6.36.0. Verified live on a scratch project with a 45-second test: the driver's verify ran it (45–46 s), both Checkers ran only the changed test file (21–22 s), the Ship beat none.
+
+---
+
 ## [6.41.0] — 2026-10-21 — Build refuses a slice whose spec is still the carved template
 
 Compatibility: upgrade only

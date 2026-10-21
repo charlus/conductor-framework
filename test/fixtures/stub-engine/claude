@@ -17,7 +17,11 @@ const prompt = argv[argv.length - 1] ?? "";
 const dir = process.env.STUB_LOG_DIR;
 if (dir) {
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `${String(readdirSync(dir).length).padStart(3, "0")}.txt`), prompt);
+  const n = String(readdirSync(dir).filter((f) => f.endsWith(".txt")).length).padStart(3, "0");
+  writeFileSync(join(dir, `${n}.txt`), prompt);
+  // The --model this beat was started with, for the profile test.
+  const m = argv.indexOf("--model");
+  writeFileSync(join(dir, `${n}.model`), m >= 0 ? argv[m + 1] : "default");
 }
 const put = (rel, text) => {
   mkdirSync(dirname(rel), { recursive: true });

@@ -14,7 +14,8 @@
 //   blueprint        ["<Project>"] | true → these projects' Blueprint, after Discovery, is loop work
 //   code_dir         "repo" → the code is this nested, gitignored repository (the outer layout)
 //   cost_aware       true → budget.max_cost_usd halts the run (off: cost is shown, never acts)
-//   models           { maker, checker, maker_escalation } → the model each loop role runs on
+//   profile          "quality" | "balanced" → the model of every role (conductor loop profile)
+//   models           { maker, maker_escalation, checker, spec, blueprint, ship } → one role's model, over the profile
 //                    (claude engine); maker_escalation runs a Maker beat after two rejections
 //
 // The driver reads this file from the ROOT checkout only, never from a worktree,
@@ -27,14 +28,30 @@ const FORGES = ["gh", "glab"];
 // A model id or alias: `sonnet`, `claude-opus-5-5`, `claude-opus-5-5[1m]`. No
 // spaces and no leading dash, so the value can never be read as another flag.
 const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:\[\]-]*$/;
-const ROLES = ["maker", "checker", "maker_escalation"];
+const ROLES = ["maker", "checker", "maker_escalation", "spec", "blueprint", "ship"];
+
+// Owner decisions D1–D5 (2026-10-21). `balanced` follows the measured
+// planner–executor practice: the strong model writes specs and designs and
+// reviews; the cheaper one writes code and the ship bookkeeping, and the loop
+// moves it to the strong model after two rejections (where the difficulty is).
+export const PROFILES = Object.freeze({
+  quality: Object.freeze({ maker: "opus", maker_escalation: "opus", checker: "opus", spec: "opus", blueprint: "opus", ship: "opus" }),
+  balanced: Object.freeze({ maker: "sonnet", maker_escalation: "opus", checker: "opus", spec: "opus", blueprint: "opus", ship: "sonnet" }),
+});
+
+/** The model each role runs on: the profile, then `loop.models` per role. {} when neither is set. */
+export function effectiveModels(cfg) {
+  const out = { ...(PROFILES[cfg?.profile] ?? {}) };
+  for (const [role, model] of Object.entries(cfg?.models ?? {})) if (model) out[role] = model;
+  return out;
+}
 const DOMAIN_RE = /^(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
 
 /** Parse and validate the `loop` block. Invalid values are reported, never dropped. */
 export function parseLoopConfig(config) {
   const raw = config && typeof config === "object" && config.loop && typeof config.loop === "object" ? config.loop : {};
   const errors = [];
-  const out = { forge: null, setup: null, allowedDomains: [], requireReady: false, priorities: [], inbox: true, allowNestedRepo: false, models: { maker: null, checker: null, maker_escalation: null }, costAware: false, slices: [], blueprint: [], codeDir: null, errors };
+  const out = { forge: null, setup: null, allowedDomains: [], requireReady: false, priorities: [], inbox: true, allowNestedRepo: false, models: {}, profile: null, costAware: false, slices: [], blueprint: [], codeDir: null, errors };
 
   if (raw.forge !== undefined && raw.forge !== null) {
     if (FORGES.includes(raw.forge)) out.forge = raw.forge;
@@ -65,11 +82,15 @@ export function parseLoopConfig(config) {
     if (typeof raw.allow_nested_repo === "boolean") out.allowNestedRepo = raw.allow_nested_repo;
     else errors.push("loop.allow_nested_repo must be true or false");
   }
+  if (raw.profile !== undefined && raw.profile !== null) {
+    if (Object.keys(PROFILES).includes(raw.profile)) out.profile = raw.profile;
+    else errors.push(`loop.profile must be one of ${Object.keys(PROFILES).join(", ")} (set it with conductor loop profile <name>)`);
+  }
   if (raw.models !== undefined && raw.models !== null) {
     if (typeof raw.models !== "object" || Array.isArray(raw.models)) errors.push('loop.models must be an object such as { "maker": "sonnet", "checker": "opus" }');
     else
       for (const [role, model] of Object.entries(raw.models)) {
-        if (!ROLES.includes(role)) errors.push(`loop.models: unknown role '${role}' (use maker, checker or maker_escalation)`);
+        if (!ROLES.includes(role)) errors.push(`loop.models: unknown role '${role}' (use maker, maker_escalation, checker, spec, blueprint or ship)`);
         else if (model === null) continue;
         else if (typeof model === "string" && MODEL_RE.test(model)) out.models[role] = model;
         else errors.push(`loop.models.${role}: ${JSON.stringify(model)} is not a model id or alias`);
@@ -163,7 +184,7 @@ export function mergeSandboxSettings(template, extraDomains = [], extraWrites = 
 /** The adapter with each loop role's model passed to its beats. Returns the
  *  adapter itself when no model is set, so an unset `loop.models` changes nothing. */
 export function withRoleModels(adapter, models = {}) {
-  if (!models.maker && !models.checker && !models.maker_escalation) return adapter;
+  const on = (model) => (opts) => adapter.runBeat(model ? { ...opts, model } : opts);
   return {
     ...adapter,
     runBeat: (opts) => {
@@ -171,5 +192,9 @@ export function withRoleModels(adapter, models = {}) {
       return adapter.runBeat(model ? { ...opts, model } : opts);
     },
     runChecker: (opts) => adapter.runChecker(models.checker ? { ...opts, model: models.checker } : opts),
+    // G1: specs and designs are their own roles, never the Maker's model by default.
+    runSpecBeat: on(models.spec),
+    runBlueprintBeat: on(models.blueprint),
+    runShipBeat: on(models.ship),
   };
 }

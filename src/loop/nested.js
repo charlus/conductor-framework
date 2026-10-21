@@ -88,7 +88,8 @@ export function codeMrBody({ body }) {
  * own git store writable, not the nested code repository's, so a beat could not
  * commit there. These are exactly what a commit writes. `config` and `hooks`
  * stay read-only, so a beat cannot switch the commit gates off. Proven by a
- * sandboxed commit outside /tmp (the sandbox lets anything under /tmp be written).
+ * sandboxed commit outside Claude Code's temporary folder (/tmp/claude-<uid>),
+ * which the sandbox lets a beat write.
  */
 export function nestedSandboxWrites(codeGitDir) {
   return ["objects", "refs", "logs", "worktrees"].map((d) => join(codeGitDir, d));

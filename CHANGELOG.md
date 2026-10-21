@@ -8,6 +8,17 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.42.0] — 2026-10-21 — The watch tower: every product's loop on one screen
+
+Compatibility: upgrade only
+
+### Added
+
+- **`conductor watch --all`.** One live screen for every product the loop works on, on this machine: a block per product with its run, each item's beat in progress and last step, what it has been through, the last news, and the question rounds waiting for you, under a header that counts the products running and waiting for you. It refreshes every few seconds and keeps running until you leave it; `--once` prints one screen; `conductor watch <dir> <dir>…` shows just those. Built for running several products in parallel without one terminal per product.
+- **`conductor loop on` registers the product** in `~/.config/conductor/loop-projects.json` (or `$CONDUCTOR_HOME`), machine state that never enters a repository.
+
+---
+
 ## [6.41.0] — 2026-10-21 — Build refuses a slice whose spec is still the carved template
 
 Compatibility: upgrade only

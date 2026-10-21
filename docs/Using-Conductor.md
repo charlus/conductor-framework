@@ -45,7 +45,7 @@ The loop runs the same workflows, one stage per fresh beat, each behind an indep
 1. See your projects, their stage and whether the loop is on: `conductor status`, or `conductor loop on` with no name. Then turn it on for one: `conductor loop on <project>`. It shows each change in plain words and asks once: after your Discovery it writes the Blueprint stages you have not written as one MR (merging it is your sign-off), then it builds the slices, from spec to MR. If the code is a nested repository (`repo/` inside your `conductor/` repository), it finds it: each item then opens a code MR to the team's repository, then a state MR to yours. Merge the code MR first. If it says the code has no test command, run the command it prints. For backlog items alone, tag each one `(loop-ready)` at the end of its line and run `conductor loop on --backlog` once. `conductor loop off <project>` takes the project out again. `conductor loop profile` shows which model each role uses and the last run's cost; `conductor loop profile balanced` lowers the cost per beat (Sonnet writes code, Opus reviews and writes specs), `quality` uses Opus everywhere. In your agent, "turn the loop on for <project>" does the same.
 2. Check the project: `conductor loop doctor .` (`loop on` runs it for you)
 3. Preview: `conductor loop . --from-conductor --dry-run`
-4. Run it in a separate terminal: `conductor loop . --from-conductor`. Follow it from another one with `conductor watch`.
+4. Run it in a separate terminal: `conductor loop . --from-conductor`. Follow it from another one with `conductor watch`, or every product at once with `conductor watch --all`.
 5. When it stops, it prints the next step. Usually one of these:
    - **Questions for you:** `conductor status` names the file. Write an option number after each `Answer:`, then run the loop again.
    - **An MR:** review and merge it, then run the loop again for the next item.
@@ -252,13 +252,16 @@ What the loop run is doing: each item's beat in progress, the last news, beats a
 
 ```
 conductor watch [dir] [--once]
+conductor watch --all [--once]
 ```
 
 | Option | What it does |
 |---|---|
-| `--once` | Print one screen and exit (it refreshes every 2 seconds otherwise) |
+| `--all` | The watch tower: every product the loop is on, on one screen (registered by conductor loop on) |
+| `--once` | Print one screen and exit (it refreshes every few seconds otherwise) |
 
-- `conductor watch`: follow a run from a second terminal
+- `conductor watch --all`: every product's run, beat, last news and waiting questions
+- `conductor watch`: this product only
 
 ### Gates and evidence
 

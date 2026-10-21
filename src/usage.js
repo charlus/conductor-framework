@@ -123,9 +123,12 @@ export const COMMANDS = Object.freeze([
   },
   {
     name: "watch", group: "loop", summary: "What the loop run is doing: each item's beat in progress, the last news, beats and cost",
-    usage: "conductor watch [dir] [--once]",
-    flags: [["--once", "Print one screen and exit (it refreshes every 2 seconds otherwise)"]],
-    examples: [["conductor watch", "follow a run from a second terminal"]],
+    usage: "conductor watch [dir] [--once]\n  conductor watch --all [--once]",
+    flags: [
+      ["--all", "The watch tower: every product the loop is on, on one screen (registered by conductor loop on)"],
+      ["--once", "Print one screen and exit (it refreshes every few seconds otherwise)"],
+    ],
+    examples: [["conductor watch --all", "every product's run, beat, last news and waiting questions"], ["conductor watch", "this product only"]],
   },
   {
     name: "verify", group: "gates", summary: "Show or set the command `git push` must pass",

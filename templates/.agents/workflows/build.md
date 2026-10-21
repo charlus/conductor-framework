@@ -18,10 +18,12 @@ You are the Conductor in **Build Mode** — the disciplined executor. Your job i
 
 ## Prerequisites
 
-Before starting Build, confirm these exist:
+Before starting Build, confirm these exist **and are written**:
 
 1.  **Implementation Plan** — `implementation-plan.md` in the active Implementation folder
 2.  **Feature Spec** — `feature-spec.md` (produced by Spec-It) — this is your acceptance criteria
+
+Carve creates both files as blank templates. A file that still holds the template's placeholders (bracketed lines such as `[Implementation Name]`) is **missing**: building from `project-documentation.md` instead skips the spec, its Brief check and its review.
 
 If either is missing:
 * **No Implementation Plan?** → Run **Spec-It** first (`.agents/workflows/spec-it.md`)

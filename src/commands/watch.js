@@ -33,6 +33,12 @@ async function productBlock(root, now) {
 }
 
 async function towerScreen(roots, now) {
+  roots = await (async () => {
+    const { access } = await import("node:fs/promises");
+    const kept = [];
+    for (const r of roots) if (await access(r).then(() => true, () => false)) kept.push(r);
+    return kept;
+  })();
   if (!roots.length) return "  No product registered for the loop on this machine. `conductor loop on <project>` (or `--backlog`) in a product registers it.\n";
   const blocks = [];
   for (const r of roots) blocks.push(await productBlock(r, now));

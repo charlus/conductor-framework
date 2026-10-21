@@ -78,7 +78,7 @@ test("`conductor watch --all --once`: one block per registered product, its run,
     for (const d of [a, b, c]) {
       mkdirSync(home, { recursive: true });
     }
-    writeFileSync(join(home, "loop-projects.json"), JSON.stringify({ projects: [a, b, c] }));
+    writeFileSync(join(home, "loop-projects.json"), JSON.stringify({ projects: [a, b, c, join(base, "deleted-since")] }));
     const r = spawnSync("node", [join(REPO, "bin/conductor.js"), "watch", "--all", "--once"], { encoding: "utf8", env });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /alpha[\s\S]*now: Build beat on sonnet[\s\S]*last step \d\d:\d\d: Bash: npm test/);

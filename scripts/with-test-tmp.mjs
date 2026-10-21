@@ -21,7 +21,9 @@ if (!cmd) {
 const runTmp = mkdtempSync(join(tmpdir(), "conductor-test-run-"));
 let status = 1;
 try {
-  const r = spawnSync(cmd, args, { stdio: "inherit", env: { ...process.env, TMPDIR: runTmp, TMP: runTmp, TEMP: runTmp } });
+  // CONDUCTOR_HOME too: a test that runs `conductor loop on` must not register
+  // its scratch project in the developer's own watch-tower list (2026-10-21).
+  const r = spawnSync(cmd, args, { stdio: "inherit", env: { ...process.env, TMPDIR: runTmp, TMP: runTmp, TEMP: runTmp, CONDUCTOR_HOME: join(runTmp, "conductor-home") } });
   status = r.status ?? (r.signal ? 1 : 0);
 } finally {
   rmSync(runTmp, { recursive: true, force: true });

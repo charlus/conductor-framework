@@ -53,7 +53,9 @@ export function prCommand(forge, { branch, title, body = DEFAULT_PR_BODY }) {
     return ["gh", ["pr", "create", "--head", branch, "--title", title, "--body", body]];
   }
   if (forge === "glab") {
-    return ["glab", ["mr", "create", "--source-branch", branch, "--title", title, "--description", body, "--yes"]];
+    // C3-F21: squashed on merge, so the team's history gets one commit named by
+    // the MR, not the loop's beat commits. The owner can untick it per MR.
+    return ["glab", ["mr", "create", "--source-branch", branch, "--title", title, "--description", body, "--squash-before-merge", "--yes"]];
   }
   throw new Error(`Unknown forge '${forge}'`);
 }

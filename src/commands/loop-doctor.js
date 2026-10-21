@@ -24,6 +24,7 @@ import { exists, readJson, sh, runCli, hasNpmTestScript, configVerify, readSlice
 import { harvestSlices } from "../loop/slices.js";
 import { ensureWorktreesExcluded } from "../loop/worktree.js";
 import { refusedNestedRepos, nestedSandboxWrites } from "../loop/nested.js";
+import { readOnlyEnv } from "../loop/team-facing.js";
 import { defaultBranchRef } from "../loop/reconcile.js";
 import { harvestBlueprints } from "../loop/blueprint.js";
 import { nextAfterDoctor } from "../next-step.js";
@@ -199,7 +200,8 @@ export async function loopDoctor(root, { stdout, beat = false }) {
         facts.probe.verify = { command: verifyCommand, exitCode: v.exitCode, secs: Math.round((Date.now() - t0) / 1000), tail: tail(v.output) };
         // The same command in the main checkout, where the owner pushes from.
         if (v.exitCode === 0) {
-          const r = await sh(verifyCommand, codeRoot ?? root);
+          // F8: the owner's checkout is left as it was found.
+          const r = await sh(readOnlyEnv(verifyCommand), codeRoot ?? root);
           facts.rootVerify = { exitCode: r.exitCode, tail: tail(r.output) };
         }
       }

@@ -8,6 +8,24 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.40.0] — 2026-10-21 — What the team sees of the loop
+
+Compatibility: upgrade only
+
+From the autopportunity crossing (C3-F21, F8 in `docs/roadmap/Unattended-Crossing.md`).
+
+### Changed
+
+- **An MR the loop opens is titled by its work.** The code MR in innovation/Autopportunity read "Conductor task task:kb-retire…: KB: retire…". The title is now the item's own, cleaned; in the outer layout the state MR in your repository reads "Conductor state: <title>".
+- **On GitLab, the loop's MRs are squashed on merge** (`--squash-before-merge`), so the team's history gets one commit named by the MR and not the beat commits. Untick it on the MR to keep them. GitHub has no per-PR flag: use the repository setting.
+- **Auto-capture commits name the work,** "chore: capture uncommitted work: <title>", without the loop's internal task id.
+
+### Fixed
+
+- **`loop doctor` leaves your checkout as it found it.** Its check that verify is green in your own checkout left `__pycache__/` there. It now runs with Python bytecode and the pytest cache off.
+
+---
+
 ## [6.39.0] — 2026-10-21 — Follow a loop run while it runs, step by step: `conductor watch`
 
 Compatibility: upgrade only

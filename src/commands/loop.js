@@ -42,6 +42,7 @@ import { pruneMergedLoopWorktrees, remoteLoopBranches, mergedBranches, skipClaim
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels, effectiveModels } from "../loop/config.js";
 import { describeModels } from "../loop/profiles.js";
 import { makeEmitter } from "../loop/events.js";
+import { mrTitles, readOnlyEnv } from "../loop/team-facing.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
 const LOCK_REL = "conductor/1-workbench/loop.lock";
@@ -898,7 +899,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       openCode: async () =>
         openPullRequest({ branch, title, body: codeMrBody({ body }), git: makeGit(code), run: (cmd, argv) => runCli(cmd, argv, code), forge: await codeForge() }),
       openState: ({ codeUrl }) =>
-        openPullRequest({ branch, title: `${title} (Conductor state)`, body: stateMrBody({ codeUrl, body }), git: makeGit(cwd), run: (cmd, argv) => runCli(cmd, argv, cwd), forge: forgeInfo.forge }),
+        openPullRequest({ branch, title: `Conductor state: ${title}`, body: stateMrBody({ codeUrl, body }), git: makeGit(cwd), run: (cmd, argv) => runCli(cmd, argv, cwd), forge: forgeInfo.forge }),
     });
   };
 
@@ -1612,7 +1613,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         (loopConfig.codeDir ? makeNestedMerge : makeMerge)(
           cwdFor.get(task.id) ?? root,
           task.worktree?.branch,
-          `Conductor task ${task.id}: ${task.title || task.type}`,
+          mrTitles(task).code,
           () => branchRulings(cwdFor.get(task.id) ?? root),
           () => task.ship?.body
         )(),

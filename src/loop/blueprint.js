@@ -91,7 +91,7 @@ export function harvestBlueprints({ projects, optIn, templates }) {
   return items;
 }
 
-const CARRIED = ["spec_reviewed", "answered_round", "stages_reviewed"];
+const CARRIED = ["spec_reviewed", "answered_round", "stages_reviewed", "reviewed_head"];
 
 /**
  * The harvest rebuilds the queue every run (the folder is truth). What a stage

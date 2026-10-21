@@ -102,3 +102,14 @@ test("the code worktree starts from the code repository's default branch, not th
     rmSync(base, { recursive: true, force: true });
   }
 });
+
+test("F15: the sandbox may write what a commit in the code repository writes, never its config or hooks", async () => {
+  const { nestedSandboxWrites } = await import("../src/loop/nested.js");
+  const { mergeSandboxSettings } = await import("../src/loop/config.js");
+  const writes = nestedSandboxWrites("/w/app/repo/.git");
+  assert.deepEqual(writes, ["/w/app/repo/.git/objects", "/w/app/repo/.git/refs", "/w/app/repo/.git/logs", "/w/app/repo/.git/worktrees"]);
+  assert.ok(!writes.some((p) => /config|hooks/.test(p)));
+  const s = mergeSandboxSettings({ sandbox: { enabled: true, filesystem: { allowWrite: ["/x"] } } }, [], writes);
+  assert.deepEqual(s.sandbox.filesystem.allowWrite, ["/x", ...writes]);
+  assert.equal(mergeSandboxSettings({ sandbox: {} }, []).sandbox.filesystem, undefined, "nothing added outside the outer layout");
+});

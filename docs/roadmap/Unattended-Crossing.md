@@ -1,6 +1,6 @@
 # Unattended Crossing — brainstorm, paused 2026-10-16
 
-> **Status:** first crossing done 2026-10-19 on eurassistant CHORE-2 (MR !48). Fixes built the same day, each verified live, in stacked PRs #71–#75 (6.15.0–6.19.0): F3, F4, F5 and a new F8 in #71; F2 in #73; F1 and F6 in #74. F7 fixed in 6.20.0, with the stale main-checkout check found during the eurassistant upgrade (MR !49). Open questions Q2 and Q3 still stand.
+> **Status:** first crossing done 2026-10-19 on eurassistant CHORE-2 (MR !48). Fixes built the same day, each verified live, in stacked PRs #71–#75 (6.15.0–6.19.0): F3, F4, F5 and a new F8 in #71; F2 in #73; F1 and F6 in #74. F7 fixed in 6.20.0, with the stale main-checkout check found during the eurassistant upgrade (MR !49). Open questions Q2 and Q3 still stand. Third crossing 2026-10-20/21 on autopportunity, the first in the outer layout: F10–F19, fixed in 6.34.0–6.36.0.
 > **Evidence:** ten research reports from 2026-10-16 in [`docs/research/2026-10-16/`](../research/2026-10-16/), mainly `meta-landscape.md` (30 tools) and `meta-omnigent-paperclip.md`. Third-party code was read, never run.
 > **Related:** [`Harvest-2026-10.md`](Harvest-2026-10.md) (PR #67), the Q3 outcome eval approved there.
 
@@ -104,3 +104,33 @@ The product is live and supports the yearly evaluation, so the item was chosen o
 - **F12.** `.agents/.worktrees/` was not ignored, so `git add -A` would sweep the worktrees into a commit.
 - **F13.** The loop's `[loop]` audit lines made the report-shape gate block the owner's next commit.
 - **F14.** The one fact the doctor could not find lived in the CI file; the doctor now points there.
+
+## Third crossing — autopportunity, outer layout, 2026-10-20 and 21
+
+The first run of the outer layout (`loop.code_dir`, 6.31.0) on a team repository: an outer Conductor repository with the team's code nested in `repo/`, a 2-minute unit suite in an untracked venv, live secrets in `.env`, and the owner working on another branch in the same checkout. One backlog item: "KB: retire the 'Use case without customer' KM queue" (19 files, −581 lines in the code, a docs commit in the outer repository).
+
+### Friction, in the order it showed
+
+| | Found by | What happened | Fix |
+|---|---|---|---|
+| C3-F10 | first `loop doctor` | `"verify": "none"` (no tests on purpose) was run as a command | 6.34.0 |
+| C3-F11 | first `loop doctor` | `--from-conductor` would have taken all 70 backlog and inbox items | 6.34.0: `loop on` sets `require_ready`, no inbox |
+| C3-F12 | first `loop doctor` | three failures for one cause: the loop was never set up there | 6.34.0 |
+| C3-F13 | the test itself | no command to set the loop up for backlog items only | 6.34.0: `loop on --backlog` |
+| C3-F14 | dry run | the outer worktree would start from the owner's checked-out branch, so the state MR would carry their work in progress | 6.35.0 |
+| — | doctor | the unit tests need `.env`, which holds live secrets: the setup copies `.env.example`, as CI does | 6.35.0: the doctor recommends it |
+| C3-F15 | run 1 | the sandbox makes only the working directory's git store writable: the Maker could not commit in `repo/` and escalated after a 75-minute beat, with the work done | 6.36.0: a narrow write grant (objects, refs, logs, worktrees; never config or hooks) |
+| C3-F16 | run 1 | the auto-capture had to bypass the Eval-Driven Law gate, whose waiver only the Maker can give | solved by C3-F15: the Maker commits with its waiver |
+| C3-F17 | runs 1, 2 | each Build beat took 67 to 75 minutes: the Maker re-ran the whole suite inside the sandbox, where six Gemini-calling test files hang on the blocked network; the driver's own verify takes 2.5 minutes outside it | 6.36.0: test what you changed; the driver runs the full suite |
+| C3-F18 | run 2, stopped at 17:40 | the owner had to close the laptop during Ship; a resume would have redone the Build beat although the same code had passed verify and review | 6.36.0: a passed review records its head; unchanged, the run resumes at Ship |
+| C3-F19 | logs | Maker and Checker ran on Opus (no `loop.models`): slower and dearer per beat | the owner's cost choice |
+| C3-F21 | the code MR | the team sees the loop's plumbing: the MR title starts "Conductor task task:kb-retire…", and the history holds a `chore(maker): auto-capture … [hook-bypassed]` commit from run 1 | open: a plain title for the code MR; squash on merge meanwhile |
+| C3-F20 | the resume, next morning | a resume keeps the interrupted run's clock, so the night counted against the 120-minute cap and the run stopped at once with `budget_exceeded` | 6.36.0: a resume restarts the wall clock; spent beats still count |
+
+### Lessons
+
+- **Scratch tests in Claude Code's temporary folder hide sandbox limits.** The sandbox lets a beat write in `/tmp/claude-<uid>` (not the rest of `/tmp`, which is read-only there): step 7's scratch run passed in it and failed here. Live tests now run outside it (CLAUDE.md).
+- **The loop is bound by the machine it runs on.** On eurassistant and evalapp-v2 a task took minutes; here a real item took hours on a business laptop that closes at day's end. A run must either fit the owner's day (say the expected end before starting) or survive being stopped (C3-F18, C3-F20), and long work wants a server (owner's thought, 2026-10-20: a VM or a scheduled pipeline, with its own forge and Claude logins).
+- **The run, end to end:** four runs over two days (escalated, stopped by hand, `budget_exceeded`, completed), ≈ $7.90 at list price, about 3 hours of beats, most of it the Maker re-running the full suite in the sandbox (C3-F17). The last run resumed at Ship (C3-F18) and finished in 32 minutes: code MR innovation/Autopportunity!259 (20 files, −594 lines), state MR !79 (ship-log, rulings, backlog tick, Nexus product area, and the km-workload-relief handoff kept true about the retired script).
+- **What the Checker caught, a person would have too:** System Health changes a label users see (rated low by the Maker), and two "assign a customer" endpoints no screen uses any more. Both went to the owner as decisions, not blocks.
+

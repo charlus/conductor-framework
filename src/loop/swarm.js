@@ -148,6 +148,7 @@ export function normalizeTask(task, defaults = {}) {
     answered_round: task.answered_round ?? null,
     stages_done: Array.isArray(task.stages_done) ? task.stages_done : [],
     stages_reviewed: Array.isArray(task.stages_reviewed) ? task.stages_reviewed : [],
+    reviewed_head: task.reviewed_head ?? null,
   };
 }
 
@@ -328,6 +329,15 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
     task.status = "passed";
     return { task, outcome: "passed" };
   }
+  // F18 (autopportunity, 2026-10-21): an interruption after a passed review
+  // (a laptop closed during Ship) must not cost another Build beat. The same
+  // reviewed code, unchanged, goes straight to Ship, which verifies and reviews
+  // the shipped state again.
+  if (task.reviewed_head && (await gitHead({ task })) === task.reviewed_head) {
+    await audit(`task ${task.id}: its code passed review before an interruption and is unchanged: resuming at Ship`);
+    task.status = "passed";
+    return { task, outcome: "passed" };
+  }
   while (task.iterations.current < task.iterations.max_allowed) {
     // Shared global budget across all concurrent tasks.
     if (budget.beats >= budget.maxBeats) return { task, outcome: "failed", reason: "global iteration ceiling" };
@@ -411,6 +421,7 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
       }
     }
     task.status = "passed";
+    task.reviewed_head = await gitHead({ task });
     return { task, outcome: "passed" };
   }
   return { task, outcome: "failed", reason: "per-task ceiling" };

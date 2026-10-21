@@ -40,6 +40,10 @@ export function reviveForResume(state) {
 
   let run = false;
   if (state && !isTerminal(state.status) && state.status !== "idle") {
+    // F20 (autopportunity, 2026-10-21): the wall clock limits a run while it
+    // runs. The hours a stopped run spent stopped (a laptop closed overnight)
+    // are not run time; the beats it spent still count against max_beats.
+    if (state.budget) state.budget.started_at = null;
     state.status = "idle";
     state.current_worker = null;
     state.maker_reported_done = false;

@@ -198,3 +198,35 @@ test("conductor status names waiting rounds and measures the owner's decisions",
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("F18: a task whose reviewed code has not changed since an interruption resumes at Ship, with no Build beat", async () => {
+  const calls = [];
+  const { state, deps } = swarm({
+    tasks: [{ id: "task:a", reviewed_head: "h-reviewed" }],
+    runBeat: async () => (calls.push("build"), { exitCode: 0, signal: { done: true } }),
+  });
+  deps.gitHead = async () => "h-reviewed";
+  deps.runShip = async () => (calls.push("ship"), { exitCode: 0 });
+  deps.shipEvidence = async () => ({ ok: true, reasons: [], body: "b" });
+  const s = await runSwarm(state, deps);
+  assert.ok(!calls.includes("build"), "no Build beat on code already reviewed");
+  assert.ok(calls.includes("ship"));
+  assert.equal(s.tasks[0].status, "merged");
+});
+
+test("F18: a passed review records the head it reviewed, and a new run carries it over", async () => {
+  const { carryOver } = await import("../src/loop/blueprint.js");
+  const { state, deps } = swarm({ tasks: [{ id: "task:b" }], runBeat: async () => ({ exitCode: 0, signal: { done: true } }) });
+  deps.gitHead = async () => "h1";
+  const s = await runSwarm(state, deps);
+  assert.equal(s.tasks[0].reviewed_head, "h1");
+  assert.equal(carryOver([{ id: "task:b", reviewed_head: "h1" }], [{ id: "task:b" }])[0].reviewed_head, "h1");
+});
+
+test("F20: resuming an interrupted run restarts its wall clock; the beats it spent still count", async () => {
+  const { reviveForResume } = await import("../src/loop/resume.js");
+  const state = { status: "running", iterations: { current: 3 }, budget: { started_at: "2026-10-20T14:19:08.000Z", max_wall_clock_min: 120 }, tasks: [{ id: "a", status: "in_progress" }] };
+  reviveForResume(state);
+  assert.equal(state.budget.started_at, null, "the night the laptop was closed does not count");
+  assert.equal(state.iterations.current, 3);
+});

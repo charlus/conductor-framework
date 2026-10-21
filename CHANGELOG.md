@@ -8,6 +8,24 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.36.0] — 2026-10-21 — The outer layout on a real project: commits, test time, interruptions
+
+Compatibility: upgrade only
+
+The first real run on autopportunity stopped after a 75-minute beat that had done the work: the sandbox makes the working directory's own git store writable, not the nested code repository's, so `git commit` in `repo/` failed and the Maker escalated. The driver's auto-capture then committed the code and had to bypass the Eval-Driven Law gate, which wanted a waiver only the Maker could give.
+
+### Fixed
+
+- **In the outer layout the sandbox may write what a commit writes in the code repository**: its `objects`, `refs`, `logs` and `worktrees`, and nothing else. Its `config` and `hooks` stay read-only, so a beat cannot switch the commit gates off. Proven with sandboxed commits outside Claude Code's temporary folder: without the grant, `index.lock: Read-only file system`; with it, the commit exits 0 and a write to `config` is still refused. `loop doctor --beat` uses the same grant.
+- **The beat is told how to commit there**, that a `packed-refs.lock` line is harmless when the commit exits 0, and that a failed commit is never a reason to escalate: the driver commits what a beat leaves.
+- **A Maker tests what it changed, not everything.** Each Build beat on autopportunity took 67 to 75 minutes: the Maker re-ran the whole suite inside the sandbox, where six test files that call Gemini hang on the blocked network. The driver runs the full verification command after the beat, outside the sandbox, in 2.5 minutes. `unattended-loop.md` now says so.
+- **An interrupted run resumes at Ship when its code already passed review.** A passed review records the head it reviewed (both repositories in the outer layout); a later run on the same unchanged head skips the Build beat. The owner had to close the laptop during Ship; the resume would have cost another hour of Build.
+- **A resumed run restarts its wall clock.** It kept the interrupted run's start time, so a night with the laptop closed counted against `max_wall_clock_min` and the resume stopped at once with `budget_exceeded`. The beats already spent still count against `max_beats`.
+
+Why the scratch run of 6.31.0 did not show it: the sandbox lets a beat write in Claude Code's temporary folder (`/tmp/claude-<uid>`), where that scratch layout lived. Live tests of the loop now run outside it.
+
+---
+
 ## [6.35.0] — 2026-10-20 — Loop worktrees always start from the default branch
 
 Compatibility: upgrade only

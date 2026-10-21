@@ -145,12 +145,18 @@ export function resolveForge({ override, remoteUrl }) {
 }
 
 /** F3: the template sandbox settings plus the project's domains. Never mutates the template. */
-export function mergeSandboxSettings(template, extraDomains = []) {
+export function mergeSandboxSettings(template, extraDomains = [], extraWrites = []) {
   const out = JSON.parse(JSON.stringify(template ?? {}));
   out.sandbox ??= {};
   out.sandbox.network ??= {};
   const base = Array.isArray(out.sandbox.network.allowedDomains) ? out.sandbox.network.allowedDomains : [];
   out.sandbox.network.allowedDomains = [...new Set([...base, ...extraDomains])];
+  // Step 7, F15: paths outside the worktree a beat may write (the code repository's git store).
+  if (extraWrites.length) {
+    out.sandbox.filesystem ??= {};
+    const w = Array.isArray(out.sandbox.filesystem.allowWrite) ? out.sandbox.filesystem.allowWrite : [];
+    out.sandbox.filesystem.allowWrite = [...new Set([...w, ...extraWrites])];
+  }
   return out;
 }
 

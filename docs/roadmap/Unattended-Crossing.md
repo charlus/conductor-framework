@@ -134,3 +134,25 @@ The first run of the outer layout (`loop.code_dir`, 6.31.0) on a team repository
 - **The run, end to end:** four runs over two days (escalated, stopped by hand, `budget_exceeded`, completed), ≈ $7.90 at list price, about 3 hours of beats, most of it the Maker re-running the full suite in the sandbox (C3-F17). The last run resumed at Ship (C3-F18) and finished in 32 minutes: code MR innovation/Autopportunity!259 (20 files, −594 lines), state MR !79 (ship-log, rulings, backlog tick, Nexus product area, and the km-workload-relief handoff kept true about the retired script).
 - **What the Checker caught, a person would have too:** System Health changes a label users see (rated low by the Maker), and two "assign a customer" endpoints no screen uses any more. Both went to the owner as decisions, not blocks.
 
+## Fourth crossing — four products in parallel, 2026-10-21
+
+The first run of several products at once on one machine (20 cores, 30 GB), after the owner gave the loop two backlog items in each of autopportunity, eurassistant, evalapp-v2 and website (the website loop works in its nested `website-v2026` repository; `website-cms` stays interactive). Followed on the watch tower (`conductor watch --all`, 6.42.0).
+
+| Product | Items | Wall time | Cost (list price) | MRs |
+|---|---|---|---|---|
+| eurassistant | 2 | 8 min | $2.88 | !52, !53 |
+| evalapp-v2 | 2 | 12 min | $3.28 | !109, !110 |
+| website | 2 | 22 min | $7.60 | code !29, !30 · state !26, !27 |
+| autopportunity | 2 | 87 min | $7.71 | code !260, !261 · state !83, !84 |
+
+Eight items, twelve MRs, no rejected review, no failure, every role on the owner's default model.
+
+### Lessons
+
+- **Four loops in parallel hold on one laptop.** The limit is each product's own test time, not the machine.
+- **On autopportunity, Ship dominated, not Build:** Build 17 and 4 minutes, Ship 27 and 30 minutes. The cause (C4-F1): the driver's verify ran the unit suite in 124–141 s outside the sandbox, but the Checker (618 s) and the Ship beat (605 s, twice) re-ran it inside the sandbox, where some tests probably wait on a blocked network. Fixed in 6.43.0: one full run, the driver's.
+- **One Ship beat missed the ship-log's For you block** and was retried once (4 minutes). The existing check caught it.
+- **The bottleneck moves to the owner:** twelve MRs to review, code before state in the outer layout.
+- **Found on the way:** a test run had written a scratch folder into the owner's real watch-tower list; every test script now gets its own `CONDUCTOR_HOME` (6.42.0).
+- **Outside Conductor:** the slowness of autopportunity's suite itself (and its network-dependent tests) is investigated in that project's own session.
+

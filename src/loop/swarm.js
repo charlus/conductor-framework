@@ -15,7 +15,7 @@
 // All IO (agent beats, verify, checker, merge, git, clock, persist) is injected
 // so the whole scheduler is unit-testable with stubs — no processes spawned.
 
-import { hashString, computeStallHash, normalizeVerifyOutput, preflight, describeHalt, beatCeiling, classifyBeatResult } from "./driver.js";
+import { hashString, computeStallHash, normalizeVerifyOutput, preflight, describeHalt, beatCeiling, classifyBeatResult, deadBeatStatus, deadBeatMessage } from "./driver.js";
 import { costGate, costGateMessage } from "./usage.js";
 import { runShipStage } from "./ship.js";
 import { roundKey as roundKeyOf } from "./questions.js";
@@ -220,7 +220,7 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
       files: await filesOf(from),
     });
   };
-  // A14: a beat where the agent CLI hit its usage limit did no work. Refund it
+  // A14: a beat where the agent CLI hit its usage limit (or could not log in) did no work. Refund it
   // and stop the whole run, as the pair does; the task resumes next run.
   const deadBeat = (result) => {
     const verdict = classifyBeatResult(result);
@@ -228,7 +228,7 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
     task.iterations.current -= 1;
     budget.beats -= 1;
     task.status = "pending";
-    return { task, outcome: "usage_limit", resetHint: verdict.resetHint };
+    return { task, outcome: "dead", verdict };
   };
   const escalated = async (result) => {
     const reason = escalationOf(result);
@@ -550,17 +550,13 @@ export async function runSwarm(state, deps) {
     );
     state.iterations.current = budget.beats;
 
-    const spent = results.find((r) => r.outcome === "usage_limit");
+    const spent = results.find((r) => r.outcome === "dead");
     if (spent) {
-      const resetNote = spent.resetHint ? ` — resets ${spent.resetHint}` : "";
-      await writeInbox(
-        state,
-        `agent CLI reported a usage/session limit${resetNote}. No work was done that beat; raise the limit or wait, then re-run to resume.`
-      );
-      await audit(`swarm: usage limit reached${resetNote}`);
+      await writeInbox(state, deadBeatMessage(spent.verdict));
+      await audit(`swarm: dead beat (${spent.verdict.kind}) → ${deadBeatStatus(spent.verdict)}`);
     }
     for (const { task, outcome, reason, raised, count } of results) {
-      if (outcome === "usage_limit") continue; // already back to pending
+      if (outcome === "dead") continue; // already back to pending
       if (outcome === "awaiting_answers") {
         task.status = "awaiting_answers";
         if (raised) {
@@ -580,7 +576,7 @@ export async function runSwarm(state, deps) {
     }
 
     if (spent) {
-      terminal = "usage_limit_reached";
+      terminal = deadBeatStatus(spent.verdict);
       // Tasks that passed in this wave still go through the merge queue below.
     }
 
@@ -627,10 +623,10 @@ export async function runSwarm(state, deps) {
           shipped.push(r);
           continue;
         }
-        if (s.outcome === "usage_limit") {
+        if (s.outcome === "dead") {
           t.status = "pending";
-          terminal = "usage_limit_reached";
-          await writeInbox(state, `agent CLI reported a usage/session limit${s.resetHint ? ` — resets ${s.resetHint}` : ""} during task ${t.id}'s Ship beat. Re-run to resume.`);
+          terminal = deadBeatStatus(s.verdict);
+          await writeInbox(state, deadBeatMessage(s.verdict, `during task ${t.id}'s Ship beat`));
           continue;
         }
         t.status = "failed";

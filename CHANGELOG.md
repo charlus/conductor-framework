@@ -8,6 +8,24 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.37.0] — 2026-10-21 — The loop reports what really happened: logins, invented quotes, cache
+
+Compatibility: upgrade only
+
+Four findings from reading *Harness Engineering 101* (Isuru Wijesiri) against `src/loop/`. Design and evidence: `docs/roadmap/Harness-Engineering-101-Harvest.md`.
+
+### Fixed
+
+- **An engine that cannot log in stops the run at once, with the status `auth_failed`.** Before, every beat failed the same way until the stall detector stopped the run, and the inbox said "stall". The claude adapter now keeps the API error status of a failed call; `codex exec` is matched on its `ERROR: unexpected status 401` line. The dead beat is refunded, the task resumes on the next run, and the inbox and `Next:` line say to log the CLI in again. Only a failed exit counts, so Maker output that mentions a 401 never halts a run, and a 5xx stays with the stall detector. Proven live with the real `claude -p` and `codex exec` and an invalid key.
+- **A Checker BLOCKER whose quote is not in the code is flagged.** Rubric v2 required a quote but never checked it. The driver now looks for each quote in the named file and in its diff from the default branch. An invented quote still rejects (the gate never gets weaker), but the verdict carries the "no quoted evidence" WARNING and the next Maker sees the finding marked "quote not found in the file: check it before you act on it". Not proven on a live Checker run.
+
+### Added
+
+- **The prompt-cache share per beat and per role.** The beat log adds `cached=N%` and `conductor status` shows "maker 4 beats $1.20, 92% cached". A cache break costs several times more and showed nowhere else. Claude engine only; other engines leave it out. Live: three consecutive beats read 0%, 70%, then 99% from the cache.
+- **`conductor loop doctor` warns when `loop.models` gives the Checker a weaker model than the Maker** (haiku < sonnet < opus). The loop opens an MR on the Checker's approval alone.
+
+---
+
 ## [6.36.0] — 2026-10-21 — The outer layout on a real project: commits, test time, interruptions
 
 Compatibility: upgrade only

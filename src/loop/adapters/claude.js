@@ -71,7 +71,7 @@ export function buildArgv({
 
 /**
  * Read the final object of `claude -p --output-format json`. Returns
- * { text, tokens, costUsd, model }, or null when stdout is not a result object
+ * { text, tokens, costUsd, model, inputTokens, cacheReadTokens, apiErrorStatus }, or null when stdout is not a result object
  * (a crash, a usage-limit banner printed before any JSON). Null fails open: the
  * caller keeps the raw stdout and records the usage as unknown.
  */
@@ -85,9 +85,16 @@ export function parseClaudeResult(stdout) {
   if (!obj || typeof obj !== "object" || Array.isArray(obj) || obj.type !== "result") return null;
   const u = obj.usage ?? {};
   const counts = [u.input_tokens, u.output_tokens, u.cache_creation_input_tokens, u.cache_read_input_tokens].filter(Number.isFinite);
+  const inputs = [u.input_tokens, u.cache_creation_input_tokens, u.cache_read_input_tokens].filter(Number.isFinite);
   return {
     text: typeof obj.result === "string" ? obj.result : "",
     tokens: counts.length ? counts.reduce((a, b) => a + b, 0) : null,
+    // All input, and the part served from the prompt cache: a low share means
+    // something rewrites the start of the prompt and every beat pays full price.
+    inputTokens: inputs.length ? inputs.reduce((a, b) => a + b, 0) : null,
+    cacheReadTokens: Number.isFinite(u.cache_read_input_tokens) ? u.cache_read_input_tokens : null,
+    // Set when the call itself failed (401 on a refused login): the driver halts on it.
+    apiErrorStatus: obj.is_error === true && Number.isFinite(obj.api_error_status) ? obj.api_error_status : null,
     costUsd: Number.isFinite(obj.total_cost_usd) ? obj.total_cost_usd : null,
     model: obj.modelUsage && typeof obj.modelUsage === "object" ? Object.keys(obj.modelUsage)[0] ?? null : null,
   };
@@ -125,6 +132,9 @@ export async function runBeat({
         tokens: parsed?.tokens ?? null,
         costUsd: parsed?.costUsd ?? null,
         model: parsed?.model ?? null,
+        inputTokens: parsed?.inputTokens ?? null,
+        cacheReadTokens: parsed?.cacheReadTokens ?? null,
+        apiErrorStatus: parsed?.apiErrorStatus ?? null,
       });
     });
   });

@@ -40,6 +40,24 @@ test("parseClaudeResult reads the text, tokens, cost and model", () => {
   assert.equal(r.model, "claude-sonnet-5-5");
 });
 
+test("parseClaudeResult splits input into fresh, cache-write and cache-read tokens", () => {
+  const r = parseClaudeResult(RESULT);
+  assert.equal(r.inputTokens, 1200 + 20000 + 90000);
+  assert.equal(r.cacheReadTokens, 90000);
+});
+
+// Captured from `claude -p --output-format json` with an invalid key (claude CLI, 2026-10-21).
+const AUTH_FAILED = JSON.stringify({
+  type: "result", subtype: "success", is_error: true, api_error_status: 401, terminal_reason: "api_error",
+  result: "Invalid API key · Fix external API key", total_cost_usd: 0,
+  usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, modelUsage: {},
+});
+
+test("parseClaudeResult keeps the API error status of a failed call", () => {
+  assert.equal(parseClaudeResult(AUTH_FAILED).apiErrorStatus, 401);
+  assert.equal(parseClaudeResult(RESULT).apiErrorStatus, null);
+});
+
 test("parseClaudeResult fails open on anything that is not a result object", () => {
   assert.equal(parseClaudeResult("You've hit your session limit · resets 3:00pm"), null);
   assert.equal(parseClaudeResult(""), null);
@@ -130,6 +148,49 @@ test("swarm: a beat that hit the usage limit halts the run and is not a rejectio
   assert.equal(final.tasks[0].rejected_beats, 0);
   assert.equal(final.tasks[0].iterations.current, 0, "the dead beat is refunded");
   assert.ok(inbox.some((l) => /usage\/session limit/.test(l) && /3:00pm/.test(l)));
+});
+
+test("recordUsage keeps the cached share of input per role, and status shows it", () => {
+  const state = normalizeState({});
+  recordUsage(state, { role: "maker", result: { tokens: 10, costUsd: 0.1, inputTokens: 1000, cacheReadTokens: 900 } });
+  recordUsage(state, { role: "maker", result: { tokens: 10, costUsd: 0.1, inputTokens: 1000, cacheReadTokens: 100 } });
+  assert.equal(state.budget.usage.maker.input_tokens, 2000);
+  assert.equal(state.budget.usage.maker.cache_read_tokens, 1000);
+  assert.match(usageSummary(state), /maker 2 beats \$0\.20, 50% cached/);
+  // An adapter that cannot tell (codex, agy) leaves the share out instead of showing 0%.
+  const other = normalizeState({});
+  recordUsage(other, { role: "maker", result: { tokens: null, costUsd: null } });
+  assert.doesNotMatch(usageSummary(other), /cached/);
+});
+
+test("swarm: a beat that failed to authenticate halts the run as auth_failed and is refunded", async () => {
+  let clock = 0;
+  let beats = 0;
+  const inbox = [];
+  const state = {
+    goal_description: "g", autonomy_level: "L3", sandbox: "container", phase: "execution",
+    iterations: { current: 0, max_allowed: 100 }, budget: { max_wall_clock_min: 120, started_at: null },
+    concurrency: 1, roles: ["maker", "checker"], tasks: [normalizeTask({ id: "a" })],
+  };
+  const final = await runSwarm(state, {
+    verifyCommand: "t",
+    runBeat: async () => ((beats += 1), { exitCode: 1, stdout: "Invalid API key · Fix external API key", apiErrorStatus: 401 }),
+    runVerify: async () => ({ exitCode: 0, output: "green" }),
+    runChecker: async () => ({ exitCode: 0 }),
+    gitHead: async () => "sha",
+    assignWorktree: async ({ task }) => ({ path: `/wt/${task.id}`, branch: `b/${task.id}` }),
+    now: () => (clock += 1000),
+    persist: async () => {},
+    audit: async () => {},
+    writeInbox: async (_s, r) => inbox.push(r),
+    log: () => {},
+  });
+  assert.equal(beats, 1, "no further beat once the engine cannot log in");
+  assert.equal(final.status, "auth_failed");
+  assert.equal(final.tasks[0].status, "pending", "the task resumes on the next run");
+  assert.equal(final.tasks[0].iterations.current, 0, "the dead beat is refunded");
+  assert.ok(inbox.some((l) => /log/i.test(l) && /401/.test(l)), inbox.join("\n"));
+  assert.ok(!inbox.some((l) => /usage\/session limit/.test(l)), "must not report a usage limit");
 });
 
 test("a new run resets cost, usage and the previous run's attempts", () => {

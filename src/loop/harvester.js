@@ -223,7 +223,8 @@ function findingLine(f) {
   if (!f || typeof f !== "object") return `- ${String(f).slice(0, 200)}`;
   const head = [f.severity, f.class ?? f.category].filter(Boolean).join(" ");
   const text = f.summary ?? f.message ?? f.issue ?? f.quote ?? JSON.stringify(f);
-  return `- ${head ? `${head}: ` : ""}${String(text).replace(/\s+/g, " ").slice(0, 200)}`;
+  const doubt = f.ungrounded ? "(quote not found in the file: check it before you act on it) " : "";
+  return `- ${head ? `${head}: ` : ""}${doubt}${String(text).replace(/\s+/g, " ").slice(0, 200)}`;
 }
 
 /**

@@ -428,6 +428,7 @@ Conductor was built by standing on the shoulders of giants. Each entry names wha
 
 **Reading that shaped the design**
 
+- Isuru Wijesiri, [Harness Engineering 101](https://github.com/IsuruMaduranga/harness-engineering-101) (prose CC BY-NC-ND, code MIT; ideas only, no text copied) — Watching the prompt-cache share as a cost signal, a model verdict that must cite something real, and the rule that a role whose report is trusted without a check must not run on a weaker model. What we took: [`docs/roadmap/Harness-Engineering-101-Harvest.md`](docs/roadmap/Harness-Engineering-101-Harvest.md).
 - Martin Fowler, [Harness engineering](https://martinfowler.com/articles/harness-engineering.html), and the code-smell catalogue from *Refactoring*.
 
 We believe in building on each other's work. If you find value in Conductor, consider contributing back.

@@ -31,6 +31,11 @@ export function recordUsage(state, { role, result }) {
     u.cost_usd = round(u.cost_usd + cost);
     b.cost_usd_spent = round((b.cost_usd_spent ?? 0) + cost);
   }
+  // The prompt-cache share: a cache break costs several times more and shows nowhere else.
+  if (Number.isFinite(result?.inputTokens) && Number.isFinite(result?.cacheReadTokens)) {
+    u.input_tokens = (u.input_tokens ?? 0) + result.inputTokens;
+    u.cache_read_tokens = (u.cache_read_tokens ?? 0) + result.cacheReadTokens;
+  }
   return state;
 }
 
@@ -66,10 +71,16 @@ export function usageSummary(state) {
   const parts = ROLES.filter((r) => usage[r]?.beats).map((r) => {
     const u = usage[r];
     const unknown = u.unknown ? `, ${u.unknown} unknown` : "";
-    return `${r} ${u.beats} beat${u.beats === 1 ? "" : "s"} ${money(u.cost_usd)}${unknown}`;
+    const cached = u.input_tokens > 0 ? `, ${cacheShare(u.cache_read_tokens, u.input_tokens)}% cached` : "";
+    return `${r} ${u.beats} beat${u.beats === 1 ? "" : "s"} ${money(u.cost_usd)}${cached}${unknown}`;
   });
   if (!parts.length) return "";
   return `≈ ${money(state.budget.cost_usd_spent ?? 0)} at list price (${parts.join(", ")})`;
+}
+
+/** Percent of input read from the prompt cache, rounded down. */
+export function cacheShare(cacheRead, input) {
+  return input > 0 ? Math.floor((100 * (cacheRead ?? 0)) / input) : null;
 }
 
 function round(n) {

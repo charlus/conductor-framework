@@ -36,6 +36,8 @@ export function nextAfterLoop(status, { prUrls = [] } = {}) {
       return "Next: raise `budget` in conductor/1-workbench/loop-state.json if the work deserves it, then run the loop again. It resumes.";
     case "usage_limit_reached":
       return "Next: wait for the engine's usage limit to reset, then run the loop again. It resumes.";
+    case "auth_failed":
+      return "Next: log the engine CLI in again (`claude` then `/login`, or `codex login`), then run the loop again. It resumes.";
     case "idle":
     case null:
     case undefined:

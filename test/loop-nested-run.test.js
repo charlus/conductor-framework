@@ -86,7 +86,7 @@ test("outer layout: a code worktree from main, the code in the code repository, 
     const r = spawnSync("node", [join(REPO, "bin/conductor.js"), "loop", p.root, "--from-conductor"], {
       cwd: p.root,
       encoding: "utf8",
-      env: { ...process.env, PATH: `${p.bin}:${process.env.PATH}`, STUB_LOG_DIR: join(p.base, "prompts"), STUB_CODE_DIR: "repo", CONDUCTOR_HOME: join(p.base, "home") },
+      env: { ...process.env, PATH: `${p.bin}:${process.env.PATH}`, STUB_LOG_DIR: join(p.base, "prompts"), STUB_CODE_DIR: "repo", CONDUCTOR_HOME: join(p.base, "home"), GEMINI_API_KEY: "placeholder", ANTHROPIC_API_KEY: "engine-key" },
       timeout: 120000,
     });
     assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -122,6 +122,11 @@ test("outer layout: a code worktree from main, the code in the code repository, 
     assert.ok(outerFiles.includes("conductor/0-compass/ship-log.md"));
     assert.ok(!outerFiles.some((f) => f.startsWith("repo/") || f === "src/built.js"));
     assert.ok(!G(p.root, "ls-tree", "-r", "--name-only", "FETCH_HEAD").split("\n").includes("conductor/owner-wip.md"), "the owner's outer branch is not the base of the state MR");
+
+    // P4: every beat ran with the app's provider key blank and the engine's own key kept.
+    const envs = readdirSync(join(p.base, "prompts")).filter((f) => f.endsWith(".env.json")).map((f) => JSON.parse(readFileSync(join(p.base, "prompts", f), "utf8")));
+    assert.ok(envs.length >= 3, `beats seen: ${envs.length}`);
+    assert.deepEqual([...new Set(envs.map((e) => `${e.GEMINI_API_KEY}|${e.ANTHROPIC_API_KEY}`))], ["|engine-key"]);
 
     // The Checker was told where the code diff is.
     const prompts = readdirSync(join(p.base, "prompts")).map((f) => readFileSync(join(p.base, "prompts", f), "utf8"));

@@ -28,7 +28,7 @@ export function nextAfterLoop(status, { prUrls = [] } = {}) {
     case "completed":
       return `Next: review and merge the MR${prUrls.length === 1 ? "" : "s"}${prUrls.length ? ` (${prUrls.join(", ")})` : ""}. After the merge, \`${LOOP}\` takes the next item.`;
     case "awaiting_review":
-      return "Next: review the branch named in conductor/1-workbench/inbox.md. Below L3 the loop does not open an MR.";
+      return "Next: read conductor/1-workbench/inbox.md. It names the branch to review: below L3 the loop opens no MR, and at L3 the inbox says why the MR could not be opened.";
     case "escalated":
       return "Next: read conductor/1-workbench/inbox.md. The loop needs something only you can give, then run it again.";
     case "budget_exceeded":

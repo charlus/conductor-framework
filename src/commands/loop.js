@@ -46,6 +46,7 @@ import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, w
 import { describeModels } from "../loop/profiles.js";
 import { makeEmitter } from "../loop/events.js";
 import { verifyWithEvidence } from "../loop/verify-evidence.js";
+import { blankedNames, beatEnv, withBeatEnv } from "../loop/beat-env.js";
 import { mrTitles, readOnlyEnv } from "../loop/team-facing.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
@@ -722,7 +723,9 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   };
   const models = effectiveModels(loopConfig);
   const roleModels = resolved.adapter.name === "claude" ? models : {};
-  const modelled = withRoleModels(resolved.adapter, roleModels);
+  // P4: the app's provider keys are empty in every beat (loop.blank_env), never the engine's own.
+  const blanked = blankedNames(loopConfig.blankEnv, resolved.adapter.name);
+  const modelled = withRoleModels(withBeatEnv(resolved.adapter, blanked.length ? beatEnv(blanked) : null), roleModels);
   const adapter = {
     ...modelled,
     runBeat: logged("maker", modelled.runBeat),
@@ -732,6 +735,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     runBlueprintBeat: logged("blueprint", modelled.runBlueprintBeat),
   };
   stdout.write(`[CONDUCTOR LOOP] platform: ${adapter.name}\n`);
+  if (blanked.length) stdout.write(`[CONDUCTOR LOOP] beats run with ${blanked.join(", ")} empty (loop.blank_env)\n`);
   if (Object.keys(models).length) {
     if (adapter.name === "claude") stdout.write(`[CONDUCTOR LOOP] models: ${loopConfig.profile ? `profile ${loopConfig.profile} — ` : ""}${describeModels(models, { inline: true })}\n`);
     else stderr.write(`[CONDUCTOR LOOP] ⚠️  the model profile applies to the claude engine only; ${adapter.name} runs its own default model\n`);

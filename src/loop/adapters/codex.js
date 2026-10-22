@@ -44,10 +44,10 @@ export async function isAvailable() {
 }
 
 /** Run one beat: `codex exec <prompt> -s <read-only|workspace-write>` in `cwd`. */
-export async function runBeat({ promptPath, cwd = process.cwd(), permissionMode = "acceptEdits" }) {
+export async function runBeat({ promptPath, cwd = process.cwd(), permissionMode = "acceptEdits", env = null }) {
   const prompt = await readFile(promptPath, "utf8");
   return await new Promise((resolve, reject) => {
-    const child = spawn(CLI, beatArgs({ prompt, permissionMode }), { cwd, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(CLI, beatArgs({ prompt, permissionMode }), { cwd, env: env ?? process.env, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (d) => (stdout += d.toString()));

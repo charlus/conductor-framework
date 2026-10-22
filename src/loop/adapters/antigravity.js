@@ -67,12 +67,13 @@ export async function isAvailable() {
  * The prompt BODY is passed (agy has no workflow-file discovery), mirroring the
  * codex adapter. `sandbox: true` adds agy's `--sandbox` (terminal restrictions).
  */
-export async function runBeat({ promptPath, cwd = process.cwd(), permissionMode = "acceptEdits", sandbox = false }) {
+export async function runBeat({ promptPath, cwd = process.cwd(), permissionMode = "acceptEdits", sandbox = false, env = null }) {
   const prompt = await readFile(promptPath, "utf8");
   return await new Promise((resolve, reject) => {
     // addDir: cwd anchors agy's workspace to the loop's worktree (see beatArgs).
     const child = spawn(CLI, beatArgs({ prompt, permissionMode, sandbox, addDir: cwd }), {
       cwd,
+      env: env ?? process.env,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";

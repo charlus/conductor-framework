@@ -13,6 +13,8 @@
 //   slices           ["<Project>"] | true → carved slices of these projects are loop work
 //   blueprint        ["<Project>"] | true → these projects' Blueprint, after Discovery, is loop work
 //   code_dir         "repo" → the code is this nested, gitignored repository (the outer layout)
+//   blank_env        ["GEMINI_API_KEY", …] → set empty in every beat's environment (default: the
+//                    common provider keys, minus the engine's own); [] turns it off
 //   cost_aware       true → budget.max_cost_usd halts the run (off: cost is shown, never acts)
 //   profile          "quality" | "balanced" → the model of every role (conductor loop profile)
 //   models           { maker, maker_escalation, checker, spec, blueprint, ship } → one role's model, over the profile
@@ -21,6 +23,8 @@
 // The driver reads this file from the ROOT checkout only, never from a worktree,
 // so a beat cannot widen its own sandbox or change its own setup. All helpers are
 // pure; the IO lives in src/commands/loop.js.
+
+import { DEFAULT_BLANK_ENV } from "./beat-env.js";
 
 const FORGES = ["gh", "glab"];
 // A hostname, optionally with one leading "*." wildcard label. No scheme, path,
@@ -51,7 +55,7 @@ const DOMAIN_RE = /^(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a
 export function parseLoopConfig(config) {
   const raw = config && typeof config === "object" && config.loop && typeof config.loop === "object" ? config.loop : {};
   const errors = [];
-  const out = { forge: null, setup: null, allowedDomains: [], requireReady: false, priorities: [], inbox: true, allowNestedRepo: false, models: {}, profile: null, costAware: false, slices: [], blueprint: [], codeDir: null, errors };
+  const out = { forge: null, setup: null, allowedDomains: [], requireReady: false, priorities: [], inbox: true, allowNestedRepo: false, models: {}, profile: null, costAware: false, slices: [], blueprint: [], codeDir: null, blankEnv: DEFAULT_BLANK_ENV, errors };
 
   if (raw.forge !== undefined && raw.forge !== null) {
     if (FORGES.includes(raw.forge)) out.forge = raw.forge;
@@ -110,6 +114,10 @@ export function parseLoopConfig(config) {
     const d = typeof raw.code_dir === "string" ? raw.code_dir.trim().replace(/\/+$/, "") : "";
     if (d && !d.startsWith("/") && !d.split("/").includes("..")) out.codeDir = d;
     else errors.push('loop.code_dir must be the relative path of the nested code repository, such as "repo"');
+  }
+  if (raw.blank_env !== undefined) {
+    if (Array.isArray(raw.blank_env) && raw.blank_env.every((n) => typeof n === "string" && /^[A-Za-z_][A-Za-z0-9_]*$/.test(n))) out.blankEnv = [...raw.blank_env];
+    else errors.push('loop.blank_env must be a list of environment variable names, such as ["GEMINI_API_KEY"], or [] to turn it off');
   }
   if (raw.cost_aware !== undefined) {
     if (typeof raw.cost_aware === "boolean") out.costAware = raw.cost_aware;

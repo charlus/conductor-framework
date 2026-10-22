@@ -8,6 +8,17 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.49.0] — 2026-10-22 — Beats no longer stall on a placeholder provider key
+
+Compatibility: upgrade only
+
+### Fixed
+
+- **A beat runs with the app's provider API keys empty.** `loop.setup` often copies `.env.example`, and its placeholder key (`GEMINI_API_KEY=your_…`) makes app code call the provider. Behind the sandbox's blocked network the client retries until its deadline: on a real project 600 s per test, and a Checker or Ship beat of more than 20 minutes. Every beat now runs with `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` set to empty, minus the engine's own credential (the claude engine keeps `ANTHROPIC_API_KEY`, codex keeps `OPENAI_API_KEY`, antigravity keeps the Google keys). An empty variable wins over the `.env` file for `load_dotenv()` and pydantic-settings, so the app takes its "no key" path. Proven in the real sandbox: the 9 tests that stalled pass in 9 s. The driver's verify still runs as CI does. Change the list with `loop.blank_env` in `conductor.config.json`, or set `[]` to turn it off. The run prints which variables are empty.
+- **The `Next:` line after a run that ends `awaiting_review`** no longer says only "Below L3 the loop does not open an MR". An L3 run whose MR could not be opened ends the same way, and the line now points to the inbox for the reason.
+
+---
+
 ## [6.48.0] — 2026-10-22 — Doctor names the project folder
 
 Compatibility: upgrade only

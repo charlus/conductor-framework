@@ -23,11 +23,12 @@ const src = (rel) => readFileSync(join(REPO, rel), "utf8");
 // Flags of other tools (git, claude) that the command files pass on, not parse.
 const NOT_OURS = {
   "install-hooks": ["--get", "--git-path", "--is-inside-work-tree", "--local", "--unset"],
-  loop: ["-b", "-h", "--help", "--path-format=absolute", "--path-format", "--git-common-dir", "--git-path", "--hostname", "--name-only", "--porcelain", "-q", "--beat"],
+  loop: ["--verify", "--is-ancestor", "--heads", "-e", "-b", "-h", "--help", "--path-format=absolute", "--path-format", "--git-common-dir", "--git-path", "--hostname", "--name-only", "--porcelain", "-q", "--beat"],
   "loop-doctor": ["--path-format", "--git-common-dir", "-c", "--detach", "--force", "--hostname", "--output-format", "-p", "--permission-mode", "-q", "--settings"],
   "loop-on": ["--error-unmatch", "-c"],
   "loop-take": ["--git-common-dir"],
   watch: ["--path-format=absolute", "--path-format", "--git-common-dir"],
+  work: ["-c"],
   personas: ["--exclude-standard", "--name-only", "--others"],
   "trust-verify": ["-c", "--show-toplevel"],
   upgrade: ["-c", "-z", "--cached", "--git-path", "--is-inside-work-tree", "-m", "--porcelain", "-q", "--quiet", "--short", "--verify"],

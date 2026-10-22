@@ -3,7 +3,8 @@
 # Conductor post-merge hook: cleanup after `git pull`.
 #
 # When the owner pulls, the MRs he merged on the forge arrive. A `conductor
-# loop` worktree whose branch is now contained in the default branch is
+# loop` worktree, or an interactive item's (`conductor work`, branch
+# conductor/work/), whose branch is now contained in the default branch is
 # finished: remove it and its local branch, so nobody has to come back and say
 # "it is merged". Conservative: only a branch provably merged
 # (`merge-base --is-ancestor`), never a worktree with uncommitted changes, and
@@ -75,7 +76,7 @@ path="" branch=""
 while IFS= read -r line; do
   case "$line" in
     "worktree "*) path="${line#worktree }"; branch="" ;;
-    "branch refs/heads/conductor/loop/"*) branch="${line#branch refs/heads/}" ;;
+    "branch refs/heads/conductor/loop/"*|"branch refs/heads/conductor/work/"*) branch="${line#branch refs/heads/}" ;;
     "")
       if [ -n "$branch" ] && [ "${path#*/.agents/.worktrees/}" != "$path" ] \
         && [ -z "$(git -C "$path" status --porcelain 2>/dev/null)" ] \
@@ -84,7 +85,7 @@ while IFS= read -r line; do
         && loop_branch_merged "$branch"; then
         if git worktree remove --force "$path" 2>/dev/null; then
           git branch -q -D "$branch" 2>/dev/null
-          echo "Conductor: removed the merged loop worktree ${path##*/} ($branch)."
+          echo "Conductor: removed the merged worktree ${path##*/} ($branch)."
         fi
       fi
       path="" branch="" ;;

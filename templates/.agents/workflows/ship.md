@@ -23,6 +23,12 @@ You wear **two hats** here, and they must not be the same context:
 
 ---
 
+## Phase 0: Where to work
+
+**Work in the item's worktree:** run `conductor work <project>/<NN-slice>` first, then read, edit, test and commit only in the folder it prints (`conductor/` files too). The owner's folder stays on its default branch. In a loop beat, skip this. See `skills/git-worktrees/SKILL.md`. It reuses Build's worktree: every phase below happens there.
+
+---
+
 ## Phase 1: Empathy Audit
 
 **Goal:** Ensure the code is ready for the *next* mind that touches it — human **or** agent — and for long-term maintenance.
@@ -197,7 +203,7 @@ Then re-review **once**: a fresh reviewer, given round-1 findings *plus your dis
 
 **Announce:** *"Integrating with Git and creating the release."*
 
-0.  **Branch in a worktree:** never switch the branch of a shared checkout: another session may be working in it. Create the branch in its own worktree (`.agents/skills/git-worktrees/SKILL.md`), the `conductor/` bookkeeping too.
+0.  **Branch in a worktree:** never switch the branch of a shared checkout. Commit and push from the item's worktree (Phase 0). The owner's next `git pull` after the merge removes it.
 1.  **Platform Discovery:**
     * Before creating a Pull Request (PR) or Merge Request (MR), determine the current platform and available CLI tools.
     * Check if `gh` (GitHub CLI) or `glab` (GitLab CLI) is installed and authenticated (`gh auth status` or `glab auth status`).

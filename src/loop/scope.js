@@ -15,7 +15,6 @@
 // Pure except where a function says it reads the disk.
 
 import { normalizeState } from "./driver.js";
-import { BLUEPRINT_STAGES } from "./blueprint.js";
 
 export const RUNS_DIR = "runs";
 
@@ -74,45 +73,4 @@ export function scopedState(rootRaw, projectRaw) {
 /** The loop settings narrowed to one project: its Blueprint and slices, no backlog, no inbox. */
 export function scopeLoopConfig(loopConfig, project) {
   return { ...loopConfig, slices: [project], blueprint: [project], inbox: false, requireReady: true, priorities: [] };
-}
-
-/**
- * What the run will build, in plain words. `item` is the harvested work item or
- * null, `openSlices` the number of slices still in implementations/,
- * `inReview` the item whose MRs are open, or null.
- * @returns {string[]}
- */
-export function describeScope({ project, item, openSlices = 0, inReview = null, carved = false }) {
-  const cmd = `conductor loop ${project}`;
-  if (item?.type === "blueprint") {
-    const done = new Set(item.stages_done ?? []);
-    const left = BLUEPRINT_STAGES.filter((s) => !done.has(s.key));
-    const names = left.map((s) => STAGE_NAME[s.key] ?? s.key);
-    const doneNames = BLUEPRINT_STAGES.filter((s) => done.has(s.key)).map((s) => STAGE_NAME[s.key] ?? s.key);
-    return [
-      `${project}: ${names.join(", then ")}${doneNames.length ? ` (already done: ${doneNames.join(", ")})` : ""}.`,
-      "It ends with one merge request. Merge it, then run the same command again: the loop builds the slices that the Carve made.",
-    ];
-  }
-  if (item?.type === "slice") {
-    return [
-      `${project}: slice ${item.source?.slice} (${openSlices} slice${openSlices === 1 ? "" : "s"} left, this one included).`,
-      "Each slice ends with merge requests for you. The next slice starts only after you merge them and run the same command again.",
-    ];
-  }
-  if (inReview) {
-    return [`${project}: nothing to build now. ${label(inReview)} waits for you to merge its merge requests. Merge them, then run \`${cmd}\` again.`];
-  }
-  if (carved && openSlices === 0) return [`${project}: nothing to build. Every carved slice is shipped.`];
-  return [`${project}: nothing the loop can build yet. Its Discovery (Genesis and Storyboard) must be done first.`];
-}
-
-const STAGE_NAME = { "grand-prd": "Grand PRD", "ux-ui-brief": "UX/UI Brief", "technical-vision": "Technical Vision", carve: "Carve" };
-
-const label = (t) => (t.type === "slice" ? `Slice ${t.source?.slice}` : t.type === "blueprint" ? "Its Blueprint" : t.title ?? t.id);
-
-/** The Blueprint stages still to run, for the dry-run route. */
-export function remainingRoute(item) {
-  const done = new Set(item?.stages_done ?? []);
-  return BLUEPRINT_STAGES.filter((s) => !done.has(s.key)).map((s) => s.workflow).join(" → ");
 }

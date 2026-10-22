@@ -30,25 +30,26 @@ import { QUESTIONS_REL, roundKey, parseRound, checkRound, roundAnswered } from "
 import { stage as loopStage, stageWorkflowPath } from "../loop/stages.js";
 import { commandHelp } from "../usage.js";
 import { nextAfterLoop } from "../next-step.js";
-import { BLUEPRINT_STAGES, DISCOVERY, TEMPLATE_FOR, harvestBlueprints, blueprintStageEvidence, carryOver } from "../loop/blueprint.js";
+import { BLUEPRINT_STAGES, DISCOVERY, TEMPLATE_FOR, harvestBlueprints, blueprintStageEvidence, carryOver, missingOwnerDocs } from "../loop/blueprint.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { ignoredNestedRepos } from "../nested-repos.js";
-import { codePaths, ensureCodeWorktree, codeHasWork, mergeNested, stateMrBody, codeMrBody, unionBranches, refusedNestedRepos, checkerNestedNote, nestedSandboxWrites } from "../loop/nested.js";
+import { codePaths, ensureCodeWorktree, codeHasWork, squashOnto, mergeNested, stateMrBody, codeMrBody, unionBranches, refusedNestedRepos, checkerNestedNote, nestedSandboxWrites } from "../loop/nested.js";
 import { recordUsage, usageSummary, cacheShare } from "../loop/usage.js";
 import { newRulings, rulingInboxLines, rulingsPrBody, rulingsForChecker, RULINGS_REL } from "../loop/rulings.js";
 import { renderShipAssignment, shipBeatSection, sectionOf, checkShipEvidence, PR_BODY_REL } from "../loop/ship.js";
 import { harvestSlices, specEvidence as checkSpecEvidence, PROJECTS_REL } from "../loop/slices.js";
-import { pruneMergedLoopWorktrees, remoteLoopBranches, mergedBranches, skipClaimed, defaultBranchRef, markWorktreeHeld, removeHeldWorktrees } from "../loop/reconcile.js";
+import { pruneMergedLoopWorktrees, LOOP_PREFIX, WORK_PREFIX, remoteLoopBranches, mergedBranches, skipClaimed, defaultBranchRef, markWorktreeHeld, removeHeldWorktrees } from "../loop/reconcile.js";
 import { forgeMergedHead } from "../live-state.js";
 import { readReady } from "../loop/ready-queue.js";
 import { gitCommonDir as gitDirOf } from "./loop-take.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels, effectiveModels } from "../loop/config.js";
 import { describeModels } from "../loop/profiles.js";
 import { makeEmitter } from "../loop/events.js";
-import { positionals, looksLikeProject, runKey, scopedState, scopeLoopConfig, describeScope, RUNS_DIR } from "../loop/scope.js";
+import { positionals, looksLikeProject, runKey, scopedState, scopeLoopConfig, RUNS_DIR } from "../loop/scope.js";
 import { verifyWithEvidence } from "../loop/verify-evidence.js";
 import { blankedNames, beatEnv, withBeatEnv } from "../loop/beat-env.js";
 import { mrTitles, readOnlyEnv } from "../loop/team-facing.js";
+import { STACK_FILE, REPORT_REL, forgeBranchMr, closeMr, reconcileStack, stackTop, stackNote, renderStackReport, summaryFromBody } from "../loop/stack.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
 const LOCK_REL = "conductor/1-workbench/loop.lock";
@@ -315,46 +316,313 @@ async function writeTriggerDoc(root, provenance) {
 }
 
 /** Step 3: the opted-in projects' open slices and the carve templates, from the root checkout. */
-export async function readSlices(root, optIn) {
-  const read = async (p) => ((await exists(p)) ? readFile(p, "utf8") : "");
-  const tpl = (name) => read(join(root, "conductor/5-templates/carve-workflow", name));
+/**
+ * The project files as the loop reads them: the owner's folder on disk, or the
+ * tree of a git ref (a stacked run reads the branch of the item below).
+ * Paths are relative to `root`.
+ */
+export function diskView(root) {
+  return {
+    exists: (rel) => exists(join(root, rel)),
+    read: async (rel) => ((await exists(join(root, rel))) ? readFile(join(root, rel), "utf8") : ""),
+    list: async (rel) => ((await exists(join(root, rel))) ? (await readdir(join(root, rel), { withFileTypes: true })).map((e) => ({ name: e.name, dir: e.isDirectory() })) : []),
+  };
+}
+
+export function refView(root, ref) {
+  const tree = async (rel) => {
+    const r = await runCli("git", ["ls-tree", ref, `${rel.replace(/\/+$/, "")}/`], root);
+    if (!r.ok || !r.stdout) return [];
+    return r.stdout.split("\n").filter(Boolean).map((l) => {
+      const [meta, path] = l.split("\t");
+      return { name: path.split("/").pop(), dir: meta.split(" ")[1] === "tree" };
+    });
+  };
+  return {
+    exists: async (rel) => (await runCli("git", ["cat-file", "-e", `${ref}:${rel}`], root)).ok,
+    read: async (rel) => {
+      const r = await runCli("git", ["show", `${ref}:${rel}`], root);
+      return r.ok ? r.stdout : "";
+    },
+    list: tree,
+  };
+}
+
+export async function readSlices(root, optIn, view = diskView(root)) {
+  const tpl = (name) => diskView(root).read(join("conductor/5-templates/carve-workflow", name));
   const projects = [];
-  const base = join(root, PROJECTS_REL);
-  for (const name of (await exists(base)) ? await readdir(base) : []) {
-    const impl = join(base, name, "implementations");
-    if (!(await exists(impl))) continue;
+  for (const entry of await view.list(PROJECTS_REL)) {
+    if (!entry.dir) continue;
+    const name = entry.name;
+    const impl = `${PROJECTS_REL}/${name}/implementations`;
+    const listed = await view.list(impl);
+    if (!listed.length) continue;
     const slices = [];
-    for (const s of await readdir(impl)) {
-      const dir = join(impl, s);
-      if (!(await exists(join(dir, "feature-spec.md"))) && !(await exists(join(dir, "implementation-plan.md")))) continue;
-      slices.push({ name: s, spec: await read(join(dir, "feature-spec.md")), plan: await read(join(dir, "implementation-plan.md")) });
+    for (const s of listed) {
+      if (!s.dir) continue;
+      const dir = `${impl}/${s.name}`;
+      if (!(await view.exists(`${dir}/feature-spec.md`)) && !(await view.exists(`${dir}/implementation-plan.md`))) continue;
+      slices.push({ name: s.name, spec: await view.read(`${dir}/feature-spec.md`), plan: await view.read(`${dir}/implementation-plan.md`) });
     }
     projects.push({ name, slices });
   }
   return { projects, optIn, specTemplate: await tpl("feature-spec.md"), planTemplate: await tpl("implementation-plan.md") };
 }
 
-/** Step 5: the documents of each project, read from the root checkout, and their templates. */
-export async function readBlueprints(root, optIn) {
-  const read = async (p) => ((await exists(p)) ? readFile(p, "utf8") : "");
+/** Step 5: the documents of each project, read from the root checkout (or a ref), and their templates. */
+export async function readBlueprints(root, optIn, view = diskView(root)) {
+  const disk = diskView(root);
   const templates = {};
-  for (const [rel, t] of Object.entries(TEMPLATE_FOR)) templates[rel] = await read(join(root, "conductor/5-templates", t));
+  for (const [rel, t] of Object.entries(TEMPLATE_FOR)) templates[rel] = await disk.read(join("conductor/5-templates", t));
   const projects = [];
-  const base = join(root, PROJECTS_REL);
-  for (const entry of (await exists(base)) ? await readdir(base, { withFileTypes: true }) : []) {
-    if (!entry.isDirectory()) continue; // .gitkeep and other files are not projects
+  for (const entry of await view.list(PROJECTS_REL)) {
+    if (!entry.dir) continue; // .gitkeep and other files are not projects
     const name = entry.name;
-    const dir = join(base, name);
+    const dir = `${PROJECTS_REL}/${name}`;
     const docs = {};
-    for (const rel of [...DISCOVERY, ...BLUEPRINT_STAGES.map((s) => s.doc)]) docs[rel] = await read(join(dir, rel));
-    const impl = join(dir, "implementations");
-    const carved = (await exists(impl)) && (await readdir(impl)).length > 0;
+    for (const rel of [...DISCOVERY, ...BLUEPRINT_STAGES.map((s) => s.doc)]) docs[rel] = await view.read(`${dir}/${rel}`);
+    // Carved: slices are open, or the Carve's overview is written (every slice may be shipped and archived).
+    const carved = (await view.list(`${dir}/implementations`)).length > 0 || Boolean((await view.read(`${dir}/blueprint/implementation-overview.md`)).trim());
     projects.push({ name, docs, carved });
   }
   return { projects, optIn, templates };
 }
 
-export async function loopCommand(args, { cwd, stdout, stderr }) {
+/**
+ * `conductor loop <project>`, the stacked run (owner, 2026-10-22). After the
+ * owner's approved Technical Vision, one command builds the Carve and every
+ * slice, each item on the branch of the item below it, until the project is
+ * built, an item asks a one-way question, or an item stops. Each item is one
+ * call of `loopCommand` with the stack's base and targets. The owner merges
+ * the MRs in order at the end. See src/loop/stack.js.
+ */
+async function stackedProjectRun(args, { cwd, stdout, stderr }, { scope, root, runDir, runsDir }) {
+  const dryRun = args.includes("--dry-run");
+  const cmd = `conductor loop ${scope}`;
+  let loopConfig;
+  try {
+    loopConfig = parseLoopConfig(await readRootConfig(root));
+  } catch (e) {
+    stderr.write(`Could not parse conductor.config.json: ${e.message}\n`);
+    return 1;
+  }
+  const rootGit = makeGit(root);
+  const codeRoot = loopConfig.codeDir ? join(root, loopConfig.codeDir) : null;
+  const codeGit = codeRoot ? makeGit(codeRoot) : null;
+  const forgeOf = async (dir) => {
+    const r = await runCli("git", ["remote", "get-url", "origin"], dir);
+    return resolveForge({ override: loopConfig.forge, remoteUrl: r.ok ? r.stdout : "" }).forge;
+  };
+  const outerForge = await forgeOf(root);
+  const codeForge = codeRoot && (await exists(join(codeRoot, ".git"))) ? await forgeOf(codeRoot) : null;
+  const run = (dir) => (c, argv) => runCli(c, argv, dir);
+  const remoteHead = async (g, branch) => {
+    const r = await g(["ls-remote", "--heads", "origin", branch]);
+    return r.ok && r.stdout ? r.stdout.split(/\s+/)[0] : null;
+  };
+
+  // The project's lock is held for the whole stacked run.
+  const lockPath = join(runDir, "loop.lock");
+  if (!dryRun) {
+    const whole = await liveLockPid(join(root, LOCK_REL));
+    if (whole) {
+      stderr.write(`⛔  A \`conductor loop --from-conductor\` run is going on in this folder (pid ${whole}), and it can take the same work. Wait for it to end, then run \`${cmd}\`.\n`);
+      return 1;
+    }
+    const lock = await acquireLock(lockPath);
+    if (!lock.acquired) {
+      stderr.write(`⛔  ${scope} is already being built by another loop in this folder (pid ${lock.heldByPid}). Watch it with \`conductor watch\`.\n`);
+      return 1;
+    }
+    await runCli("git", ["fetch", "-q", "origin"], root);
+    if (codeRoot) await runCli("git", ["fetch", "-q", "origin"], codeRoot);
+  }
+  const release = () => (dryRun ? Promise.resolve() : releaseLock(lockPath));
+  try {
+    // S8: the owner's phase ends with the approved Technical Vision, on the default branch.
+    const defaultRef = await defaultBranchRef(rootGit);
+    if (!defaultRef) {
+      stderr.write(`${root} has no default branch on origin (origin/HEAD, main or master): \`${cmd}\` builds on it.\n`);
+      return 1;
+    }
+    const atDefault = await readBlueprints(root, [scope], refView(root, defaultRef));
+    const proj = atDefault.projects.find((p) => p.name === scope);
+    const missing = proj ? missingOwnerDocs({ docs: proj.docs, templates: atDefault.templates, carved: proj.carved }) : [{ name: "Genesis", rel: "genesis/" }];
+    if (missing.length) {
+      stdout.write(
+        `${scope}: not started. The loop starts after you approve the Technical Vision, and ${defaultRef.replace(/^origin\//, "")} does not have ${missing.map((m) => `the ${m.name}`).join(", ")} yet ` +
+          `(${missing.map((m) => `${PROJECTS_REL}/${scope}/${m.rel}`).join(", ")}).\n` +
+          `Write and merge ${missing.length === 1 ? "it" : "them"}, then run \`${cmd}\` again.\n`
+      );
+      return 1;
+    }
+
+    const rawRoot = await readJson(join(root, STATE_REL)).catch(() => ({}));
+    const projState = scopedState(rawRoot, (await exists(join(runDir, "loop-state.json"))) ? await readJson(join(runDir, "loop-state.json")).catch(() => null) : null);
+    const branchFor = (id) => taskWorktreePlan(root, projState.goal_description, id).branch;
+
+    // The stack the last run left, checked against the forge.
+    const stackPath = join(runDir, STACK_FILE);
+    const recorded = (await exists(stackPath)) ? await readJson(stackPath).catch(() => []) : [];
+    const observed = [];
+    for (const e of recorded) {
+      const outer = await forgeBranchMr({ forge: outerForge, run: run(root), branch: e.outer.branch });
+      const code = e.code && codeForge ? await forgeBranchMr({ forge: codeForge, run: run(codeRoot), branch: e.code.branch }) : null;
+      observed.push({
+        outer: { state: outer?.state ?? null, head: await remoteHead(rootGit, e.outer.branch) },
+        code: e.code ? { state: code?.state ?? null, head: codeGit ? await remoteHead(codeGit, e.code.branch) : null } : null,
+      });
+    }
+    const { keep, superseded, notes } = reconcileStack(recorded, observed);
+    const entries = [...keep];
+    for (const n of notes) stdout.write(`[CONDUCTOR LOOP] ${n}\n`);
+    if (!dryRun) {
+      // The MRs above a closed or changed one are built on a base that is gone: close them.
+      for (const e of superseded) {
+        const comment = `Closed by \`${cmd}\`: the MR below it was closed or changed. The loop builds this item again on top.`;
+        for (const [forge, dir, side] of [[outerForge, root, e.outer], ...(e.code && codeForge ? [[codeForge, codeRoot, e.code]] : [])]) {
+          const mr = await forgeBranchMr({ forge, run: run(dir), branch: side.branch });
+          if (mr?.state === "open") await closeMr({ forge, run: run(dir), mr, comment });
+        }
+      }
+      await mkdir(runDir, { recursive: true });
+      await atomicWriteJson(stackPath, entries);
+    }
+
+    // The plan, in plain words, first.
+    const plan = await planStack(root, scope, entries.length ? `origin/${stackTop(entries).outer?.branch ?? ""}` : defaultRef, defaultRef, stackTop(entries));
+    stdout.write(
+      `${scope}: ${plan.items.length ? `${plan.items.map((t) => itemName(t)).join(", then ")}.` : "nothing left to build."}` +
+        `${entries.filter((e) => !e.merged).length ? ` On top of ${entries.filter((e) => !e.merged).length} item(s) already waiting for your merge.` : ""}\n` +
+        "Each item starts from the one below it, so nothing waits for a merge. One-way questions stop the run: you answer, then run the same command again.\n" +
+        `At the end you merge the MRs in order. The list is in ${REPORT_REL(scope)}.\n` +
+        `Budget: each item gets up to ${projState.budget.max_beats} beats and ${projState.budget.max_wall_clock_min} minutes (loop-state.json).\n\n`
+    );
+
+    let stop = null;
+    for (let guard = 0; guard < 200; guard++) {
+      const top = stackTop(entries);
+      const viewRef = top.outer ? `origin/${top.outer.branch}` : defaultRef;
+      const next = (await planStack(root, scope, viewRef, defaultRef, top)).items[0];
+      if (!next) {
+        stop = { status: "done" };
+        break;
+      }
+      const branch = branchFor(next.id);
+      const belowHeads = { outer: top.outer?.head ?? (await gitRev(rootGit, defaultRef)), code: top.code?.head ?? (codeGit ? await gitRev(codeGit, (await defaultBranchRef(codeGit)) ?? "HEAD") : null) };
+      // An MR an earlier run opened for this item, on this base, is taken as it is.
+      const open = await forgeBranchMr({ forge: outerForge, run: run(root), branch });
+      const head = open?.state === "open" ? await remoteHead(rootGit, branch) : null;
+      if (head && belowHeads.outer && (await runCli("git", ["merge-base", "--is-ancestor", belowHeads.outer, head], root)).ok) {
+        const codeMr = codeForge ? await forgeBranchMr({ forge: codeForge, run: run(codeRoot), branch }) : null;
+        const codeHead = codeMr?.state === "open" ? await remoteHead(codeGit, branch) : null;
+        entries.push({
+          id: next.id,
+          title: itemName(next),
+          outer: { branch, head, url: open.url },
+          code: codeHead ? { branch, head: codeHead, url: codeMr.url } : null,
+          base: belowHeads,
+          adopted: true,
+        });
+        stdout.write(`[CONDUCTOR LOOP] ${itemName(next)}: its MR is already open (${open.url}). Taken into the stack as it is.\n`);
+        if (!dryRun) await atomicWriteJson(stackPath, entries);
+        continue;
+      }
+      if (dryRun) {
+        stdout.write(`Next: ${itemName(next)}, built on ${viewRef.replace(/^origin\//, "")}.\n\n`);
+        return loopCommand(args, { cwd, stdout, stderr, stack: { itemId: next.id, viewRef } });
+      }
+      const below = [...entries].reverse().find((e) => !e.merged) ?? null;
+      const belowCode = [...entries].reverse().find((e) => !e.merged && e.code) ?? null;
+      stdout.write(`\n[CONDUCTOR LOOP] building ${itemName(next)} on ${viewRef.replace(/^origin\//, "")}\n`);
+      const code = await loopCommand(args, {
+        cwd,
+        stdout,
+        stderr,
+        stack: {
+          itemId: next.id,
+          viewRef,
+          outerBase: top.outer ? `origin/${top.outer.branch}` : null,
+          outerTarget: top.outer?.branch ?? null,
+          codeBase: top.code ? `origin/${top.code.branch}` : null,
+          codeTarget: top.code?.branch ?? null,
+          belowUrl: below?.outer.url ?? null,
+          belowCodeUrl: belowCode?.code?.url ?? null,
+          onInterrupt: () => writeStackReport(root, scope, entries, { status: "interrupted", item: itemName(next), reason: "you stopped the run" }, notes),
+        },
+      });
+      const st = await readJson(join(runDir, "loop-state.json")).catch(() => ({}));
+      const task = (st.tasks ?? []).find((t) => t.id === next.id);
+      if (task?.status === "merged" && task.merge?.pr_url) {
+        await runCli("git", ["fetch", "-q", "origin"], root);
+        if (codeRoot) await runCli("git", ["fetch", "-q", "origin"], codeRoot);
+        const codeUrl = task.merge.code_pr_url ?? null;
+        entries.push({
+          id: next.id,
+          title: itemName(next),
+          outer: { branch, head: await remoteHead(rootGit, branch), url: task.merge.pr_url },
+          code: codeUrl ? { branch, head: codeGit ? await remoteHead(codeGit, branch) : null, url: codeUrl } : null,
+          base: belowHeads,
+          summary: summaryFromBody(task.ship?.body ?? null),
+          rulings: task.rulings ?? [],
+          cost_usd: st.budget?.cost_usd_spent ?? null,
+        });
+        await atomicWriteJson(stackPath, entries);
+        continue;
+      }
+      stop = {
+        status: st.status ?? (code === 0 ? "stopped" : "failed"),
+        item: itemName(next),
+        ...(st.status === "awaiting_answers" ? { round: `${QUESTIONS_REL}/` } : {}),
+      };
+      break;
+    }
+    if (dryRun) {
+      stdout.write("Nothing to build.\n");
+      return 0;
+    }
+    const report = await writeStackReport(root, scope, entries, stop, notes);
+    stdout.write(`\n${report}`);
+    const open = entries.filter((e) => !e.merged).length;
+    stdout.write(
+      `\n[CONDUCTOR LOOP] Next: ${stop?.status === "awaiting_answers" ? `answer the questions in conductor/1-workbench/questions/, then run \`${cmd}\` again.` : stop?.status === "done" ? (open ? `merge the ${open} item(s) in the order of ${REPORT_REL(scope)}.` : "nothing.") : `read conductor/1-workbench/inbox.md, then run \`${cmd}\` again.`}\n`
+    );
+    return stop?.status === "done" || stop?.status === "awaiting_answers" ? 0 : 1;
+  } finally {
+    await release();
+  }
+}
+
+/** The items left to build at `viewRef`, in order: the Carve, then each open slice. */
+async function planStack(root, scope, viewRef) {
+  const view = refView(root, viewRef);
+  const bps = harvestBlueprints(await readBlueprints(root, [scope], view));
+  if (bps.length) return { items: bps };
+  const sl = (await readSlices(root, [scope], view)).projects.find((p) => p.name === scope);
+  const names = [...(sl?.slices ?? [])].map((s) => s.name).sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
+  const first = harvestSlices(await readSlices(root, [scope], view));
+  return { items: first.length ? [first[0], ...names.slice(1).map((n) => ({ id: `slice:${scope}/${n}`, type: "slice", source: { slice: n } }))] : [] };
+}
+
+const itemName = (t) => (t.type === "blueprint" ? "the Carve" : `slice ${t.source?.slice ?? t.id}`);
+
+async function gitRev(g, ref) {
+  const r = await g(["rev-parse", ref]);
+  return r.ok ? r.stdout : null;
+}
+
+async function writeStackReport(root, project, entries, stop, notes) {
+  const text = renderStackReport({ project, entries, stop, notes });
+  try {
+    await mkdir(join(root, "conductor/1-workbench"), { recursive: true });
+    await writeFile(join(root, REPORT_REL(project)), text, "utf8");
+  } catch {
+    /* the report is printed too */
+  }
+  return text;
+}
+
+export async function loopCommand(args, { cwd, stdout, stderr, stack = null }) {
   // Before any state read or gate: help must never be refused.
   if (args.includes("--help") || args.includes("-h")) {
     stdout.write(`${LOOP_HELP}\n`);
@@ -428,6 +696,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       stderr.write(`\`conductor loop ${scope}\` builds that project: --goal and --event do not apply.\n`);
       return 1;
     }
+    // The stacked run drives the project item by item; each item is one run of this function.
+    if (!stack) return stackedProjectRun(args, { cwd, stdout, stderr }, { scope, root, runDir, runsDir });
   }
   const statePath = scope ? join(runDir, "loop-state.json") : join(root, STATE_REL);
   const lockPath = scope ? join(runDir, "loop.lock") : join(root, LOCK_REL);
@@ -536,7 +806,6 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   // conductor/ in VS Code and the fleet draining it stay coherent. Never escalates
   // autonomy; the operator's autonomy_level/sandbox/concurrency still gate the run.
   let harvestedQueue = [];
-  let scopeInReview = null;
   if (fromConductor) {
     // A project's run never takes the inbox or the backlog.
     const inboxMd = !scope && (await exists(join(root, INBOX_REL))) ? await readFile(join(root, INBOX_REL), "utf8") : "";
@@ -550,18 +819,22 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       priorities: loopConfig.priorities,
       includeInbox: loopConfig.inbox,
     });
+    // A stacked item is read from the branch of the item below it.
+    const view = stack?.viewRef ? refView(root, stack.viewRef) : diskView(root);
     // Unattended Lifecycle step 3: the lowest open slice of each opted-in project.
     if (loopConfig.slices === true || loopConfig.slices.length) {
-      harvestedQueue = [...harvestedQueue, ...harvestSlices(await readSlices(root, loopConfig.slices))];
+      harvestedQueue = [...harvestedQueue, ...harvestSlices(await readSlices(root, loopConfig.slices, view))];
     }
     // Step 5: the Blueprint of each opted-in project whose Discovery is done.
     if (loopConfig.blueprint === true || loopConfig.blueprint.length) {
-      harvestedQueue = [...harvestedQueue, ...harvestBlueprints(await readBlueprints(root, loopConfig.blueprint))];
+      harvestedQueue = [...harvestedQueue, ...harvestBlueprints(await readBlueprints(root, loopConfig.blueprint, view))];
     }
+    // The stacked run builds one item per call, the one it chose: the Carve first.
+    if (stack) harvestedQueue = harvestedQueue.filter((t) => t.id === stack.itemId);
     // Unattended Lifecycle step 2: claims come from git. An item whose loop
     // branch is on the remote is in progress or in review elsewhere; nothing is
     // committed to the owner's checkout to mark it.
-    if (harvestedQueue.length) {
+    if (harvestedQueue.length && !stack) {
       const rootGit = makeGit(root);
       if (!dryRun) await runCli("git", ["fetch", "-q", "origin"], root);
       // Step 7: an item is taken when its branch is on either remote.
@@ -580,21 +853,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         for (const t of claims.mergedButOpen)
           stdout.write(`[CONDUCTOR LOOP] skipped ${t.id}: its loop branch is merged but the item is still open in the backlog — tick it\n`);
         harvestedQueue = claims.queue;
-        scopeInReview = claims.inReview[0] ?? null;
       }
-    }
-    if (scope) {
-      const sl = (await readSlices(root, [scope])).projects.find((p) => p.name === scope);
-      const lines = describeScope({
-        project: scope,
-        item: harvestedQueue[0] ?? null,
-        openSlices: sl?.slices.length ?? 0,
-        inReview: scopeInReview,
-        carved: Boolean(sl),
-      });
-      stdout.write(`${lines.join("\n")}\n\n`);
-      // Nothing to build: the plain line above is the whole answer.
-      if (!harvestedQueue.length) return 0;
     }
     // swarm route; normalizeTask preserves title/source/route, and what an item
     // earned in the last run (a passed review, an answered round) is carried over.
@@ -945,10 +1204,11 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     return openPullRequest({
       branch,
       title,
-      body: rulingsPrBody(await rulings(), shipBody()?.trim() || DEFAULT_PR_BODY),
+      body: `${stack ? stackNote({ below: stack.belowUrl }) : ""}${rulingsPrBody(await rulings(), shipBody()?.trim() || DEFAULT_PR_BODY)}`,
       git: makeGit(cwd),
       run: (cmd, argv) => runCli(cmd, argv, cwd),
       forge: forgeInfo.forge,
+      ...(stack ? { base: stack.outerTarget, stacked: true } : {}),
     });
   };
 
@@ -1005,12 +1265,35 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     if (!branch) return { ok: false, reason: "no worktree branch to open a PR from" };
     const code = codeWtOf(cwd);
     const body = rulingsPrBody(await rulings(), shipBody()?.trim() || DEFAULT_PR_BODY);
+    const hasCode = code ? await codeHasWork({ codeGit: makeGit(codeRoot), branch, base: stack?.codeBase ?? null }) : false;
+    // A stacked item's code is one commit on top of the item below it.
+    if (stack && hasCode) {
+      const codeBase = stack.codeBase ?? (await defaultBranchRef(makeGit(code)));
+      const sq = codeBase ? await squashOnto({ codeGit: makeGit(code), base: codeBase, message: title }) : { squashed: false, reason: "no base" };
+      await audit(sq.squashed ? `code squashed to one commit on ${codeBase}` : `code not squashed: ${sq.reason}`);
+    }
     return mergeNested({
-      hasCode: code ? await codeHasWork({ codeGit: makeGit(codeRoot), branch }) : false,
+      hasCode,
       openCode: async () =>
-        openPullRequest({ branch, title, body: codeMrBody({ body }), git: makeGit(code), run: (cmd, argv) => runCli(cmd, argv, code), forge: await codeForge() }),
+        openPullRequest({
+          branch,
+          title,
+          body: `${stack ? stackNote({ below: stack.belowCodeUrl }) : ""}${codeMrBody({ body })}`,
+          git: makeGit(code),
+          run: (cmd, argv) => runCli(cmd, argv, code),
+          forge: await codeForge(),
+          ...(stack ? { base: stack.codeTarget, stacked: true } : {}),
+        }),
       openState: ({ codeUrl }) =>
-        openPullRequest({ branch, title: `Conductor state: ${title}`, body: stateMrBody({ codeUrl, body }), git: makeGit(cwd), run: (cmd, argv) => runCli(cmd, argv, cwd), forge: forgeInfo.forge }),
+        openPullRequest({
+          branch,
+          title: `Conductor state: ${title}`,
+          body: stateMrBody({ codeUrl, body: `${stack ? stackNote({ below: stack.belowUrl }) : ""}${body}` }),
+          git: makeGit(cwd),
+          run: (cmd, argv) => runCli(cmd, argv, cwd),
+          forge: forgeInfo.forge,
+          ...(stack ? { base: stack.outerTarget, stacked: true } : {}),
+        }),
     });
   };
 
@@ -1098,7 +1381,9 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   // branch/PR and the conductor/ write-back. Refuse to start a second (dry-run,
   // which never mutates, is exempt above by returning before this point).
   // A project's run and a whole-folder run can take the same work: never both.
-  if (scope) {
+  if (stack) {
+    // The stacked driver holds the project's lock for the whole run.
+  } else if (scope) {
     const whole = await liveLockPid(join(root, LOCK_REL));
     if (whole) {
       stderr.write(`⛔  A \`conductor loop --from-conductor\` run is going on in this folder (pid ${whole}), and it can take the same work. Wait for it to end, then run \`${loopCmd}\`.\n`);
@@ -1111,7 +1396,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       return 1;
     }
   }
-  const lock = await acquireLock(lockPath);
+  const lock = stack ? { acquired: true } : await acquireLock(lockPath);
   if (!lock.acquired) {
     stderr.write(
       scope
@@ -1158,11 +1443,14 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     // F22: a squash-merged branch is merged when the forge says so.
     const forgeMerged = (dir) => (branch) => forgeMergedHead(dir, branch);
     const codeDir = loopConfig.codeDir ? join(root, loopConfig.codeDir) : null;
-    const code = codeDir ? await pruneMergedLoopWorktrees({ git: makeGit(codeDir), forgeMerged: forgeMerged(codeDir) }) : { removed: [], kept: [] };
+    // Interactive items (`conductor work`) merged since are cleaned up too.
+    const prefixes = [LOOP_PREFIX, WORK_PREFIX];
+    const code = codeDir ? await pruneMergedLoopWorktrees({ git: makeGit(codeDir), forgeMerged: forgeMerged(codeDir), prefixes }) : { removed: [], kept: [] };
     for (const w of code.removed) stdout.write(`[CONDUCTOR LOOP] removed the merged code worktree ${w.path} (${w.branch})\n`);
     const p = await pruneMergedLoopWorktrees({
       git: makeGit(root),
       forgeMerged: forgeMerged(root),
+      prefixes,
       skip: async (w) => (loopConfig.codeDir && (await exists(join(w.path, loopConfig.codeDir, ".git"))) ? "its code worktree is still open (the code MR is not merged yet)" : null),
     });
     for (const w of p.removed) stdout.write(`[CONDUCTOR LOOP] removed the merged loop worktree ${basename(w.path)} (${w.branch})\n`);
@@ -1172,7 +1460,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
 
   // Step 7: the outer layout runs work items (--from-conductor), not a free goal.
   if (loopConfig.codeDir && !(Array.isArray(state.tasks) && state.tasks.length > 0)) {
-    await releaseLock(lockPath);
+    if (!stack) await releaseLock(lockPath);
     stderr.write("⛔  With loop.code_dir, the loop runs work items from conductor/: use --from-conductor. A single --goal run (pair mode) is not supported in the outer layout.\n");
     return 1;
   }
@@ -1187,6 +1475,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     (async () => {
       await cleanupScoped().catch(() => {});
       await releaseLock(lockPath);
+      await stack?.onInterrupt?.().catch?.(() => {});
       process.exit(sig === "SIGINT" ? 130 : 143);
     })();
   };
@@ -1210,6 +1499,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     }
     await cleanupScoped().catch((e) => stderr.write(`[CONDUCTOR LOOP] ⚠️  cleanup failed: ${e.message}\n`));
     try {
+      if (stack) throw new Error("the stacked driver prints the next step");
       const after = await readJson(statePath);
       const prUrls = [after.merge?.pr_url, ...(after.tasks ?? []).flatMap((t) => [t.merge?.code_pr_url, t.merge?.pr_url])].filter((u) => u && u !== "n/a");
       const hint = nextAfterLoop(after.status, { prUrls: [...new Set(prUrls)], cmd: loopCmd });
@@ -1223,7 +1513,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   } finally {
     process.off("SIGINT", onSignal);
     process.off("SIGTERM", onSignal);
-    await releaseLock(lockPath);
+    if (!stack) await releaseLock(lockPath);
   }
 
   // -------------------------------------------------------------------------
@@ -1676,7 +1966,12 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         const alreadyThere = list.ok && list.stdout.includes(plan.path);
         if (!alreadyThere) {
           // F14: from the default branch, never from the branch the owner has checked out.
-          const base = (await defaultBranchRef(git)) ?? "HEAD";
+          // A stacked item starts from the branch of the item below it.
+          const base = stack?.outerBase ?? (await defaultBranchRef(git)) ?? "HEAD";
+          // Rebuilt on a new base: the old local branch of this item is not reused.
+          if (stack && (await git(["rev-parse", "--verify", "-q", `refs/heads/${plan.branch}`])).ok && !(await git(["merge-base", "--is-ancestor", base, plan.branch])).ok) {
+            await git(["branch", "-q", "-D", plan.branch]);
+          }
           const res = await git(["worktree", "add", "-b", plan.branch, plan.path, base]);
           if (!res.ok) await git(["worktree", "add", plan.path, plan.branch]);
         }
@@ -1690,7 +1985,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         // Step 7: the code worktree inside it, from the code repository's default branch.
         if (loopConfig.codeDir) {
           const { codeWorktree } = codePaths({ root, codeDir: loopConfig.codeDir, outerWorktree: plan.path });
-          const c = await ensureCodeWorktree({ codeGit: makeGit(codeRoot), path: codeWorktree, branch: plan.branch });
+          const c = await ensureCodeWorktree({ codeGit: makeGit(codeRoot), path: codeWorktree, branch: plan.branch, base: stack?.codeBase ?? null });
           if (!c.ok) return { path: plan.path, branch: plan.branch, setup_error: `code worktree: ${c.reason}` };
           await markWorktreeHeld({ git: makeGit(codeWorktree) });
           for (const rel of [MAKER_SIGNAL_REL, VERDICT_REL, PR_BODY_REL]) await hideFromGit(rel, { cwd: codeWorktree, git: makeGit(codeWorktree) });
@@ -1767,7 +2062,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         if (!loopConfig.codeDir || outer?.conflicted) return outer;
         const codeGit = makeGit(codeRoot);
         const base = await defaultBranchRef(codeGit);
-        if (!base || !(await codeHasWork({ codeGit, branch: task.worktree?.branch }))) return outer;
+        if (!base || !(await codeHasWork({ codeGit, branch: task.worktree?.branch, base: stack?.codeBase ?? null }))) return outer;
         const code = await predictConflicts({ git: codeGit, base, branch: task.worktree?.branch });
         return code?.conflicted ? { ...code, files: (code.files ?? []).map((f) => `${loopConfig.codeDir}/${f}`) } : outer;
       },

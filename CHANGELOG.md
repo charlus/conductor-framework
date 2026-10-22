@@ -8,6 +8,32 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.51.0] — 2026-10-22 — One command builds a whole project, stacked; your folder stays on its default branch
+
+Compatibility: upgrade only
+
+### Changed
+
+- **`conductor loop <project>` builds the whole project in one run.** After you approve the Technical Vision, it builds the Carve, then every slice, without waiting for a merge: each item starts from the branch of the item below it, and each MR targets that branch, in both repositories. You merge the MRs in order at the end. When you merge one and its source branch is deleted, the forge moves the MR above it to the default branch. A stacked code MR is not squashed on merge (the MR above it would show its changes again). The loop squashes each item's code to one commit before the push instead, so the team's history still gets one commit per item. Owner decision of 2026-10-22: it replaces the Blueprint sign-off before any slice (D4 of 2026-10-19) and the wait for a merge between slices.
+- **The loop starts only after your approved Technical Vision.** Your phase is Genesis, Storyboard, Grand PRD, UX/UI Design Brief and Technical Vision, written on the default branch. Before that, the command names the missing document and builds nothing. A project already carved is past this gate.
+- **One-way questions still stop the run.** An item that raises a question round stops there, and nothing is built above it. You answer, then run the same command again: it continues from that item.
+
+### Added
+
+- **The final report**, in `conductor/1-workbench/loop-report-<project>.md` and at the end of the run: the MRs in merge order with their links, what each item does, the decisions the loop took for you (overrule them in the MR), where the run stopped, and the cost.
+- **An MR you close is built again, with everything above it.** At the start of each run the loop checks the stack against the forge. An item whose MR you closed is rebuilt from the item below it. The MRs above it are closed with a comment, then built again on top. An MR you changed (a commit you pushed) is kept as you left it, and everything above it is built again on top. Merged items are never touched. An MR an earlier run opened for the next item, on the same base, is taken into the stack as it is.
+- **The start of the run says what each item may spend:** each item gets the beats and minutes of `budget` in `loop-state.json`.
+- **Interactive work has its own worktree: `conductor work <item>`.** Interactive Spec-It, Build, Ship and Quick-Path now start by running it. It makes (or reuses) a hidden worktree `.agents/.worktrees/work-<slug>` on branch `conductor/work/<slug>`, from the default branch, never from the branch your folder is on. In the outer layout it also makes a worktree of each code repository inside it, on the same branch, and runs `loop.setup` there once. The agent edits, tests and commits only there, so your folder and its code repository stay on their default branch. In a loop beat it does nothing: the beat is already in its worktree.
+- **A commit of code on the default branch is refused** by `pre-commit`, in your folder and in a nested code repository, wherever the repository has a remote (`origin`). Conductor's own files (`conductor/`, `.agents/`, `AGENTS.md`, `conductor.config.json`, `.gitattributes`) may still be committed there: the inbox, the loop state, the project card. A merge commit is not judged. To commit code there anyway, give the reason: `CONDUCTOR_ON_DEFAULT="why" git commit …`, logged in the ship-log.
+- **`conductor status` warns when your folder or a code repository is off its default branch**, with the command that switches it back, and names every merged worktree still on disk, the loop's and the interactive items'.
+
+### Fixed
+
+- **Merged interactive worktrees are removed like the loop's**: on your next `git pull` (the `post-merge` hook, in each repository), at the start of a loop run, or with `conductor work clean`. The same protections hold: uncommitted work, a live run, a branch with no commit of its own, or an outer worktree whose code MR is still open keep it. Before, Ship made a worktree that nothing ever removed, and the worktree skill pointed to a cleanup skill that did not exist. The skill (`git-worktrees`) is rewritten around `conductor work`.
+- **A project whose slices are all shipped is no longer carved again.** The Carve's `implementation-overview.md` marks the project as carved, even when `implementations/` is empty.
+
+---
+
 ## [6.50.0] — 2026-10-22 — Build one project per terminal, and one loop never breaks another
 
 Compatibility: upgrade only

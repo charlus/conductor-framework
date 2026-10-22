@@ -85,6 +85,16 @@ export const COMMANDS = Object.freeze([
     examples: [["conductor personas --base master", "personas for this branch"]],
   },
   {
+    name: "work", group: "daily", summary: "The hidden worktree an interactive Spec-It, Build or Ship works in, so your folder stays on its default branch",
+    usage: "conductor work <item> [dir]\n  conductor work clean [dir]",
+    flags: [],
+    config: ["loop.code_dir", "loop.setup"],
+    examples: [
+      ["conductor work cop-availability/01-cockpit-access", "make or reuse the slice's worktree (and its code worktree), print where it is"],
+      ["conductor work clean", "remove the worktrees of merged work now (git pull does it too)"],
+    ],
+  },
+  {
     name: "design", group: "daily", summary: "Combine an old conductor/4-context/design/ folder into one DESIGN.md",
     usage: "conductor design migrate [dir] [options]",
     flags: [["--repo <path>", "The code repository that gets DESIGN.md"], ["--dry-run", "Show the result, write nothing"]],
@@ -94,7 +104,7 @@ export const COMMANDS = Object.freeze([
     name: "loop", group: "loop", summary: "Run the autonomous loop: beats, reviews, one MR per item",
     usage: "conductor loop <project> [dir] [options]\n  conductor loop [dir] [--from-conductor | --goal <text> | --event <file.json>] [options]\n  conductor loop on|off <project> [dir] [--yes] [--dry-run]\n  conductor loop take [\"<item>\"] [dir] [--drop]\n  conductor loop profile [quality|balanced] [dir]\n  conductor loop doctor [dir] [--beat]",
     flags: [
-      ["<project>", "Build this project only: its remaining Blueprint stages, then its slices, one per run. Its state stays in .git; another terminal in the same folder can build another project at the same time. The loop removes its worktrees when it ends or on Ctrl+C"],
+      ["<project>", "Build this project, after you approve its Technical Vision: the Carve, then every slice, each one on the branch of the one below, with no wait for a merge. A one-way question stops the run. You merge the MRs in order at the end: the list is in conductor/1-workbench/loop-report-<project>.md. An MR you close is built again with everything above it. Its state stays in .git; another terminal in the same folder can build another project at the same time. The loop removes its worktrees when it ends or on Ctrl+C"],
       ["--from-conductor", "Take the work from conductor/: backlog, inbox, slices, Blueprints"],
       ["--dry-run", "Show what the run would pick up and do, write nothing"],
       ["--platform <name>", "Engine: claude | codex | antigravity (default: loop-state, then detected)"],

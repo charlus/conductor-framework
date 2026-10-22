@@ -48,14 +48,19 @@ export const DEFAULT_PR_BODY = "Opened by `conductor loop`: verify passed and th
  * `--fill` does, which re-runs the whole pre-push gate (live evals included) and
  * failed the first real crossing's MR step. Title and body are passed explicitly.
  */
-export function prCommand(forge, { branch, title, body = DEFAULT_PR_BODY }) {
+export function prCommand(forge, { branch, title, body = DEFAULT_PR_BODY, base = null, stacked = false }) {
   if (forge === "gh") {
-    return ["gh", ["pr", "create", "--head", branch, "--title", title, "--body", body]];
+    return ["gh", ["pr", "create", "--head", branch, ...(base ? ["--base", base] : []), "--title", title, "--body", body]];
   }
   if (forge === "glab") {
     // C3-F21: squashed on merge, so the team's history gets one commit named by
     // the MR, not the loop's beat commits. The owner can untick it per MR.
-    return ["glab", ["mr", "create", "--source-branch", branch, "--title", title, "--description", body, "--squash-before-merge", "--yes"]];
+    // A stacked MR is never squashed on merge (the MR above it would show this
+    // one's changes again): the loop squashes the code to one commit per item
+    // before the push instead. Its source branch is deleted on merge, so GitLab
+    // moves the MR above it to the default branch.
+    const merge = stacked ? ["--remove-source-branch"] : ["--squash-before-merge"];
+    return ["glab", ["mr", "create", "--source-branch", branch, ...(base ? ["--target-branch", base] : []), "--title", title, "--description", body, ...merge, "--yes"]];
   }
   throw new Error(`Unknown forge '${forge}'`);
 }
@@ -106,7 +111,7 @@ async function findExistingPr(forge, branch, run) {
  *   forge: "gh" | "glab" | null — resolved from the origin host or loop.forge (config.js)
  * @returns {Promise<{ok:boolean, branch?:string, prUrl?:string, reason?:string}>}
  */
-export async function openPullRequest({ branch, title, body, git, run, forge, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
+export async function openPullRequest({ branch, title, body, git, run, forge, base = null, stacked = false, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
   title = prTitle(title);
   if (!forge) {
     return { ok: false, reason: "no forge resolved to open a PR (set loop.forge in conductor.config.json)" };
@@ -128,7 +133,7 @@ export async function openPullRequest({ branch, title, body, git, run, forge, sl
     }
   }
 
-  const [cmd, argv] = prCommand(forge, { branch, title, ...(body ? { body } : {}) });
+  const [cmd, argv] = prCommand(forge, { branch, title, base, stacked, ...(body ? { body } : {}) });
   let pr = await run(cmd, argv);
   // F11: right after the push, GitLab answered "source_branch does not exist".
   // Give the forge a moment and ask once more.

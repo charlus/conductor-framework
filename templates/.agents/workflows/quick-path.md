@@ -76,6 +76,9 @@ After the questions, present a scope summary:
 
 ## Phase 2: Quick Spec
 
+**Work in the item's worktree:** run `conductor work <item name>` first, then read, edit, test and commit only in the folder it prints (`conductor/` files too). The owner's folder stays on its default branch. In a loop beat, skip this. See `skills/git-worktrees/SKILL.md`.
+
+
 **Goal:** Create a lightweight Feature Spec. No 12-page PRD — just enough to build.
 
 **Announce:** *"Scope locked. Let me draft a quick spec."*

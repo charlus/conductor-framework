@@ -101,7 +101,7 @@
     {
       "name": "using-git-worktrees",
       "dir": "git-worktrees",
-      "description": "Use when starting feature work that needs isolation from current workspace or before executing implementation plans - creates isolated git worktrees with smart directory selection and safety verification",
+      "description": "Use before interactive Spec-It, Build or Ship - work in the item's hidden worktree (conductor work <item>); the owner's folder stays on its default branch",
       "category": "core",
       "default": true
     },

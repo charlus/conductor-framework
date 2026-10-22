@@ -47,7 +47,7 @@ conductor_find_project_root
 # pre-commit that lands on exactly this content is an upgrade, not a neutering,
 # and needs no waiver at push. Forging a match means editing pre-push as well —
 # both entry scripts, the stated limit. Pinned by test/hooks-registry-drift.test.js.
-CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256="afd4dbe6ea1c72e16232c87a895f2d681dc98955254a1e40a7f077c68346d30c"
+CONDUCTOR_OFFICIAL_PRECOMMIT_SHA256="5207d0e91f96295d5f4651a3e6b3b3224f40ff7caf3e9b8f631efe67b3538657"
 
 # git feeds one line per pushed ref: <local ref> <local sha> <remote ref> <remote sha>.
 PUSH_LINES="$(cat)"

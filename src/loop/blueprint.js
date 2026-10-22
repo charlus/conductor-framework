@@ -48,6 +48,28 @@ export function discoveryDone({ docs, templates }) {
   return DISCOVERY.every((rel) => written(docs, templates, rel));
 }
 
+/** The documents the owner approves before a stacked run starts (owner, 2026-10-22), in order. */
+export const OWNER_DOCS = Object.freeze([
+  ...DISCOVERY.map((rel) => ({ rel, name: rel.startsWith("genesis/") ? "Genesis" : "Storyboard" })),
+  { rel: "blueprint/grand-prd.md", name: "Grand PRD" },
+  { rel: "blueprint/ux-ui-design-brief.md", name: "UX/UI Design Brief" },
+  { rel: "blueprint/technical-vision.md", name: "Technical Vision" },
+]);
+
+/**
+ * S8, the starting gate of `conductor loop <project>`: the owner's phase ends
+ * with the approved Technical Vision. Approved means written on the default
+ * branch (merged), the way the Blueprint stages are read. A carved project is
+ * past the gate. Returns the documents still missing, in order, by plain name.
+ */
+export function missingOwnerDocs({ docs, templates, carved = false }) {
+  if (carved) return [];
+  const missing = OWNER_DOCS.filter((d) => !written(docs, templates, d.rel));
+  const names = [];
+  for (const d of missing) if (!names.some((n) => n.name === d.name)) names.push({ name: d.name, rel: d.rel });
+  return names;
+}
+
 /**
  * Did the stage's beat write what the stage is for? Checked in code before the review.
  * @param {string} key a BLUEPRINT_STAGES key

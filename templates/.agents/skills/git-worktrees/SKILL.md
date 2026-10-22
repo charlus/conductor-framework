@@ -1,223 +1,53 @@
 ---
 name: git-worktrees
-description: Use when starting feature work that needs isolation from current workspace or before executing implementation plans - creates isolated git worktrees with smart directory selection and safety verification
+description: Use before interactive Spec-It, Build or Ship - work in the item's hidden worktree (conductor work <item>); the owner's folder stays on its default branch
 ---
 
 # Using Git Worktrees
 
-## Overview
+## The rule
 
-Git worktrees create isolated workspaces sharing the same repository, allowing work on multiple branches simultaneously without switching.
+The owner's folder, and its nested code repository, stay on their **default branch**. Every item (a carved slice, a backlog item, a Quick-Path) is built on its own branch, in its own hidden worktree, and reaches the default branch only through a merged MR. Never switch the branch of the owner's checkout: another session may be working in it, and its next commit lands on your branch.
 
-**Core principle:** Systematic directory selection + safety verification = reliable isolation.
+The `pre-commit` hook enforces it: a commit of code on the default branch is refused (only Conductor's own files, such as `conductor/`, may still be committed there).
 
-**Announce at start:** "I'm using the using-git-worktrees skill to set up an isolated workspace."
+**Announce at start:** "Working in the item's worktree."
 
-## Directory Selection Process
-
-Follow this priority order:
-
-### 1. Check Existing Directories
+## Make or reuse the item's worktree
 
 ```bash
-# Check in priority order
-ls -d .worktrees 2>/dev/null     # Preferred (hidden)
-ls -d worktrees 2>/dev/null      # Alternative
+conductor work <project>/<NN-slice>     # a carved slice, e.g. cop-availability/01-cockpit-access
+conductor work <backlog item name>      # a backlog item or a Quick-Path
 ```
 
-**If found:** Use that directory. If both exist, `.worktrees` wins.
+(When `conductor` is not on PATH: `npx -y github:charlus/conductor-framework work …`.)
 
-### 2. Check AGENTS.md
+It prints the folder. It:
 
-```bash
-grep -i "worktree.*director" .agents/AGENTS.md 2>/dev/null
-```
+- makes `.agents/.worktrees/work-<slug>` on branch `conductor/work/<slug>`, from the default branch (`origin/HEAD`), never from the branch the owner has checked out. The folder is git-excluded.
+- in the outer layout, makes a worktree of each nested code repository inside it (`<folder>/repo/`, same branch name, from the code repository's default branch), and runs `loop.setup` there once.
+- reuses both when they exist. Spec-It, Build and Ship of the same item share one worktree and one branch.
 
-**If preference specified:** Use it without asking.
+Then **edit, test and commit only under that folder** (`cd` into it for every shell command, give file tools its absolute paths). The `conductor/` bookkeeping of the item is committed in the same worktree.
 
-### 3. Ask User
+In a `conductor loop` beat you are already in the item's worktree (the driver made it): do nothing here. `conductor work` says so and makes nothing.
 
-If no directory exists and no AGENTS.md preference:
+## Baseline
 
-```
-No worktree directory found. Where should I create worktrees?
+Before the first change, run the project's tests in the worktree (the `verify` command in `conductor.config.json`, or the code repository's test command). If they fail before you touch anything, say so in one line and note it in the tracker: a red baseline hides new failures.
 
-1. .worktrees/ (project-local, hidden)
-2. ~/.config/superpowers/worktrees/<project-name>/ (global location)
+## Cleanup
 
-Which would you prefer?
-```
+Nobody removes a worktree by hand. A worktree whose branch is merged goes, with its local branch:
 
-## Safety Verification
+- on the owner's next `git pull` (the `post-merge` hook), in each repository;
+- at the start of a `conductor loop` run;
+- with `conductor work clean`.
 
-### For Project-Local Directories (.worktrees or worktrees)
+Kept, with the reason: a worktree with uncommitted changes, one a live loop run holds, a branch with no commit of its own yet, and an outer worktree whose code worktree's MR is still open. `conductor status` names merged worktrees still on disk, and warns when the owner's folder or a code repository is off its default branch.
 
-**MUST verify directory is ignored before creating worktree:**
+## Red flags
 
-```bash
-# Check if directory is ignored (respects local, global, and system gitignore)
-git check-ignore -q .worktrees 2>/dev/null || git check-ignore -q worktrees 2>/dev/null
-```
-
-**If NOT ignored:**
-
-Per Jesse's rule "Fix broken things immediately":
-
-1. Add appropriate line to .gitignore
-2. Commit the change
-3. Proceed with worktree creation
-
-**Why critical:** Prevents accidentally committing worktree contents to repository.
-
-### For Global Directory (~/.config/superpowers/worktrees)
-
-No .gitignore verification needed - outside project entirely.
-
-## Creation Steps
-
-### 1. Detect Project Name
-
-```bash
-project=$(basename "$(git rev-parse --show-toplevel)")
-```
-
-### 2. Create Worktree
-
-```bash
-# Determine full path
-case $LOCATION in
-  .worktrees|worktrees)
-    path="$LOCATION/$BRANCH_NAME"
-    ;;
-  ~/.config/superpowers/worktrees/*)
-    path="~/.config/superpowers/worktrees/$project/$BRANCH_NAME"
-    ;;
-esac
-
-# Create worktree with new branch
-git worktree add "$path" -b "$BRANCH_NAME"
-cd "$path"
-```
-
-### 3. Run Project Setup
-
-Auto-detect and run appropriate setup:
-
-```bash
-# Node.js
-if [ -f package.json ]; then npm install; fi
-
-# Rust
-if [ -f Cargo.toml ]; then cargo build; fi
-
-# Python
-if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-if [ -f pyproject.toml ]; then poetry install; fi
-
-# Go
-if [ -f go.mod ]; then go mod download; fi
-```
-
-### 4. Verify Clean Baseline
-
-Run tests to ensure worktree starts clean:
-
-```bash
-# Examples - use project-appropriate command
-npm test
-cargo test
-pytest
-go test ./...
-```
-
-**If tests fail:** Report failures, ask whether to proceed or investigate.
-
-**If tests pass:** Report ready.
-
-### 5. Report Location
-
-```
-Worktree ready at <full-path>
-Tests passing (<N> tests, 0 failures)
-Ready to implement <feature-name>
-```
-
-## Quick Reference
-
-| Situation                  | Action                              |
-| -------------------------- | ----------------------------------- |
-| `.worktrees/` exists       | Use it (verify ignored)             |
-| `worktrees/` exists        | Use it (verify ignored)             |
-| Both exist                 | Use `.worktrees/`                   |
-| Neither exists             | Check `.agents/AGENTS.md` → Ask user |
-| Directory not ignored      | Add to .gitignore + commit          |
-| Tests fail during baseline | Report failures + ask               |
-| No package.json/Cargo.toml | Skip dependency install             |
-
-## Common Mistakes
-
-### Skipping ignore verification
-
-- **Problem:** Worktree contents get tracked, pollute git status
-- **Fix:** Always use `git check-ignore` before creating project-local worktree
-
-### Assuming directory location
-
-- **Problem:** Creates inconsistency, violates project conventions
-- **Fix:** Follow priority: existing > `.agents/AGENTS.md` > ask
-
-### Proceeding with failing tests
-
-- **Problem:** Can't distinguish new bugs from pre-existing issues
-- **Fix:** Report failures, get explicit permission to proceed
-
-### Hardcoding setup commands
-
-- **Problem:** Breaks on projects using different tools
-- **Fix:** Auto-detect from project files (package.json, etc.)
-
-## Example Workflow
-
-```
-You: I'm using the using-git-worktrees skill to set up an isolated workspace.
-
-[Check .worktrees/ - exists]
-[Verify ignored - git check-ignore confirms .worktrees/ is ignored]
-[Create worktree: git worktree add .worktrees/auth -b feature/auth]
-[Run npm install]
-[Run npm test - 47 passing]
-
-Worktree ready at /Users/jesse/myproject/.worktrees/auth
-Tests passing (47 tests, 0 failures)
-Ready to implement auth feature
-```
-
-## Red Flags
-
-**Never:**
-
-- Create worktree without verifying it's ignored (project-local)
-- Skip baseline test verification
-- Proceed with failing tests without asking
-- Assume directory location when ambiguous
-- Skip `.agents/AGENTS.md` check
-
-**Always:**
-
-- Follow directory priority: existing > `.agents/AGENTS.md` > ask
-- Verify directory is ignored for project-local
-- Auto-detect and run project setup
-- Verify clean test baseline
-
-## Integration
-
-**Called by:**
-
-- **brainstorming** (Phase 4) - REQUIRED when design is approved and implementation follows
-- **single-flow-task-execution** - REQUIRED before executing any tasks
-- **executing-plans** - REQUIRED before executing any tasks
-- Any skill needing isolated workspace
-
-**Pairs with:**
-
-- **finishing-a-development-branch** - REQUIRED for cleanup after work complete
+- `git checkout <branch>` or `git switch` in the owner's folder: never.
+- A commit refused with "code on the default branch": you are in the owner's folder. Run `conductor work <item>` and commit there.
+- `git worktree add` by hand, or a worktree outside `.agents/.worktrees/`: the cleanup will not find it.

@@ -121,7 +121,13 @@ conductor loop km-workload-relief --dry-run   # what will it build?
 conductor loop km-workload-relief             # build it
 ```
 
-The run takes that project only: its remaining Blueprint stages (one MR), then its slices, one slice per run (each ends with MRs you merge before the next one starts). It never takes the backlog or the inbox, and it needs no `slices` or `blueprint` setting. Its first lines say what it will build, and its last line says what to do next.
+The run starts after you approve the project's Technical Vision: Genesis, Storyboard, Grand PRD, UX/UI Design Brief and Technical Vision are yours, written on the default branch. Before that it names the missing document and builds nothing.
+
+Then one run builds the Carve and every slice, stacked: each item starts from the branch of the item below it, and each MR targets that branch (code MR and Conductor state MR alike), so nothing waits for a merge. Each item gets the `budget` of `loop-state.json`. A one-way question stops the run at that item, and nothing is built above it: answer it, then run the same command again. At the end, `conductor/1-workbench/loop-report-<project>.md` lists the MRs in merge order, what each does, the decisions taken for you and the cost. Merge them in that order, code MR first in each item, without squashing, and let each source branch be deleted: the forge then moves the MR above it to the default branch. The loop squashes each item's code to one commit before the push, so the team's history gets one commit per item.
+
+If you close an MR, the next run builds that item again, with everything above it (the MRs above are closed with a comment). If you push a change to an MR, your version is kept and everything above it is built again on top. Merged items are never touched.
+
+It never takes the backlog or the inbox, and it needs no `slices` or `blueprint` setting. Its first lines say what it will build, and its last line says what to do next.
 
 To build a second project at the same time, open another terminal in the same folder and run `conductor loop <other-project>`. Each run keeps its state and lock in `.git/conductor-loop-logs/runs/<project>/`, works in its own worktrees, and removes them when it ends or on Ctrl+C (a worktree with uncommitted work is kept, and the run says where). The same project twice is refused, and so is a project run beside a `--from-conductor` run. `conductor watch` in the folder shows every run going on.
 

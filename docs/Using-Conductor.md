@@ -190,6 +190,20 @@ conductor personas [paths…] [options]
 
 - `conductor personas --base master`: personas for this branch
 
+#### `conductor work`
+
+The hidden worktree an interactive Spec-It, Build or Ship works in, so your folder stays on its default branch.
+
+```
+conductor work <item> [dir]
+conductor work clean [dir]
+```
+
+Reads: `loop.code_dir`, `loop.setup`.
+
+- `conductor work cop-availability/01-cockpit-access`: make or reuse the slice's worktree (and its code worktree), print where it is
+- `conductor work clean`: remove the worktrees of merged work now (git pull does it too)
+
 #### `conductor design`
 
 Combine an old conductor/4-context/design/ folder into one DESIGN.md.
@@ -222,7 +236,7 @@ conductor loop doctor [dir] [--beat]
 
 | Option | What it does |
 |---|---|
-| `<project>` | Build this project only: its remaining Blueprint stages, then its slices, one per run. Its state stays in .git; another terminal in the same folder can build another project at the same time. The loop removes its worktrees when it ends or on Ctrl+C |
+| `<project>` | Build this project, after you approve its Technical Vision: the Carve, then every slice, each one on the branch of the one below, with no wait for a merge. A one-way question stops the run. You merge the MRs in order at the end: the list is in conductor/1-workbench/loop-report-<project>.md. An MR you close is built again with everything above it. Its state stays in .git; another terminal in the same folder can build another project at the same time. The loop removes its worktrees when it ends or on Ctrl+C |
 | `--from-conductor` | Take the work from conductor/: backlog, inbox, slices, Blueprints |
 | `--dry-run` | Show what the run would pick up and do, write nothing |
 | `--platform <name>` | Engine: claude \| codex \| antigravity (default: loop-state, then detected) |

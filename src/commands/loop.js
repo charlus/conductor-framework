@@ -889,6 +889,23 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     await writeFile(p, `${(await exists(promptFile)) ? await readFile(promptFile, "utf8") : ""}${checkerNestedNote(loopConfig.codeDir)}`, "utf8");
     return p;
   }
+  // F20 (autopportunity 2026-10-21): a code review is told the driver already ran
+  // the full suite outside the sandbox. Inside, the same suite took 605–618 s
+  // instead of 124–141 s, some tests waiting on a blocked network.
+  async function withVerifyNote(promptFile, key, cmd) {
+    if (!cmd) return promptFile;
+    const p = join(tmpdir(), `conductor-checker-verify-${String(key).replace(/[^a-z0-9]+/gi, "-")}.md`);
+    await writeFile(
+      p,
+      `${(await exists(promptFile)) ? await readFile(promptFile, "utf8") : ""}\n\n---\n\n# The full verification already ran\n\n` +
+        `The driver ran \`${cmd}\` outside your sandbox on this exact state, and it exited 0: that exit code is the evidence. ` +
+        "Do not run the full suite again: it is much slower in your sandbox, and some tests may wait on a network it blocks. " +
+        "Run the tests of the files this change touches, read the diff against the acceptance criteria, and judge.\n",
+      "utf8"
+    );
+    return p;
+  }
+
   // The two MRs (owner decision 2026-10-20): code first, then the state MR naming it.
   const makeNestedMerge = (cwd, branch, title, rulings = async () => [], shipBody = () => null) => async () => {
     if (!branch) return { ok: false, reason: "no worktree branch to open a PR from" };
@@ -1569,16 +1586,17 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       },
       changedFiles: ({ task, from }) => changedFilesIn(cwdFor.get(task.id) ?? root, from),
       runChecker: async ({ task, phase }) => {
+        const reviewsCode = !phase || phase === "ship";
         const c = await makeChecker(
           cwdFor.get(task.id) ?? root,
           await checkerPromptWithRulings(
-            await withNestedNote(phase === "spec"
+            await withVerifyNote(await withNestedNote(phase === "spec"
               ? await specCheckerPrompt(task)
               : phase === "questions"
                 ? await questionsCheckerPrompt(task)
                 : phase?.startsWith("blueprint:")
                   ? await blueprintCheckerPrompt(task, phase.slice("blueprint:".length))
-                  : await checkerPromptFor(task), task.id),
+                  : await checkerPromptFor(task), task.id), task.id, reviewsCode && task.evidence?.exit_code === 0 ? task.verify ?? verifyCommand : null),
             await branchRulings(cwdFor.get(task.id) ?? root),
             task.id
           )

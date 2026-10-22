@@ -153,6 +153,11 @@ test("the CLI runs a project through every loop stage, each beat on its stage's 
     const r2 = loop(p, "log2");
     assert.equal(r2.status, 0, r2.stdout + r2.stderr);
     assert.deepEqual(r2.prompts.map((x) => routeOf(x, p.root)), ["spec", "checker:spec", "build", "checker:code", "ship", "checker:code"]);
+    // F20 (autopportunity 2026-10-21): a code review is told the driver already ran the
+    // full suite outside the sandbox, so it does not run it again inside, where it hung.
+    const codeReviews = r2.prompts.filter((x) => routeOf(x, p.root) === "checker:code");
+    assert.ok(codeReviews.every((x) => /# The full verification already ran/.test(x) && /Do not run the full suite/.test(x)));
+    assert.ok(!/# The full verification already ran/.test(r2.prompts.find((x) => routeOf(x, p.root) === "checker:spec")), "a spec review has no tests to run");
     assert.match(r2.stdout, /finished: completed/);
   } finally {
     rmSync(p.base, { recursive: true, force: true });

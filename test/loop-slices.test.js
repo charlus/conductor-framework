@@ -138,3 +138,10 @@ test("a spec beat that leaves the spec blank is retried with the reason, then fa
   assert.equal(calls.filter((c) => c === "spec").length, 2);
   assert.ok(!calls.includes("build"));
 });
+
+test("F20: the Ship beat runs the tests it adds, never the whole suite; the driver does that", () => {
+  const text = readFileSync(new URL("../templates/.agents/workflows/unattended-loop.md", import.meta.url), "utf8");
+  const section = shipBeatSection(text);
+  assert.match(section, /Do not run the full test suite/);
+  assert.match(section, /driver runs the full verification command after your beat/);
+});

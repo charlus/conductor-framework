@@ -26,25 +26,49 @@ export function codePaths({ root, codeDir, outerWorktree }) {
  * checkout may sit on a feature branch, which must never become the base.
  * @returns {Promise<{ok: boolean, path?: string, base?: string, reason?: string}>}
  */
-export async function ensureCodeWorktree({ codeGit, path, branch }) {
+export async function ensureCodeWorktree({ codeGit, path, branch, base: stackBase = null }) {
   const list = await codeGit(["worktree", "list", "--porcelain"]);
   if (list.ok && list.stdout.split("\n").includes(`worktree ${path}`)) return { ok: true, path, reused: true };
   await codeGit(["worktree", "prune"]);
   await codeGit(["fetch", "-q", "origin"]);
-  const base = await defaultBranchRef(codeGit);
+  // A stacked item starts from the code branch of the item below it.
+  const base = stackBase ?? (await defaultBranchRef(codeGit));
   if (!base) return { ok: false, reason: "the code repository has no default branch to start from (origin/HEAD, main or master)" };
-  const exists = (await codeGit(["rev-parse", "--verify", "-q", `refs/heads/${branch}`])).ok;
+  let exists = (await codeGit(["rev-parse", "--verify", "-q", `refs/heads/${branch}`])).ok;
+  // A stacked item rebuilt on a new base: its old local branch is not reused.
+  if (exists && stackBase && !(await codeGit(["merge-base", "--is-ancestor", stackBase, branch])).ok) {
+    exists = !(await codeGit(["branch", "-q", "-D", branch])).ok;
+  }
   const add = exists ? await codeGit(["worktree", "add", path, branch]) : await codeGit(["worktree", "add", "-b", branch, path, base]);
   if (!add.ok) return { ok: false, reason: `git worktree add failed in the code repository${add.stderr ? `: ${add.stderr.split("\n")[0]}` : ""}` };
   return { ok: true, path, base };
 }
 
 /** Does the code branch carry commits its base does not have? */
-export async function codeHasWork({ codeGit, branch }) {
-  const base = await defaultBranchRef(codeGit);
+export async function codeHasWork({ codeGit, branch, base: stackBase = null }) {
+  const base = stackBase ?? (await defaultBranchRef(codeGit));
   if (!base) return false;
   const r = await codeGit(["rev-list", "--count", `${base}..${branch}`]);
   return r.ok && Number(r.stdout) > 0;
+}
+
+/**
+ * A stacked item's code becomes one commit on top of its base before the push,
+ * so the team's history gets one commit per item although the MR is not
+ * squashed on merge. The commit runs the repository's hooks. If it fails, the
+ * branch is put back as it was and pushed with its beat commits.
+ * @returns {Promise<{squashed: boolean, reason?: string}>}
+ */
+export async function squashOnto({ codeGit, base, message }) {
+  const count = await codeGit(["rev-list", "--count", `${base}..HEAD`]);
+  if (!count.ok || Number(count.stdout) <= 1) return { squashed: false, reason: "one commit or none" };
+  const head = await codeGit(["rev-parse", "HEAD"]);
+  if (!head.ok) return { squashed: false, reason: "no HEAD" };
+  if (!(await codeGit(["reset", "-q", "--soft", base])).ok) return { squashed: false, reason: "reset failed" };
+  const c = await codeGit(["commit", "-q", "-m", message]);
+  if (c.ok) return { squashed: true };
+  await codeGit(["reset", "-q", "--soft", head.stdout.trim()]);
+  return { squashed: false, reason: `the commit hook refused the squashed commit${c.stderr ? `: ${c.stderr.split("\n")[0]}` : ""}` };
 }
 
 /**

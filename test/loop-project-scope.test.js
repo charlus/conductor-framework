@@ -15,7 +15,17 @@ import { execFileSync, spawn, spawnSync } from "node:child_process";
 
 const REPO = new URL("..", import.meta.url).pathname;
 const G = (cwd, ...a) => execFileSync("git", a, { cwd, stdio: "pipe" }).toString().trim();
-const DISCOVERY = ["genesis/problem-solar-system.md", "genesis/world-transformation.md", "genesis/functional-animator.md", "storyboard/main-character.md", "storyboard/storyboard.md"];
+// The owner's documents, up to the approved Technical Vision: the loop's start signal (S8).
+const DISCOVERY = [
+  "genesis/problem-solar-system.md",
+  "genesis/world-transformation.md",
+  "genesis/functional-animator.md",
+  "storyboard/main-character.md",
+  "storyboard/storyboard.md",
+  "blueprint/grand-prd.md",
+  "blueprint/ux-ui-design-brief.md",
+  "blueprint/technical-vision.md",
+];
 
 function folder() {
   const base = mkdtempSync(join(tmpdir(), "project-scope-"));
@@ -80,9 +90,9 @@ test("the dry run says, first and in plain words, what the named project's run b
   try {
     const r = loopSync(f, ["notes", "--dry-run"]);
     assert.equal(r.status, 0, r.stdout + r.stderr);
-    const first = r.stdout.split("\n").slice(0, 2).join("\n");
-    assert.match(first, /^notes: Grand PRD, then UX\/UI Brief, then Technical Vision, then Carve\./);
-    assert.match(first, /one merge request/);
+    const first = r.stdout.split("\n").slice(0, 3).join("\n");
+    assert.match(first, /^notes: the Carve\.\nEach item starts from the one below it, so nothing waits for a merge\./);
+    assert.match(first, /One-way questions stop the run/);
     assert.match(r.stdout, /harvested: 1 work item/);
     assert.doesNotMatch(r.stdout, /Fix the login|an idea|board/, "no backlog, no inbox, no other project");
   } finally {
@@ -135,26 +145,27 @@ test("two projects from the same folder at once: each builds its own, nothing la
     for (const r of [a, b]) {
       assert.match(r.stdout, /finished: completed/);
       assert.doesNotMatch(r.stdout, /removed the merged/, "neither run removed the other's worktree");
-      assert.match(r.stdout, /Next: review and merge the MR.*`conductor loop (notes|board)` takes the next item/);
+      assert.match(r.stdout, /Next: merge the 2 item\(s\) in the order of conductor\/1-workbench\/loop-report-(notes|board)\.md/);
     }
     assert.equal(G(f.root, "rev-parse", "master"), before, "nothing was committed on the owner's branch");
     assert.equal(G(f.root, "status", "--porcelain", "--", "conductor/1-workbench/loop-state.json"), "", "the owner's loop-state.json is untouched");
     // Each pushed its own branch, from its own worktree, then removed that worktree.
     const remote = G(f.root, "ls-remote", "--heads", "origin", "conductor/loop/*");
-    assert.match(remote, /blueprint-notes/);
-    assert.match(remote, /blueprint-board/);
+    for (const b of ["blueprint-notes", "blueprint-board", "slice-notes-01-first", "slice-board-01-first"]) assert.match(remote, new RegExp(b));
     const wts = join(f.root, ".agents/.worktrees");
     assert.deepEqual(existsSync(wts) ? readdirSync(wts) : [], [], "every worktree was removed at the end");
     // Each project's run has its own state, invisible in the folder.
     for (const p of ["notes", "board"]) {
       const s = JSON.parse(readFileSync(join(f.root, ".git/conductor-loop-logs/runs", p, "loop-state.json"), "utf8"));
       assert.equal(s.status, "completed");
-      assert.deepEqual(s.tasks.map((t) => t.id), [`blueprint:${p}`]);
+      assert.deepEqual(s.tasks.map((t) => t.id), [`slice:${p}/01-first`]);
+      const stack = JSON.parse(readFileSync(join(f.root, ".git/conductor-loop-logs/runs", p, "stack.json"), "utf8"));
+      assert.deepEqual(stack.map((e) => e.title), ["the Carve", "slice 01-first"]);
     }
     // conductor watch shows both runs, each under its project.
     const events = readFileSync(join(f.root, ".git/conductor-loop-logs/events.ndjson"), "utf8");
     const starts = events.split("\n").filter(Boolean).map((l) => JSON.parse(l)).filter((e) => e.type === "run_start");
-    assert.deepEqual(starts.map((e) => e.project).sort(), ["board", "notes"]);
+    assert.deepEqual([...new Set(starts.map((e) => e.project))].sort(), ["board", "notes"], "one run start per item, each under its project");
   } finally {
     rmSync(f.base, { recursive: true, force: true });
   }

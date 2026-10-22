@@ -47,9 +47,14 @@ if (checker) {
     if (key === "ux-ui-brief") put("DESIGN.md", doc("DESIGN"));
     if (key === "carve") {
       const tpl = (n) => readFileSync(join("conductor/5-templates/carve-workflow", n), "utf8");
-      put(join(project, "implementations/01-first/feature-spec.md"), tpl("feature-spec.md"));
-      put(join(project, "implementations/01-first/implementation-plan.md"), tpl("implementation-plan.md"));
-      put(join(project, "project-documentation.md"), "# Project documentation\n\n## 01-first\nA first slice.\n");
+      // $STUB_SLICES: how many slices the Carve makes (default 1, "01-first").
+      const n = Number(process.env.STUB_SLICES ?? 1);
+      const names = n === 1 ? ["01-first"] : Array.from({ length: n }, (_, i) => `0${i + 1}-slice-${i + 1}`);
+      for (const s of names) {
+        put(join(project, `implementations/${s}/feature-spec.md`), tpl("feature-spec.md"));
+        put(join(project, `implementations/${s}/implementation-plan.md`), tpl("implementation-plan.md"));
+      }
+      put(join(project, "project-documentation.md"), `# Project documentation\n\n${names.map((s) => `## ${s}\nA slice.\n`).join("\n")}`);
       put("conductor/1-workbench/pr-body.md", body);
     }
     done();
@@ -74,7 +79,10 @@ if (checker) {
   done();
 } else if (prompt.includes("# Loop Assignment (this beat)")) {
   // In the outer layout ($STUB_CODE_DIR) the code goes into the nested repository.
-  put(join(process.env.STUB_CODE_DIR ?? ".", "src/built.js"), "export const built = true;\n");
+  // Each build writes a new file, so a slice stacked on another still has code of its own.
+  const src = join(process.env.STUB_CODE_DIR ?? ".", "src");
+  const taken = existsSync(src) ? readdirSync(src).filter((f) => f.startsWith("built")).length : 0;
+  put(join(src, taken ? `built-${taken + 1}.js` : "built.js"), "export const built = true;\n");
   done();
 }
 console.log(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "stub", usage: { input_tokens: 1, output_tokens: 1 } }));

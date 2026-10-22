@@ -30,7 +30,7 @@ const NOT_OURS = {
   watch: ["--path-format=absolute", "--path-format", "--git-common-dir"],
   personas: ["--exclude-standard", "--name-only", "--others"],
   "trust-verify": ["-c", "--show-toplevel"],
-  upgrade: ["-c", "--cached", "--git-path", "--is-inside-work-tree", "-m", "--porcelain", "-q", "--quiet", "--short", "--verify"],
+  upgrade: ["-c", "-z", "--cached", "--git-path", "--is-inside-work-tree", "-m", "--porcelain", "-q", "--quiet", "--short", "--verify"],
   view: ["--quiet"],
 };
 const COMMAND_FOR_FILE = { "loop-doctor": "loop", "loop-on": "loop", "loop-profile": "loop", "loop-take": "loop" };

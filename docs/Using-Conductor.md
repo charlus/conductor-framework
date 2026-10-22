@@ -214,6 +214,7 @@ Run the autonomous loop: beats, reviews, one MR per item.
 ```
 conductor loop [dir] [--from-conductor | --goal <text> | --event <file.json>] [options]
 conductor loop on|off <project> [dir] [--yes] [--dry-run]
+conductor loop take ["<item>"] [dir] [--drop]
 conductor loop profile [quality|balanced] [dir]
 conductor loop doctor [dir] [--beat]
 ```
@@ -230,10 +231,13 @@ conductor loop doctor [dir] [--beat]
 | `--unsafe-no-sandbox` | Allow sandbox: none (only inside a VM you control) |
 | `on` | List the projects, their stage, and which ones the loop can take |
 | `on <project>` | Let the loop work on a project: shows each change in plain words, asks once, writes the settings |
-| `on --backlog` | Set the loop up for backlog items you tag (loop-ready), with no project |
+| `on --backlog` | Set the loop up for backlog items you give it with take, with no project |
 | `on --yes` | Apply without asking (after you have seen the list) |
 | `on --code-dir <dir>` | Name the nested code repository when there are several |
 | `off <project>` | The loop no longer works on that project |
+| `take "<item>"` | Give the loop one open backlog item (its title or a unique part of it). Kept in .git, so no tracked file changes |
+| `take` | List the items the loop has been given and not yet shipped |
+| `take --drop "<item>"` | Take an item back |
 | `profile` | Show the model profile, each role's model and the last run's cost per role |
 | `profile quality|balanced` | Pick the models by budget: Opus everywhere, or Sonnet for code with Opus for review, specs and designs |
 | `doctor` | Check the project before an unattended run |
@@ -242,6 +246,7 @@ conductor loop doctor [dir] [--beat]
 Reads: `verify`, `loop.forge`, `loop.setup`, `loop.allowed_domains`, `loop.require_ready`, `loop.priorities`, `loop.inbox`, `loop.allow_nested_repo`, `loop.models`, `loop.cost_aware`, `loop.slices`, `loop.blueprint`, `loop.code_dir`, `loop.profile`.
 
 - `conductor loop on km-workload-relief`: let the loop work on this project
+- `conductor loop take "flaky login"`: give the loop this backlog item
 - `conductor loop doctor .`: is this project ready?
 - `conductor loop . --from-conductor --dry-run`: what would the next run do?
 - `conductor loop . --from-conductor`: the real run
@@ -459,7 +464,7 @@ Reads: `verify`, `eval`.
 | `loop.forge` | "gh" \| "glab" (default: from the origin host) |
 | `loop.setup` | Shell command run once in each new worktree, before the first beat |
 | `loop.allowed_domains` | Extra hosts the sandbox may reach |
-| `loop.require_ready` | true: only backlog items tagged loop-ready |
+| `loop.require_ready` | true: only backlog items given with conductor loop take, or tagged loop-ready |
 | `loop.priorities` | ["P1"]: only backlog items under these headings |
 | `loop.inbox` | false: never take inbox lines |
 | `loop.allow_nested_repo` | true: run although a gitignored nested git repository exists |

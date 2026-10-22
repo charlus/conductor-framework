@@ -57,10 +57,10 @@ test("an unauthenticated forge fails when the run would open a PR", () => {
   assert.match(c.fix, /glab auth login/);
 });
 
-test("an empty queue with require_ready says to tag an item", () => {
+test("an empty queue with require_ready says how to give the loop an item", () => {
   const c = by(diagnose({ ...ok, queue: { fromConductor: true, count: 0, requireReady: true } }), "queue");
   assert.equal(c.level, "warn");
-  assert.match(c.fix, /loop-ready/);
+  assert.match(c.fix, /conductor loop take/);
 });
 
 test("a .env the worktree will not have is a warning, the eurassistant lesson", () => {

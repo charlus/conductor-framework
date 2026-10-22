@@ -26,13 +26,14 @@ const NOT_OURS = {
   loop: ["-b", "-h", "--help", "--path-format=absolute", "--path-format", "--git-common-dir", "--git-path", "--hostname", "--name-only", "--porcelain", "-q", "--beat"],
   "loop-doctor": ["--path-format", "--git-common-dir", "-c", "--detach", "--force", "--hostname", "--output-format", "-p", "--permission-mode", "-q", "--settings"],
   "loop-on": ["--error-unmatch", "-c"],
+  "loop-take": ["--git-common-dir"],
   watch: ["--path-format=absolute", "--path-format", "--git-common-dir"],
   personas: ["--exclude-standard", "--name-only", "--others"],
   "trust-verify": ["-c", "--show-toplevel"],
   upgrade: ["-c", "--cached", "--git-path", "--is-inside-work-tree", "-m", "--porcelain", "-q", "--quiet", "--short", "--verify"],
   view: ["--quiet"],
 };
-const COMMAND_FOR_FILE = { "loop-doctor": "loop", "loop-on": "loop", "loop-profile": "loop" };
+const COMMAND_FOR_FILE = { "loop-doctor": "loop", "loop-on": "loop", "loop-profile": "loop", "loop-take": "loop" };
 
 test("every flag a command parses is in the usage source", () => {
   for (const f of readdirSync(join(REPO, "src/commands")).filter((x) => x.endsWith(".js"))) {

@@ -112,12 +112,13 @@ const READY_RE = /(^|[\s[(#])loop-ready\b/i;
 
 /**
  * Should the loop take this backlog item? Never one marked BLOCKED or
- * NEEDS_DECISION. With `requireReady`, only one tagged `loop-ready`. With
- * `priorities`, only one under those headings.
+ * NEEDS_DECISION. With `requireReady`, only one tagged `loop-ready` or given
+ * with `conductor loop take` (its id in `readyIds`). With `priorities`, only one
+ * under those headings.
  */
-export function isHarvestable(item, { requireReady = false, priorities = [] } = {}) {
+export function isHarvestable(item, { requireReady = false, priorities = [], readyIds = new Set() } = {}) {
   if (NOT_READY_RE.test(item.title)) return false;
-  if (requireReady && !READY_RE.test(item.title)) return false;
+  if (requireReady && !READY_RE.test(item.title) && !readyIds.has(workItemId(item.type, item.title))) return false;
   if (priorities.length && !priorities.includes(item.priority)) return false;
   return true;
 }
@@ -129,12 +130,12 @@ export function isHarvestable(item, { requireReady = false, priorities = [] } = 
  * write-back, and the workflow route for the beat. Duplicate ids are dropped
  * (first wins) so re-harvesting is idempotent.
  *
- * @param {{inboxMd?:string, backlogMd?:string, requireReady?:boolean, priorities?:string[], includeInbox?:boolean}} sources
+ * @param {{inboxMd?:string, backlogMd?:string, requireReady?:boolean, priorities?:string[], includeInbox?:boolean, readyIds?:Set<string>}} sources
  * @returns {Array<{id,type,title,priority,source,route,status,deps}>}
  */
-export function harvestWorkQueue({ inboxMd = "", backlogMd = "", requireReady = false, priorities = [], includeInbox = true } = {}) {
+export function harvestWorkQueue({ inboxMd = "", backlogMd = "", requireReady = false, priorities = [], includeInbox = true, readyIds = new Set() } = {}) {
   const backlog = parseBacklog(backlogMd)
-    .filter((it) => isHarvestable(it, { requireReady, priorities }))
+    .filter((it) => isHarvestable(it, { requireReady, priorities, readyIds }))
     .map((it) => ({ ...it, sourceKind: "backlog" }));
   // Inbox lines are raw thoughts: never loop-ready and never under a priority, so
   // either filter excludes them, as does includeInbox=false.

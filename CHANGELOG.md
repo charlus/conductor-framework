@@ -8,6 +8,16 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.45.0] — 2026-10-22 — Give the loop work without touching a tracked file
+
+Compatibility: upgrade only
+
+### Added
+
+- **`conductor loop take "<item>"`.** Gives the loop one open backlog item, named by its title or a unique part of it. The pick is kept in `.git/conductor-loop-ready.json`, so no tracked file changes and your next `git pull` is never refused because of it. Until now you tagged the item `(loop-ready)` in `conductor/2-backlog/task-backlog.md`, an uncommitted edit to the same file the state MR ticks: after the fourth crossing every pull in four products refused until the tags were discarded. With `loop.require_ready` a taken item is harvested like a tagged one, and the tag still works. `conductor loop take` alone lists what the loop has been given and not yet shipped; an item leaves the list once it is ticked in the backlog. `conductor loop take --drop "<item>"` takes one back. `conductor loop on --backlog` and `conductor loop doctor` now point to it.
+
+---
+
 ## [6.44.0] — 2026-10-22 — The loop leaves the owner's checkout clean, and cleans up squash-merged work
 
 Compatibility: upgrade only

@@ -9,6 +9,8 @@
 // It costs a beat, so it is opt-in. It is the only check that shows what the
 // sandbox itself blocks (F6: the first prep notes were proven wrong only there).
 
+import { readReady } from "../loop/ready-queue.js";
+import { gitCommonDir } from "./loop-take.js";
 import { readFile, writeFile, rm, mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -149,6 +151,7 @@ export async function loopDoctor(root, { stdout, beat = false }) {
   const queue = harvestWorkQueue({
     inboxMd: await read("conductor/1-workbench/inbox.md"),
     backlogMd: await read("conductor/2-backlog/task-backlog.md"),
+    readyIds: new Set(gitCommonDir(root) ? (await readReady(gitCommonDir(root))).map((e) => e.id) : []),
     requireReady: loopConfig.requireReady,
     priorities: loopConfig.priorities,
     includeInbox: loopConfig.inbox,

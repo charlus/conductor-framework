@@ -9,8 +9,11 @@
 //     into the default branch is removed, with its local branch.
 // Removal is conservative: only a branch provably contained in the default
 // branch (`merge-base --is-ancestor`), only a worktree with no uncommitted
-// change. A squash-merged branch is not provably merged, so it stays and is
-// reported. `git(args) -> {ok, stdout}` is injected; nothing here fetches.
+// change. F22: a squash-merged branch is not contained in the default branch,
+// and the forge deletes it. It counts as merged only when the forge reports a
+// merged MR whose head is the local branch head (`forgeMerged(branch) -> sha`),
+// never because the remote branch is gone. `git(args) -> {ok, stdout}` is
+// injected; nothing here fetches.
 
 const WORKTREES = "/.agents/.worktrees/";
 const LOOP_PREFIX = "conductor/loop/";
@@ -42,13 +45,26 @@ export async function loopWorktrees(git) {
   return out;
 }
 
-/** Loop worktrees whose branch is contained in the default branch. */
-export async function mergedLoopWorktrees({ git }) {
+/**
+ * Loop worktrees whose branch is contained in the default branch, or (F22) whose
+ * MR the forge reports merged. A forge-merged branch with commits after the
+ * merged head is returned with `ahead: true`: the caller keeps it.
+ * @param {{git: Function, forgeMerged?: (branch: string) => Promise<string|null>}} deps
+ */
+export async function mergedLoopWorktrees({ git, forgeMerged = async () => null }) {
   const base = await defaultBranchRef(git);
   if (!base) return [];
   const merged = [];
   for (const w of await loopWorktrees(git)) {
-    if ((await git(["merge-base", "--is-ancestor", w.branch, base])).ok) merged.push({ ...w, base });
+    if ((await git(["merge-base", "--is-ancestor", w.branch, base])).ok) {
+      merged.push({ ...w, base });
+      continue;
+    }
+    const sha = await forgeMerged(w.branch).catch(() => null);
+    if (!sha) continue;
+    const head = await git(["rev-parse", w.branch]);
+    if (!head.ok) continue;
+    merged.push({ ...w, base, via: "forge", ahead: head.stdout !== sha && !(await git(["merge-base", "--is-ancestor", head.stdout, sha])).ok });
   }
   return merged;
 }
@@ -58,10 +74,14 @@ export async function mergedLoopWorktrees({ git }) {
  * uncommitted changes is kept, with the reason, and so is one `skip` names. Never throws.
  * @returns {Promise<{removed: object[], kept: object[]}>}
  */
-export async function pruneMergedLoopWorktrees({ git, skip = async () => null }) {
+export async function pruneMergedLoopWorktrees({ git, skip = async () => null, forgeMerged }) {
   const removed = [];
   const kept = [];
-  for (const w of await mergedLoopWorktrees({ git })) {
+  for (const w of await mergedLoopWorktrees({ git, forgeMerged })) {
+    if (w.ahead) {
+      kept.push({ ...w, reason: "it has commits after its merged MR" });
+      continue;
+    }
     // Step 7: an outer worktree that still holds an open code worktree stays.
     const why = await skip(w);
     if (why) {
@@ -78,7 +98,8 @@ export async function pruneMergedLoopWorktrees({ git, skip = async () => null })
       kept.push({ ...w, reason: `git worktree remove failed${rm.stderr ? `: ${rm.stderr.split("\n")[0]}` : ""}` });
       continue;
     }
-    await git(["branch", "-q", "-d", w.branch]);
+    // A squash-merged branch is not contained in the default branch: -d refuses it.
+    await git(["branch", "-q", w.via === "forge" ? "-D" : "-d", w.branch]);
     removed.push(w);
   }
   return { removed, kept };

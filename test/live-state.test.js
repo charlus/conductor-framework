@@ -307,3 +307,25 @@ describe("renderLive — the screen", () => {
     assert.match(out, /ask the human/i);
   });
 });
+
+// F22: the merged MR's head for a loop branch, from either forge.
+test("forgeMergedHead reads the merged MR head from GitLab and GitHub, null otherwise", async () => {
+  const { forgeMergedHead } = await import("../src/live-state.js");
+  const sha = "a".repeat(40);
+  const runFor = (url, answers) => async (cmd, args) => {
+    if (cmd === "git") return { code: 0, stdout: `${url}\n`, stderr: "" };
+    return answers[cmd]?.(args) ?? { code: 1, stdout: "", stderr: "no" };
+  };
+  const gitlab = runFor("git@code.example.eu:team/app.git", {
+    glab: (a) => (/source_branch=conductor%2Floop%2Fx&state=merged/.test(a[1]) ? { code: 0, stdout: `[{"sha":"${sha}"}]` } : { code: 0, stdout: "[]" }),
+  });
+  assert.equal(await forgeMergedHead("/r", "conductor/loop/x", gitlab), sha);
+  assert.equal(await forgeMergedHead("/r", "conductor/loop/y", gitlab), null);
+  const github = runFor("https://github.com/o/r.git", {
+    gh: (a) => (a.includes("conductor/loop/x") ? { code: 0, stdout: `[{"headRefOid":"${sha}"}]` } : { code: 0, stdout: "[]" }),
+  });
+  assert.equal(await forgeMergedHead("/r", "conductor/loop/x", github), sha);
+  assert.equal(await forgeMergedHead("/r", "conductor/loop/y", github), null);
+  const broken = runFor("git@code.example.eu:team/app.git", { glab: () => ({ code: 0, stdout: "not json" }) });
+  assert.equal(await forgeMergedHead("/r", "conductor/loop/x", broken), null);
+});

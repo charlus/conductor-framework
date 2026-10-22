@@ -9,6 +9,9 @@
 # (`merge-base --is-ancestor`), never a worktree with uncommitted changes, and
 # never one that still holds a nested code worktree (the outer layout: that one
 # goes when the code repository's own pull finds its branch merged).
+# A squash-merged branch is not contained in the default branch, and the forge
+# deletes it: then the forge decides (glab or gh), and only when its merged MR's
+# head is the local branch head. A deleted remote branch alone is not a merge.
 # Cleanup only: it never blocks, and always exits 0.
 # CONDUCTOR_HOOKS=off disables it, like every Conductor hook.
 # ============================================================
@@ -23,6 +26,32 @@ if [ -z "$base" ] || [ "$base" = "origin/HEAD" ]; then
 fi
 [ -n "$base" ] || exit 0
 
+# The head of the merged MR for branch $1, from the forge; empty when none or unknown.
+# A forge that does not answer in 15 s never holds the pull.
+forge_merged_head() {
+  local url enc t=""
+  command -v timeout >/dev/null 2>&1 && t="timeout 15"
+  url="$(git remote get-url origin 2>/dev/null)" || return 0
+  case "$url" in
+    *github.com[:/]*)
+      command -v gh >/dev/null 2>&1 || return 0
+      $t gh pr list --head "$1" --state merged --json headRefOid --jq '.[0].headRefOid // empty' 2>/dev/null ;;
+    *)
+      command -v glab >/dev/null 2>&1 || return 0
+      enc="$(printf '%s' "$1" | sed 's|/|%2F|g')"
+      $t glab api "projects/:id/merge_requests?source_branch=${enc}&state=merged" 2>/dev/null \
+        | grep -o '"sha":"[0-9a-f]\{40\}"' | head -1 | cut -d'"' -f4 ;;
+  esac
+}
+
+# Merged: contained in the default branch, or squash-merged at the local head.
+loop_branch_merged() {
+  local sha
+  git merge-base --is-ancestor "$1" "$base" 2>/dev/null && return 0
+  sha="$(forge_merged_head "$1")"
+  [ -n "$sha" ] && [ "$(git rev-parse "$1" 2>/dev/null)" = "$sha" ]
+}
+
 path="" branch=""
 while IFS= read -r line; do
   case "$line" in
@@ -30,11 +59,11 @@ while IFS= read -r line; do
     "branch refs/heads/conductor/loop/"*) branch="${line#branch refs/heads/}" ;;
     "")
       if [ -n "$branch" ] && [ "${path#*/.agents/.worktrees/}" != "$path" ] \
-        && git merge-base --is-ancestor "$branch" "$base" 2>/dev/null \
         && [ -z "$(git -C "$path" status --porcelain 2>/dev/null)" ] \
-        && ! ls -d "$path"/*/.git >/dev/null 2>&1; then
+        && ! ls -d "$path"/*/.git >/dev/null 2>&1 \
+        && loop_branch_merged "$branch"; then
         if git worktree remove --force "$path" 2>/dev/null; then
-          git branch -q -d "$branch" 2>/dev/null
+          git branch -q -D "$branch" 2>/dev/null
           echo "Conductor: removed the merged loop worktree ${path##*/} ($branch)."
         fi
       fi

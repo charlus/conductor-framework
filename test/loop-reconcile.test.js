@@ -173,3 +173,85 @@ test("step 7: a merged outer worktree that still holds a code worktree is kept, 
     rmSync(base, { recursive: true, force: true });
   }
 });
+
+// F22: 6.40 squash-merges loop MRs and the forge deletes the source branch, so
+// `merge-base --is-ancestor` never sees them merged. The forge's word decides,
+// and only when the merged MR's head is the local branch head (nothing unpushed).
+function squashOnForge(base, branch) {
+  const forge = join(base, "forge");
+  execFileSync("git", ["clone", "-q", join(base, "origin.git"), forge], { stdio: "pipe" });
+  G(forge, "config", "user.email", "t@t");
+  G(forge, "config", "user.name", "t");
+  G(forge, "merge", "-q", "--squash", `origin/${branch}`);
+  G(forge, "commit", "-qm", "squashed MR");
+  G(forge, "push", "-q", "origin", "master");
+  G(forge, "push", "-q", "origin", "--delete", branch);
+}
+
+test("F22: a squash-merged loop worktree is removed when the forge reports its MR merged at the branch head", async () => {
+  const { base, repo } = setup();
+  try {
+    const squashed = loopWorktree(repo, "squashed");
+    const ahead = loopWorktree(repo, "ahead");
+    const gone = loopWorktree(repo, "gone");
+    const heads = {
+      "conductor/loop/squashed": G(repo, "rev-parse", "conductor/loop/squashed"),
+      "conductor/loop/ahead": G(repo, "rev-parse", "conductor/loop/ahead"),
+    };
+    squashOnForge(base, "conductor/loop/squashed");
+    // A commit made after the MR merged: never lost.
+    writeFileSync(join(ahead, "later.txt"), "later\n");
+    G(ahead, "add", "-A");
+    G(ahead, "commit", "-qm", "later");
+    // The remote branch is gone but no MR was merged: not a merge.
+    G(repo, "push", "-q", "origin", "--delete", "conductor/loop/gone");
+    G(repo, "fetch", "-q", "--prune", "origin");
+
+    const forgeMerged = async (branch) => heads[branch] ?? null;
+    const pruned = await pruneMergedLoopWorktrees({ git: git(repo), forgeMerged });
+    assert.deepEqual(pruned.removed.map((w) => w.branch), ["conductor/loop/squashed"]);
+    assert.deepEqual(pruned.kept.map((w) => w.branch), ["conductor/loop/ahead"]);
+    assert.match(pruned.kept[0].reason, /commits after its merged MR/);
+    assert.equal(existsSync(squashed), false);
+    assert.equal(G(repo, "branch", "--list", "conductor/loop/squashed"), "", "the squashed local branch is deleted");
+    assert.equal(existsSync(ahead), true);
+    assert.equal(existsSync(gone), true, "a deleted remote branch alone is not a merge");
+
+    // Without the forge, nothing squash-merged is removed.
+    const local = await pruneMergedLoopWorktrees({ git: git(repo) });
+    assert.deepEqual(local.removed, []);
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test("F22: the post-merge hook asks the forge about a squash-merged loop branch", () => {
+  const { base, repo } = setup();
+  try {
+    const hooks = join(repo, ".agents/hooks");
+    execFileSync("mkdir", ["-p", hooks]);
+    for (const f of ["post-merge", "lib.sh"]) writeFileSync(join(hooks, f), execFileSync("cat", [new URL(`../templates/.agents/hooks/${f}`, import.meta.url).pathname]));
+    execFileSync("chmod", ["+x", join(hooks, "post-merge")]);
+    const squashed = loopWorktree(repo, "squashed");
+    const open = loopWorktree(repo, "open");
+    const head = G(repo, "rev-parse", "conductor/loop/squashed");
+    squashOnForge(base, "conductor/loop/squashed");
+    // A stub glab: the GitLab API answers for the squashed branch only.
+    const bin = join(base, "bin");
+    execFileSync("mkdir", ["-p", bin]);
+    writeFileSync(
+      join(bin, "glab"),
+      `#!/bin/sh\ncase "$*" in *source_branch=conductor%2Floop%2Fsquashed*) printf '[{"iid":7,"merge_commit_sha":null,"sha":"${head}","state":"merged"}]' ;; *) printf '[]' ;; esac\n`
+    );
+    execFileSync("chmod", ["+x", join(bin, "glab")]);
+    G(repo, "remote", "set-url", "origin", join(base, "origin.git"));
+    G(repo, "config", "core.hooksPath", ".agents/hooks");
+    const out = execFileSync("git", ["pull", "-q", "--no-rebase", "origin", "master"], {
+      cwd: repo, stdio: "pipe", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+    }).toString();
+    assert.equal(existsSync(squashed), false, `the squashed worktree is still there; hook said: ${out}`);
+    assert.equal(existsSync(open), true, "an open MR's worktree stays");
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});

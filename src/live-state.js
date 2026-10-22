@@ -241,6 +241,31 @@ async function lookUp(ref, repos, root, run) {
 }
 
 /**
+ * F22: the head commit of the merged MR whose source branch is `branch`, from
+ * the forge of `dir`'s origin; null when there is none or the forge cannot say.
+ * The loop's cleanup uses it for squash-merged branches. Never throws.
+ */
+export async function forgeMergedHead(dir, branch, run = runCommand) {
+  const { code, stdout } = await run("git", ["remote", "get-url", "origin"], { cwd: dir });
+  if (code !== 0 || !stdout.trim()) return null;
+  const sha = (v) => (typeof v === "string" && /^[0-9a-f]{40}$/.test(v) ? v : null);
+  if (isGithub(stdout.trim())) {
+    const r = await run("gh", ["pr", "list", "--head", branch, "--state", "merged", "--json", "headRefOid", "--limit", "1"], { cwd: dir });
+    try {
+      return r.code === 0 ? sha(JSON.parse(r.stdout)[0]?.headRefOid) : null;
+    } catch {
+      return null;
+    }
+  }
+  const r = await run("glab", ["api", `projects/:id/merge_requests?source_branch=${encodeURIComponent(branch)}&state=merged`], { cwd: dir });
+  try {
+    return r.code === 0 ? sha(JSON.parse(r.stdout)[0]?.sha) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetch the live state. Never throws: a missing CLI, no auth or no network
  * makes an item `unknown` with its reason, and the rest still renders.
  *

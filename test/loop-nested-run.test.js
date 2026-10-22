@@ -124,6 +124,11 @@ test("outer layout: a code worktree from main, the code in the code repository, 
     assert.equal(G(p.code, "branch", "--show-current"), "feat/owner");
     assert.equal(G(p.code, "status", "--porcelain"), "");
     assert.equal(existsSync(join(p.code, "src/built.js")), false);
+
+    // F21: the run's audit trail stays in the git dir, never in the owner's tracked ship-log.
+    assert.equal(G(p.root, "diff", "--name-only", "--", "conductor/0-compass/ship-log.md"), "", "the owner's ship-log is untouched");
+    const audit = readFileSync(join(p.root, ".git/conductor-loop-logs/audit.md"), "utf8");
+    assert.match(audit, /^- \[[0-9T:.\-]+Z\] \[loop\] /m, "the audit trail is in .git/conductor-loop-logs/audit.md");
   } finally {
     rmSync(p.base, { recursive: true, force: true });
   }

@@ -243,7 +243,7 @@ conductor loop doctor [dir] [--beat]
 | `doctor` | Check the project before an unattended run |
 | `doctor --beat` | Also run one real beat to prove the engine and sandbox |
 
-Reads: `verify`, `loop.forge`, `loop.setup`, `loop.allowed_domains`, `loop.require_ready`, `loop.priorities`, `loop.inbox`, `loop.allow_nested_repo`, `loop.models`, `loop.cost_aware`, `loop.slices`, `loop.blueprint`, `loop.code_dir`, `loop.profile`.
+Reads: `verify`, `loop.forge`, `loop.setup`, `loop.allowed_domains`, `loop.require_ready`, `loop.priorities`, `loop.inbox`, `loop.allow_nested_repo`, `loop.models`, `loop.cost_aware`, `loop.slices`, `loop.blueprint`, `loop.code_dir`, `loop.profile`, `loop.blank_env`.
 
 - `conductor loop on km-workload-relief`: let the loop work on this project
 - `conductor loop take "flaky login"`: give the loop this backlog item
@@ -474,5 +474,6 @@ Reads: `verify`, `eval`.
 | `loop.slices` | ["<Project>"] or true: the project's carved slices are loop work, from spec to MR |
 | `loop.blueprint` | ["<Project>"] or true: after Discovery, the project's Blueprint is loop work, one MR |
 | `loop.code_dir` | "repo": the code is this nested repository (outer layout). Each item gets a code worktree and two MRs, code first; verify is repos.<code_dir>.verify |
+| `loop.blank_env` | ["GEMINI_API_KEY", …]: set empty in every beat, so app code never calls a provider with a placeholder key (default: the common provider keys, never the engine's own; [] turns it off) |
 
 <!-- usage-reference:end -->

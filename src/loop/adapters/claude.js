@@ -162,11 +162,12 @@ export async function runBeat({
   allowedTools = null,
   model = null,
   onStep = null, // ({tool, detail}) → void: each tool step, while the beat runs (Loop Monitor M3)
+  env = null, // the beat's environment (src/loop/beat-env.js); null inherits the driver's
 }) {
   const prompt = await readFile(promptPath, "utf8");
   return await new Promise((resolve, reject) => {
     const argv = buildArgv({ prompt, permissionMode, settingsPath, allowedTools, model });
-    const child = spawn("claude", argv, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn("claude", argv, { cwd, env: env ?? process.env, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     let pending = "";

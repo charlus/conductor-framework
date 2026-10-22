@@ -22,6 +22,8 @@ if (dir) {
   // The --model this beat was started with, for the profile test.
   const m = argv.indexOf("--model");
   writeFileSync(join(dir, `${n}.model`), m >= 0 ? argv[m + 1] : "default");
+  // The provider keys this beat could see, for the P4 blank-env test.
+  writeFileSync(join(dir, `${n}.env.json`), JSON.stringify({ GEMINI_API_KEY: process.env.GEMINI_API_KEY ?? null, ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? null }));
 }
 const put = (rel, text) => {
   mkdirSync(dirname(rel), { recursive: true });

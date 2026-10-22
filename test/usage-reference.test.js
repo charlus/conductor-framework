@@ -110,6 +110,8 @@ test("the Next line names the command for each way a run or a check ends", () =>
   assert.match(nextAfterLoop("awaiting_answers"), /Answer each question/);
   assert.match(nextAfterLoop("completed", { prUrls: ["u1"] }), /merge the MR \(u1\)/);
   assert.match(nextAfterLoop("escalated"), /inbox\.md/);
+  // A6 (2026-10-22): an L3 run whose MR could not be opened also ends awaiting_review.
+  assert.match(nextAfterLoop("awaiting_review"), /inbox\.md.*could not be opened/);
   assert.match(nextAfterLoop("budget_exceeded"), /budget/);
   assert.match(nextAfterLoop("stalled"), /loop doctor/);
   assert.equal(nextAfterLoop("idle"), null);

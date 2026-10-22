@@ -1,6 +1,6 @@
 # Unattended Crossing — brainstorm, paused 2026-10-16
 
-> **Status:** first crossing done 2026-10-19 on eurassistant CHORE-2 (MR !48). Fixes built the same day, each verified live, in stacked PRs #71–#75 (6.15.0–6.19.0): F3, F4, F5 and a new F8 in #71; F2 in #73; F1 and F6 in #74. F7 fixed in 6.20.0, with the stale main-checkout check found during the eurassistant upgrade (MR !49). Open questions Q2 and Q3 still stand. Third crossing 2026-10-20/21 on autopportunity, the first in the outer layout: F10–F19, fixed in 6.34.0–6.36.0.
+> **Status:** first crossing done 2026-10-19 on eurassistant CHORE-2 (MR !48). Fixes built the same day, each verified live, in stacked PRs #71–#75 (6.15.0–6.19.0): F3, F4, F5 and a new F8 in #71; F2 in #73; F1 and F6 in #74. F7 fixed in 6.20.0, with the stale main-checkout check found during the eurassistant upgrade (MR !49). Open questions Q2 and Q3 still stand. Third crossing 2026-10-20/21 on autopportunity, the first in the outer layout: F10–F19, fixed in 6.34.0–6.36.0. 2026-10-21: orchestrators compared ([`../research/2026-10-21/orchestrators.md`](../research/2026-10-21/orchestrators.md)); owner decisions: Conductor is the discipline under any orchestrator (D4), `conductor loop` stays the engine (D5), loop features frozen (D1), a Claude Code session as the owner's channel to be tested (D8); the gates as a required CI check scheduled then dropped, so nothing of the framework reaches the teams' CI ([`Server-Side-Gates.md`](Server-Side-Gates.md)).
 > **Evidence:** ten research reports from 2026-10-16 in [`docs/research/2026-10-16/`](../research/2026-10-16/), mainly `meta-landscape.md` (30 tools) and `meta-omnigent-paperclip.md`. Third-party code was read, never run.
 > **Related:** [`Harvest-2026-10.md`](Harvest-2026-10.md) (PR #67), the Q3 outcome eval approved there.
 
@@ -133,4 +133,26 @@ The first run of the outer layout (`loop.code_dir`, 6.31.0) on a team repository
 - **The loop is bound by the machine it runs on.** On eurassistant and evalapp-v2 a task took minutes; here a real item took hours on a business laptop that closes at day's end. A run must either fit the owner's day (say the expected end before starting) or survive being stopped (C3-F18, C3-F20), and long work wants a server (owner's thought, 2026-10-20: a VM or a scheduled pipeline, with its own forge and Claude logins).
 - **The run, end to end:** four runs over two days (escalated, stopped by hand, `budget_exceeded`, completed), ≈ $7.90 at list price, about 3 hours of beats, most of it the Maker re-running the full suite in the sandbox (C3-F17). The last run resumed at Ship (C3-F18) and finished in 32 minutes: code MR innovation/Autopportunity!259 (20 files, −594 lines), state MR !79 (ship-log, rulings, backlog tick, Nexus product area, and the km-workload-relief handoff kept true about the retired script).
 - **What the Checker caught, a person would have too:** System Health changes a label users see (rated low by the Maker), and two "assign a customer" endpoints no screen uses any more. Both went to the owner as decisions, not blocks.
+
+## Fourth crossing — four products in parallel, 2026-10-21
+
+The first run of several products at once on one machine (20 cores, 30 GB), after the owner gave the loop two backlog items in each of autopportunity, eurassistant, evalapp-v2 and website (the website loop works in its nested `website-v2026` repository; `website-cms` stays interactive). Followed on the watch tower (`conductor watch --all`, 6.42.0).
+
+| Product | Items | Wall time | Cost (list price) | MRs |
+|---|---|---|---|---|
+| eurassistant | 2 | 8 min | $2.88 | !52, !53 |
+| evalapp-v2 | 2 | 12 min | $3.28 | !109, !110 |
+| website | 2 | 22 min | $7.60 | code !29, !30 · state !26, !27 |
+| autopportunity | 2 | 87 min | $7.71 | code !260, !261 · state !83, !84 |
+
+Eight items, twelve MRs, no rejected review, no failure, every role on the owner's default model.
+
+### Lessons
+
+- **Four loops in parallel hold on one laptop.** The limit is each product's own test time, not the machine.
+- **On autopportunity, Ship dominated, not Build:** Build 17 and 4 minutes, Ship 27 and 30 minutes. The cause (C4-F1): the driver's verify ran the unit suite in 124–141 s outside the sandbox, but the Checker (618 s) and the Ship beat (605 s, twice) re-ran it inside the sandbox, where some tests probably wait on a blocked network. Fixed in 6.43.0: one full run, the driver's.
+- **One Ship beat missed the ship-log's For you block** and was retried once (4 minutes). The existing check caught it.
+- **The bottleneck moves to the owner:** twelve MRs to review, code before state in the outer layout.
+- **Found on the way:** a test run had written a scratch folder into the owner's real watch-tower list; every test script now gets its own `CONDUCTOR_HOME` (6.42.0).
+- **Outside Conductor:** the slowness of autopportunity's suite itself (and its network-dependent tests) is investigated in that project's own session.
 

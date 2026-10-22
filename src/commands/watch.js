@@ -6,7 +6,7 @@
 // run has ended; `--once` (or no terminal) prints one screen.
 
 import { readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join, resolve, basename } from "node:path";
 import { execFileSync } from "node:child_process";
 import { readEvents, watchModel, renderWatch, EVENTS_FILE } from "../loop/events.js";
 import { BEAT_LOG_DIR } from "../loop/beat-log.js";
@@ -20,8 +20,38 @@ function eventsPath(root) {
   }
 }
 
+async function towerScreen(roots, now, { color = false } = {}) {
+  const { access } = await import("node:fs/promises");
+  const { readRounds } = await import("./status.js");
+  const { renderTower } = await import("../loop/tower.js");
+  const products = [];
+  for (const root of roots) {
+    if (!(await access(root).then(() => true, () => false))) continue;
+    const path = eventsPath(root);
+    const model = watchModel(readEvents(path ? await readFile(path, "utf8").catch(() => "") : ""));
+    const rounds = await readRounds(root).catch(() => ({ waiting: [] }));
+    products.push({ name: basename(root), root, model, waiting: rounds.waiting });
+  }
+  return renderTower(products, now, { color });
+}
+
 export async function watchCommand(args, { cwd, stdout }) {
-  const dir = args.find((a) => !a.startsWith("-"));
+  // The watch tower: every product the loop works on, or the folders named.
+  const dirs = args.filter((a) => !a.startsWith("-"));
+  if (args.includes("--all") || dirs.length > 1) {
+    const { listLoopProjects } = await import("../loop/projects-registry.js");
+    const roots = args.includes("--all") ? await listLoopProjects() : dirs.map((d) => resolve(cwd, d));
+    if (!(stdout.isTTY && !args.includes("--once"))) {
+      stdout.write(await towerScreen(roots, Date.now()));
+      return 0;
+    }
+    for (;;) {
+      const color = !process.env.NO_COLOR && !args.includes("--no-color");
+      stdout.write(`\x1b[2J\x1b[H${await towerScreen(roots, Date.now(), { color })}\n  Ctrl-C to leave\n`);
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
+  const dir = dirs[0];
   const root = resolve(cwd, dir || ".");
   const path = eventsPath(root);
   const screen = async () => renderWatch(watchModel(readEvents(path ? await readFile(path, "utf8").catch(() => "") : "")), Date.now());

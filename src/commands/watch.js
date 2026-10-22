@@ -8,7 +8,8 @@
 import { readFile } from "node:fs/promises";
 import { join, resolve, basename } from "node:path";
 import { execFileSync } from "node:child_process";
-import { readEvents, watchModel, renderWatch, EVENTS_FILE } from "../loop/events.js";
+import { readEvents, watchModels, renderWatchAll, EVENTS_FILE } from "../loop/events.js";
+import { isPidAlive } from "../loop/reconcile.js";
 import { BEAT_LOG_DIR } from "../loop/beat-log.js";
 
 function eventsPath(root) {
@@ -28,9 +29,13 @@ async function towerScreen(roots, now, { color = false } = {}) {
   for (const root of roots) {
     if (!(await access(root).then(() => true, () => false))) continue;
     const path = eventsPath(root);
-    const model = watchModel(readEvents(path ? await readFile(path, "utf8").catch(() => "") : ""));
+    const models = watchModels(readEvents(path ? await readFile(path, "utf8").catch(() => "") : ""), { isAlive: isPidAlive });
     const rounds = await readRounds(root).catch(() => ({ waiting: [] }));
-    products.push({ name: basename(root), root, model, waiting: rounds.waiting });
+    // One row per live run: two `conductor loop <project>` runs in one folder show as two.
+    if (!models.length) products.push({ name: basename(root), root, model: null, waiting: rounds.waiting });
+    models.forEach((model, i) =>
+      products.push({ name: model.project ? `${basename(root)} · ${model.project}` : basename(root), root, model, waiting: i === 0 ? rounds.waiting : [] })
+    );
   }
   return renderTower(products, now, { color });
 }
@@ -54,7 +59,8 @@ export async function watchCommand(args, { cwd, stdout }) {
   const dir = dirs[0];
   const root = resolve(cwd, dir || ".");
   const path = eventsPath(root);
-  const screen = async () => renderWatch(watchModel(readEvents(path ? await readFile(path, "utf8").catch(() => "") : "")), Date.now());
+  const models = async () => watchModels(readEvents(path ? await readFile(path, "utf8").catch(() => "") : ""), { isAlive: isPidAlive });
+  const screen = async () => renderWatchAll(await models(), Date.now());
   const live = stdout.isTTY && !args.includes("--once");
   if (!live) {
     stdout.write(await screen());
@@ -63,7 +69,8 @@ export async function watchCommand(args, { cwd, stdout }) {
   for (;;) {
     const text = await screen();
     stdout.write(`\x1b[2J\x1b[H  conductor watch · ${root} · Ctrl-C to leave\n\n${text}`);
-    if (/Run ended|No loop run recorded/.test(text)) return 0;
+    const ms = await models();
+    if (!ms.length || ms.every((m) => m.ended)) return 0;
     await new Promise((r) => setTimeout(r, 2000));
   }
 }

@@ -112,6 +112,19 @@ conductor loop /path/to/repo --platform claude --unsafe-no-sandbox
 
 You'll see, per beat: `platform: claude` → `worktree: … (new)` → the maker beat → `verify exit=N` → `checker: APPROVED/REJECTED` → a status transition. An `L1` run does exactly one Maker→verify→Checker cycle and stops at `finished: awaiting_review` for you to review and merge the branch yourself.
 
+## One project per terminal (`conductor loop <project>`)
+
+From the project folder, name the project:
+
+```bash
+conductor loop km-workload-relief --dry-run   # what will it build?
+conductor loop km-workload-relief             # build it
+```
+
+The run takes that project only: its remaining Blueprint stages (one MR), then its slices, one slice per run (each ends with MRs you merge before the next one starts). It never takes the backlog or the inbox, and it needs no `slices` or `blueprint` setting. Its first lines say what it will build, and its last line says what to do next.
+
+To build a second project at the same time, open another terminal in the same folder and run `conductor loop <other-project>`. Each run keeps its state and lock in `.git/conductor-loop-logs/runs/<project>/`, works in its own worktrees, and removes them when it ends or on Ctrl+C (a worktree with uncommitted work is kept, and the run says where). The same project twice is refused, and so is a project run beside a `--from-conductor` run. `conductor watch` in the folder shows every run going on.
+
 ## The autonomy ladder
 
 | Level | Behavior | Merge |

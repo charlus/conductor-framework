@@ -12,6 +12,10 @@
 # A squash-merged branch is not contained in the default branch, and the forge
 # deletes it: then the forge decides (glab or gh), and only when its merged MR's
 # head is the local branch head. A deleted remote branch alone is not a merge.
+# Never a fresh loop branch (no commit of its own: its tip is on the default
+# branch's first-parent line), and never a worktree a live loop run holds (its
+# pid in conductor-holder, in the worktree's own git directory): worktrees are
+# shared by every checkout, so another loop's live work shows up here too.
 # Cleanup only: it never blocks, and always exits 0.
 # CONDUCTOR_HOOKS=off disables it, like every Conductor hook.
 # ============================================================
@@ -44,10 +48,25 @@ forge_merged_head() {
   esac
 }
 
+own_line="$(git rev-list --first-parent "$base" 2>/dev/null)"
+
+# A live loop run holds the worktree at $1.
+held_by_live_run() {
+  local dir pid
+  dir="$(git -C "$1" rev-parse --path-format=absolute --git-dir 2>/dev/null)" || return 1
+  [ -f "$dir/conductor-holder" ] || return 1
+  pid="$(grep -o '"pid":[0-9]*' "$dir/conductor-holder" | head -1 | cut -d: -f2)"
+  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
 # Merged: contained in the default branch, or squash-merged at the local head.
+# A tip on the default branch's own line is a fresh branch, not a merged one.
 loop_branch_merged() {
-  local sha
-  git merge-base --is-ancestor "$1" "$base" 2>/dev/null && return 0
+  local sha tip
+  tip="$(git rev-parse "$1" 2>/dev/null)" || return 1
+  if ! printf '%s\n' "$own_line" | grep -qx "$tip"; then
+    git merge-base --is-ancestor "$1" "$base" 2>/dev/null && return 0
+  fi
   sha="$(forge_merged_head "$1")"
   [ -n "$sha" ] && [ "$(git rev-parse "$1" 2>/dev/null)" = "$sha" ]
 }
@@ -61,6 +80,7 @@ while IFS= read -r line; do
       if [ -n "$branch" ] && [ "${path#*/.agents/.worktrees/}" != "$path" ] \
         && [ -z "$(git -C "$path" status --porcelain 2>/dev/null)" ] \
         && ! ls -d "$path"/*/.git >/dev/null 2>&1 \
+        && ! held_by_live_run "$path" \
         && loop_branch_merged "$branch"; then
         if git worktree remove --force "$path" 2>/dev/null; then
           git branch -q -D "$branch" 2>/dev/null

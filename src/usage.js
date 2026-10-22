@@ -92,8 +92,9 @@ export const COMMANDS = Object.freeze([
   },
   {
     name: "loop", group: "loop", summary: "Run the autonomous loop: beats, reviews, one MR per item",
-    usage: "conductor loop [dir] [--from-conductor | --goal <text> | --event <file.json>] [options]\n  conductor loop on|off <project> [dir] [--yes] [--dry-run]\n  conductor loop take [\"<item>\"] [dir] [--drop]\n  conductor loop profile [quality|balanced] [dir]\n  conductor loop doctor [dir] [--beat]",
+    usage: "conductor loop <project> [dir] [options]\n  conductor loop [dir] [--from-conductor | --goal <text> | --event <file.json>] [options]\n  conductor loop on|off <project> [dir] [--yes] [--dry-run]\n  conductor loop take [\"<item>\"] [dir] [--drop]\n  conductor loop profile [quality|balanced] [dir]\n  conductor loop doctor [dir] [--beat]",
     flags: [
+      ["<project>", "Build this project only: its remaining Blueprint stages, then its slices, one per run. Its state stays in .git; another terminal in the same folder can build another project at the same time. The loop removes its worktrees when it ends or on Ctrl+C"],
       ["--from-conductor", "Take the work from conductor/: backlog, inbox, slices, Blueprints"],
       ["--dry-run", "Show what the run would pick up and do, write nothing"],
       ["--platform <name>", "Engine: claude | codex | antigravity (default: loop-state, then detected)"],
@@ -118,6 +119,8 @@ export const COMMANDS = Object.freeze([
     ],
     config: ["verify", "loop.forge", "loop.setup", "loop.allowed_domains", "loop.require_ready", "loop.priorities", "loop.inbox", "loop.allow_nested_repo", "loop.models", "loop.cost_aware", "loop.slices", "loop.blueprint", "loop.code_dir", "loop.profile", "loop.blank_env"],
     examples: [
+      ["conductor loop km-workload-relief", "build this project; a second terminal can run another project"],
+      ["conductor loop km-workload-relief --dry-run", "what will it build?"],
       ["conductor loop on km-workload-relief", "let the loop work on this project"],
       ["conductor loop take \"flaky login\"", "give the loop this backlog item"],
       ["conductor loop doctor .", "is this project ready?"],
@@ -129,11 +132,11 @@ export const COMMANDS = Object.freeze([
     name: "watch", group: "loop", summary: "What the loop run is doing: each item's beat in progress, the last news, beats and cost",
     usage: "conductor watch [dir] [--once]\n  conductor watch --all [--once]",
     flags: [
-      ["--all", "The watch tower: every product the loop is on, on one screen (registered by conductor loop on)"],
+      ["--all", "The watch tower: every product the loop is on, on one screen (registered by conductor loop on or conductor loop <project>), one row per running project"],
       ["--once", "Print one screen and exit (it refreshes every few seconds otherwise)"],
       ["--no-color", "Plain text on a terminal (NO_COLOR does the same)"],
     ],
-    examples: [["conductor watch --all", "every product's run, beat, last news and waiting questions"], ["conductor watch", "this product only"]],
+    examples: [["conductor watch --all", "every product's run, beat, last news and waiting questions"], ["conductor watch", "this product only, every project run going on in it"]],
   },
   {
     name: "verify", group: "gates", summary: "Show or set the command `git push` must pass",

@@ -26,15 +26,15 @@ export const PR_BODY_REL = "conductor/1-workbench/pr-body.md";
 const DRIVER_FILES = [STATE_REL, MAKER_SIGNAL_REL, VERDICT_REL, PR_BODY_REL];
 
 /**
- * Copy the root's live loop-state.json into the worktree at `cwd`, and hide it
+ * Copy the root's live loop-state.json (or `from`, a project run's state) into the worktree at `cwd`, and hide it
  * and the driver's signal files from git. `git(args) -> {ok, stdout}` runs in
  * `cwd`. No-op when `cwd` is the root.
  */
-export async function syncLoopStateInto({ root, cwd, git }) {
+export async function syncLoopStateInto({ root, cwd, git, from = join(root, STATE_REL) }) {
   if (resolve(cwd) === resolve(root)) return;
   const dst = join(cwd, STATE_REL);
   await mkdir(dirname(dst), { recursive: true });
-  await copyFile(join(root, STATE_REL), dst);
+  await copyFile(from, dst);
   for (const rel of DRIVER_FILES) await hideFromGit(rel, { cwd, git });
 }
 

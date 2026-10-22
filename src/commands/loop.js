@@ -6,14 +6,14 @@
 // all guarantees live in the pure driver so `node --test` can exercise them.
 
 import { readFile, writeFile, appendFile, rename, access, rm, cp, mkdir, readdir, mkdtemp } from "node:fs/promises";
-import { constants as fsConstants, rmSync } from "node:fs";
+import { constants as fsConstants, rmSync, statSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { join, resolve, sep, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { runLoop, normalizeState, resolveVerifyCommand, beatCeiling } from "../loop/driver.js";
 import { resolveAdapter } from "../loop/adapters/index.js";
 import { createWorktree, teardownWorktree, worktreePlan, taskWorktreePlan, materializeConductorContext, CONTEXT_ANCHORS, hasUniqueCommits, ensureWorktreesExcluded } from "../loop/worktree.js";
-import { autoCommit, autoCommitMessage } from "../loop/autocommit.js";
+import { guardedAutoCommit, autoCommitMessage, IsolationLostError } from "../loop/autocommit.js";
 import { harvestWorkQueue, renderAssignment, renderAttempts } from "../loop/harvester.js";
 import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, isInfraReason, groundFindings, VERDICT_REL } from "../loop/checker.js";
 import { openPullRequest, planMergeAction, DEFAULT_PR_BODY } from "../loop/merge.js";
@@ -38,13 +38,14 @@ import { recordUsage, usageSummary, cacheShare } from "../loop/usage.js";
 import { newRulings, rulingInboxLines, rulingsPrBody, rulingsForChecker, RULINGS_REL } from "../loop/rulings.js";
 import { renderShipAssignment, shipBeatSection, sectionOf, checkShipEvidence, PR_BODY_REL } from "../loop/ship.js";
 import { harvestSlices, specEvidence as checkSpecEvidence, PROJECTS_REL } from "../loop/slices.js";
-import { pruneMergedLoopWorktrees, remoteLoopBranches, mergedBranches, skipClaimed, defaultBranchRef } from "../loop/reconcile.js";
+import { pruneMergedLoopWorktrees, remoteLoopBranches, mergedBranches, skipClaimed, defaultBranchRef, markWorktreeHeld, removeHeldWorktrees } from "../loop/reconcile.js";
 import { forgeMergedHead } from "../live-state.js";
 import { readReady } from "../loop/ready-queue.js";
 import { gitCommonDir as gitDirOf } from "./loop-take.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels, effectiveModels } from "../loop/config.js";
 import { describeModels } from "../loop/profiles.js";
 import { makeEmitter } from "../loop/events.js";
+import { positionals, looksLikeProject, runKey, scopedState, scopeLoopConfig, describeScope, RUNS_DIR } from "../loop/scope.js";
 import { verifyWithEvidence } from "../loop/verify-evidence.js";
 import { blankedNames, beatEnv, withBeatEnv } from "../loop/beat-env.js";
 import { mrTitles, readOnlyEnv } from "../loop/team-facing.js";
@@ -132,8 +133,8 @@ function isPidAlive(pid) {
  * Take the single-holder run lock for `root`, or refuse if a live loop owns it.
  * A stale lock (owner dead) is stolen. @returns {acquired, heldByPid?, stale?}
  */
-async function acquireLock(root) {
-  const lockPath = join(root, LOCK_REL);
+async function acquireLock(lockPath) {
+  await mkdir(join(lockPath, ".."), { recursive: true });
   const existingText = (await exists(lockPath)) ? await readFile(lockPath, "utf8").catch(() => "") : "";
   const decision = lockDecision({ existingText, isAlive: isPidAlive });
   if (!decision.acquire) return { acquired: false, heldByPid: decision.heldByPid };
@@ -142,8 +143,25 @@ async function acquireLock(root) {
 }
 
 /** Release the run lock (best-effort; a leftover lock is stolen next run anyway). */
-async function releaseLock(root) {
-  await rm(join(root, LOCK_REL), { force: true }).catch(() => {});
+async function releaseLock(lockPath) {
+  await rm(lockPath, { force: true }).catch(() => {});
+}
+
+/** The live pid in the lock file at `path`, or null. */
+async function liveLockPid(path) {
+  const text = (await exists(path)) ? await readFile(path, "utf8").catch(() => "") : "";
+  const d = lockDecision({ existingText: text, isAlive: isPidAlive });
+  return d.acquire ? null : d.heldByPid;
+}
+
+/** The projects whose `conductor loop <project>` run is live in `runsDir`: [{project, pid}]. */
+async function liveProjectRuns(runsDir) {
+  const out = [];
+  for (const name of (await exists(runsDir)) ? await readdir(runsDir) : []) {
+    const pid = await liveLockPid(join(runsDir, name, "loop.lock"));
+    if (pid) out.push({ project: name, pid });
+  }
+  return out;
 }
 
 /** Atomic state write: temp file + rename, so a kill mid-beat never corrupts the Spine. */
@@ -280,8 +298,8 @@ async function writeInbox(root, state, reason, { title = null } = {}) {
   const inbox = join(root, "conductor/1-workbench/inbox.md");
   const line = `\n## [loop] ${title ?? `Escalation — ${state.status}`}\n${reason}\n(goal: ${state.goal_description || "n/a"}, beat ${state.iterations.current}/${beatCeiling(state)})\n`;
   try {
-    const prev = (await exists(inbox)) ? await readFile(inbox, "utf8") : "";
-    await writeFile(inbox, prev + line, "utf8");
+    // An append: two project runs in one folder never lose each other's lines.
+    await appendFile(inbox, line, "utf8");
   } catch {
     /* best-effort escalation */
   }
@@ -374,19 +392,54 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const { loopDoctor } = await import("./loop-doctor.js");
     return loopDoctor(resolve(cwd, dir || "."), { stdout, cwd, beat: rest.includes("--beat") });
   }
-  const positional = args.find((a) => !a.startsWith("-"));
-  const root = resolve(cwd, positional || ".");
-  const statePath = join(root, STATE_REL);
-  const unsafe = args.includes("--unsafe-no-sandbox");
+  // `conductor loop <project> [dir]`: the project named is the whole scope.
+  const pos = positionals(args);
+  const isDir = (t) => {
+    try {
+      return statSync(resolve(cwd, t)).isDirectory();
+    } catch {
+      return false;
+    }
+  };
+  const scope = looksLikeProject(pos[0], isDir) ? pos[0] : null;
+  const root = resolve(cwd, (scope ? pos[1] : pos[0]) || ".");
+  const commonDirRes = await runCli("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], root);
+  const runsDir = commonDirRes.ok ? join(commonDirRes.stdout, BEAT_LOG_DIR, RUNS_DIR) : null;
+  const runDir = scope && runsDir ? join(runsDir, runKey(scope)) : null;
   const dryRun = args.includes("--dry-run");
+  const fromConductor = args.includes("--from-conductor") || Boolean(scope);
+  if (scope) {
+    const base = join(root, PROJECTS_REL);
+    const names = [];
+    for (const e of (await exists(base)) ? await readdir(base, { withFileTypes: true }) : []) if (e.isDirectory()) names.push(e.name);
+    if (!names.includes(scope)) {
+      stderr.write(
+        names.length
+          ? `No project "${scope}" in ${root}. Projects here: ${names.sort().join(", ")}.\n`
+          : `No project "${scope}": ${root} has no project in ${PROJECTS_REL}/.\n`
+      );
+      return 1;
+    }
+    if (!runDir) {
+      stderr.write(`${root} is not a git repository: \`conductor loop ${scope}\` needs one.\n`);
+      return 1;
+    }
+    if (args.includes("--goal") || args.includes("--event")) {
+      stderr.write(`\`conductor loop ${scope}\` builds that project: --goal and --event do not apply.\n`);
+      return 1;
+    }
+  }
+  const statePath = scope ? join(runDir, "loop-state.json") : join(root, STATE_REL);
+  const lockPath = scope ? join(runDir, "loop.lock") : join(root, LOCK_REL);
+  const loopCmd = scope ? `conductor loop ${scope}` : undefined;
+  const unsafe = args.includes("--unsafe-no-sandbox");
   const platformFlag = flagValue(args, "--platform");
   const goalFlag = flagValue(args, "--goal");
   const eventFlag = flagValue(args, "--event");
-  const fromConductor = args.includes("--from-conductor");
   const priorityFlag = flagValue(args, "--priority");
   const noInbox = args.includes("--no-inbox");
 
-  if (!(await exists(statePath))) {
+  if (!(await exists(join(root, STATE_REL)))) {
     stderr.write(`No ${STATE_REL} found. Run 'conductor init' or 'conductor upgrade' first.\n`);
     return 1;
   }
@@ -394,12 +447,13 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   // Load + migrate v1 → v2 (normalizeState is additive-safe; persist the upgrade).
   let raw;
   try {
-    raw = await readJson(statePath);
+    raw = await readJson(join(root, STATE_REL));
   } catch (e) {
     stderr.write(`Could not parse ${STATE_REL}: ${e.message}\n`);
     return 1;
   }
-  const state = normalizeState(raw);
+  // A project's run: its own run state, the owner's settings.
+  const state = scope ? scopedState(raw, (await exists(statePath)) ? await readJson(statePath).catch(() => null) : null) : normalizeState(raw);
 
   // The "loop" block of conductor.config.json, read from the ROOT checkout only:
   // a beat runs in a worktree and cannot widen its own sandbox or setup. A bad
@@ -421,6 +475,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     stderr.write(`⛔  Invalid loop settings in conductor.config.json:\n${loopConfig.errors.map((e) => `    - ${e}`).join("\n")}\n`);
     return 1;
   }
+  if (scope) loopConfig = scopeLoopConfig(loopConfig, scope);
 
   // ---- Resume discipline (P1.4): a prior run may have died mid-beat, freezing a
   // task at a working status the frontier never re-selects (→ deadlock on resume)
@@ -429,7 +484,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   // untouched. Safe: the one-loop lock guarantees no live worker to race, and a
   // re-run is idempotent (maker re-verifies, auto-commit no-ops, merge reuses PR).
   const fresh = startNewRun(state);
-  if (fresh.reset) stdout.write(`[CONDUCTOR LOOP] new run: the previous one ended '${fresh.from}' — beats, clock and stall counters reset\n`);
+  if (fresh.reset && !scope) stdout.write(`[CONDUCTOR LOOP] new run: the previous one ended '${fresh.from}' — beats, clock and stall counters reset\n`);
   const revived = reviveForResume(state);
   if (revived.tasks || revived.run) {
     stdout.write(
@@ -481,9 +536,11 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   // conductor/ in VS Code and the fleet draining it stay coherent. Never escalates
   // autonomy; the operator's autonomy_level/sandbox/concurrency still gate the run.
   let harvestedQueue = [];
+  let scopeInReview = null;
   if (fromConductor) {
-    const inboxMd = (await exists(join(root, INBOX_REL))) ? await readFile(join(root, INBOX_REL), "utf8") : "";
-    const backlogMd = (await exists(join(root, BACKLOG_REL))) ? await readFile(join(root, BACKLOG_REL), "utf8") : "";
+    // A project's run never takes the inbox or the backlog.
+    const inboxMd = !scope && (await exists(join(root, INBOX_REL))) ? await readFile(join(root, INBOX_REL), "utf8") : "";
+    const backlogMd = !scope && (await exists(join(root, BACKLOG_REL))) ? await readFile(join(root, BACKLOG_REL), "utf8") : "";
     const gitDir = gitDirOf(root);
     harvestedQueue = harvestWorkQueue({
       inboxMd,
@@ -519,11 +576,25 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           mergedBranches: await mergedBranches(rootGit, [...remote]),
           branchFor: (t) => taskWorktreePlan(root, state.goal_description, t.id).branch,
         });
-        for (const t of claims.inReview) stdout.write(`[CONDUCTOR LOOP] skipped ${t.id}: its loop branch is on the remote (in progress or in review)\n`);
+        if (!scope) for (const t of claims.inReview) stdout.write(`[CONDUCTOR LOOP] skipped ${t.id}: its loop branch is on the remote (in progress or in review)\n`);
         for (const t of claims.mergedButOpen)
           stdout.write(`[CONDUCTOR LOOP] skipped ${t.id}: its loop branch is merged but the item is still open in the backlog — tick it\n`);
         harvestedQueue = claims.queue;
+        scopeInReview = claims.inReview[0] ?? null;
       }
+    }
+    if (scope) {
+      const sl = (await readSlices(root, [scope])).projects.find((p) => p.name === scope);
+      const lines = describeScope({
+        project: scope,
+        item: harvestedQueue[0] ?? null,
+        openSlices: sl?.slices.length ?? 0,
+        inReview: scopeInReview,
+        carved: Boolean(sl),
+      });
+      stdout.write(`${lines.join("\n")}\n\n`);
+      // Nothing to build: the plain line above is the whole answer.
+      if (!harvestedQueue.length) return 0;
     }
     // swarm route; normalizeTask preserves title/source/route, and what an item
     // earned in the last run (a passed review, an answered round) is carried over.
@@ -675,7 +746,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   const gitCommonDir = await runCli("git", ["rev-parse", "--git-common-dir"], root);
   const beatLogDir = gitCommonDir.ok ? join(resolve(root, gitCommonDir.stdout), BEAT_LOG_DIR) : null;
   // Loop Monitor M1: one event log per repository, read by `conductor watch`.
-  const emit = makeEmitter(beatLogDir, new Date().toISOString());
+  const emit = makeEmitter(beatLogDir, `${new Date().toISOString()}#${process.pid}`, { runInfo: { pid: process.pid, ...(scope ? { project: scope } : {}) } });
   const cwdTask = new Map(); // worktree path → task id, so every beat names its item
   const modelFor = (kind, opts) => {
     const m = effectiveModels(loopConfig);
@@ -686,7 +757,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const eventTask = opts.task?.id ?? cwdTask.get(resolve(opts.cwd ?? root)) ?? "run";
     await emit("beat_start", { task: eventTask, kind, model: modelFor(kind, opts) });
     try {
-      await syncLoopStateInto({ root, cwd: opts.cwd ?? root, git: makeGit(opts.cwd ?? root) });
+      await syncLoopStateInto({ root, cwd: opts.cwd ?? root, git: makeGit(opts.cwd ?? root), from: statePath });
     } catch (e) {
       stderr.write(`[CONDUCTOR LOOP] ⚠️  could not copy loop-state.json into ${opts.cwd}: ${e.message}\n`);
     }
@@ -892,10 +963,13 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     return resolveForge({ override: loopConfig.forge, remoteUrl: r.ok ? r.stdout : "" }).forge;
   };
   // Commit what a beat left, in the code worktree first, then in the outer one.
+  // Outside the owner's checkout, only in the expected loop worktree on its loop
+  // branch: anything else throws IsolationLostError and the run halts.
   async function captureAll(cwd, message) {
     const code = codeWtOf(cwd);
-    const c = code && (await exists(join(code, ".git"))) ? await autoCommit({ git: makeGit(code), message }) : { committed: false, bypassedHooks: false };
-    const o = await autoCommit({ git: makeGit(cwd), message });
+    const own = resolve(cwd) === resolve(root);
+    const c = code && (await exists(join(code, ".git"))) ? await guardedAutoCommit({ git: makeGit(code), message, expect: { path: code } }) : { committed: false, bypassedHooks: false };
+    const o = await guardedAutoCommit({ git: makeGit(cwd), message, expect: own ? null : { path: cwd } });
     return { committed: c.committed || o.committed, bypassedHooks: Boolean(c.bypassedHooks || o.bypassedHooks) };
   }
   const nestedNote = () =>
@@ -1016,23 +1090,41 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
 
   // ---- Route: swarm (task graph) vs. pair (single fuzzy goal) --------------
   if (fromConductor && state.tasks.length === 0) {
-    stdout.write("[CONDUCTOR LOOP] conductor/ has no open work items (inbox + backlog empty). Nothing to do.\n");
+    if (!scope) stdout.write("[CONDUCTOR LOOP] conductor/ has no open work items (inbox + backlog empty). Nothing to do.\n");
     return 0;
   }
 
   // One loop per target: independent loop processes race on the shared worktree/
   // branch/PR and the conductor/ write-back. Refuse to start a second (dry-run,
   // which never mutates, is exempt above by returning before this point).
-  const lock = await acquireLock(root);
+  // A project's run and a whole-folder run can take the same work: never both.
+  if (scope) {
+    const whole = await liveLockPid(join(root, LOCK_REL));
+    if (whole) {
+      stderr.write(`⛔  A \`conductor loop --from-conductor\` run is going on in this folder (pid ${whole}), and it can take the same work. Wait for it to end, then run \`${loopCmd}\`.\n`);
+      return 1;
+    }
+  } else if (runsDir) {
+    const live = await liveProjectRuns(runsDir);
+    if (live.length) {
+      stderr.write(`⛔  \`conductor loop <project>\` runs are going on in this folder (${live.map((r) => `${r.project}, pid ${r.pid}`).join("; ")}), and a whole-folder run can take the same work. Wait for them to end.\n`);
+      return 1;
+    }
+  }
+  const lock = await acquireLock(lockPath);
   if (!lock.acquired) {
     stderr.write(
-      `⛔  Another 'conductor loop' is already running on this target (pid ${lock.heldByPid}). ` +
-        `Concurrent loops race on the worktree/branch/write-back — refusing to start a second. ` +
-        `Wait for it to finish, or kill it and retry.\n`
+      scope
+        ? `⛔  ${scope} is already being built by another loop in this folder (pid ${lock.heldByPid}). Watch it with \`conductor watch\`.\n`
+        : `⛔  Another 'conductor loop' is already running on this target (pid ${lock.heldByPid}). ` +
+            `Concurrent loops race on the worktree/branch/write-back — refusing to start a second. ` +
+            `Wait for it to finish, or kill it and retry.\n`
     );
     return 1;
   }
   if (lock.stale) stdout.write(`[CONDUCTOR LOOP] cleared a stale lock (dead pid ${lock.heldByPid})\n`);
+  // `conductor watch --all` finds a project's run without `conductor loop on`.
+  if (scope) await import("../loop/projects-registry.js").then((m) => m.addLoopProject(root)).catch(() => {});
 
   // ---- Deferred writes: EVERY disk mutation happens HERE, after the one-loop
   // lock is held. A --dry-run returns before the lock (never reaching this), and
@@ -1080,17 +1172,47 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
 
   // Step 7: the outer layout runs work items (--from-conductor), not a free goal.
   if (loopConfig.codeDir && !(Array.isArray(state.tasks) && state.tasks.length > 0)) {
-    await releaseLock(root);
+    await releaseLock(lockPath);
     stderr.write("⛔  With loop.code_dir, the loop runs work items from conductor/: use --from-conductor. A single --goal run (pair mode) is not supported in the outer layout.\n");
     return 1;
   }
+  // `conductor loop <project>` cleans up after itself, at the end and on Ctrl+C:
+  // every worktree it held that has no uncommitted change.
+  async function cleanupScoped() {
+    if (!scope) return;
+    const r = await removeHeldWorktrees({ git: makeGit(root), codeGit: loopConfig.codeDir ? makeGit(join(root, loopConfig.codeDir)) : null, codeDir: loopConfig.codeDir ?? null });
+    for (const w of r.kept) stdout.write(`[CONDUCTOR LOOP] kept ${w.path}: ${w.reason}.\n`);
+  }
+  const onSignal = (sig) => {
+    (async () => {
+      await cleanupScoped().catch(() => {});
+      await releaseLock(lockPath);
+      process.exit(sig === "SIGINT" ? 130 : 143);
+    })();
+  };
+  if (scope) {
+    process.once("SIGINT", onSignal);
+    process.once("SIGTERM", onSignal);
+  }
   try {
-    const code =
-      Array.isArray(state.tasks) && state.tasks.length > 0 ? await runSwarmMode() : await runPairMode();
+    let code;
+    try {
+      code = Array.isArray(state.tasks) && state.tasks.length > 0 ? await runSwarmMode() : await runPairMode();
+    } catch (e) {
+      if (!(e instanceof IsolationLostError)) throw e;
+      // Fail safe: a beat's worktree is gone. Commit nothing, stop the run.
+      state.status = "halted_isolation";
+      await atomicWriteJson(statePath, state);
+      await writeInbox(root, state, `The run stopped and committed nothing: ${e.message}. Run the loop again: it starts this item over in a new worktree.`);
+      await audit(`halted_isolation: ${e.message}`);
+      stderr.write(`[CONDUCTOR LOOP] ⛔ stopped: ${e.message}. Nothing was committed.\n`);
+      code = 1;
+    }
+    await cleanupScoped().catch((e) => stderr.write(`[CONDUCTOR LOOP] ⚠️  cleanup failed: ${e.message}\n`));
     try {
       const after = await readJson(statePath);
       const prUrls = [after.merge?.pr_url, ...(after.tasks ?? []).flatMap((t) => [t.merge?.code_pr_url, t.merge?.pr_url])].filter((u) => u && u !== "n/a");
-      const hint = nextAfterLoop(after.status, { prUrls: [...new Set(prUrls)] });
+      const hint = nextAfterLoop(after.status, { prUrls: [...new Set(prUrls)], cmd: loopCmd });
       if (hint) stdout.write(`\n[CONDUCTOR LOOP] ${hint}\n`);
     } catch {
       /* a hint never fails a run */
@@ -1099,7 +1221,9 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     await runSelfImprovement();
     return code;
   } finally {
-    await releaseLock(root);
+    process.off("SIGINT", onSignal);
+    process.off("SIGTERM", onSignal);
+    await releaseLock(lockPath);
   }
 
   // -------------------------------------------------------------------------
@@ -1400,6 +1524,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         await ensureWorktreesExcluded(root);
         const wt = await createWorktree({ root, goalDescription: state.goal_description, git });
         workCwd = wt.path;
+        await markWorktreeHeld({ git: makeGit(wt.path) });
         state.worktree = { path: wt.path, branch: wt.branch };
         await atomicWriteJson(statePath, state);
         stdout.write(`[CONDUCTOR LOOP] worktree: ${wt.branch} @ ${wt.path}${wt.created ? " (new)" : " (reused)"}\n`);
@@ -1458,9 +1583,10 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         });
         // P0.1 backstop: capture any uncommitted Maker change so verify sees a real
         // diff, the Checker has commits to review, and teardown can't discard it.
-        const cap = await autoCommit({
+        const cap = await guardedAutoCommit({
           git: makeGit(workCwd),
           message: autoCommitMessage({ role: "maker", beat: state.iterations.current, goal: state.goal_description }),
+          expect: resolve(workCwd) === resolve(root) ? null : { path: workCwd },
         });
         if (cap.committed) {
           const note = `auto-captured uncommitted maker changes${cap.bypassedHooks ? " (commit hook bypassed)" : ""}`;
@@ -1554,6 +1680,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           const res = await git(["worktree", "add", "-b", plan.branch, plan.path, base]);
           if (!res.ok) await git(["worktree", "add", plan.path, plan.branch]);
         }
+        // Another loop's cleanup must never remove a worktree this run holds.
+        await markWorktreeHeld({ git: makeGit(plan.path) });
         // Conductor-enable the isolated Maker even if the scaffold is gitignored.
         await materializeContextInto(plan.path);
         cwdFor.set(task.id, plan.path);
@@ -1564,6 +1692,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           const { codeWorktree } = codePaths({ root, codeDir: loopConfig.codeDir, outerWorktree: plan.path });
           const c = await ensureCodeWorktree({ codeGit: makeGit(codeRoot), path: codeWorktree, branch: plan.branch });
           if (!c.ok) return { path: plan.path, branch: plan.branch, setup_error: `code worktree: ${c.reason}` };
+          await markWorktreeHeld({ git: makeGit(codeWorktree) });
           for (const rel of [MAKER_SIGNAL_REL, VERDICT_REL, PR_BODY_REL]) await hideFromGit(rel, { cwd: codeWorktree, git: makeGit(codeWorktree) });
         }
         const setup = await runWorktreeSetup(codeWtOf(plan.path) ?? plan.path);

@@ -14,7 +14,7 @@ export const EVENTS_FILE = "events.ndjson";
 const ROTATE_BYTES = 5 * 1024 * 1024;
 
 /** An `emit(type, data)` that appends to the run's event log, or does nothing without a directory. */
-export function makeEmitter(dir, run, { now = () => Date.now() } = {}) {
+export function makeEmitter(dir, run, { now = () => Date.now(), runInfo = {} } = {}) {
   if (!dir) return async () => {};
   const path = join(dir, EVENTS_FILE);
   return async (type, data = {}) => {
@@ -22,7 +22,9 @@ export function makeEmitter(dir, run, { now = () => Date.now() } = {}) {
       await mkdir(dir, { recursive: true });
       const size = await stat(path).then((s) => s.size).catch(() => 0);
       if (size > ROTATE_BYTES) await rename(path, `${path}.1`).catch(() => {});
-      await appendFile(path, `${JSON.stringify({ run, at: new Date(now()).toISOString(), type, ...data })}\n`, "utf8");
+      // run_start names the process and the project, so a view can show each live run.
+      const info = type === "run_start" ? runInfo : {};
+      await appendFile(path, `${JSON.stringify({ run, at: new Date(now()).toISOString(), type, ...info, ...data })}\n`, "utf8");
     } catch {
       /* the monitor is measurement only */
     }
@@ -78,9 +80,24 @@ function minutes(s) {
  * @returns {{run, started, ended: object|null, items: object[], beats: number, cost: number}}
  */
 export function watchModel(events) {
-  const runs = events.filter((e) => e.type === "run_start");
-  const last = runs.at(-1);
-  if (!last) return null;
+  const last = events.filter((e) => e.type === "run_start").at(-1);
+  return last ? runModel(events, last) : null;
+}
+
+/**
+ * Every live run of the folder (two `conductor loop <project>` runs side by
+ * side), or the latest run when none is live. A run is live when it has not
+ * ended and its process (`pid` in run_start) is alive. Pure but for `isAlive`.
+ */
+export function watchModels(events, { isAlive = () => false } = {}) {
+  const starts = events.filter((e) => e.type === "run_start");
+  if (!starts.length) return [];
+  const ended = new Set(events.filter((e) => e.type === "run_end").map((e) => e.run));
+  const live = starts.filter((s) => !ended.has(s.run) && (s.pid ? isAlive(s.pid) : s === starts.at(-1)));
+  return (live.length ? live : [starts.at(-1)]).map((s) => runModel(events, s));
+}
+
+function runModel(events, last) {
   const mine = events.filter((e) => e.run === last.run);
   const items = new Map();
   let beats = 0;
@@ -111,7 +128,14 @@ export function watchModel(events) {
       items.set(e.task, it);
     }
   }
-  return { run: last.run, started: last.at, ended: mine.find((e) => e.type === "run_end") ?? null, items: [...items.values()], beats, cost, planned: last.items ?? [] };
+  return { run: last.run, project: last.project ?? null, started: last.at, ended: mine.find((e) => e.type === "run_end") ?? null, items: [...items.values()], beats, cost, planned: last.items ?? [] };
+}
+
+/** One screen for every run `watchModels` returned, each under its project's name. */
+export function renderWatchAll(models, now) {
+  if (!models.length) return renderWatch(null, now);
+  if (models.length === 1 && !models[0].project) return renderWatch(models[0], now);
+  return models.map((m) => `  ── ${m.project ?? "whole folder (--from-conductor)"} ──\n${renderWatch(m, now)}`).join("\n");
 }
 
 const hhmm = (iso) => new Date(iso).toTimeString().slice(0, 5);

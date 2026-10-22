@@ -21,12 +21,12 @@ export function nextAfterStatus({ waitingRounds = [], answeredRounds = 0, verify
 }
 
 /** After a `conductor loop` run, from its final status. */
-export function nextAfterLoop(status, { prUrls = [] } = {}) {
+export function nextAfterLoop(status, { prUrls = [], cmd = LOOP } = {}) {
   switch (status) {
     case "awaiting_answers":
       return "Next: `conductor status` names the question file. Answer each question with an option number, then run the loop again.";
     case "completed":
-      return `Next: review and merge the MR${prUrls.length === 1 ? "" : "s"}${prUrls.length ? ` (${prUrls.join(", ")})` : ""}. After the merge, \`${LOOP}\` takes the next item.`;
+      return `Next: review and merge the MR${prUrls.length === 1 ? "" : "s"}${prUrls.length ? ` (${prUrls.join(", ")})` : ""}. After the merge, \`${cmd}\` takes the next item.`;
     case "awaiting_review":
       return "Next: read conductor/1-workbench/inbox.md. It names the branch to review: below L3 the loop opens no MR, and at L3 the inbox says why the MR could not be opened.";
     case "escalated":
@@ -38,6 +38,8 @@ export function nextAfterLoop(status, { prUrls = [] } = {}) {
       return "Next: wait for the engine's usage limit to reset, then run the loop again. It resumes.";
     case "auth_failed":
       return "Next: log the engine CLI in again (`claude` then `/login`, or `codex login`), then run the loop again. It resumes.";
+    case "halted_isolation":
+      return `Next: run \`${cmd}\` again. A worktree was removed under the run, nothing was committed, and the item starts over in a new worktree.`;
     case "idle":
     case null:
     case undefined:

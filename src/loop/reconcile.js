@@ -14,9 +14,52 @@
 // merged MR whose head is the local branch head (`forgeMerged(branch) -> sha`),
 // never because the remote branch is gone. `git(args) -> {ok, stdout}` is
 // injected; nothing here fetches.
+// 2026-10-22: worktrees are shared by every checkout of a repository, so one
+// loop's cleanup sees another loop's worktrees. A branch with no commit of its
+// own (it sits on the default branch's first-parent line) is fresh, not merged,
+// and a worktree whose holder (a live run's pid, in the worktree's own git
+// directory) is alive is never removed.
+
+import { readFile, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 
 const WORKTREES = "/.agents/.worktrees/";
 const LOOP_PREFIX = "conductor/loop/";
+export const HOLDER_FILE = "conductor-holder";
+
+/** Is `pid` a live process? EPERM means alive but not ours. */
+export function isPidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e?.code === "EPERM";
+  }
+}
+
+/** Record that run `pid` holds the worktree `git` runs in. Best-effort. */
+export async function markWorktreeHeld({ git, pid = process.pid, now = () => new Date().toISOString() }) {
+  const dir = await git(["rev-parse", "--path-format=absolute", "--git-dir"]);
+  if (!dir.ok) return false;
+  try {
+    await writeFile(join(resolve(dir.stdout), HOLDER_FILE), `${JSON.stringify({ pid, at: now() })}\n`, "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The live pid holding the worktree at `path`, or null. `git` runs in the main checkout. */
+export async function liveHolder({ git, path, isAlive = isPidAlive }) {
+  const dir = await git(["-C", path, "rev-parse", "--path-format=absolute", "--git-dir"]);
+  if (!dir.ok) return null;
+  try {
+    const pid = Number(JSON.parse(await readFile(join(resolve(path, dir.stdout), HOLDER_FILE), "utf8"))?.pid);
+    return Number.isInteger(pid) && pid > 0 && isAlive(pid) ? pid : null;
+  } catch {
+    return null;
+  }
+}
 
 /** The default branch to compare with: origin/HEAD, else origin/main|master, else main|master. */
 export async function defaultBranchRef(git) {
@@ -55,8 +98,13 @@ export async function mergedLoopWorktrees({ git, forgeMerged = async () => null 
   const base = await defaultBranchRef(git);
   if (!base) return [];
   const merged = [];
+  // The default branch's own line: a branch tip on it has no commit of its own.
+  const line = await git(["rev-list", "--first-parent", base]);
+  const own = new Set(line.ok ? line.stdout.split("\n").filter(Boolean) : []);
   for (const w of await loopWorktrees(git)) {
-    if ((await git(["merge-base", "--is-ancestor", w.branch, base])).ok) {
+    const tip = await git(["rev-parse", w.branch]);
+    const fresh = !line.ok || !tip.ok || own.has(tip.stdout);
+    if (!fresh && (await git(["merge-base", "--is-ancestor", w.branch, base])).ok) {
       merged.push({ ...w, base });
       continue;
     }
@@ -74,10 +122,15 @@ export async function mergedLoopWorktrees({ git, forgeMerged = async () => null 
  * uncommitted changes is kept, with the reason, and so is one `skip` names. Never throws.
  * @returns {Promise<{removed: object[], kept: object[]}>}
  */
-export async function pruneMergedLoopWorktrees({ git, skip = async () => null, forgeMerged }) {
+export async function pruneMergedLoopWorktrees({ git, skip = async () => null, forgeMerged, isAlive = isPidAlive }) {
   const removed = [];
   const kept = [];
   for (const w of await mergedLoopWorktrees({ git, forgeMerged })) {
+    const holder = await liveHolder({ git, path: w.path, isAlive });
+    if (holder) {
+      kept.push({ ...w, reason: `a live loop run (pid ${holder}) holds it` });
+      continue;
+    }
     if (w.ahead) {
       kept.push({ ...w, reason: "it has commits after its merged MR" });
       continue;
@@ -144,4 +197,49 @@ export function skipClaimed(queue, { remoteBranches, mergedBranches: merged = ne
     else out.inReview.push(t);
   }
   return out;
+}
+
+/**
+ * `conductor loop <project>` cleans up after itself: every loop worktree that run
+ * `pid` holds is removed when it has no uncommitted change. The commits stay in
+ * the branch, so nothing is lost; a branch whose tip is already on the remote is
+ * deleted too. The code worktree inside (`codeDir`) goes first. A worktree with
+ * uncommitted work is kept, with the reason. Never throws.
+ * @param {{git: Function, codeGit?: Function|null, codeDir?: string|null, pid?: number}} deps
+ * @returns {Promise<{removed: object[], kept: object[]}>}
+ */
+export async function removeHeldWorktrees({ git, codeGit = null, codeDir = null, pid = process.pid }) {
+  const removed = [];
+  const kept = [];
+  const heldByMe = async (g, path) => (await liveHolder({ git: g, path, isAlive: (p) => p === pid })) === pid;
+  const removeOne = async (g, w) => {
+    const dirty = await g(["-C", w.path, "status", "--porcelain"]);
+    if (!dirty.ok || dirty.stdout) {
+      kept.push({ ...w, reason: dirty.ok ? "it has uncommitted changes" : "its status could not be read" });
+      return false;
+    }
+    const rm = await g(["worktree", "remove", w.path]);
+    if (!rm.ok) {
+      kept.push({ ...w, reason: `git worktree remove failed${rm.stderr ? `: ${rm.stderr.split("\n")[0]}` : ""}` });
+      return false;
+    }
+    const local = await g(["rev-parse", w.branch]);
+    const pushed = await g(["rev-parse", `origin/${w.branch}`]);
+    if (local.ok && pushed.ok && local.stdout === pushed.stdout) await g(["branch", "-q", "-D", w.branch]);
+    removed.push(w);
+    return true;
+  };
+  for (const w of await loopWorktrees(git)) {
+    if (!(await heldByMe(git, w.path))) continue;
+    if (codeGit && codeDir) {
+      const code = { path: join(w.path, codeDir), branch: w.branch, code: true };
+      const listed = await codeGit(["worktree", "list", "--porcelain"]);
+      if (listed.ok && listed.stdout.split("\n").includes(`worktree ${code.path}`) && !(await removeOne(codeGit, code))) {
+        kept.push({ ...w, reason: "its code worktree is kept" });
+        continue;
+      }
+    }
+    await removeOne(git, w);
+  }
+  return { removed, kept };
 }

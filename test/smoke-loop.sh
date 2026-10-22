@@ -91,12 +91,18 @@ s.verification={command:'test -f FEATURE.txt',last_exit_code:null,last_output_ha
 require('fs').writeFileSync(f, JSON.stringify(s,null,2));
 "
 
-# P2.1: seed the ship-log with a recurring failure (2× the same pattern, differing
-# specifics) so the post-run self-improvement mining has something to detect.
-cat >> "$PROJ/conductor/0-compass/ship-log.md" <<'SEED'
+# P2.1: seed a recurring failure (2x the same pattern, differing specifics) so the
+# post-run self-improvement mining has something to detect. One line in the
+# git-dir audit trail (F21), one in the ship-log as installs before 6.44 have it.
+mkdir -p "$PROJ/.git/conductor-loop-logs"
+cat >> "$PROJ/.git/conductor-loop-logs/audit.md" <<'SEED'
 - [2026-07-20T10:00:00Z] [loop] checker rejected: `npm test` exits non-zero: 2 of 3 fail because src/sum.js is missing
+SEED
+cat >> "$PROJ/conductor/0-compass/ship-log.md" <<'SEED'
 - [2026-07-21T11:00:00Z] [loop] checker rejected: `npm test` exits non-zero: 1 of 4 fail because src/multiply.js is missing
 SEED
+SHIPLOG="$PROJ/conductor/0-compass/ship-log.md"
+SHIPLOG_BEFORE="$(cat "$SHIPLOG")"
 
 # ---- 3. Run the loop with the fake agent on PATH ----
 echo "Running: conductor loop (fake agent)..."
@@ -120,8 +126,9 @@ if git -C "$PROJ" branch --list 'conductor/loop/smoke-test-goal' | grep -q .; th
   ok "maker worked on the dedicated loop branch"
 else no "loop branch not created"; fi
 
-SHIPLOG="$PROJ/conductor/0-compass/ship-log.md"
-if [ -f "$SHIPLOG" ] && grep -q '\[loop\]' "$SHIPLOG"; then ok "auditable action trail written to ship-log"; else no "no ship-log audit trail"; fi
+AUDIT="$PROJ/.git/conductor-loop-logs/audit.md"
+if [ "$(grep -c '\[loop\]' "$AUDIT")" -gt 1 ]; then ok "auditable action trail written to the git dir"; else no "no audit trail in $AUDIT"; fi
+if [ "$(cat "$SHIPLOG")" = "$SHIPLOG_BEFORE" ]; then ok "the tracked ship-log is untouched by the driver"; else no "the driver wrote to the ship-log"; fi
 
 if grep -q 'checker: APPROVED' "$WORK/out.log"; then ok "independent Checker consumed its verdict file"; else no "checker verdict not consumed"; fi
 

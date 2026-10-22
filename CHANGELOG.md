@@ -8,6 +8,17 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.44.0] — 2026-10-22 — The loop leaves the owner's checkout clean, and cleans up squash-merged work
+
+Compatibility: upgrade only
+
+### Fixed
+
+- **The loop no longer writes into the tracked ship-log.** Its audit lines (`- [<time>] [loop] …`: run start, harvest, verdicts, merges, halts) went to `conductor/0-compass/ship-log.md` in the owner's checkout. After the fourth crossing the four checkouts were dirty, and a `git pull` with `pull.rebase` refused. The lines now go to `.git/conductor-loop-logs/audit.md`, next to the event log and the beat logs, never committed. The self-improvement miner reads that file and the `[loop]` lines older ship-logs still hold. The ship-log keeps what Ship writes for the owner.
+- **Squash-merged loop worktrees are cleaned up.** Since 6.40.0 GitLab squashes a loop MR and deletes its branch, so the branch is never contained in the default branch and the cleanup (at the start of a loop run, and the `post-merge` hook on `git pull`) kept all twelve worktrees of the fourth crossing. A loop branch now also counts as merged when the forge (`glab` or `gh`) reports a merged MR for it whose head is the local branch head. A deleted remote branch alone is never a merge; a branch with commits after its merged MR is kept, with the reason; a forge that cannot be reached removes nothing. `conductor status`, which never leaves the machine, still names only the branches git can prove merged.
+
+---
+
 ## [6.43.0] — 2026-10-21 — The loop runs the full test suite once, outside the sandbox
 
 Compatibility: upgrade only

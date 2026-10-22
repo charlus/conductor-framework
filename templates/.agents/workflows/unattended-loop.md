@@ -96,7 +96,7 @@ Before you write code, run `conductor personas <the files this task will create 
   3. Nothing for the agent to write here; the driver owns the transition.
 
 * **If `passed_by_checker`** (advancing — **driver-owned; the agent is NOT invoked in this state**):
-  > The deterministic driver handles everything here between beats — there is no agent beat at `passed_by_checker`. It opens the PR-gated merge (L3), appends the `0-compass/ship-log.md` audit line, moves state through the folders, and reads `maker_reported_done` to finalize `completed` (green + done) or reset to `idle` for the next task. **Because no agent runs here, the product-knowledge update lives in the Maker step above (item 3), not in this state.** Listed for completeness so the state machine reads end-to-end.
+  > The deterministic driver handles everything here between beats — there is no agent beat at `passed_by_checker`. It opens the PR-gated merge (L3), appends the audit line to `.git/conductor-loop-logs/audit.md` (never the tracked ship-log), moves state through the folders, and reads `maker_reported_done` to finalize `completed` (green + done) or reset to `idle` for the next task. **Because no agent runs here, the product-knowledge update lives in the Maker step above (item 3), not in this state.** Listed for completeness so the state machine reads end-to-end.
 
 ## Step 3: Conclude the Beat
 * Save any content you produced (specs, code, commits) and any agent-owned fields you legitimately set (`maker_reported_done`, `history` notes).

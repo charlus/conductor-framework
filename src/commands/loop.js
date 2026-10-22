@@ -5,7 +5,7 @@
 // file is the IO shell (read/persist state, run git + verify, pick the adapter);
 // all guarantees live in the pure driver so `node --test` can exercise them.
 
-import { readFile, writeFile, rename, access, rm, cp, mkdir, readdir, mkdtemp } from "node:fs/promises";
+import { readFile, writeFile, appendFile, rename, access, rm, cp, mkdir, readdir, mkdtemp } from "node:fs/promises";
 import { constants as fsConstants, rmSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { join, resolve, sep, basename } from "node:path";
@@ -24,7 +24,7 @@ import { reviveForResume, startNewRun } from "../loop/resume.js";
 import { mineRecurringFailures, renderImprovementReport } from "../loop/improver.js";
 import { parseTriggerPayload, applyTrigger, renderTriggerDoc } from "../loop/trigger.js";
 import { allowedToolsFor } from "../loop/untrusted.js";
-import { writeBeatLog, BEAT_LOG_DIR } from "../loop/beat-log.js";
+import { writeBeatLog, BEAT_LOG_DIR, AUDIT_FILE } from "../loop/beat-log.js";
 import { syncLoopStateInto, hideFromGit, MAKER_SIGNAL_REL, untrackedPaths, hideSetupArtifacts } from "../loop/state-sync.js";
 import { QUESTIONS_REL, roundKey, parseRound, checkRound, roundAnswered } from "../loop/questions.js";
 import { stage as loopStage, stageWorkflowPath } from "../loop/stages.js";
@@ -39,6 +39,7 @@ import { newRulings, rulingInboxLines, rulingsPrBody, rulingsForChecker, RULINGS
 import { renderShipAssignment, shipBeatSection, sectionOf, checkShipEvidence, PR_BODY_REL } from "../loop/ship.js";
 import { harvestSlices, specEvidence as checkSpecEvidence, PROJECTS_REL } from "../loop/slices.js";
 import { pruneMergedLoopWorktrees, remoteLoopBranches, mergedBranches, skipClaimed, defaultBranchRef } from "../loop/reconcile.js";
+import { forgeMergedHead } from "../live-state.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels, effectiveModels } from "../loop/config.js";
 import { describeModels } from "../loop/profiles.js";
 import { makeEmitter } from "../loop/events.js";
@@ -223,13 +224,17 @@ export function runCli(cmd, argv, cwd) {
   });
 }
 
-/** Append one auditable line to the ship-log (best-effort; never throws). */
-async function appendShipLog(root, message, now) {
-  const log = join(root, "conductor/0-compass/ship-log.md");
+/**
+ * Append one auditable line to the run's audit trail (best-effort; never throws).
+ * F21: it lives in the git dir next to the event log, never in the tracked
+ * ship-log: the owner's checkout stays clean, so a pull is never refused.
+ */
+async function appendAudit(logDir, message, now) {
+  if (!logDir) return;
   const stamp = new Date(now).toISOString();
   try {
-    const prev = (await exists(log)) ? await readFile(log, "utf8") : "# Ship Log\n";
-    await writeFile(log, `${prev}- [${stamp}] [loop] ${message}\n`, "utf8");
+    await mkdir(logDir, { recursive: true });
+    await appendFile(join(logDir, AUDIT_FILE), `- [${stamp}] [loop] ${message}\n`, "utf8");
   } catch {
     /* best-effort audit trail */
   }
@@ -861,7 +866,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     });
   };
 
-  const audit = (m) => appendShipLog(root, m, Date.now());
+  const audit = (m) => appendAudit(beatLogDir, m, Date.now());
 
   // Step 7, the outer layout: a beat's code worktree sits at <outer worktree>/<code_dir>.
   // Never the owner's own checkout: a beat in the root has no code worktree.
@@ -1025,15 +1030,15 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const clamp = triggerProvenance.clamped_from
       ? ` (autonomy clamped down from requested ${triggerProvenance.clamped_from} → ${triggerProvenance.effective_autonomy})`
       : "";
-    await appendShipLog(
-      root,
+    await appendAudit(
+      beatLogDir,
       `trigger from '${triggerProvenance.source}': goal="${state.goal_description}"${clamp}`,
       Date.now()
     );
   }
   if (fromConductor) {
-    await appendShipLog(
-      root,
+    await appendAudit(
+      beatLogDir,
       `harvested ${harvestedQueue.length} work item(s) from conductor/ (inbox + backlog)`,
       Date.now()
     );
@@ -1043,13 +1048,18 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   {
     // Step 7: the code repository's merged worktrees first, then the outer ones
     // that no longer hold a code worktree.
-    const code = loopConfig.codeDir ? await pruneMergedLoopWorktrees({ git: makeGit(join(root, loopConfig.codeDir)) }) : { removed: [], kept: [] };
+    // F22: a squash-merged branch is merged when the forge says so.
+    const forgeMerged = (dir) => (branch) => forgeMergedHead(dir, branch);
+    const codeDir = loopConfig.codeDir ? join(root, loopConfig.codeDir) : null;
+    const code = codeDir ? await pruneMergedLoopWorktrees({ git: makeGit(codeDir), forgeMerged: forgeMerged(codeDir) }) : { removed: [], kept: [] };
     for (const w of code.removed) stdout.write(`[CONDUCTOR LOOP] removed the merged code worktree ${w.path} (${w.branch})\n`);
     const p = await pruneMergedLoopWorktrees({
       git: makeGit(root),
+      forgeMerged: forgeMerged(root),
       skip: async (w) => (loopConfig.codeDir && (await exists(join(w.path, loopConfig.codeDir, ".git"))) ? "its code worktree is still open (the code MR is not merged yet)" : null),
     });
     for (const w of p.removed) stdout.write(`[CONDUCTOR LOOP] removed the merged loop worktree ${basename(w.path)} (${w.branch})\n`);
+    for (const w of code.kept) stdout.write(`[CONDUCTOR LOOP] kept the merged code worktree ${w.path}: ${w.reason}\n`);
     for (const w of p.kept) stdout.write(`[CONDUCTOR LOOP] kept the merged loop worktree ${basename(w.path)}: ${w.reason}\n`);
   }
 
@@ -1084,9 +1094,10 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   // Best-effort: never fails the run.
   async function runSelfImprovement() {
     try {
-      const logPath = join(root, "conductor/0-compass/ship-log.md");
-      if (!(await exists(logPath))) return;
-      const patterns = mineRecurringFailures(await readFile(logPath, "utf8"));
+      // F21: the audit trail is in the git dir. Ship-logs written before 6.44 still hold [loop] lines.
+      const trail = [join(root, "conductor/0-compass/ship-log.md"), beatLogDir && join(beatLogDir, AUDIT_FILE)];
+      const texts = await Promise.all(trail.filter(Boolean).map((f) => readFile(f, "utf8").catch(() => "")));
+      const patterns = mineRecurringFailures(texts.join("\n"));
       const report = renderImprovementReport(patterns, { nowIso: new Date(Date.now()).toISOString() });
       if (!report) return; // nothing recurring → nothing to propose
       await writeFile(join(root, "conductor/1-workbench/loop-improvements.md"), report, "utf8");

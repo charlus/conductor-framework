@@ -9,6 +9,8 @@ import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 export const BEAT_LOG_DIR = "conductor-loop-logs";
+/** F21: the driver's `- [<iso>] [loop] …` audit lines, in BEAT_LOG_DIR. */
+export const AUDIT_FILE = "audit.md";
 const KEEP = 200;
 
 /** `<ISO time>-<label>.log`: sorts by time, safe as a file name. */

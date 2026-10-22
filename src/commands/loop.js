@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { runLoop, normalizeState, resolveVerifyCommand, beatCeiling } from "../loop/driver.js";
 import { resolveAdapter } from "../loop/adapters/index.js";
 import { createWorktree, teardownWorktree, worktreePlan, taskWorktreePlan, materializeConductorContext, CONTEXT_ANCHORS, hasUniqueCommits, ensureWorktreesExcluded } from "../loop/worktree.js";
-import { autoCommit, autoCommitMessage } from "../loop/autocommit.js";
+import { guardedAutoCommit, autoCommitMessage, IsolationLostError } from "../loop/autocommit.js";
 import { harvestWorkQueue, renderAssignment, renderAttempts } from "../loop/harvester.js";
 import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, isInfraReason, groundFindings, VERDICT_REL } from "../loop/checker.js";
 import { openPullRequest, planMergeAction, DEFAULT_PR_BODY } from "../loop/merge.js";
@@ -38,7 +38,7 @@ import { recordUsage, usageSummary, cacheShare } from "../loop/usage.js";
 import { newRulings, rulingInboxLines, rulingsPrBody, rulingsForChecker, RULINGS_REL } from "../loop/rulings.js";
 import { renderShipAssignment, shipBeatSection, sectionOf, checkShipEvidence, PR_BODY_REL } from "../loop/ship.js";
 import { harvestSlices, specEvidence as checkSpecEvidence, PROJECTS_REL } from "../loop/slices.js";
-import { pruneMergedLoopWorktrees, remoteLoopBranches, mergedBranches, skipClaimed, defaultBranchRef } from "../loop/reconcile.js";
+import { pruneMergedLoopWorktrees, remoteLoopBranches, mergedBranches, skipClaimed, defaultBranchRef, markWorktreeHeld } from "../loop/reconcile.js";
 import { forgeMergedHead } from "../live-state.js";
 import { readReady } from "../loop/ready-queue.js";
 import { gitCommonDir as gitDirOf } from "./loop-take.js";
@@ -892,10 +892,13 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     return resolveForge({ override: loopConfig.forge, remoteUrl: r.ok ? r.stdout : "" }).forge;
   };
   // Commit what a beat left, in the code worktree first, then in the outer one.
+  // Outside the owner's checkout, only in the expected loop worktree on its loop
+  // branch: anything else throws IsolationLostError and the run halts.
   async function captureAll(cwd, message) {
     const code = codeWtOf(cwd);
-    const c = code && (await exists(join(code, ".git"))) ? await autoCommit({ git: makeGit(code), message }) : { committed: false, bypassedHooks: false };
-    const o = await autoCommit({ git: makeGit(cwd), message });
+    const own = resolve(cwd) === resolve(root);
+    const c = code && (await exists(join(code, ".git"))) ? await guardedAutoCommit({ git: makeGit(code), message, expect: { path: code } }) : { committed: false, bypassedHooks: false };
+    const o = await guardedAutoCommit({ git: makeGit(cwd), message, expect: own ? null : { path: cwd } });
     return { committed: c.committed || o.committed, bypassedHooks: Boolean(c.bypassedHooks || o.bypassedHooks) };
   }
   const nestedNote = () =>
@@ -1085,8 +1088,19 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     return 1;
   }
   try {
-    const code =
-      Array.isArray(state.tasks) && state.tasks.length > 0 ? await runSwarmMode() : await runPairMode();
+    let code;
+    try {
+      code = Array.isArray(state.tasks) && state.tasks.length > 0 ? await runSwarmMode() : await runPairMode();
+    } catch (e) {
+      if (!(e instanceof IsolationLostError)) throw e;
+      // Fail safe: a beat's worktree is gone. Commit nothing, stop the run.
+      state.status = "halted_isolation";
+      await atomicWriteJson(statePath, state);
+      await writeInbox(root, state, `The run stopped and committed nothing: ${e.message}. Run the loop again: it starts this item over in a new worktree.`);
+      await audit(`halted_isolation: ${e.message}`);
+      stderr.write(`[CONDUCTOR LOOP] ⛔ stopped: ${e.message}. Nothing was committed.\n`);
+      code = 1;
+    }
     try {
       const after = await readJson(statePath);
       const prUrls = [after.merge?.pr_url, ...(after.tasks ?? []).flatMap((t) => [t.merge?.code_pr_url, t.merge?.pr_url])].filter((u) => u && u !== "n/a");
@@ -1400,6 +1414,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         await ensureWorktreesExcluded(root);
         const wt = await createWorktree({ root, goalDescription: state.goal_description, git });
         workCwd = wt.path;
+        await markWorktreeHeld({ git: makeGit(wt.path) });
         state.worktree = { path: wt.path, branch: wt.branch };
         await atomicWriteJson(statePath, state);
         stdout.write(`[CONDUCTOR LOOP] worktree: ${wt.branch} @ ${wt.path}${wt.created ? " (new)" : " (reused)"}\n`);
@@ -1458,9 +1473,10 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         });
         // P0.1 backstop: capture any uncommitted Maker change so verify sees a real
         // diff, the Checker has commits to review, and teardown can't discard it.
-        const cap = await autoCommit({
+        const cap = await guardedAutoCommit({
           git: makeGit(workCwd),
           message: autoCommitMessage({ role: "maker", beat: state.iterations.current, goal: state.goal_description }),
+          expect: resolve(workCwd) === resolve(root) ? null : { path: workCwd },
         });
         if (cap.committed) {
           const note = `auto-captured uncommitted maker changes${cap.bypassedHooks ? " (commit hook bypassed)" : ""}`;
@@ -1554,6 +1570,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           const res = await git(["worktree", "add", "-b", plan.branch, plan.path, base]);
           if (!res.ok) await git(["worktree", "add", plan.path, plan.branch]);
         }
+        // Another loop's cleanup must never remove a worktree this run holds.
+        await markWorktreeHeld({ git: makeGit(plan.path) });
         // Conductor-enable the isolated Maker even if the scaffold is gitignored.
         await materializeContextInto(plan.path);
         cwdFor.set(task.id, plan.path);
@@ -1564,6 +1582,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
           const { codeWorktree } = codePaths({ root, codeDir: loopConfig.codeDir, outerWorktree: plan.path });
           const c = await ensureCodeWorktree({ codeGit: makeGit(codeRoot), path: codeWorktree, branch: plan.branch });
           if (!c.ok) return { path: plan.path, branch: plan.branch, setup_error: `code worktree: ${c.reason}` };
+          await markWorktreeHeld({ git: makeGit(codeWorktree) });
           for (const rel of [MAKER_SIGNAL_REL, VERDICT_REL, PR_BODY_REL]) await hideFromGit(rel, { cwd: codeWorktree, git: makeGit(codeWorktree) });
         }
         const setup = await runWorktreeSetup(codeWtOf(plan.path) ?? plan.path);

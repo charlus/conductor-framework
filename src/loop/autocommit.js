@@ -12,6 +12,28 @@
 //
 // Inspired by agentctl's `ag-merge` auto_commit (stage → conventional message →
 // commit). Pure over an injected git runner: `git(args) -> {ok, stdout}`.
+//
+// 2026-10-22: with `expect: {path}`, it commits only in that worktree, on a loop
+// branch. A worktree removed under a live run leaves a plain folder inside the
+// owner's checkout, where `git add -A` would commit onto the owner's branch.
+
+import { realpath } from "node:fs/promises";
+
+const LOOP_BRANCH = /^conductor\/loop\//;
+
+/** Refusal reason when `git` does not run in the loop worktree at `path`, else null. */
+export async function isolationProblem({ git, path }) {
+  const top = await git(["rev-parse", "--show-toplevel"]);
+  const real = async (p) => realpath(p).catch(() => p);
+  if (!top.ok || (await real(top.stdout)) !== (await real(path))) {
+    return `${path} is not the loop worktree any more (git sees ${top.ok ? top.stdout : "no repository"}): it was removed under the run`;
+  }
+  const head = await git(["symbolic-ref", "-q", "--short", "HEAD"]);
+  if (!head.ok || !LOOP_BRANCH.test(head.stdout)) {
+    return `${path} is not on a loop branch (it is on ${head.ok ? head.stdout : "a detached HEAD"})`;
+  }
+  return null;
+}
 
 /** Build a conventional-commit message for an auto-captured beat. Deterministic. */
 export function autoCommitMessage({ role = "maker", beat, goal } = {}) {
@@ -36,10 +58,14 @@ export function autoCommitMessage({ role = "maker", beat, goal } = {}) {
  * exists to prevent LOSS; the Checker + `awaiting_review` remain the quality gate
  * (mirrors the enforcement hooks' own logged-bypass philosophy).
  *
- * @param {{git:(args:string[])=>Promise<{ok:boolean,stdout:string}>, message:string}} opts
- * @returns {Promise<{committed:boolean, bypassedHooks:boolean, reason:string}>}
+ * @param {{git:(args:string[])=>Promise<{ok:boolean,stdout:string}>, message:string, expect?:{path:string}}} opts
+ * @returns {Promise<{committed:boolean, bypassedHooks:boolean, refused?:boolean, reason:string}>}
  */
-export async function autoCommit({ git, message }) {
+export async function autoCommit({ git, message, expect = null }) {
+  if (expect) {
+    const problem = await isolationProblem({ git, path: expect.path });
+    if (problem) return { committed: false, bypassedHooks: false, refused: true, reason: problem };
+  }
   const status = await git(["status", "--porcelain"]);
   if (!status.ok) return { committed: false, bypassedHooks: false, reason: "git status failed" };
   if (status.stdout.trim() === "") {
@@ -58,4 +84,19 @@ export async function autoCommit({ git, message }) {
   return forced.ok
     ? { committed: true, bypassedHooks: true, reason: "captured maker changes (commit hook bypassed to avoid work loss)" }
     : { committed: false, bypassedHooks: false, reason: "git commit failed even with --no-verify" };
+}
+
+/** Thrown when a beat's worktree is no longer the loop worktree: the run halts. */
+export class IsolationLostError extends Error {
+  constructor(reason) {
+    super(reason);
+    this.name = "IsolationLostError";
+  }
+}
+
+/** autoCommit, but a refusal throws IsolationLostError. */
+export async function guardedAutoCommit(opts) {
+  const r = await autoCommit(opts);
+  if (r.refused) throw new IsolationLostError(r.reason);
+  return r;
 }

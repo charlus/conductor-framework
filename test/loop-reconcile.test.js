@@ -255,3 +255,79 @@ test("F22: the post-merge hook asks the forge about a squash-merged loop branch"
     rmSync(base, { recursive: true, force: true });
   }
 });
+
+// 2026-10-22 (autopportunity): two loops on one repository. The second loop's
+// start-up cleanup removed the first loop's LIVE worktree: a fresh loop branch
+// has no commit of its own yet, so it sits on the default branch's own history
+// and `merge-base --is-ancestor` called it merged. Worktrees are shared by every
+// checkout of a repository, so one loop sees the other's.
+function freshLoopWorktree(repo, name) {
+  const path = join(repo, ".agents/.worktrees", name);
+  G(repo, "worktree", "add", "-q", "-b", `conductor/loop/${name}`, path, "origin/master");
+  return path;
+}
+
+test("a fresh loop worktree (no commit of its own yet) is not merged, and is never removed", async () => {
+  const { base, repo } = setup();
+  try {
+    const fresh = freshLoopWorktree(repo, "fresh");
+    G(repo, "fetch", "-q", "origin");
+    assert.deepEqual(await mergedLoopWorktrees({ git: git(repo) }), []);
+    const pruned = await pruneMergedLoopWorktrees({ git: git(repo) });
+    assert.deepEqual(pruned.removed, []);
+    assert.equal(existsSync(fresh), true, "a live run's fresh worktree survives another loop's cleanup");
+    assert.notEqual(G(repo, "branch", "--list", "conductor/loop/fresh"), "");
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test("a merged loop worktree that a live run holds is kept", async () => {
+  const { base, repo } = setup();
+  try {
+    const held = loopWorktree(repo, "held");
+    G(repo, "merge", "-q", "--no-ff", "-m", "merge", "conductor/loop/held");
+    G(repo, "push", "-q", "origin", "master");
+    G(repo, "fetch", "-q", "origin");
+    const { markWorktreeHeld } = await import("../src/loop/reconcile.js");
+    await markWorktreeHeld({ git: git(held), pid: process.pid });
+    const pruned = await pruneMergedLoopWorktrees({ git: git(repo) });
+    assert.deepEqual(pruned.removed, []);
+    assert.match(pruned.kept[0].reason, /live loop run/);
+    assert.equal(existsSync(held), true);
+    // Once its holder is gone, the merged worktree goes.
+    await markWorktreeHeld({ git: git(held), pid: 2 ** 22 + 12345 });
+    const again = await pruneMergedLoopWorktrees({ git: git(repo) });
+    assert.deepEqual(again.removed.map((w) => w.branch), ["conductor/loop/held"]);
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test("the post-merge hook leaves a fresh loop worktree and a held one alone", () => {
+  const { base, repo } = setup();
+  try {
+    const hooks = join(repo, ".agents/hooks");
+    execFileSync("mkdir", ["-p", hooks]);
+    for (const f of ["post-merge", "lib.sh"]) writeFileSync(join(hooks, f), execFileSync("cat", [new URL(`../templates/.agents/hooks/${f}`, import.meta.url).pathname]));
+    execFileSync("chmod", ["+x", join(hooks, "post-merge")]);
+    const fresh = freshLoopWorktree(repo, "fresh");
+    const held = loopWorktree(repo, "held");
+    writeFileSync(join(G(held, "rev-parse", "--path-format=absolute", "--git-dir"), "conductor-holder"), `${JSON.stringify({ pid: process.pid, at: "now" })}\n`);
+    const forge = join(base, "forge");
+    execFileSync("git", ["clone", "-q", join(base, "origin.git"), forge], { stdio: "pipe" });
+    G(forge, "config", "user.email", "t@t");
+    G(forge, "config", "user.name", "t");
+    writeFileSync(join(forge, "b.txt"), "b\n");
+    G(forge, "add", "-A");
+    G(forge, "commit", "-qm", "someone else's work");
+    G(forge, "merge", "-q", "--no-ff", "-m", "merge MR", "origin/conductor/loop/held");
+    G(forge, "push", "-q", "origin", "master");
+    G(repo, "config", "core.hooksPath", ".agents/hooks");
+    execFileSync("git", ["pull", "-q", "--no-rebase", "origin", "master"], { cwd: repo, stdio: "pipe" });
+    assert.equal(existsSync(fresh), true, "the pull deleted a fresh loop worktree");
+    assert.equal(existsSync(held), true, "the pull deleted a worktree a live run holds");
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});

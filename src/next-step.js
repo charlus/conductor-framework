@@ -38,6 +38,8 @@ export function nextAfterLoop(status, { prUrls = [] } = {}) {
       return "Next: wait for the engine's usage limit to reset, then run the loop again. It resumes.";
     case "auth_failed":
       return "Next: log the engine CLI in again (`claude` then `/login`, or `codex login`), then run the loop again. It resumes.";
+    case "halted_isolation":
+      return `Next: run \`${LOOP}\` again. A worktree was removed under the run, nothing was committed, and the item starts over in a new worktree.`;
     case "idle":
     case null:
     case undefined:

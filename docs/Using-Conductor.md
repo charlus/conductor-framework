@@ -42,7 +42,7 @@ Each stage is one workflow, run in a fresh session. The workflow ends by naming 
 
 The loop runs the same workflows, one stage per fresh beat, each behind an independent review, and opens one MR per item. You merge.
 
-1. See your projects, their stage and whether the loop is on: `conductor status`, or `conductor loop on` with no name. Then turn it on for one: `conductor loop on <project>`. It shows each change in plain words and asks once: after your Discovery it writes the Blueprint stages you have not written as one MR (merging it is your sign-off), then it builds the slices, from spec to MR. If the code is a nested repository (`repo/` inside your `conductor/` repository), it finds it: each item then opens a code MR to the team's repository, then a state MR to yours. Merge the code MR first. If it says the code has no test command, run the command it prints. For backlog items alone, tag each one `(loop-ready)` at the end of its line and run `conductor loop on --backlog` once. `conductor loop off <project>` takes the project out again. `conductor loop profile` shows which model each role uses and the last run's cost; `conductor loop profile balanced` lowers the cost per beat (Sonnet writes code, Opus reviews and writes specs), `quality` uses Opus everywhere. In your agent, "turn the loop on for <project>" does the same.
+1. See your projects, their stage and whether the loop is on: `conductor status`, or `conductor loop on` with no name. Then turn it on for one: `conductor loop on <project>`. It shows each change in plain words and asks once: after your Discovery it writes the Blueprint stages you have not written as one MR (merging it is your sign-off), then it builds the slices, from spec to MR. If the code is a nested repository (`repo/` inside your `conductor/` repository), it finds it: each item then opens a code MR to the team's repository, then a state MR to yours. Merge the code MR first. If it says the code has no test command, run the command it prints. For backlog items alone, run `conductor loop on --backlog` once, then give the loop each item with `conductor loop take "<item>"` (the title, or a part of it that names one item). `conductor loop take` lists what it has been given, `--drop "<item>"` takes one back. Nothing tracked changes, so your next `git pull` is never blocked. `conductor loop off <project>` takes the project out again. `conductor loop profile` shows which model each role uses and the last run's cost; `conductor loop profile balanced` lowers the cost per beat (Sonnet writes code, Opus reviews and writes specs), `quality` uses Opus everywhere. In your agent, "turn the loop on for <project>" does the same.
 2. Check the project: `conductor loop doctor .` (`loop on` runs it for you)
 3. Preview: `conductor loop . --from-conductor --dry-run`
 4. Run it in a separate terminal: `conductor loop . --from-conductor`. Follow it from another one with `conductor watch`, or every product at once with `conductor watch --all`.
@@ -214,6 +214,7 @@ Run the autonomous loop: beats, reviews, one MR per item.
 ```
 conductor loop [dir] [--from-conductor | --goal <text> | --event <file.json>] [options]
 conductor loop on|off <project> [dir] [--yes] [--dry-run]
+conductor loop take ["<item>"] [dir] [--drop]
 conductor loop profile [quality|balanced] [dir]
 conductor loop doctor [dir] [--beat]
 ```
@@ -230,10 +231,13 @@ conductor loop doctor [dir] [--beat]
 | `--unsafe-no-sandbox` | Allow sandbox: none (only inside a VM you control) |
 | `on` | List the projects, their stage, and which ones the loop can take |
 | `on <project>` | Let the loop work on a project: shows each change in plain words, asks once, writes the settings |
-| `on --backlog` | Set the loop up for backlog items you tag (loop-ready), with no project |
+| `on --backlog` | Set the loop up for backlog items you give it with take, with no project |
 | `on --yes` | Apply without asking (after you have seen the list) |
 | `on --code-dir <dir>` | Name the nested code repository when there are several |
 | `off <project>` | The loop no longer works on that project |
+| `take "<item>"` | Give the loop one open backlog item (its title or a unique part of it). Kept in .git, so no tracked file changes |
+| `take` | List the items the loop has been given and not yet shipped |
+| `take --drop "<item>"` | Take an item back |
 | `profile` | Show the model profile, each role's model and the last run's cost per role |
 | `profile quality|balanced` | Pick the models by budget: Opus everywhere, or Sonnet for code with Opus for review, specs and designs |
 | `doctor` | Check the project before an unattended run |
@@ -242,6 +246,7 @@ conductor loop doctor [dir] [--beat]
 Reads: `verify`, `loop.forge`, `loop.setup`, `loop.allowed_domains`, `loop.require_ready`, `loop.priorities`, `loop.inbox`, `loop.allow_nested_repo`, `loop.models`, `loop.cost_aware`, `loop.slices`, `loop.blueprint`, `loop.code_dir`, `loop.profile`.
 
 - `conductor loop on km-workload-relief`: let the loop work on this project
+- `conductor loop take "flaky login"`: give the loop this backlog item
 - `conductor loop doctor .`: is this project ready?
 - `conductor loop . --from-conductor --dry-run`: what would the next run do?
 - `conductor loop . --from-conductor`: the real run
@@ -459,7 +464,7 @@ Reads: `verify`, `eval`.
 | `loop.forge` | "gh" \| "glab" (default: from the origin host) |
 | `loop.setup` | Shell command run once in each new worktree, before the first beat |
 | `loop.allowed_domains` | Extra hosts the sandbox may reach |
-| `loop.require_ready` | true: only backlog items tagged loop-ready |
+| `loop.require_ready` | true: only backlog items given with conductor loop take, or tagged loop-ready |
 | `loop.priorities` | ["P1"]: only backlog items under these headings |
 | `loop.inbox` | false: never take inbox lines |
 | `loop.allow_nested_repo` | true: run although a gitignored nested git repository exists |

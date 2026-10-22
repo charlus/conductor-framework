@@ -6,9 +6,10 @@ Small stuff that doesn't need formal planning. Bug fixes, UX tweaks, quick tasks
 
 > Format: one `- [ ]` line per item under its priority. Indent the context and the fix below it.
 > `conductor loop --from-conductor` takes open items, skips any marked `BLOCKED` or `NEEDS_DECISION`,
-> and with `loop.require_ready` takes only items tagged `loop-ready`. Example:
+> and with `loop.require_ready` takes only the items you give it: `conductor loop take "login timeout"`
+> (kept in `.git`, so this file stays unchanged). Example:
 >
-> - [ ] Fix login timeout bug on mobile loop-ready
+> - [ ] Fix login timeout bug on mobile
 >   - Context: the session expires after 30 s on iOS Safari.
 
 ---

@@ -135,7 +135,7 @@ const INBOX = "# Inbox\n\n---\n\n- a raw thought\n";
 test("F5: --from-conductor honours require_ready, --priority and --no-inbox", async () => {
   await withProject({ state: L3, backlog: BACKLOG, inbox: INBOX, config: { loop: { require_ready: true } }, remote: "https://github.com/a/b.git" }, async (dir) => {
     const { out } = await dry(dir, ["--from-conductor", "--priority", "P1"]);
-    assert.match(out, /harvested: 1 work item\(s\) from conductor\/ \(loop-ready only, priorities P1\)/);
+    assert.match(out, /harvested: 1 work item\(s\) from conductor\/ \(taken or loop-ready only, priorities P1\)/);
     assert.match(out, /T1 Export invoices/);
     assert.doesNotMatch(out, /T2|T4|T5|raw thought/);
   });

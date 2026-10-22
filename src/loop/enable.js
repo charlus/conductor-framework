@@ -53,7 +53,7 @@ export function planLoopOn(f) {
   // F11: never the whole backlog and inbox at once. An explicit choice is kept.
   if (loop.require_ready === undefined) {
     loop.require_ready = true;
-    changes.push("From the backlog, the loop takes only the items you tag (loop-ready) at the end of their line.");
+    changes.push("From the backlog, the loop takes only the items you give it with `conductor loop take \"<item>\"` (or tag (loop-ready) at the end of their line).");
   }
   if (loop.inbox === undefined) {
     loop.inbox = false;

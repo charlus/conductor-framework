@@ -40,6 +40,8 @@ import { renderShipAssignment, shipBeatSection, sectionOf, checkShipEvidence, PR
 import { harvestSlices, specEvidence as checkSpecEvidence, PROJECTS_REL } from "../loop/slices.js";
 import { pruneMergedLoopWorktrees, remoteLoopBranches, mergedBranches, skipClaimed, defaultBranchRef } from "../loop/reconcile.js";
 import { forgeMergedHead } from "../live-state.js";
+import { readReady } from "../loop/ready-queue.js";
+import { gitCommonDir as gitDirOf } from "./loop-take.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels, effectiveModels } from "../loop/config.js";
 import { describeModels } from "../loop/profiles.js";
 import { makeEmitter } from "../loop/events.js";
@@ -357,6 +359,12 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       ? loopOnCommand(resolve(cwd, dir || "."), project, { args: rest, stdout, stderr })
       : loopOffCommand(resolve(cwd, dir || "."), project, { stdout, stderr });
   }
+  // `conductor loop take ["<item>"] [dir] [--drop]`: give the loop a backlog item (C4-F4).
+  if (sub === "take") {
+    const rest = args.slice(args.indexOf(sub) + 1).filter((a) => !a.startsWith("-"));
+    const { loopTakeCommand } = await import("./loop-take.js");
+    return loopTakeCommand(resolve(cwd, rest[1] || "."), rest[0], { drop: args.includes("--drop"), stdout, stderr });
+  }
   // `conductor loop doctor [dir]`: check a project before an unattended run.
   if (args.find((a) => !a.startsWith("-")) === "doctor") {
     const rest = args.slice(args.indexOf("doctor") + 1);
@@ -474,9 +482,11 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
   if (fromConductor) {
     const inboxMd = (await exists(join(root, INBOX_REL))) ? await readFile(join(root, INBOX_REL), "utf8") : "";
     const backlogMd = (await exists(join(root, BACKLOG_REL))) ? await readFile(join(root, BACKLOG_REL), "utf8") : "";
+    const gitDir = gitDirOf(root);
     harvestedQueue = harvestWorkQueue({
       inboxMd,
       backlogMd,
+      readyIds: new Set(gitDir ? (await readReady(gitDir)).map((e) => e.id) : []),
       requireReady: loopConfig.requireReady,
       priorities: loopConfig.priorities,
       includeInbox: loopConfig.inbox,
@@ -631,7 +641,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     );
     if (fromConductor) {
       const filters = [
-        loopConfig.requireReady && "loop-ready only",
+        loopConfig.requireReady && "taken or loop-ready only",
         loopConfig.priorities.length && `priorities ${loopConfig.priorities.join(",")}`,
         !loopConfig.inbox && "no inbox",
       ].filter(Boolean);

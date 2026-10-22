@@ -35,7 +35,7 @@ export function diagnose(f) {
         "fail",
         "the loop is not set up for this project yet",
         `loop-state.json says ${s.phase ?? "no phase"}, sandbox ${s.sandbox ?? "unset"}, and no work is turned on.`,
-        "`conductor loop on` lists your projects; `conductor loop on <project>` sets the loop up for one, after showing each change; `conductor loop on --backlog` for backlog items you tag (loop-ready)."
+        "`conductor loop on` lists your projects; `conductor loop on <project>` sets the loop up for one, after showing each change; `conductor loop on --backlog` for backlog items you give it with `conductor loop take`."
       ),
     ];
   }
@@ -108,7 +108,7 @@ export function diagnose(f) {
   const q = f.queue;
   if (q) {
     if (q.count === 0) {
-      out.push(check("queue", "warn", "--from-conductor would find no work", "", `Turn it on for a project: \`conductor loop on <project>\`. Or ${q.requireReady ? "tag a backlog item `(loop-ready)`" : "add a backlog item"}.`));
+      out.push(check("queue", "warn", "--from-conductor would find no work", "", `Turn it on for a project: \`conductor loop on <project>\`. Or ${q.requireReady ? "give it a backlog item: `conductor loop take \"<item>\"`" : "add a backlog item"}.`));
     } else {
       out.push(check("queue", "pass", `--from-conductor would take ${q.count} item${q.count === 1 ? "" : "s"}`));
     }

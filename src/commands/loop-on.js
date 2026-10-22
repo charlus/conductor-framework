@@ -88,6 +88,9 @@ export async function loopOnCommand(root, project, { args, stdout, stderr, confi
   for (const n of plan.notes) stdout.write(`  ⚠️  ${n}\n`);
   const prof = plan.config.loop?.profile;
   stdout.write(`  Models: ${prof ? `the ${prof} profile` : "the engine's default for every role"}. \`conductor loop profile\` shows them and switches by budget.\n`);
+  // The watch tower lists every product the loop is on, even one already set up.
+  const { addLoopProject } = await import("../loop/projects-registry.js");
+  await addLoopProject(root).catch(() => {});
   if (!plan.changes.length) return 0;
   if (args.includes("--dry-run")) {
     stdout.write("\n  Nothing written (dry run).\n");

@@ -106,6 +106,7 @@ export function watchModel(events) {
       }
       it.last = { at: e.at, text: describe(e) };
       if (["merged", "escalated", "failed", "questions"].includes(e.type)) it.done = e.type;
+      if (e.type === "merged") it.mr = { url: e.url ?? null, code: e.code_url ?? null };
       items.set(e.task, it);
     }
   }

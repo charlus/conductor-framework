@@ -53,9 +53,28 @@ async function gitSnapshot(dir) {
     const where = (await git(["rev-parse", "--git-path", marker], dir)).stdout;
     if (where && (await exists(resolve(dir, where)))) busy.push(marker);
   }
-  const dirty = (await git(["status", "--porcelain", "--", ...FRAMEWORK_PATHS], dir)).stdout
-    .split("\n").filter(Boolean).map((l) => l.slice(3));
-  return { repo: true, head, busy, dirty };
+  // F23: untrimmed and -z, so each entry is exact. git() trims its output, and
+  // a trimmed ` M path` line lost the path's first letter to slice(3).
+  const status = await execFileAsync("git", ["status", "--porcelain", "-z", "--", ...FRAMEWORK_PATHS], { cwd: dir, maxBuffer: 1 << 24 })
+    .catch(() => ({ stdout: "" }));
+  const records = String(status.stdout).split("\0");
+  const dirty = [];
+  for (let i = 0; i < records.length; i++) {
+    const r = records[i];
+    if (r.length < 4) continue;
+    dirty.push(r.slice(3));
+    if (r[0] === "R" || r[0] === "C") i++; // a rename's next record is its old path
+  }
+  // Each dirty file's content now, so the commit step can tell whether the upgrade touched it.
+  const before = {};
+  for (const p of dirty) before[p] = await contentId(dir, p);
+  return { repo: true, head, busy, dirty, before };
+}
+
+/** The blob id of a file's content, or null when it is gone or is not a file. */
+async function contentId(dir, p) {
+  const r = await git(["hash-object", "--", p], dir);
+  return r.ok ? r.stdout : null;
 }
 
 /**
@@ -137,9 +156,18 @@ async function commitUpgrade({ targetDir, version, snap, noCommit, structural, e
   if (!snap.head) return printManual("the repo has no commits yet");
   if (snap.busy.length) return printManual(`a ${snap.busy.join("/")} is in progress`);
   if (structural) return printManual(structural);
-  if (snap.dirty.length) {
-    return printManual(`you had uncommitted changes in ${snap.dirty.join(", ")}, and I will not commit your work for you`);
+  // F23: the owner's uncommitted files stay out of the commit. When the upgrade
+  // left them as they were, it commits around them. When it changed them too,
+  // their edit and the upgrade's are mixed: the owner looks first.
+  const touched = [];
+  for (const p of snap.dirty) if ((await contentId(targetDir, p)) !== snap.before[p]) touched.push(p);
+  if (touched.length) {
+    return printManual(
+      `you had uncommitted changes in ${touched.join(", ")}, and the upgrade changed ${touched.length === 1 ? "it" : "them"} too. ` +
+        "Check them first: the command commits them with the upgrade"
+    );
   }
+  const excluded = snap.dirty.map((p) => `:(exclude)${p}`);
 
   if (!existing.length) return;
   const target = await upgradeTarget(targetDir, version);
@@ -148,15 +176,15 @@ async function commitUpgrade({ targetDir, version, snap, noCommit, structural, e
     const sw = await git(["switch", "-q", "-c", target.branch], targetDir);
     if (!sw.ok) return printManual(`could not create branch ${target.branch}`);
   }
-  const add = await git(["add", "-A", "--", ...existing], targetDir);
+  const add = await git(["add", "-A", "--", ...existing, ...excluded], targetDir);
   if (!add.ok) return printManual(`git add failed: ${add.stderr.split("\n")[0]}`);
-  if ((await git(["diff", "--cached", "--quiet", "--", ...existing], targetDir)).ok) {
+  if ((await git(["diff", "--cached", "--quiet", "--", ...existing, ...excluded], targetDir)).ok) {
     stdout.write("\n   Nothing to commit — the framework files were already current.\n");
     return;
   }
   // `-- paths` commits ONLY these paths, so anything else the user had staged
   // stays staged and out of this commit.
-  const commit = await git(["commit", "-q", "-m", message, "--", ...existing], targetDir, {
+  const commit = await git(["commit", "-q", "-m", message, "--", ...existing, ...excluded], targetDir, {
     CONDUCTOR_NO_PROTECTED: `conductor upgrade to ${version}`,
   });
   if (!commit.ok) {
@@ -170,15 +198,16 @@ async function commitUpgrade({ targetDir, version, snap, noCommit, structural, e
   const waiverNote = waiverSha
     ? ` Its protected-path waiver is logged in the ship-log (commit ${waiverSha}): you type nothing.`
     : "";
+  const leftOut = snap.dirty.length ? `   Your uncommitted changes in ${snap.dirty.join(", ")} stay uncommitted, out of this commit.\n` : "";
   if (target.mode === "branch") {
     stdout.write(
-      `\n   ✅ Committed the upgrade as ${sha} on its own branch, ${target.branch}.${waiverNote}\n` +
+      `\n   ✅ Committed the upgrade as ${sha} on its own branch, ${target.branch}.${waiverNote}\n` + leftOut +
         `   Push it and open a merge request:  git push -u ${target.remote} ${target.branch}\n` +
         "   You are now on that branch. Start new work from the default branch once it is merged.\n",
     );
     return;
   }
-  stdout.write(`\n   ✅ Committed the upgrade as ${sha}.${waiverNote} Push as usual.\n`);
+  stdout.write(`\n   ✅ Committed the upgrade as ${sha}.${waiverNote} Push as usual.\n${leftOut}`);
 }
 
 /**

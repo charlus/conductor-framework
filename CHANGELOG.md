@@ -8,6 +8,16 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.46.0] — 2026-10-22 — The upgrade commits around your uncommitted files
+
+Compatibility: upgrade only
+
+### Fixed
+
+- **`conductor upgrade` commits even when you have uncommitted changes it did not touch.** A loop run leaves `conductor/1-workbench/loop-state.json` modified. The upgrade then refused to commit and printed a commit command that included that file, although the message said it would not commit your work. It also cut the first letter of the first path it named ("onductor/1-workbench/loop-state.json"). Now the upgrade notes the content of each uncommitted framework file before it writes. A file it left as it was stays out of the commit, and the message names it. If the upgrade changed one of those files too, your edit and its own are mixed: it names the file and leaves the commit to you. The paths are read exactly.
+
+---
+
 ## [6.45.0] — 2026-10-22 — Give the loop work without touching a tracked file
 
 Compatibility: upgrade only

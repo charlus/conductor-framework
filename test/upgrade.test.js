@@ -258,6 +258,9 @@ test("upgrade does not commit over the user's uncommitted framework edits", asyn
   // Their notes in AGENTS.md outside the framework block are theirs; committing
   // them unasked would be a surprise. Print the one command instead.
   const dir = await makeGitInstall();
+  // An older framework block, so the upgrade rewrites the file the note is in.
+  writeFileSync(join(dir, "AGENTS.md"), readFileSync(join(dir, "AGENTS.md"), "utf8").replace(/(conductor:framework:begin[^\n]*\n)/, "$1OLD FRAMEWORK LINE\n"));
+  g(dir, "commit", "-qam", "an older framework block");
   writeFileSync(join(dir, "AGENTS.md"), readFileSync(join(dir, "AGENTS.md"), "utf8") + "\nMY UNCOMMITTED NOTE\n");
   const before = g(dir, "rev-parse", "HEAD");
   const { stdout } = await runUpgrade(dir);
@@ -265,6 +268,34 @@ test("upgrade does not commit over the user's uncommitted framework edits", asyn
   assert.match(stdout, /CONDUCTOR_NO_PROTECTED="conductor upgrade" git commit/);
   assert.match(stdout, /AGENTS\.md/);
   assert.match(readFileSync(join(dir, "AGENTS.md"), "utf8"), /MY UNCOMMITTED NOTE/, "the note survived the refresh");
+  // F23: the first porcelain line lost its leading space, so the path lost its first letter.
+  assert.match(stdout, /uncommitted changes in AGENTS\.md\b/);
+  assert.match(stdout, /the upgrade changed (it|them) too/);
+});
+
+// F23 (2026-10-22, four product upgrades): a loop run leaves loop-state.json
+// modified, the upgrade does not touch it, and yet the upgrade refused to commit
+// and printed a command that committed it. Now the upgrade commits its own files
+// and leaves the user's untouched uncommitted file out.
+test("an uncommitted file the upgrade did not touch stays out of its commit, and the upgrade still commits", async () => {
+  const dir = await makeGitInstall();
+  await runUpgrade(dir); // current release first, so the next upgrade only refreshes
+  writeFileSync(join(dir, ".agents/hooks/lib.sh"), readFileSync(join(dir, ".agents/hooks/lib.sh"), "utf8") + "\n# older release\n");
+  g(dir, "add", "-A");
+  g(dir, "commit", "-q", "-m", "an older conductor install");
+  const statePath = join(dir, "conductor/1-workbench/loop-state.json");
+  // As a loop run leaves it: a v2 state, written the way the driver writes it.
+  const mine = `${JSON.stringify({ ...JSON.parse(readFileSync(statePath, "utf8")), status: "completed" }, null, 2)}\n`;
+  writeFileSync(statePath, mine);
+  const before = g(dir, "rev-parse", "HEAD");
+  const { code, stdout } = await runUpgrade(dir);
+  assert.equal(code, 0, stdout);
+  assert.notEqual(g(dir, "rev-parse", "HEAD"), before, `no commit was made: ${stdout}`);
+  assert.ok(!g(dir, "show", "--name-only", "--format=", upgradeCommit(dir)).split("\n").includes("conductor/1-workbench/loop-state.json"), "the user's file was committed");
+  assert.equal(readFileSync(statePath, "utf8"), mine, "the user's change is intact");
+  assert.match(g(dir, "status", "--porcelain", "--", "conductor/1-workbench/loop-state.json"), /^M /, "still modified, not staged (g trims the leading space)");
+  assert.match(stdout, /conductor\/1-workbench\/loop-state\.json/);
+  assert.doesNotMatch(stdout, /(^|[^c])onductor\/1-workbench/m, "a path lost its first letter");
 });
 
 test("upgrade migrates a tracked CLAUDE.md and GEMINI.md: notes into AGENTS.md, deletions committed", async () => {

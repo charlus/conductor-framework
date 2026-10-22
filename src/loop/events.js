@@ -51,6 +51,7 @@ const describe = (e) => {
     case "beat_end":
       return `${STAGE_LABEL[e.kind] ?? e.kind} beat ended after ${minutes(e.duration_s)}${e.cost_usd != null ? `, $${e.cost_usd.toFixed(2)}` : ""}`;
     case "verify":
+      if (e.reused) return "verify reused: same content, already green";
       return `verify exit ${e.exit}${e.duration_s != null ? ` in ${minutes(e.duration_s)}` : ""}`;
     case "verdict":
       return `${e.phase ?? "code"} review ${e.approved ? "approved" : `rejected${e.reason ? `: ${e.reason}` : ""}`}`;

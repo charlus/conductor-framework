@@ -45,6 +45,7 @@ import { gitCommonDir as gitDirOf } from "./loop-take.js";
 import { parseLoopConfig, parsePriorities, resolveForge, mergeSandboxSettings, withRoleModels, effectiveModels } from "../loop/config.js";
 import { describeModels } from "../loop/profiles.js";
 import { makeEmitter } from "../loop/events.js";
+import { verifyWithEvidence } from "../loop/verify-evidence.js";
 import { mrTitles, readOnlyEnv } from "../loop/team-facing.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
@@ -1465,7 +1466,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
         await collectRulings(state, workCwd, rulingsBefore);
         return result;
       },
-      runVerify: (cmd) => sh(cmd, workCwd),
+      runVerify: (cmd) => verifyWithEvidence(cmd, workCwd),
       gitHead: () => gitHead(workCwd),
       runChecker: async (o) => makeChecker(workCwd, await checkerPromptWithRulings(checkerPromptPath, await branchRulings(workCwd), "pair"))(o),
       readMakerDone,
@@ -1601,8 +1602,8 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
       },
       runVerify: async ({ task, cmd }) => {
         const t0 = Date.now();
-        const r = await sh(cmd, codeWtOf(cwdFor.get(task.id) ?? root) ?? cwdFor.get(task.id) ?? root);
-        await emit("verify", { task: task.id, exit: r.exitCode, duration_s: Math.round((Date.now() - t0) / 1000) });
+        const r = await verifyWithEvidence(cmd, codeWtOf(cwdFor.get(task.id) ?? root) ?? cwdFor.get(task.id) ?? root);
+        await emit("verify", { task: task.id, exit: r.exitCode, duration_s: Math.round((Date.now() - t0) / 1000), ...(r.reused ? { reused: true } : {}) });
         return r;
       },
       changedFiles: ({ task, from }) => changedFilesIn(cwdFor.get(task.id) ?? root, from),

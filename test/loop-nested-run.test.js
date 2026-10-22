@@ -86,11 +86,18 @@ test("outer layout: a code worktree from main, the code in the code repository, 
     const r = spawnSync("node", [join(REPO, "bin/conductor.js"), "loop", p.root, "--from-conductor"], {
       cwd: p.root,
       encoding: "utf8",
-      env: { ...process.env, PATH: `${p.bin}:${process.env.PATH}`, STUB_LOG_DIR: join(p.base, "prompts"), STUB_CODE_DIR: "repo" },
+      env: { ...process.env, PATH: `${p.bin}:${process.env.PATH}`, STUB_LOG_DIR: join(p.base, "prompts"), STUB_CODE_DIR: "repo", CONDUCTOR_HOME: join(p.base, "home") },
       timeout: 120000,
     });
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.match(r.stdout, /finished: completed/);
+
+    // P1 (autopportunity, 2026-10-22): the Ship beat writes only to the outer
+    // repository, so the verify after it finds the code verdict FRESH and reuses it.
+    const verifies = readFileSync(join(p.root, ".git/conductor-loop-logs/events.ndjson"), "utf8")
+      .trim().split("\n").map((l) => JSON.parse(l)).filter((e) => e.type === "verify");
+    assert.equal(verifies.length, 2, JSON.stringify(verifies));
+    assert.deepEqual(verifies.map((e) => [e.exit, Boolean(e.reused)]), [[0, false], [0, true]]);
 
     // Two MRs: the code MR from the code worktree, then the state MR naming it.
     const mrs = readdirSync(join(p.base, "mrs")).sort().map((f) => readFileSync(join(p.base, "mrs", f), "utf8"));

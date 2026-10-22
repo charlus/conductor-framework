@@ -8,6 +8,16 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.47.0] — 2026-10-22 — The loop runs verify once per content
+
+Compatibility: upgrade only
+
+### Changed
+
+- **The loop driver reuses a green verify on unchanged content.** The driver ran the full verify command after the Maker and again after the Ship beat. In the outer layout the Ship beat writes only to the outer repository, so the second run tested code that had just passed: on a real project, 225 s of a 12-minute run, with verify 75% of the run. The driver now runs verify through the evidence ledger, under the label `verify` that `pre-push` checks. A green run recorded on the same branch, the same working-tree content and the exact same command is reused, and `conductor watch` shows `verify reused`. The record also binds the `.env` files at the root of the code worktree (git ignores them, so the content fingerprint does not see them): a changed `.env` runs verify again. A red run, another command, a run that changed files while it ran, or a ledger that cannot be read or written always runs verify. The ledger stays on your machine (`~/.conductor`).
+
+---
+
 ## [6.46.0] — 2026-10-22 — The upgrade commits around your uncommitted files
 
 Compatibility: upgrade only

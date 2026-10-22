@@ -22,6 +22,10 @@
 // green `echo ok` recorded under the label `tests` would satisfy the gate — the
 // hash is what ties the label to the real suite.
 //
+// `env_sha256` (optional, `envFiles`) binds a run to files the command reads
+// that git ignores, such as `.env`. The working-tree fingerprint leaves ignored
+// files out, so without it a changed `.env` would keep a verdict FRESH.
+//
 // MACHINE-LOCAL by design. The ledger lives under CONDUCTOR_HOME (default
 // ~/.conductor), not in the repo: a synced record claiming a run happened on a
 // machine where it did not would be worse than no record at all. It is also
@@ -98,6 +102,24 @@ export async function resolveLedgerPath({ cwd = process.cwd(), home = null } = {
 const resolveLedger = resolveLedgerPath;
 
 /**
+ * sha256 over the names and contents of `envFiles` (paths relative to cwd).
+ * A missing file hashes as absent, so creating one changes the digest.
+ */
+export async function envDigest(cwd, envFiles) {
+  const h = createHash("sha256");
+  for (const f of [...envFiles].sort()) {
+    h.update(`${f}\0`);
+    try {
+      h.update(await readFile(join(cwd, f)));
+    } catch {
+      h.update("\0absent");
+    }
+    h.update("\0");
+  }
+  return h.digest("hex");
+}
+
+/**
  * Run `command` through a shell, streaming its output, and append a record of
  * what happened. The child's exit code is always returned unchanged.
  *
@@ -107,6 +129,7 @@ const resolveLedger = resolveLedgerPath;
  * @param {string} [opts.cwd]
  * @param {string|null} [opts.home]   CONDUCTOR_HOME override (tests)
  * @param {object} [opts.io]      { stdout, stderr } sinks; defaults to process
+ * @param {string[]|null} [opts.envFiles]  ignored files the command reads (`.env`)
  * @param {() => number} [opts.now]
  * @returns {Promise<{exitCode:number, wtree:string|null, warning?:string, record:object}>}
  */
@@ -115,6 +138,7 @@ export async function recordRun({
   command,
   cwd = process.cwd(),
   home = null,
+  envFiles = null,
   io = { stdout: process.stdout, stderr: process.stderr },
   now = () => Date.now(),
 }) {
@@ -125,6 +149,7 @@ export async function recordRun({
   // the tree the evidence claims to cover.
   const wtree = await workingTreeFingerprint(cwd).catch(() => null);
   const head = await headSha(cwd).catch(() => null);
+  const env = envFiles ? await envDigest(cwd, envFiles).catch(() => null) : null;
 
   const exitCode = await new Promise((resolve) => {
     const child = spawn(command, { cwd, shell: true, stdio: ["ignore", "pipe", "pipe"] });
@@ -152,6 +177,7 @@ export async function recordRun({
     duration_s: Math.round((now() - startedMs) / 100) / 10,
     commit: head,
     wtree,
+    ...(env ? { env_sha256: env } : {}),
     ...(treeChanged ? { tree_changed: treeChanged } : {}),
   };
 
@@ -232,6 +258,7 @@ async function readLedger({ cwd, home }) {
  * @param {string} [opts.cwd]
  * @param {string|null} [opts.home]
  * @param {number|null} [opts.maxAgeHours]
+ * @param {string[]|null} [opts.envFiles]  when given, the record's env_sha256 must match
  * @param {() => number} [opts.now]
  * @returns {Promise<{ok:boolean, wtree:string|null, byLabel:Record<string,object>}>}
  */
@@ -239,6 +266,7 @@ export async function checkFreshness({
   labels,
   cwd = process.cwd(),
   home = null,
+  envFiles = null,
   maxAgeHours = null,
   allowPaths = [],
   now = () => Date.now(),
@@ -246,6 +274,7 @@ export async function checkFreshness({
   const wanted = (labels ?? []).map((l) => (typeof l === "string" ? { label: l } : l));
   const wtree = await workingTreeFingerprint(cwd).catch(() => null);
   const records = await readLedger({ cwd, home });
+  const env = envFiles ? await envDigest(cwd, envFiles).catch(() => null) : null;
 
   const byLabel = {};
   for (const { label, expectCmd } of wanted) {
@@ -282,6 +311,10 @@ export async function checkFreshness({
         state: "STALE",
         reason: `the run changed files while it ran (${rec.tree_changed.slice(0, 4).join(", ")}${rec.tree_changed.length > 4 ? ", …" : ""})`,
       };
+      continue;
+    }
+    if (envFiles && (!env || rec.env_sha256 !== env)) {
+      byLabel[label] = { ...base, state: "STALE", reason: "the .env files changed since this run, or were not recorded" };
       continue;
     }
     if (!wtree || !rec.wtree) {

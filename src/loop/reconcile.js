@@ -198,3 +198,48 @@ export function skipClaimed(queue, { remoteBranches, mergedBranches: merged = ne
   }
   return out;
 }
+
+/**
+ * `conductor loop <project>` cleans up after itself: every loop worktree that run
+ * `pid` holds is removed when it has no uncommitted change. The commits stay in
+ * the branch, so nothing is lost; a branch whose tip is already on the remote is
+ * deleted too. The code worktree inside (`codeDir`) goes first. A worktree with
+ * uncommitted work is kept, with the reason. Never throws.
+ * @param {{git: Function, codeGit?: Function|null, codeDir?: string|null, pid?: number}} deps
+ * @returns {Promise<{removed: object[], kept: object[]}>}
+ */
+export async function removeHeldWorktrees({ git, codeGit = null, codeDir = null, pid = process.pid }) {
+  const removed = [];
+  const kept = [];
+  const heldByMe = async (g, path) => (await liveHolder({ git: g, path, isAlive: (p) => p === pid })) === pid;
+  const removeOne = async (g, w) => {
+    const dirty = await g(["-C", w.path, "status", "--porcelain"]);
+    if (!dirty.ok || dirty.stdout) {
+      kept.push({ ...w, reason: dirty.ok ? "it has uncommitted changes" : "its status could not be read" });
+      return false;
+    }
+    const rm = await g(["worktree", "remove", w.path]);
+    if (!rm.ok) {
+      kept.push({ ...w, reason: `git worktree remove failed${rm.stderr ? `: ${rm.stderr.split("\n")[0]}` : ""}` });
+      return false;
+    }
+    const local = await g(["rev-parse", w.branch]);
+    const pushed = await g(["rev-parse", `origin/${w.branch}`]);
+    if (local.ok && pushed.ok && local.stdout === pushed.stdout) await g(["branch", "-q", "-D", w.branch]);
+    removed.push(w);
+    return true;
+  };
+  for (const w of await loopWorktrees(git)) {
+    if (!(await heldByMe(git, w.path))) continue;
+    if (codeGit && codeDir) {
+      const code = { path: join(w.path, codeDir), branch: w.branch, code: true };
+      const listed = await codeGit(["worktree", "list", "--porcelain"]);
+      if (listed.ok && listed.stdout.split("\n").includes(`worktree ${code.path}`) && !(await removeOne(codeGit, code))) {
+        kept.push({ ...w, reason: "its code worktree is kept" });
+        continue;
+      }
+    }
+    await removeOne(git, w);
+  }
+  return { removed, kept };
+}

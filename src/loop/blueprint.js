@@ -77,15 +77,17 @@ export function harvestBlueprints({ projects, optIn, templates }) {
   for (const p of projects ?? []) {
     if (!(optIn === true || (Array.isArray(optIn) && optIn.includes(p.name)))) continue;
     if (p.carved || !discoveryDone({ docs: p.docs, templates })) continue;
+    const stagesDone = BLUEPRINT_STAGES.filter((s) => s.key !== "carve" && written(p.docs, templates, s.doc)).map((s) => s.key);
     items.push({
       id: `blueprint:${p.name}`,
       type: "blueprint",
       title: `${p.name} Blueprint`,
-      route: BLUEPRINT_STAGES.map((s) => s.workflow).join(" → "),
+      // Only the stages still to run: a dry run never lists a stage it will skip.
+      route: BLUEPRINT_STAGES.filter((s) => !stagesDone.includes(s.key)).map((s) => s.workflow).join(" → "),
       priority: null,
       details: "",
       source: { kind: "blueprint", project: p.name, path: `${PROJECTS_REL}/${p.name}` },
-      stages_done: BLUEPRINT_STAGES.filter((s) => s.key !== "carve" && written(p.docs, templates, s.doc)).map((s) => s.key),
+      stages_done: stagesDone,
     });
   }
   return items;

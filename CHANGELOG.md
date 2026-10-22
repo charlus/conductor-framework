@@ -8,6 +8,26 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.50.0] — 2026-10-22 — Build one project per terminal, and one loop never breaks another
+
+Compatibility: upgrade only
+
+### Added
+
+- **`conductor loop <project>`** builds one project from the project folder: its remaining Blueprint stages, then its slices, one slice per run. The command names the work, so the `slices` and `blueprint` settings are not needed and `conductor.config.json` is not edited; the backlog and the inbox are never taken. Its first lines say, in plain words, what it will build (`km-workload-relief: Carve (already done: Grand PRD, UX/UI Brief, Technical Vision).`) and that each slice ends with MRs you merge before the next one starts. With nothing to build it says why (a slice waiting for your merge, every slice shipped, Discovery not done) and stops.
+- **Two projects at once from the same folder.** Each project's run keeps its state and lock in `.git/conductor-loop-logs/runs/<project>/`, so a second terminal can run `conductor loop <other-project>` while the first runs. The same project twice is refused, and so is a project run beside a `--from-conductor` run (they could take the same work). The settings (autonomy, sandbox, budget, platform, verify) still come from `loop-state.json`.
+- **A project's run cleans up after itself.** At the end, and on Ctrl+C, it removes each worktree it held that has no uncommitted change (the commits stay in the branch; a branch already on the remote is deleted too). A worktree with uncommitted work is kept, with one line saying where and why.
+- **`conductor watch` shows every run going on in the folder**, each under its project, and `conductor watch --all` shows one row per running project. A project's run registers its folder for `--all`.
+
+### Fixed
+
+- **One loop no longer removes another loop's live worktree.** Worktrees are shared by every checkout of a repository. A fresh loop branch (no commit of its own yet) sits on the default branch's history, so the start-up cleanup and the `post-merge` hook took it for merged and removed a running loop's worktree (autopportunity, 2026-10-22: the CoP loop stopped when the KM loop started). A branch with no commit of its own is now never merged by ancestry, and a worktree whose holder, a live run's pid kept in the worktree's git directory, is alive is never removed.
+- **The driver never commits outside its worktree.** With its worktree removed, the run went on in the plain folder left behind, inside the owner's checkout, and its auto-capture committed `loop-state.json` and `loop.lock` onto the owner's `main`. The capture now commits only in the expected worktree, on a `conductor/loop/` branch; otherwise the run stops as `halted_isolation`, commits nothing, and says so in the inbox.
+- **A dry run no longer lists Blueprint stages it will skip.** The route shows only the stages still to run.
+- **Two runs writing the inbox no longer lose a line:** the inbox is appended to, not rewritten.
+
+---
+
 ## [6.49.0] — 2026-10-22 — Beats no longer stall on a placeholder provider key
 
 Compatibility: upgrade only

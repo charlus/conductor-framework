@@ -331,3 +331,32 @@ test("the post-merge hook leaves a fresh loop worktree and a held one alone", ()
     rmSync(base, { recursive: true, force: true });
   }
 });
+
+test("conductor loop <project> removes the clean worktrees it held at the end, keeps uncommitted work, and leaves other runs alone", async () => {
+  const { base, repo } = setup();
+  try {
+    const { markWorktreeHeld, removeHeldWorktrees } = await import("../src/loop/reconcile.js");
+    const pushed = loopWorktree(repo, "pushed"); // committed and pushed: worktree and branch go
+    const dirty = loopWorktree(repo, "dirty");
+    writeFileSync(join(dirty, "wip.txt"), "uncommitted\n");
+    const local = freshLoopWorktree(repo, "local");
+    writeFileSync(join(local, "c.txt"), "c\n");
+    G(local, "add", "-A");
+    G(local, "commit", "-qm", "local only"); // committed, not pushed: worktree goes, branch stays
+    const other = loopWorktree(repo, "other"); // another run's
+    for (const p of [pushed, dirty, local]) await markWorktreeHeld({ git: git(p), pid: process.pid });
+    await markWorktreeHeld({ git: git(other), pid: process.pid + 1 });
+
+    const r = await removeHeldWorktrees({ git: git(repo), pid: process.pid });
+    assert.deepEqual(r.removed.map((w) => w.branch).sort(), ["conductor/loop/local", "conductor/loop/pushed"]);
+    assert.deepEqual(r.kept.map((w) => w.branch), ["conductor/loop/dirty"]);
+    assert.equal(existsSync(pushed), false);
+    assert.equal(existsSync(local), false);
+    assert.equal(existsSync(dirty), true, "uncommitted work is kept");
+    assert.equal(existsSync(other), true, "another run's worktree is not ours to remove");
+    assert.equal(G(repo, "branch", "--list", "conductor/loop/pushed"), "", "a pushed branch is deleted with its worktree");
+    assert.notEqual(G(repo, "branch", "--list", "conductor/loop/local"), "", "an unpushed branch keeps its commits");
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});

@@ -212,6 +212,7 @@ conductor design migrate [dir] [options]
 Run the autonomous loop: beats, reviews, one MR per item.
 
 ```
+conductor loop <project> [dir] [options]
 conductor loop [dir] [--from-conductor | --goal <text> | --event <file.json>] [options]
 conductor loop on|off <project> [dir] [--yes] [--dry-run]
 conductor loop take ["<item>"] [dir] [--drop]
@@ -221,6 +222,7 @@ conductor loop doctor [dir] [--beat]
 
 | Option | What it does |
 |---|---|
+| `<project>` | Build this project only: its remaining Blueprint stages, then its slices, one per run. Its state stays in .git; another terminal in the same folder can build another project at the same time. The loop removes its worktrees when it ends or on Ctrl+C |
 | `--from-conductor` | Take the work from conductor/: backlog, inbox, slices, Blueprints |
 | `--dry-run` | Show what the run would pick up and do, write nothing |
 | `--platform <name>` | Engine: claude \| codex \| antigravity (default: loop-state, then detected) |
@@ -245,6 +247,8 @@ conductor loop doctor [dir] [--beat]
 
 Reads: `verify`, `loop.forge`, `loop.setup`, `loop.allowed_domains`, `loop.require_ready`, `loop.priorities`, `loop.inbox`, `loop.allow_nested_repo`, `loop.models`, `loop.cost_aware`, `loop.slices`, `loop.blueprint`, `loop.code_dir`, `loop.profile`, `loop.blank_env`.
 
+- `conductor loop km-workload-relief`: build this project; a second terminal can run another project
+- `conductor loop km-workload-relief --dry-run`: what will it build?
 - `conductor loop on km-workload-relief`: let the loop work on this project
 - `conductor loop take "flaky login"`: give the loop this backlog item
 - `conductor loop doctor .`: is this project ready?
@@ -262,12 +266,12 @@ conductor watch --all [--once]
 
 | Option | What it does |
 |---|---|
-| `--all` | The watch tower: every product the loop is on, on one screen (registered by conductor loop on) |
+| `--all` | The watch tower: every product the loop is on, on one screen (registered by conductor loop on or conductor loop <project>), one row per running project |
 | `--once` | Print one screen and exit (it refreshes every few seconds otherwise) |
 | `--no-color` | Plain text on a terminal (NO_COLOR does the same) |
 
 - `conductor watch --all`: every product's run, beat, last news and waiting questions
-- `conductor watch`: this product only
+- `conductor watch`: this product only, every project run going on in it
 
 ### Gates and evidence
 

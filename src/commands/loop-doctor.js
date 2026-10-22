@@ -12,7 +12,7 @@
 import { readReady } from "../loop/ready-queue.js";
 import { gitCommonDir } from "./loop-take.js";
 import { readFile, writeFile, rm, mkdtemp } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { normalizeState, resolveVerifyCommand, preflight, describeHalt } from "../loop/driver.js";
 import { parseLoopConfig, resolveForge, mergeSandboxSettings, effectiveModels } from "../loop/config.js";
@@ -67,10 +67,45 @@ async function probeBeat({ cwd, verifyCommand, settingsPath }) {
   };
 }
 
-export async function loopDoctor(root, { stdout, beat = false }) {
+/**
+ * The Conductor project that contains `path`, or null: the nearest folder above
+ * it with a loop-state.json. `path` need not exist (a typo'd project name).
+ */
+async function enclosingProject(path) {
+  for (let dir = dirname(path); dir !== dirname(dir); dir = dirname(dir)) {
+    if (await exists(join(dir, STATE_REL))) return dir;
+  }
+  return null;
+}
+
+/** No loop-state.json at `root`: a path inside a project, or no install at all. */
+async function notAProject(root, cwd) {
+  const project = await enclosingProject(root);
+  if (!project) {
+    return [{ id: "state", level: "fail", title: `no ${STATE_REL}`, detail: "", fix: "Run `conductor init` or `conductor upgrade`." }];
+  }
+  // Relative only when the owner stands inside the project, as they usually do.
+  const rel = relative(cwd, project);
+  const shown = rel === "" ? "." : rel.split(sep).every((s) => s === "..") ? rel : project;
+  // conductor/2-backlog/project-backlog/<name>/…: they meant to choose that project.
+  const [area, backlog, kind, name] = relative(project, root).split(sep);
+  const named = area === "conductor" && backlog === "2-backlog" && kind === "project-backlog" && name;
+  const chooseOne = named && (await exists(join(project, "conductor/2-backlog/project-backlog", name))) ? `conductor loop on ${name}` : "conductor loop on";
+  return [
+    {
+      id: "state",
+      level: "fail",
+      title: `${root} is not the project folder`,
+      detail: `the project folder is ${project}; doctor takes that folder, not a project inside it`,
+      fix: `Run \`conductor loop doctor ${shown}\`. To choose the project the loop works on: \`${chooseOne}\`.`,
+    },
+  ];
+}
+
+export async function loopDoctor(root, { stdout, beat = false, cwd = process.cwd() }) {
   const statePath = join(root, STATE_REL);
   if (!(await exists(statePath))) {
-    stdout.write(renderDoctor([{ id: "state", level: "fail", title: `no ${STATE_REL}`, detail: "", fix: "Run `conductor init` or `conductor upgrade`." }]));
+    stdout.write(renderDoctor(await notAProject(resolve(root), cwd)));
     return 1;
   }
   const facts = {};

@@ -8,6 +8,16 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.48.0] — 2026-10-22 — Doctor names the project folder
+
+Compatibility: upgrade only
+
+### Fixed
+
+- **`conductor loop doctor` on a path inside a project names the project folder.** Given a project's backlog folder (`conductor loop doctor conductor/2-backlog/project-backlog/cop-availability`), doctor answered "no loop-state.json, run `conductor init`" on an installed project. It now says the path is not the project folder, names the folder (`conductor loop doctor .`), and points to `conductor loop on <project>`, which is how you choose the project the loop works on. A path with no Conductor project above it still gets the `conductor init` fix.
+
+---
+
 ## [6.47.0] — 2026-10-22 — The loop runs verify once per content
 
 Compatibility: upgrade only

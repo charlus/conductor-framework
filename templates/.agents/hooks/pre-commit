@@ -4,10 +4,11 @@
 #   Eval: LLM-feature code (calls a provider) with no accompanying eval is rejected.
 #   Brief: a feature-spec with no "Brief check" section is rejected (A5 / D1).
 #   Report: a ship-log whose newest entry has no "For you" block is rejected (A4).
+#   Default branch: code committed on the default branch is rejected (2026-10-22).
 # The two gates are INDEPENDENT — waiving one never skips the other. LLM-feature
 # code needs BOTH a test (deterministic glue) and an eval (non-deterministic output).
 # Escape hatches (logged, never silent): CONDUCTOR_NO_TEST / CONDUCTOR_NO_EVAL /
-# CONDUCTOR_NO_BRIEF / CONDUCTOR_NO_REPORT, each ="reason".
+# CONDUCTOR_NO_BRIEF / CONDUCTOR_NO_REPORT / CONDUCTOR_ON_DEFAULT, each ="reason".
 # Disable everything: CONDUCTOR_HOOKS=off.
 set -uo pipefail
 
@@ -198,6 +199,54 @@ while IFS= read -r f; do
 done <<< "$staged"
 
 blocked=0
+
+# ---- The default branch: code arrives through a merged MR -----------------
+# The owner's folder stays on the default branch (2026-10-22). Code reaches it
+# only through a merged MR, built in the item's worktree (`conductor work
+# <item>`). Only where an MR flow exists (a remote named origin). Conductor's
+# own files may still be committed here: the inbox, the loop state, the
+# project card. In a nested code repository every file is code.
+default_branch_code=""
+if git remote get-url origin >/dev/null 2>&1 && [ -z "$(git rev-parse -q --verify MERGE_HEAD 2>/dev/null)" ]; then
+  db="$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null)"
+  db="${db#origin/}"
+  if [ -z "$db" ]; then
+    for cand in main master; do
+      git rev-parse -q --verify "refs/remotes/origin/$cand" >/dev/null 2>&1 && { db="$cand"; break; }
+    done
+  fi
+  cur="$(git symbolic-ref -q --short HEAD 2>/dev/null)"
+  if [ -n "$db" ] && [ "$cur" = "$db" ]; then
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      if [ -z "$NESTED_REPO" ]; then
+        case "$f" in conductor/*|.agents/*|AGENTS.md|conductor.config.json|.gitattributes) continue ;; esac
+      fi
+      default_branch_code="$default_branch_code\n    - $f"
+    done <<< "$(git diff --cached --name-only)"
+  fi
+fi
+if [ -n "$default_branch_code" ]; then
+  if [ -n "${CONDUCTOR_ON_DEFAULT:-}" ]; then
+    conductor_log_waiver "$PROJECT_ROOT" "Default branch" "$CONDUCTOR_ON_DEFAULT"
+    echo "⚠️  Conductor default-branch rule WAIVED: $CONDUCTOR_ON_DEFAULT"
+    echo "    (logged to conductor/0-compass/ship-log.md)"
+  else
+    echo ""
+    echo "🛑 Conductor — code on the default branch ($db); commit blocked."
+    echo ""
+    echo "  This folder stays on $db. Code reaches it through a merged MR:"
+    echo -e "$default_branch_code"
+    echo ""
+    echo "  Work in the item's own worktree, then commit there:"
+    echo "    conductor work <project>/<slice>    (or a backlog item's name)"
+    echo "  It prints the folder to use. If this commit must land on $db"
+    echo "  (agreed with the team), say why:"
+    echo "    CONDUCTOR_ON_DEFAULT=\"why\" git commit …"
+    echo ""
+    blocked=1
+  fi
+fi
 
 # ---- Test-Driven Law ------------------------------------------------------
 if [ "$impl" = "1" ] && [ "$tests" = "0" ]; then

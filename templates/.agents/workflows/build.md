@@ -48,6 +48,8 @@ If either is missing:
 
 1.  **Target (fact — look it up):** If this workflow was started with a path (`/<workflow> <path>`), that folder is the Implementation: read from it and do not ask. Otherwise find the Project (list `conductor/2-backlog/project-backlog/` by last change) and recommend its first Implementation that is specced but not built. If that folder holds a `handoff.md`, read it first: it lists what the previous session left open. Delete it once its items are handled.
 
+    * **Work in the item's worktree:** run `conductor work <project>/<NN-slice>` first, then read, edit, test and commit only in the folder it prints (`conductor/` files too). The owner's folder stays on its default branch. In a loop beat, skip this. See `skills/git-worktrees/SKILL.md`. A backlog item: `conductor work <item name>`.
+
 2.  **Load Context** (Read in this order; `blueprint/` is in the Project folder, two levels above the Implementation):
     * `implementation-plan.md` — The phase-by-phase execution plan
     * `feature-spec.md` — The acceptance criteria and requirements

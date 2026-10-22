@@ -9,9 +9,10 @@
 | `pre-commit` | **Test-Driven Law** | `git commit` | implementation code is staged with no test change |
 | `pre-commit` | **Eval-Driven Law** | `git commit` | code that calls an LLM provider is staged with no eval alongside (waiver: `CONDUCTOR_NO_EVAL="reason"`). See `skills/writing-evals/`. The two gates are independent — waiving one never skips the other. |
 | `pre-commit` | **Goodhart boundary** | `git commit` | a test file is deleted, a test is disabled (`.skip`/`.only`/`@pytest.mark.skip`/`#[ignore]`/`t.Skip`/`@Disabled`…), or the staged tests net-lose assertions (waiver: `CONDUCTOR_NO_BOUNDARY="reason"`) |
+| `pre-commit` | **Default branch** | `git commit` | code is committed on the default branch of a repository that has a remote (`origin`), in the project or a nested code repository. Conductor's own files (`conductor/`, `.agents/`, `AGENTS.md`, `conductor.config.json`, `.gitattributes`) may be. Work in the item's worktree (`conductor work <item>`) instead (waiver: `CONDUCTOR_ON_DEFAULT="reason"`) |
 | `pre-commit` | **Protected paths** | `git commit` | the change edits `.agents/hooks/`, `.agents/rules/`, `.agents/sandbox/` or the reviewer brief (waiver: `CONDUCTOR_NO_PROTECTED="reason"`) |
 | `pre-push` | **Verification Iron Law** | `git push` | the configured verification command exits non-zero |
-| `post-merge` | cleanup, not a gate | `git pull` (a merge) | never: it removes `conductor loop` worktrees and local branches already merged into the default branch, and keeps any worktree with uncommitted changes |
+| `post-merge` | cleanup, not a gate | `git pull` (a merge) | never: it removes `conductor loop` and `conductor work` worktrees and local branches already merged into the default branch, and keeps any worktree with uncommitted changes |
 | `verification-stop-hook.sh` | Verification Iron Law (interactive) | Claude Code `Stop` | **opt-in** — code changed since HEAD and verify is red |
 | `pretooluse-no-bypass.sh` | every gate above | Claude Code `PreToolUse` | **opt-in** — a Bash call tries to skip the git hooks (`--no-verify`, `-n`, `-c core.hooksPath=`) |
 | `pretooluse-fact-gate.sh` | investigate before you write | Claude Code `PreToolUse` | **opt-in** — the first edit/creation of a file, and the first run of each destructive command, until the facts are stated (off: `CONDUCTOR_FACT_GATE=off`) |
@@ -143,6 +144,7 @@ CONDUCTOR_NO_BRIEF="pre-A5 spec" git commit …            # brief check (pre-co
 CONDUCTOR_NO_REPORT="editing an old entry" git commit …  # report shape (pre-commit)
 CONDUCTOR_NO_BOUNDARY="feature removed" git commit …     # Goodhart boundary (pre-commit)
 CONDUCTOR_NO_PROTECTED="conductor upgrade" git commit …  # protected paths (pre-commit)
+CONDUCTOR_ON_DEFAULT="hotfix agreed" git commit …        # code on the default branch (pre-commit)
 CONDUCTOR_SKIP_VERIFY="hotfix, tests offline" git push … # verify gate (pre-push)
 CONDUCTOR_SKIP_EVAL="eval infra down" git push …         # Eval run-gate (pre-push)
 CONDUCTOR_HOOKS=off git commit …                         # disable all Conductor hooks

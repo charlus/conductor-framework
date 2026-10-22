@@ -85,6 +85,16 @@ export const COMMANDS = Object.freeze([
     examples: [["conductor personas --base master", "personas for this branch"]],
   },
   {
+    name: "work", group: "daily", summary: "The hidden worktree an interactive Spec-It, Build or Ship works in, so your folder stays on its default branch",
+    usage: "conductor work <item> [dir]\n  conductor work clean [dir]",
+    flags: [],
+    config: ["loop.code_dir", "loop.setup"],
+    examples: [
+      ["conductor work cop-availability/01-cockpit-access", "make or reuse the slice's worktree (and its code worktree), print where it is"],
+      ["conductor work clean", "remove the worktrees of merged work now (git pull does it too)"],
+    ],
+  },
+  {
     name: "design", group: "daily", summary: "Combine an old conductor/4-context/design/ folder into one DESIGN.md",
     usage: "conductor design migrate [dir] [options]",
     flags: [["--repo <path>", "The code repository that gets DESIGN.md"], ["--dry-run", "Show the result, write nothing"]],

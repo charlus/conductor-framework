@@ -20,6 +20,7 @@ import { surveyCommand } from "./commands/survey.js";
 import { personasCommand } from "./commands/personas.js";
 import { designCommand } from "./commands/design.js";
 import { watchCommand } from "./commands/watch.js";
+import { workCommand } from "./commands/work.js";
 import { mainHelp, commandHelp } from "./usage.js";
 import { nextAfterStatus } from "./next-step.js";
 
@@ -124,6 +125,8 @@ export async function runCli(args, io = process) {
       return loopCommand(rest, context);
     case "watch":
       return watchCommand(rest, context);
+    case "work":
+      return workCommand(rest, context);
     default:
       io.stderr.write(`Unknown command: ${command}\n${helpText()}\n`);
       return 1;

@@ -12,6 +12,7 @@ import { renderStatus, renderLive, painter } from "../view/status.js";
 import { instructionWarningsFor } from "../claude-instructions.js";
 import { cardState } from "./agents-md.js";
 import { mergedLoopWorktrees } from "../loop/reconcile.js";
+import { branchSafety } from "../work.js";
 import { QUESTIONS_REL, decisionStats, parseRound, roundAnswered } from "../loop/questions.js";
 import { nextAfterStatus } from "../next-step.js";
 import { readdir, readFile } from "node:fs/promises";
@@ -128,10 +129,21 @@ export async function statusCommand(args, context) {
     const r = spawnSync("git", a, { cwd: root, encoding: "utf8" });
     return { ok: r.status === 0, stdout: (r.stdout || "").trim() };
   };
-  const merged = await mergedLoopWorktrees({ git });
+  // Interactive work is branch-safe too (2026-10-22): the owner's folder and its
+  // code repositories stay on their default branch; merged worktrees, the
+  // loop's and the interactive items', are named here and removed elsewhere.
+  const gitIn = (cwd) => async (a) => {
+    const r = spawnSync("git", a, { cwd, encoding: "utf8" });
+    return { ok: r.status === 0, stdout: (r.stdout || "").trim() };
+  };
+  const safety = await branchSafety({ root, git: gitIn }).catch(() => ({ off: [], leftovers: [] }));
+  for (const o of safety.off) {
+    context.stdout.write(`  ⚠️  ${o.label === "." ? "Your folder" : `Code repository ${o.label}`} is on ${o.branch}, not on its default branch ${o.want}. Work happens in item worktrees (conductor work <item>); switch back with: git -C ${o.label === "." ? "." : o.label} switch ${o.want}\n`);
+  }
+  const merged = safety.leftovers.length ? safety.leftovers : await mergedLoopWorktrees({ git });
   if (merged.length) {
     context.stdout.write(
-      `  ℹ️  ${merged.length} merged loop worktree${merged.length === 1 ? "" : "s"} (${merged.map((w) => w.branch).join(", ")}): removed on your next \`git pull\` or loop run.\n`
+      `  ℹ️  ${merged.length} merged worktree${merged.length === 1 ? "" : "s"} (${merged.map((w) => w.branch).join(", ")}): removed on your next \`git pull\`, loop run or \`conductor work clean\`.\n`
     );
   }
   // Step 4 (D1): rounds waiting for the owner, and how often the owner agrees.

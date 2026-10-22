@@ -129,7 +129,7 @@ test("conductor status names merged loop worktrees and deletes nothing", async (
     G(repo, "fetch", "-q", "origin");
     const out = sink();
     await statusCommand([repo, "--no-color"], { cwd: repo, stdout: out, stderr: sink() });
-    assert.match(out.text, /1 merged loop worktree \(conductor\/loop\/done\)/);
+    assert.match(out.text, /1 merged worktree \(conductor\/loop\/done\)/);
     assert.equal(existsSync(path), true, "status never deletes");
   } finally {
     rmSync(base, { recursive: true, force: true });

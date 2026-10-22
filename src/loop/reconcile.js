@@ -24,7 +24,10 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 const WORKTREES = "/.agents/.worktrees/";
-const LOOP_PREFIX = "conductor/loop/";
+export const LOOP_PREFIX = "conductor/loop/";
+// Interactive work (`conductor work <item>`): its own prefix, so a loop item and
+// an interactive item never share a branch. Cleaned by the same prune.
+export const WORK_PREFIX = "conductor/work/";
 export const HOLDER_FILE = "conductor-holder";
 
 /** Is `pid` a live process? EPERM means alive but not ours. */
@@ -71,8 +74,8 @@ export async function defaultBranchRef(git) {
   return null;
 }
 
-/** The loop's worktrees: path and branch, from `git worktree list --porcelain`. */
-export async function loopWorktrees(git) {
+/** The loop's worktrees (or those of `prefixes`): path and branch, from `git worktree list --porcelain`. */
+export async function loopWorktrees(git, prefixes = [LOOP_PREFIX]) {
   const list = await git(["worktree", "list", "--porcelain"]);
   if (!list.ok) return [];
   const out = [];
@@ -81,7 +84,7 @@ export async function loopWorktrees(git) {
     if (line.startsWith("worktree ")) cur = { path: line.slice(9) };
     else if (line.startsWith("branch ")) cur.branch = line.slice(7).replace(/^refs\/heads\//, "");
     else if (line === "") {
-      if (cur.path && cur.branch?.startsWith(LOOP_PREFIX) && cur.path.includes(WORKTREES)) out.push(cur);
+      if (cur.path && prefixes.some((p) => cur.branch?.startsWith(p)) && cur.path.includes(WORKTREES)) out.push(cur);
       cur = {};
     }
   }
@@ -94,14 +97,14 @@ export async function loopWorktrees(git) {
  * merged head is returned with `ahead: true`: the caller keeps it.
  * @param {{git: Function, forgeMerged?: (branch: string) => Promise<string|null>}} deps
  */
-export async function mergedLoopWorktrees({ git, forgeMerged = async () => null }) {
+export async function mergedLoopWorktrees({ git, forgeMerged = async () => null, prefixes = [LOOP_PREFIX] }) {
   const base = await defaultBranchRef(git);
   if (!base) return [];
   const merged = [];
   // The default branch's own line: a branch tip on it has no commit of its own.
   const line = await git(["rev-list", "--first-parent", base]);
   const own = new Set(line.ok ? line.stdout.split("\n").filter(Boolean) : []);
-  for (const w of await loopWorktrees(git)) {
+  for (const w of await loopWorktrees(git, prefixes)) {
     const tip = await git(["rev-parse", w.branch]);
     const fresh = !line.ok || !tip.ok || own.has(tip.stdout);
     if (!fresh && (await git(["merge-base", "--is-ancestor", w.branch, base])).ok) {
@@ -122,10 +125,10 @@ export async function mergedLoopWorktrees({ git, forgeMerged = async () => null 
  * uncommitted changes is kept, with the reason, and so is one `skip` names. Never throws.
  * @returns {Promise<{removed: object[], kept: object[]}>}
  */
-export async function pruneMergedLoopWorktrees({ git, skip = async () => null, forgeMerged, isAlive = isPidAlive }) {
+export async function pruneMergedLoopWorktrees({ git, skip = async () => null, forgeMerged, isAlive = isPidAlive, prefixes = [LOOP_PREFIX] }) {
   const removed = [];
   const kept = [];
-  for (const w of await mergedLoopWorktrees({ git, forgeMerged })) {
+  for (const w of await mergedLoopWorktrees({ git, forgeMerged, prefixes })) {
     const holder = await liveHolder({ git, path: w.path, isAlive });
     if (holder) {
       kept.push({ ...w, reason: `a live loop run (pid ${holder}) holds it` });

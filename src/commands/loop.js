@@ -38,7 +38,7 @@ import { recordUsage, usageSummary, cacheShare } from "../loop/usage.js";
 import { newRulings, rulingInboxLines, rulingsPrBody, rulingsForChecker, RULINGS_REL } from "../loop/rulings.js";
 import { renderShipAssignment, shipBeatSection, sectionOf, checkShipEvidence, PR_BODY_REL } from "../loop/ship.js";
 import { harvestSlices, specEvidence as checkSpecEvidence, PROJECTS_REL } from "../loop/slices.js";
-import { pruneMergedLoopWorktrees, remoteLoopBranches, mergedBranches, skipClaimed, defaultBranchRef, markWorktreeHeld, removeHeldWorktrees } from "../loop/reconcile.js";
+import { pruneMergedLoopWorktrees, LOOP_PREFIX, WORK_PREFIX, remoteLoopBranches, mergedBranches, skipClaimed, defaultBranchRef, markWorktreeHeld, removeHeldWorktrees } from "../loop/reconcile.js";
 import { forgeMergedHead } from "../live-state.js";
 import { readReady } from "../loop/ready-queue.js";
 import { gitCommonDir as gitDirOf } from "./loop-take.js";
@@ -1443,11 +1443,14 @@ export async function loopCommand(args, { cwd, stdout, stderr, stack = null }) {
     // F22: a squash-merged branch is merged when the forge says so.
     const forgeMerged = (dir) => (branch) => forgeMergedHead(dir, branch);
     const codeDir = loopConfig.codeDir ? join(root, loopConfig.codeDir) : null;
-    const code = codeDir ? await pruneMergedLoopWorktrees({ git: makeGit(codeDir), forgeMerged: forgeMerged(codeDir) }) : { removed: [], kept: [] };
+    // Interactive items (`conductor work`) merged since are cleaned up too.
+    const prefixes = [LOOP_PREFIX, WORK_PREFIX];
+    const code = codeDir ? await pruneMergedLoopWorktrees({ git: makeGit(codeDir), forgeMerged: forgeMerged(codeDir), prefixes }) : { removed: [], kept: [] };
     for (const w of code.removed) stdout.write(`[CONDUCTOR LOOP] removed the merged code worktree ${w.path} (${w.branch})\n`);
     const p = await pruneMergedLoopWorktrees({
       git: makeGit(root),
       forgeMerged: forgeMerged(root),
+      prefixes,
       skip: async (w) => (loopConfig.codeDir && (await exists(join(w.path, loopConfig.codeDir, ".git"))) ? "its code worktree is still open (the code MR is not merged yet)" : null),
     });
     for (const w of p.removed) stdout.write(`[CONDUCTOR LOOP] removed the merged loop worktree ${basename(w.path)} (${w.branch})\n`);

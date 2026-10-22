@@ -28,6 +28,7 @@ const NOT_OURS = {
   "loop-on": ["--error-unmatch", "-c"],
   "loop-take": ["--git-common-dir"],
   watch: ["--path-format=absolute", "--path-format", "--git-common-dir"],
+  work: ["-c"],
   personas: ["--exclude-standard", "--name-only", "--others"],
   "trust-verify": ["-c", "--show-toplevel"],
   upgrade: ["-c", "-z", "--cached", "--git-path", "--is-inside-work-tree", "-m", "--porcelain", "-q", "--quiet", "--short", "--verify"],

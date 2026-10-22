@@ -190,6 +190,20 @@ conductor personas [paths…] [options]
 
 - `conductor personas --base master`: personas for this branch
 
+#### `conductor work`
+
+The hidden worktree an interactive Spec-It, Build or Ship works in, so your folder stays on its default branch.
+
+```
+conductor work <item> [dir]
+conductor work clean [dir]
+```
+
+Reads: `loop.code_dir`, `loop.setup`.
+
+- `conductor work cop-availability/01-cockpit-access`: make or reuse the slice's worktree (and its code worktree), print where it is
+- `conductor work clean`: remove the worktrees of merged work now (git pull does it too)
+
 #### `conductor design`
 
 Combine an old conductor/4-context/design/ folder into one DESIGN.md.

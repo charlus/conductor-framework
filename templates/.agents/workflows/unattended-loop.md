@@ -60,7 +60,7 @@ Before you write code, run `conductor personas <the files this task will create 
   1. Load the domain personas (above). The driver has already stamped `current_worker` for you.
   2. **Execute phase-appropriate work**:
      - *blueprint*: Run the blueprinting workflows (`workflows/grand-prd.md`, `ux-ui-design-brief.md`, `technical-vision.md`, or `workflows/carve.md`) to write specifications and slice tasks.
-     - *execution*: Isolate the workspace using the `using-git-worktrees` skill and execute the **Build** workflow (`workflows/build.md`) following the per-task TDD-Cycle to implement the specifications.
+     - *execution*: You are already in the item's worktree: skip Build's "Work in the item's worktree" step. Execute the **Build** workflow (`workflows/build.md`) following the per-task TDD-Cycle to implement the specifications.
        - **TDD split (opt-in, swarm only):** when the task's `phase` is set (driver-owned, enabled by `tdd_split` / a task's `contract_first`), your beat plays *one* role, not both:
          - `phase: "contract"` → you are the **test-author**. Write **only** the failing tests that encode this task's spec — the executable contract — and nothing else. Success is **RED**: the suite must fail because there's no implementation yet. Do not write implementation code. (The driver confirms RED; a green suite here means your tests are vacuous and the beat is rejected.)
          - `phase: "implementation"` → you are the **implementer**. Make the contract's tests pass with the minimum code. You **must not edit, weaken, or delete the tests** — they are another agent's contract; changing them to go green is reward-hacking and the Checker will reject it. If a test is genuinely wrong, stop and surface it, don't quietly rewrite it.
@@ -106,6 +106,7 @@ Before you write code, run `conductor personas <the files this task will create 
 
 When your prompt is `.agents/workflows/ship.md` followed by this section, you are the owner typing `/ship` on work that Build already finished and the Checker approved on this branch. Run Ship as written, with these differences, because nobody is here and the driver does the rest:
 
+- **Phase 0: skip it.** You are in the item's worktree.
 - **Phases 1, 2, 3 and 5: run them as written.** Phase 5's bookkeeping goes in this branch: the ship-log entry with its **For you** block, the product area, the archive, and the item's tick when your assignment names one. Merging the MR is what records the ship.
 - **Tests: the ones you add, not the whole suite.** Run the regression tests you write in Phase 2, and the tests of the files you touch. Do not run the full test suite: the driver runs the full verification command after your beat, outside your sandbox, where it is faster and has the network some tests need. A live run lost an hour to full-suite runs here.
 - **Phase 4: do not start a reviewer.** After your beat the driver runs verify and its independent Checker on the shipped state. In the MR body's Evidence, write that the driver's Checker reviews the shipped state; never that the review was skipped.
@@ -117,6 +118,7 @@ When your prompt is `.agents/workflows/ship.md` followed by this section, you ar
 
 When your prompt is `.agents/workflows/spec-it.md` followed by this section, you are the owner typing `/spec-it` on the slice folder your assignment names. Run Spec-It as written, with these differences, because nobody is here:
 
+- **"Work in the item's worktree": skip it.** You are in it.
 - **Synthesize, never interview.** Read the slice's `project-documentation.md` entry, the Blueprint and the code, as Spec-It's Phase 1 says, and write from them.
 - **"Feature Spec locked?" and "Implementation Plan locked?":** nobody can answer. Check the document against Spec-It's own coverage list yourself, then write it. A fresh Checker reviews both files after your beat, before any Build beat.
 - **The Brief check is required.** Answer C1–C4 from the documents, `None found.` included.

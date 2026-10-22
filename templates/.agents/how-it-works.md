@@ -403,7 +403,7 @@ The reusable "how" that discovery/blueprint/spec workflows load instead of re-im
 | `frontend-design` | Design thinking for web UI |
 | `design-system` | Create, extract or maintain `DESIGN.md` at the code repository root (`conductor design migrate` moves an old `4-context/design/` folder into it) |
 | `i18n-localization` | Internationalization and translation management |
-| `git-worktrees` | Isolated parallel development |
+| `git-worktrees` | The item's own hidden worktree (`conductor work <item>`): the owner's folder stays on its default branch, merged worktrees go on `git pull` |
 | `architecture-patterns` | Architectural trade-off analysis and ADRs |
 | `lint-and-validate` | Static analysis after every modification |
 | `subagent-isolation` | Scout pattern — delegate read-heavy discovery, parallelize, isolate mutating work in worktrees |

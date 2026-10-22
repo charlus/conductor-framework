@@ -371,7 +371,7 @@ export async function loopCommand(args, { cwd, stdout, stderr }) {
     const rest = args.slice(args.indexOf("doctor") + 1);
     const dir = rest.find((a) => !a.startsWith("-"));
     const { loopDoctor } = await import("./loop-doctor.js");
-    return loopDoctor(resolve(cwd, dir || "."), { stdout, beat: rest.includes("--beat") });
+    return loopDoctor(resolve(cwd, dir || "."), { stdout, cwd, beat: rest.includes("--beat") });
   }
   const positional = args.find((a) => !a.startsWith("-"));
   const root = resolve(cwd, positional || ".");

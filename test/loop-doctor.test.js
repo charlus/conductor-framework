@@ -171,3 +171,46 @@ test("doctor warns when the Checker runs on a weaker model than the Maker", () =
     assert.equal(diagnose({ state: {}, models }).find((c) => c.id === "models"), undefined, JSON.stringify(models));
   }
 });
+
+// 2026-10-22, autopportunity: the owner gave doctor a project's backlog path
+// instead of the project folder. Doctor answered "run conductor init" on an
+// installed project. A path inside a project names the project folder, and a
+// project's own folder names `loop on`, which is how a project is chosen.
+test("doctor on a path inside a project names the project folder, not init", async () => {
+  const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { loopCommand } = await import("../src/commands/loop.js");
+  const dir = await mkdtemp(join(tmpdir(), "doctor-path-"));
+  const sink = () => ({ text: "", write(s) { this.text += s; } });
+  try {
+    await mkdir(join(dir, "conductor/1-workbench"), { recursive: true });
+    await writeFile(join(dir, "conductor/1-workbench/loop-state.json"), "{}");
+    await mkdir(join(dir, "conductor/2-backlog/project-backlog/cop-availability"), { recursive: true });
+
+    // A typo'd name that is not a folder still finds the project, and lists the projects.
+    for (const [arg, on] of [["conductor/2-backlog/project-backlog/cop-availability", "conductor loop on cop-availability`"], ["conductor/2-backlog/project-backlog/cop-availability~", "conductor loop on`"]]) {
+      const out = sink();
+      const code = await loopCommand(["doctor", arg], { cwd: dir, stdout: out, stderr: sink() });
+      assert.equal(code, 1, out.text);
+      assert.match(out.text, /not the project folder/i, out.text);
+      assert.ok(out.text.includes("conductor loop doctor .`"), out.text);
+      assert.ok(out.text.includes(on), out.text);
+      assert.doesNotMatch(out.text, /conductor init/, out.text);
+    }
+    const nested = sink();
+    await loopCommand(["doctor", join(dir, "conductor")], { cwd: tmpdir(), stdout: nested, stderr: sink() });
+    assert.ok(nested.text.includes(`conductor loop doctor ${dir}\``), nested.text);
+
+    const elsewhere = await mkdtemp(join(tmpdir(), "doctor-none-"));
+    try {
+      const out = sink();
+      assert.equal(await loopCommand(["doctor", elsewhere], { cwd: tmpdir(), stdout: out, stderr: sink() }), 1);
+      assert.match(out.text, /conductor init/, out.text);
+    } finally {
+      await rm(elsewhere, { recursive: true, force: true });
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

@@ -174,7 +174,13 @@ export function renderStackReport({ project, entries, stop = null, notes = [], n
       if (e.adopted) lines.push("- Built by an earlier run, taken into this stack as it was.");
       if (e.changed) lines.push("- You changed this MR: your version is kept.");
       // I1: what the owner does around this merge, from the Ship beat and from the diff.
-      const actions = [...(e.ownerActions ?? []), ...(e.detected ?? [])];
+      // A driver hint about dependencies the Ship beat already names is not said twice.
+      const said = (e.ownerActions ?? []).join(" ").toLowerCase();
+      const hints = (e.detected ?? []).filter((h) => {
+        const deps = [...h.matchAll(/([\w.@/:-]+) [\w.+!-]+ \((?:npm|pypi|go|cargo|maven|rubygems|composer|nuget)\)/g)].map((m) => m[1].toLowerCase());
+        return !deps.length || !deps.every((d) => said.includes(d));
+      });
+      const actions = [...(e.ownerActions ?? []), ...hints];
       if (actions.length) {
         lines.push("- Owner actions, around this merge:");
         for (const a of actions) lines.push(`  - ${a}`);

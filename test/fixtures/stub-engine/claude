@@ -7,6 +7,7 @@
 // beat writes nothing, so the test can watch that gate reject it.
 import { appendFileSync, mkdirSync, writeFileSync, readFileSync, existsSync, renameSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { execFileSync } from "node:child_process";
 
 const argv = process.argv.slice(2);
 if (argv[0] === "--version") {
@@ -24,6 +25,23 @@ if (dir) {
   writeFileSync(join(dir, `${n}.model`), m >= 0 ? argv[m + 1] : "default");
   // The provider keys this beat could see, for the P4 blank-env test.
   writeFileSync(join(dir, `${n}.env.json`), JSON.stringify({ GEMINI_API_KEY: process.env.GEMINI_API_KEY ?? null, ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? null }));
+}
+// I2: $STUB_LIMIT_ONCE names a marker file. The first beat prints Claude's
+// usage-limit banner with a reset two seconds ahead, does nothing, and exits 1.
+if (process.env.STUB_LIMIT_ONCE && !existsSync(process.env.STUB_LIMIT_ONCE)) {
+  writeFileSync(process.env.STUB_LIMIT_ONCE, "1");
+  console.log(`Claude AI usage limit reached|${Math.round(Date.now() / 1000) + 2}`);
+  process.exit(1);
+}
+// I3: $STUB_RACE_OUTER (a bare repository) — during the first Ship beat, someone
+// else's change to the ship-log lands on its master. $STUB_RACE_CODE (the code
+// bare repository) — the same, on app.py of its main, and every build edits app.py.
+function race(bare, branch, rel, line) {
+  const tmp = join(process.env.STUB_LOG_DIR ?? ".", `race-${Date.now()}`);
+  execFileSync("git", ["clone", "-q", "-b", branch, bare, tmp], { stdio: "pipe" });
+  appendFileSync(join(tmp, rel), line);
+  execFileSync("git", ["-C", tmp, "-c", "user.email=o@o", "-c", "user.name=o", "commit", "-qam", "someone else"], { stdio: "pipe" });
+  execFileSync("git", ["-C", tmp, "push", "-q", "origin", branch], { stdio: "pipe" });
 }
 const put = (rel, text) => {
   mkdirSync(dirname(rel), { recursive: true });
@@ -75,6 +93,14 @@ if (checker) {
     writeFileSync(b, readFileSync(b, "utf8").replace(/- \[ \] (.*?) \(loop-ready\)/, "- [x] $1 **Done 2026-10-20** stub"));
   }
   appendFileSync("conductor/0-compass/ship-log.md", "\n## 2026-10-20 — stub ship\n\n**For you**\n- **Impact:** a\n- **Cost:** none\n- **Risk:** none\n- **Decide:** none\n");
+  // The KM relief case: this ship and another project's both edit a prose document.
+  if (process.env.STUB_RACE_OUTER) appendFileSync("conductor/4-context/meta/glossary.md", "\n- KM: knowledge manager, written by this slice\n");
+  const mark = join(process.env.STUB_LOG_DIR ?? ".", "raced");
+  if (!existsSync(mark) && (process.env.STUB_RACE_OUTER || process.env.STUB_RACE_CODE)) {
+    writeFileSync(mark, "1");
+    if (process.env.STUB_RACE_OUTER) race(process.env.STUB_RACE_OUTER, "master", "conductor/4-context/meta/glossary.md", "\n- CoP: a community of practice, written by another project\n");
+    if (process.env.STUB_RACE_CODE) race(process.env.STUB_RACE_CODE, "main", "app.py", "y = 'someone else'\n");
+  }
   put("conductor/1-workbench/pr-body.md", body);
   done();
 } else if (prompt.includes("# Loop Assignment (this beat)")) {
@@ -83,6 +109,14 @@ if (checker) {
   const src = join(process.env.STUB_CODE_DIR ?? ".", "src");
   const taken = existsSync(src) ? readdirSync(src).filter((f) => f.startsWith("built")).length : 0;
   put(join(src, taken ? `built-${taken + 1}.js` : "built.js"), "export const built = true;\n");
+  if (process.env.STUB_RACE_CODE) appendFileSync(join(process.env.STUB_CODE_DIR ?? ".", "app.py"), "y = 'the slice'\n");
+  // I4: $STUB_DEP is "<manifest>:<line>": the build adds that dependency line once.
+  if (process.env.STUB_DEP) {
+    const [file, line] = process.env.STUB_DEP.split(":");
+    const m = join(process.env.STUB_CODE_DIR ?? ".", file);
+    const text = existsSync(m) ? readFileSync(m, "utf8") : "";
+    if (!text.includes(line)) appendFileSync(m, `${line}\n`);
+  }
   done();
 }
 console.log(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "stub", usage: { input_tokens: 1, output_tokens: 1 } }));

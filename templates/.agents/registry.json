@@ -362,6 +362,13 @@
       "default": true
     },
     {
+      "name": "merge-stack",
+      "file": "merge-stack.md",
+      "description": "Merge Stack (Walk the Owner Through a Loop Run's MRs, in Order)",
+      "category": "core",
+      "default": true
+    },
+    {
       "name": "survey",
       "file": "survey.md",
       "description": "Survey (Onboarding a Codebase Somebody Else Wrote)",
@@ -442,6 +449,7 @@
         "genesis",
         "grand-prd",
         "loop-checker",
+        "merge-stack",
         "quick-path",
         "retrospective",
         "ship",

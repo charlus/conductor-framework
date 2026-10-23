@@ -127,7 +127,7 @@ export const COMMANDS = Object.freeze([
       ["doctor", "Check the project before an unattended run"],
       ["doctor --beat", "Also run one real beat to prove the engine and sandbox"],
     ],
-    config: ["verify", "loop.forge", "loop.setup", "loop.allowed_domains", "loop.require_ready", "loop.priorities", "loop.inbox", "loop.allow_nested_repo", "loop.models", "loop.cost_aware", "loop.slices", "loop.blueprint", "loop.code_dir", "loop.profile", "loop.blank_env"],
+    config: ["verify", "loop.forge", "loop.setup", "loop.allowed_domains", "loop.require_ready", "loop.priorities", "loop.inbox", "loop.allow_nested_repo", "loop.models", "loop.cost_aware", "loop.slices", "loop.blueprint", "loop.code_dir", "loop.profile", "loop.blank_env", "loop.install", "loop.dependency_min_age_days", "loop.quota_max_wait_min"],
     examples: [
       ["conductor loop km-workload-relief", "build this project; a second terminal can run another project"],
       ["conductor loop km-workload-relief --dry-run", "what will it build?"],
@@ -242,7 +242,7 @@ export const CONFIG_KEYS = Object.freeze([
   ["repos", "Per nested code repository: { \"<dir>\": { \"verify\": …, \"deployCheck\": … } }"],
   ["loop.forge", "\"gh\" | \"glab\" (default: from the origin host)"],
   ["loop.setup", "Shell command run once in each new worktree, before the first beat"],
-  ["loop.allowed_domains", "Extra hosts the sandbox may reach"],
+  ["loop.allowed_domains", "Extra hosts the sandbox may reach; never a package registry (refused)"],
   ["loop.require_ready", "true: only backlog items given with conductor loop take, or tagged loop-ready"],
   ["loop.priorities", "[\"P1\"]: only backlog items under these headings"],
   ["loop.inbox", "false: never take inbox lines"],
@@ -254,6 +254,9 @@ export const CONFIG_KEYS = Object.freeze([
   ["loop.blueprint", "[\"<Project>\"] or true: after Discovery, the project's Blueprint is loop work, one MR"],
   ["loop.code_dir", "\"repo\": the code is this nested repository (outer layout). Each item gets a code worktree and two MRs, code first; verify is repos.<code_dir>.verify"],
   ["loop.blank_env", "[\"GEMINI_API_KEY\", …]: set empty in every beat, so app code never calls a provider with a placeholder key (default: the common provider keys, never the engine's own; [] turns it off)"],
+  ["loop.install", "Shell command the driver runs outside the sandbox after the dependency gate passed a new dependency, e.g. \".venv/bin/pip install -r requirements.txt\" or \"npm ci\""],
+  ["loop.dependency_min_age_days", "A new dependency's version must be at least this many days old (default 7)"],
+  ["loop.quota_max_wait_min", "A beat that hit the agent CLI's usage limit waits for the announced reset when it is at most this many minutes away, then runs again (default 330; 0 stops at the limit)"],
 ]);
 
 const pad = (s, n) => (s.length >= n ? `${s}  ` : s.padEnd(n));

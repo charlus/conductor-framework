@@ -139,7 +139,7 @@ Run each planning step in a fresh session. Every step ends with the exact next c
 
 ### What's Inside
 
-- **18 Workflows** — From Genesis (ideation) to Build (verified execution) to Ship, **Survey** for a codebase you inherited, **Agents-MD** for the project card, plus the headless **Unattended-Loop** orchestrator and its independent **Loop-Checker**
+- **19 Workflows** — From Genesis (ideation) to Build (verified execution) to Ship, **Survey** for a codebase you inherited, **Agents-MD** for the project card, **Merge-Stack** to walk you through a loop run's MRs, plus the headless **Unattended-Loop** orchestrator and its independent **Loop-Checker**
 - **32 Skills** — including the `grilling` and `collaborative-drafting` interview/drafting primitives, `writing-evals` + `architecture-checklist` (the ship-contract), `handoff` (context hygiene), Verification Gate, Code Review, Systematic Debugging, and more
 - **10 Personas** — Thinking partners plus the **Checker**. `conductor personas` loads the Architect, Designer, Security Auditor, Database Architect and Performance Optimizer automatically when a change touches their files
 
@@ -391,7 +391,7 @@ ALWAYS-ON (every session pays this): 14.4 KB ≈ 3975 tokens
      6.2 KB  framework          AGENTS.md (framework block)
      0.5 KB  skill-frontmatter  skills/architecture-checklist
      ...
-EAGER (paid only when invoked): 32 skills, 18 workflows
+EAGER (paid only when invoked): 32 skills, 19 workflows
 ```
 
 CI fails on growth past a committed ceiling **and** on a new skill or workflow with no budget entry at all — so adding context is a visible decision, never a default. Ceilings are in bytes: exact, and they do not drift when a tokenizer changes.

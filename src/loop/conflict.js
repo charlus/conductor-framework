@@ -201,3 +201,99 @@ export function orderMergeQueue(results) {
     .sort((a, b) => conflicting(a[0]) - conflicting(b[0]) || a[1] - b[1])
     .map(([r]) => r);
 }
+
+// ---------------------------------------------------------------------------
+// I3 (owner, 2026-10-23): KM relief stopped at slice 08 of 17 because its
+// Ship touched two Conductor documents (nexus-technical.md, coding-patterns.md)
+// that CoP had changed on main in the meantime. A conflict that is only in
+// Conductor documents does not stop a project: the item's branch takes what it
+// must land on, both sides of each conflicted document are kept (an append-only
+// log is a union; a prose document keeps both texts and the report names it for
+// the owner), verify runs again, and the MR opens. A conflict in code still
+// stops the item: code is never merged by the loop.
+
+/** The path prefix of what the loop may merge on its own. */
+export const DOC_PREFIX = "conductor/";
+
+/** True when every conflicted file is a Conductor document. */
+export function onlyConductorDocs(files) {
+  return Array.isArray(files) && files.length > 0 && files.every((f) => String(f).startsWith(DOC_PREFIX));
+}
+
+/**
+ * Resolve a file's conflict markers by keeping both sides, ours first. A diff3
+ * base section (`|||||||`) is dropped. Text with no markers comes back as is.
+ */
+export function keepBothSides(text) {
+  const out = [];
+  let state = "text";
+  let ours = [];
+  let theirs = [];
+  for (const line of String(text ?? "").split("\n")) {
+    if (state === "text" && /^<{7}( |$)/.test(line)) {
+      state = "ours";
+      ours = [];
+      theirs = [];
+      continue;
+    }
+    if (state === "ours" && /^\|{7}( |$)/.test(line)) {
+      state = "base";
+      continue;
+    }
+    if ((state === "ours" || state === "base") && /^={7}$/.test(line)) {
+      state = "theirs";
+      continue;
+    }
+    if (state === "theirs" && /^>{7}( |$)/.test(line)) {
+      out.push(...ours, ...theirs);
+      state = "text";
+      continue;
+    }
+    if (state === "ours") ours.push(line);
+    else if (state === "theirs") theirs.push(line);
+    else if (state === "text") out.push(line);
+  }
+  // An unterminated block is not resolved: give the text back untouched.
+  return state === "text" ? out.join("\n") : String(text ?? "");
+}
+
+const MARKER = /^(<{7}|={7}|>{7})( |$)/m;
+
+/**
+ * Merge `base` into the branch checked out in a worktree. Conflicts only in
+ * Conductor documents are resolved by keeping both sides and committed (the
+ * commit runs the repository's hooks); any other conflict, or a failed
+ * commit, aborts the merge and leaves the branch as it was.
+ * IO injected: `git(args)` runs in the worktree, `read(rel)`/`write(rel, text)`.
+ * @returns {Promise<{merged: boolean, files: string[], reason?: string}>}
+ */
+export async function mergeKeepingDocs({ git, base, read, write, message }) {
+  const start = await git(["merge", "--no-ff", "--no-commit", base]);
+  const conflicted = (await git(["diff", "--name-only", "--diff-filter=U"])).stdout?.split("\n").map((s) => s.trim()).filter(Boolean) ?? [];
+  if (!start.ok && !conflicted.length) {
+    await git(["merge", "--abort"]);
+    return { merged: false, files: [], reason: `git merge failed: ${String(start.stderr || start.stdout || "").split("\n")[0]}` };
+  }
+  if (conflicted.length && !onlyConductorDocs(conflicted)) {
+    await git(["merge", "--abort"]);
+    return { merged: false, files: conflicted, reason: `a conflict outside the Conductor documents (${conflicted.filter((f) => !f.startsWith(DOC_PREFIX)).join(", ")}): code is never merged by the loop` };
+  }
+  for (const f of conflicted) {
+    const text = await read(f);
+    if (text != null) {
+      const resolved = keepBothSides(text);
+      if (MARKER.test(resolved)) {
+        await git(["merge", "--abort"]);
+        return { merged: false, files: conflicted, reason: `${f} could not be resolved by keeping both sides` };
+      }
+      await write(f, resolved);
+    }
+    await git(["add", "--", f]);
+  }
+  const c = await git(["commit", "--no-edit", "-m", message]);
+  if (!c.ok) {
+    await git(["merge", "--abort"]);
+    return { merged: false, files: conflicted, reason: `the merge commit was refused${c.stderr ? `: ${c.stderr.split("\n")[0]}` : ""}` };
+  }
+  return { merged: true, files: conflicted };
+}

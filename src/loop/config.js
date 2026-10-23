@@ -19,12 +19,19 @@
 //   profile          "quality" | "balanced" → the model of every role (conductor loop profile)
 //   models           { maker, maker_escalation, checker, spec, blueprint, ship } → one role's model, over the profile
 //                    (claude engine); maker_escalation runs a Maker beat after two rejections
+//   install          shell command the driver runs, outside the sandbox, after the dependency gate
+//                    passed a new dependency (I4); a package registry is never in allowed_domains
+//   dependency_min_age_days  a new dependency's version must be at least this old (default 7)
+//   quota_max_wait_min  a beat that hit the agent CLI's usage limit waits for the announced reset when it
+//                    is at most this far away (default 330); 0 stops the run at the limit as before (I2)
 //
 // The driver reads this file from the ROOT checkout only, never from a worktree,
 // so a beat cannot widen its own sandbox or change its own setup. All helpers are
 // pure; the IO lives in src/commands/loop.js.
 
 import { DEFAULT_BLANK_ENV } from "./beat-env.js";
+import { REGISTRY_HOSTS } from "./deps.js";
+import { DEFAULT_QUOTA_MAX_WAIT_MIN } from "./quota.js";
 
 const FORGES = ["gh", "glab"];
 // A hostname, optionally with one leading "*." wildcard label. No scheme, path,
@@ -55,7 +62,7 @@ const DOMAIN_RE = /^(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a
 export function parseLoopConfig(config) {
   const raw = config && typeof config === "object" && config.loop && typeof config.loop === "object" ? config.loop : {};
   const errors = [];
-  const out = { forge: null, setup: null, allowedDomains: [], requireReady: false, priorities: [], inbox: true, allowNestedRepo: false, models: {}, profile: null, costAware: false, slices: [], blueprint: [], codeDir: null, blankEnv: DEFAULT_BLANK_ENV, errors };
+  const out = { forge: null, setup: null, allowedDomains: [], requireReady: false, priorities: [], inbox: true, allowNestedRepo: false, models: {}, profile: null, costAware: false, slices: [], blueprint: [], codeDir: null, blankEnv: DEFAULT_BLANK_ENV, install: null, dependencyMinAgeDays: 7, quotaMaxWaitMin: DEFAULT_QUOTA_MAX_WAIT_MIN, errors };
 
   if (raw.forge !== undefined && raw.forge !== null) {
     if (FORGES.includes(raw.forge)) out.forge = raw.forge;
@@ -69,8 +76,10 @@ export function parseLoopConfig(config) {
     if (!Array.isArray(raw.allowed_domains)) errors.push("loop.allowed_domains must be an array of hostnames");
     else
       for (const d of raw.allowed_domains) {
-        if (typeof d === "string" && DOMAIN_RE.test(d)) out.allowedDomains.push(d.toLowerCase());
-        else errors.push(`loop.allowed_domains: '${d}' is not a hostname (use e.g. "pypi.org" or "*.example.com")`);
+        if (typeof d === "string" && REGISTRY_HOSTS.some((re) => re.test(d)))
+          errors.push(`loop.allowed_domains: '${d}' is a package registry. A beat never reaches one: the loop checks new dependencies and installs them with loop.install. Remove it`);
+        else if (typeof d === "string" && DOMAIN_RE.test(d)) out.allowedDomains.push(d.toLowerCase());
+        else errors.push(`loop.allowed_domains: '${d}' is not a hostname (use e.g. "api.example.com" or "*.example.com")`);
       }
   }
   if (raw.require_ready !== undefined) {
@@ -127,6 +136,17 @@ export function parseLoopConfig(config) {
     if (typeof raw.inbox === "boolean") out.inbox = raw.inbox;
     else errors.push("loop.inbox must be true or false");
   }
+  if (raw.install !== undefined && raw.install !== null) {
+    if (typeof raw.install === "string" && raw.install.trim()) out.install = raw.install.trim();
+    else errors.push("loop.install must be a non-empty shell command string, such as \".venv/bin/pip install -r requirements.txt\"");
+  }
+  const count = (key, field) => {
+    if (raw[key] === undefined) return;
+    if (Number.isFinite(raw[key]) && raw[key] >= 0) out[field] = raw[key];
+    else errors.push(`loop.${key} must be a number, 0 or more`);
+  };
+  count("dependency_min_age_days", "dependencyMinAgeDays");
+  count("quota_max_wait_min", "quotaMaxWaitMin");
   return out;
 }
 

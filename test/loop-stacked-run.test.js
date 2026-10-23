@@ -8,77 +8,11 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, readdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
-const REPO = new URL("..", import.meta.url).pathname;
-const G = (cwd, ...a) => execFileSync("git", a, { cwd, stdio: "pipe" }).toString().trim();
-const OWNER_DOCS = [
-  "genesis/problem-solar-system.md",
-  "genesis/world-transformation.md",
-  "genesis/functional-animator.md",
-  "storyboard/main-character.md",
-  "storyboard/storyboard.md",
-  "blueprint/grand-prd.md",
-  "blueprint/ux-ui-design-brief.md",
-  "blueprint/technical-vision.md",
-];
-
-function layout({ docs = OWNER_DOCS } = {}) {
-  const base = mkdtempSync(join(tmpdir(), "stacked-run-"));
-  const bin = join(base, "bin");
-  mkdirSync(bin);
-  writeFileSync(join(bin, "claude"), readFileSync(join(REPO, "test/fixtures/stub-engine/claude")), { mode: 0o755 });
-  writeFileSync(join(bin, "gh"), readFileSync(join(REPO, "test/fixtures/stub-forge/gh")), { mode: 0o755 });
-  G(base, "init", "-q", "--bare", "-b", "main", "code.git");
-  const root = join(base, "outer");
-  execFileSync("node", [join(REPO, "bin/conductor.js"), "init", root, "--all", "--no-detect"], { stdio: "pipe" });
-  const code = join(root, "repo");
-  execFileSync("git", ["clone", "-q", join(base, "code.git"), code], { stdio: "pipe" });
-  G(code, "config", "user.email", "t@t");
-  G(code, "config", "user.name", "t");
-  writeFileSync(join(code, "app.py"), "x = 1\n");
-  G(code, "add", "-A");
-  G(code, "commit", "-qm", "main");
-  G(code, "push", "-q", "-u", "origin", "main");
-  G(code, "remote", "set-head", "origin", "main");
-  G(root, "init", "-q", "-b", "master");
-  G(root, "config", "user.email", "t@t");
-  G(root, "config", "user.name", "t");
-  writeFileSync(join(root, ".gitignore"), "repo/\n.agents/.worktrees/\n", { flag: "a" });
-  const p = join(root, "conductor/2-backlog/project-backlog/notes");
-  for (const rel of docs) {
-    mkdirSync(join(p, rel, ".."), { recursive: true });
-    writeFileSync(join(p, rel), `# ${rel}\n\nnotes: writers keep notes.\n`);
-  }
-  const cfg = JSON.parse(readFileSync(join(root, "conductor.config.json"), "utf8"));
-  Object.assign(cfg, { verify: "none", repos: { repo: { verify: "test -f app.py" } } });
-  cfg.loop = { forge: "gh", code_dir: "repo" };
-  writeFileSync(join(root, "conductor.config.json"), JSON.stringify(cfg, null, 2));
-  const st = JSON.parse(readFileSync(join(root, "conductor/1-workbench/loop-state.json"), "utf8"));
-  Object.assign(st, { phase: "execution", autonomy_level: "L3", sandbox: "cli-native", platform: "claude", concurrency: 1 });
-  st.budget = { max_beats: 20, max_wall_clock_min: 10 };
-  st.iterations = { current: 0, max_allowed: 20 };
-  writeFileSync(join(root, "conductor/1-workbench/loop-state.json"), JSON.stringify(st, null, 2));
-  G(root, "add", "-A");
-  G(root, "commit", "-qm", "init");
-  G(base, "init", "-q", "--bare", "-b", "master", "outer.git");
-  G(root, "remote", "add", "origin", join(base, "outer.git"));
-  G(root, "push", "-q", "origin", "master");
-  G(root, "remote", "set-head", "origin", "master");
-  return { base, root, code, bin, db: join(base, "forge.json") };
-}
-
-function loop(l, args, log = "prompts") {
-  return spawnSync("node", [join(REPO, "bin/conductor.js"), "loop", ...args], {
-    cwd: l.root,
-    encoding: "utf8",
-    env: { ...process.env, PATH: `${l.bin}:${process.env.PATH}`, STUB_LOG_DIR: join(l.base, log), STUB_CODE_DIR: "repo", STUB_SLICES: "3", STUB_FORGE_DB: l.db, CONDUCTOR_HOME: join(l.base, "home") },
-    timeout: 300000,
-  });
-}
+import { REPO, G, OWNER_DOCS, layout, loop } from "./helpers/stacked-layout.js";
 
 const prs = (l) => JSON.parse(readFileSync(l.db, "utf8")).prs;
 const stack = (l) => JSON.parse(readFileSync(join(l.root, ".git/conductor-loop-logs/runs/notes/stack.json"), "utf8"));

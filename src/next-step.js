@@ -28,9 +28,9 @@ export function nextAfterLoop(status, { prUrls = [], cmd = LOOP } = {}) {
     case "completed":
       return `Next: review and merge the MR${prUrls.length === 1 ? "" : "s"}${prUrls.length ? ` (${prUrls.join(", ")})` : ""}. After the merge, \`${cmd}\` takes the next item.`;
     case "awaiting_review":
-      return "Next: read conductor/1-workbench/inbox.md. It names the branch to review: below L3 the loop opens no MR, and at L3 the inbox says why the MR could not be opened.";
+      return "Next: read conductor/1-workbench/loop-messages.md. It names the branch to review: below L3 the loop opens no MR, and at L3 the inbox says why the MR could not be opened.";
     case "escalated":
-      return "Next: read conductor/1-workbench/inbox.md. The loop needs something only you can give, then run it again.";
+      return "Next: read conductor/1-workbench/loop-messages.md. The loop needs something only you can give, then run it again.";
     case "budget_exceeded":
     case "max_iterations_exceeded":
       return "Next: raise `budget` in conductor/1-workbench/loop-state.json if the work deserves it, then run the loop again. It resumes.";
@@ -45,7 +45,7 @@ export function nextAfterLoop(status, { prUrls = [], cmd = LOOP } = {}) {
     case undefined:
       return null;
     default:
-      return "Next: read conductor/1-workbench/inbox.md and the beat logs in .git/conductor-loop-logs/, or run `conductor loop doctor .`.";
+      return "Next: read conductor/1-workbench/loop-messages.md and the beat logs in .git/conductor-loop-logs/, or run `conductor loop doctor .`.";
   }
 }
 

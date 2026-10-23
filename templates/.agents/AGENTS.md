@@ -34,6 +34,7 @@ Classify what the user needs before acting:
 | "Quick path", "Just build this" | `workflows/quick-path.md` |
 | "Let's reflect" | `workflows/retrospective.md` |
 | "Loop", "Unattended", "Autonomous", "Loop-ready" | `workflows/unattended-loop.md` |
+| "Merge the loop's MRs", "/merge-stack <project>", "Guide me through the loop report" | `workflows/merge-stack.md` |
 | "Turn the loop on (or off) for <project>" | Run `conductor loop on <project> --dry-run`, show the human its list, then run it with `--yes` once they agree (`off` takes no consent) |
 | "Update the project card", "Refresh AGENTS.md" | `workflows/agents-md.md` |
 | "CTO mode", "Designer mode", "PM mode", etc. | matching persona in `personas/` |

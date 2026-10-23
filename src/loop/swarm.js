@@ -21,7 +21,7 @@ import { runShipStage } from "./ship.js";
 import { roundKey as roundKeyOf } from "./questions.js";
 import { BLUEPRINT_STAGES } from "./blueprint.js";
 import { recordAttempt } from "./harvester.js";
-import { orderMergeQueue } from "./conflict.js";
+import { orderMergeQueue, onlyConductorDocs } from "./conflict.js";
 import { planMergeAction } from "./merge.js";
 
 export const MAX_TASK_STALLS = 3;
@@ -191,7 +191,8 @@ async function processTask(task, { verifyCommand, runBeat, runVerify, runChecker
       await audit(`task ${task.id}: question round rejected — ${r.reasons.join("; ")}`);
       return "retry";
     }
-    const c = runChecker ? await runChecker({ task, phase: "questions" }) : { exitCode: 0 };
+    // I4: a round the driver's dependency gate wrote is a one-way door by rule; no review of it.
+    const c = runChecker && !result.signal.driver_round ? await runChecker({ task, phase: "questions" }) : { exitCode: 0 };
     if ((c?.exitCode ?? 1) !== 0) {
       recordAttempt(task, { beat: task.iterations.current, verifyExit: 0, checkerReasons: c?.reasons ?? ["the Checker rejected the question round"], checkerFindings: c?.findings ?? [] });
       await audit(`task ${task.id}: the Checker rejected the question round`);
@@ -439,6 +440,7 @@ export async function runSwarm(state, deps) {
     runChecker = null,
     merge = null,
     predictConflict = null, // ({task}) → {conflicted, files[], method}
+    resolveDocConflict = null, // ({task, prediction}) → {merged, files[], reason?}: I3, Conductor documents only
     gitHead,
     changedFiles = null, // ({task, from}) → string[]: files a beat changed (A13), optional
     assignWorktree = async () => null, // ({task}) → {path,branch}
@@ -671,11 +673,29 @@ export async function runSwarm(state, deps) {
       }
     }
 
-    for (const { task, prediction } of orderMergeQueue(passed)) {
+    for (const entry of orderMergeQueue(passed)) {
+      const { task } = entry;
+      let { prediction } = entry;
       if (!merge) {
         task.status = "failed";
         await writeInbox(state, `task ${task.id} passed but no merge capability`);
         continue;
+      }
+      // I3: a conflict only in Conductor documents does not stop the project.
+      // The branch takes what it lands on, both sides are kept, verify runs again.
+      if (prediction?.conflicted && resolveDocConflict && onlyConductorDocs(prediction.files)) {
+        const fix = await resolveDocConflict({ task, prediction });
+        if (fix?.merged) {
+          const v = await runVerify({ task, cmd: task.verify ?? verifyCommand });
+          await audit(`task ${task.id}: Conductor documents merged from both sides (${fix.files.join(", ")}); verify exit=${v.exitCode}`);
+          await emit("docs_merged", { task: task.id, files: fix.files });
+          if (v.exitCode === 0) {
+            task.docs_merged = [...new Set([...(task.docs_merged ?? []), ...fix.files])];
+            prediction = null;
+          }
+        } else if (fix?.reason) {
+          await audit(`task ${task.id}: Conductor documents not merged: ${fix.reason}`);
+        }
       }
       if (prediction?.conflicted) {
         // Do NOT open the PR: an unmergeable PR raised unattended is noise the

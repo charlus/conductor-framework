@@ -28,14 +28,21 @@ export async function inboxCommand(args, context) {
       context.stderr.write(`  No \`conductor/\` folder in ${context.cwd}\n`);
       return 1;
     }
+    // I6: the loop's messages are not inbox thoughts: they live in their own file, outside git.
+    const { readLoopMessages, MESSAGES_REL } = await import("../loop/owner-files.js");
+    const messages = await readLoopMessages(state.root ?? context.cwd);
+    const loopLines = messages.length
+      ? `\n  ${messages.length} loop message${messages.length === 1 ? "" : "s"} — ${MESSAGES_REL}\n\n${messages.slice(-5).map((m) => `   · ${m.title}${m.text ? `: ${m.text.slice(0, 140)}` : ""}`).join("\n")}\n\n`
+      : "";
     if (!state.inbox.items.length) {
-      context.stdout.write(`  Inbox is empty (${INBOX_REL})\n`);
+      context.stdout.write(`  Inbox is empty (${INBOX_REL})\n${loopLines}`);
       return 0;
     }
     context.stdout.write(
       `\n  ${state.inbox.items.length} in the inbox — ${INBOX_REL}\n\n` +
         state.inbox.items.map((it) => `   · ${it.title}`).join("\n") +
-        "\n\n"
+        "\n\n" +
+        loopLines
     );
     return 0;
   }

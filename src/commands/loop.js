@@ -8,17 +8,21 @@
 import { readFile, writeFile, appendFile, rename, access, rm, cp, mkdir, readdir, mkdtemp } from "node:fs/promises";
 import { constants as fsConstants, rmSync, statSync } from "node:fs";
 import { spawn } from "node:child_process";
-import { join, resolve, sep, basename } from "node:path";
+import { join, resolve, sep, basename, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { runLoop, normalizeState, resolveVerifyCommand, beatCeiling } from "../loop/driver.js";
 import { resolveAdapter } from "../loop/adapters/index.js";
-import { createWorktree, teardownWorktree, worktreePlan, taskWorktreePlan, materializeConductorContext, CONTEXT_ANCHORS, hasUniqueCommits, ensureWorktreesExcluded } from "../loop/worktree.js";
+import { createWorktree, teardownWorktree, worktreePlan, taskWorktreePlan, materializeConductorContext, CONTEXT_ANCHORS, hasUniqueCommits, ensureWorktreesExcluded, isLiveWorktree, freeWorktreePath } from "../loop/worktree.js";
 import { guardedAutoCommit, autoCommitMessage, IsolationLostError } from "../loop/autocommit.js";
 import { harvestWorkQueue, renderAssignment, renderAttempts } from "../loop/harvester.js";
 import { parseCheckerVerdict, verdictToExitCode, tallyVerdicts, isInfraReason, groundFindings, VERDICT_REL } from "../loop/checker.js";
 import { openPullRequest, planMergeAction, DEFAULT_PR_BODY } from "../loop/merge.js";
 import { runSwarm } from "../loop/swarm.js";
-import { predictConflicts } from "../loop/conflict.js";
+import { predictConflicts, mergeKeepingDocs } from "../loop/conflict.js";
+import { withQuotaWait, DEFAULT_QUOTA_MARGIN_S } from "../loop/quota.js";
+import { appendLoopMessage, ensureOwnerFilesExcluded, MESSAGES_REL } from "../loop/owner-files.js";
+import { manifestKind, dependencyChanges, namedInVision, checkPackage, dependencyRound, approvalsFromRound, depKey } from "../loop/deps.js";
+import { ownerHints, isEnvExample } from "../loop/owner-hints.js";
 import { lockDecision, renderLock } from "../loop/lock.js";
 import { reviveForResume, startNewRun } from "../loop/resume.js";
 import { mineRecurringFailures, renderImprovementReport } from "../loop/improver.js";
@@ -49,7 +53,7 @@ import { positionals, looksLikeProject, runKey, scopedState, scopeLoopConfig, RU
 import { verifyWithEvidence } from "../loop/verify-evidence.js";
 import { blankedNames, beatEnv, withBeatEnv } from "../loop/beat-env.js";
 import { mrTitles, readOnlyEnv } from "../loop/team-facing.js";
-import { STACK_FILE, REPORT_REL, forgeBranchMr, closeMr, reconcileStack, stackTop, stackNote, renderStackReport, summaryFromBody } from "../loop/stack.js";
+import { STACK_FILE, REPORT_REL, forgeBranchMr, closeMr, reconcileStack, stackTop, stackNote, renderStackReport, summaryFromBody, ownerActionsFromBody } from "../loop/stack.js";
 
 const STATE_REL = "conductor/1-workbench/loop-state.json";
 const LOCK_REL = "conductor/1-workbench/loop.lock";
@@ -252,6 +256,22 @@ export function runCli(cmd, argv, cwd) {
  * F21: it lives in the git dir next to the event log, never in the tracked
  * ship-log: the owner's checkout stays clean, so a pull is never refused.
  */
+/**
+ * The registry client of the dependency gate (I4): the real network, or, for the
+ * CLI tests only, canned answers from the JSON file in CONDUCTOR_REGISTRY_FIXTURE
+ * ([[url part, {status, json}], …]) so no test reaches a registry.
+ */
+async function registryFetch() {
+  const fixture = process.env.CONDUCTOR_REGISTRY_FIXTURE;
+  if (!fixture) return globalThis.fetch;
+  const routes = JSON.parse(await readFile(fixture, "utf8"));
+  return async (url, opts = {}) => {
+    const hit = routes.find(([part, r]) => url.includes(part) && (!r.body || String(opts.body ?? "").includes(r.body)));
+    const r = hit?.[1] ?? { status: 404 };
+    return { ok: (r.status ?? 200) < 400, status: r.status ?? 200, json: async () => r.json ?? {} };
+  };
+}
+
 async function appendAudit(logDir, message, now) {
   if (!logDir) return;
   const stamp = new Date(now).toISOString();
@@ -296,14 +316,10 @@ async function readRootConfig(root) {
 }
 
 async function writeInbox(root, state, reason, { title = null } = {}) {
-  const inbox = join(root, "conductor/1-workbench/inbox.md");
   const line = `\n## [loop] ${title ?? `Escalation — ${state.status}`}\n${reason}\n(goal: ${state.goal_description || "n/a"}, beat ${state.iterations.current}/${beatCeiling(state)})\n`;
-  try {
-    // An append: two project runs in one folder never lose each other's lines.
-    await appendFile(inbox, line, "utf8");
-  } catch {
-    /* best-effort escalation */
-  }
+  // I6: loop-messages.md, which git does not track; an append, so two project
+  // runs in one folder never lose each other's lines.
+  await appendLoopMessage(root, line);
 }
 
 /** Drop the current run's trigger brief into the workbench (best-effort). */
@@ -499,6 +515,11 @@ async function stackedProjectRun(args, { cwd, stdout, stderr }, { scope, root, r
         `Budget: each item gets up to ${projState.budget.max_beats} beats and ${projState.budget.max_wall_clock_min} minutes (loop-state.json).\n\n`
     );
 
+    // I7: where the stacked run is, for `conductor watch`.
+    const stackEmit = dryRun ? async () => {} : makeEmitter(dirname(runsDir), `${new Date().toISOString()}#${process.pid}:stack`);
+    const waitingBelow = entries.filter((e) => !e.merged).length;
+    await stackEmit("stack_start", { project: scope, pid: process.pid, total: waitingBelow + plan.items.length, items: plan.items.map((t) => itemName(t)) });
+    let built = 0;
     let stop = null;
     for (let guard = 0; guard < 200; guard++) {
       const top = stackTop(entries);
@@ -535,6 +556,8 @@ async function stackedProjectRun(args, { cwd, stdout, stderr }, { scope, root, r
       const below = [...entries].reverse().find((e) => !e.merged) ?? null;
       const belowCode = [...entries].reverse().find((e) => !e.merged && e.code) ?? null;
       stdout.write(`\n[CONDUCTOR LOOP] building ${itemName(next)} on ${viewRef.replace(/^origin\//, "")}\n`);
+      built += 1;
+      await stackEmit("stack_item", { project: scope, item: itemName(next), n: waitingBelow + built, of: waitingBelow + plan.items.length });
       const code = await loopCommand(args, {
         cwd,
         stdout,
@@ -548,7 +571,10 @@ async function stackedProjectRun(args, { cwd, stdout, stderr }, { scope, root, r
           codeTarget: top.code?.branch ?? null,
           belowUrl: below?.outer.url ?? null,
           belowCodeUrl: belowCode?.code?.url ?? null,
-          onInterrupt: () => writeStackReport(root, scope, entries, { status: "interrupted", item: itemName(next), reason: "you stopped the run" }, notes),
+          onInterrupt: async () => {
+            await stackEmit("stack_end", { project: scope, status: "interrupted", item: itemName(next) });
+            return writeStackReport(root, scope, entries, { status: "interrupted", item: itemName(next), reason: "you stopped the run" }, notes);
+          },
         },
       });
       const st = await readJson(join(runDir, "loop-state.json")).catch(() => ({}));
@@ -564,6 +590,9 @@ async function stackedProjectRun(args, { cwd, stdout, stderr }, { scope, root, r
           code: codeUrl ? { branch, head: codeGit ? await remoteHead(codeGit, branch) : null, url: codeUrl } : null,
           base: belowHeads,
           summary: summaryFromBody(task.ship?.body ?? null),
+          ownerActions: ownerActionsFromBody(task.ship?.body ?? null),
+          detected: task.owner_hints ?? [],
+          docsMerged: task.docs_merged ?? [],
           rulings: task.rulings ?? [],
           cost_usd: st.budget?.cost_usd_spent ?? null,
         });
@@ -582,10 +611,11 @@ async function stackedProjectRun(args, { cwd, stdout, stderr }, { scope, root, r
       return 0;
     }
     const report = await writeStackReport(root, scope, entries, stop, notes);
+    await stackEmit("stack_end", { project: scope, status: stop?.status ?? "done", item: stop?.item ?? null });
     stdout.write(`\n${report}`);
     const open = entries.filter((e) => !e.merged).length;
     stdout.write(
-      `\n[CONDUCTOR LOOP] Next: ${stop?.status === "awaiting_answers" ? `answer the questions in conductor/1-workbench/questions/, then run \`${cmd}\` again.` : stop?.status === "done" ? (open ? `merge the ${open} item(s) in the order of ${REPORT_REL(scope)}.` : "nothing.") : `read conductor/1-workbench/inbox.md, then run \`${cmd}\` again.`}\n`
+      `\n[CONDUCTOR LOOP] Next: ${stop?.status === "awaiting_answers" ? `answer the questions in conductor/1-workbench/questions/, then run \`${cmd}\` again.` : stop?.status === "done" ? (open ? `merge the ${open} item(s) in the order of ${REPORT_REL(scope)}.` : "nothing.") : `read ${MESSAGES_REL}, then run \`${cmd}\` again.`}\n`
     );
     return stop?.status === "done" || stop?.status === "awaiting_answers" ? 0 : 1;
   } finally {
@@ -613,6 +643,7 @@ async function gitRev(g, ref) {
 
 async function writeStackReport(root, project, entries, stop, notes) {
   const text = renderStackReport({ project, entries, stop, notes });
+  await ensureOwnerFilesExcluded(root);
   try {
     await mkdir(join(root, "conductor/1-workbench"), { recursive: true });
     await writeFile(join(root, REPORT_REL(project)), text, "utf8");
@@ -1056,13 +1087,27 @@ export async function loopCommand(args, { cwd, stdout, stderr, stack = null }) {
   // P4: the app's provider keys are empty in every beat (loop.blank_env), never the engine's own.
   const blanked = blankedNames(loopConfig.blankEnv, resolved.adapter.name);
   const modelled = withRoleModels(withBeatEnv(resolved.adapter, blanked.length ? beatEnv(blanked) : null), roleModels);
+  // I2: a beat that hit the usage limit waits for the announced reset, then runs again.
+  const quota = (run) =>
+    withQuotaWait(run, {
+      maxWaitMin: loopConfig.quotaMaxWaitMin,
+      // The margin past the reset; tests shorten it.
+      marginS: Number.isFinite(Number(process.env.CONDUCTOR_QUOTA_MARGIN_S)) && process.env.CONDUCTOR_QUOTA_MARGIN_S !== "" ? Number(process.env.CONDUCTOR_QUOTA_MARGIN_S) : DEFAULT_QUOTA_MARGIN_S,
+      onWait: async (w, opts) => {
+        const task = opts?.task?.id ?? cwdTask.get(resolve(opts?.cwd ?? root)) ?? "run";
+        stdout.write(`[CONDUCTOR LOOP] usage limit reached. Waiting until ${w.clock} for it to reset, then the same beat runs again (loop.quota_max_wait_min: ${loopConfig.quotaMaxWaitMin}).\n`);
+        await emit("quota_wait", { task, until: new Date(w.until).toISOString() });
+        await audit(`usage limit: waiting until ${new Date(w.until).toISOString()} (${task})`);
+      },
+      onResume: async (w, opts) => emit("quota_resume", { task: opts?.task?.id ?? cwdTask.get(resolve(opts?.cwd ?? root)) ?? "run" }),
+    });
   const adapter = {
     ...modelled,
-    runBeat: logged("maker", modelled.runBeat),
-    runChecker: logged("checker", modelled.runChecker),
-    runShipBeat: logged("ship", modelled.runShipBeat),
-    runSpecBeat: logged("spec", modelled.runSpecBeat),
-    runBlueprintBeat: logged("blueprint", modelled.runBlueprintBeat),
+    runBeat: quota(logged("maker", modelled.runBeat)),
+    runChecker: quota(logged("checker", modelled.runChecker)),
+    runShipBeat: quota(logged("ship", modelled.runShipBeat)),
+    runSpecBeat: quota(logged("spec", modelled.runSpecBeat)),
+    runBlueprintBeat: quota(logged("blueprint", modelled.runBlueprintBeat)),
   };
   stdout.write(`[CONDUCTOR LOOP] platform: ${adapter.name}\n`);
   if (blanked.length) stdout.write(`[CONDUCTOR LOOP] beats run with ${blanked.join(", ")} empty (loop.blank_env)\n`);
@@ -1417,6 +1462,8 @@ export async function loopCommand(args, { cwd, stdout, stderr, stack = null }) {
   // can rewind on-disk state. Single persist point for the v1→v2 migration, the
   // resume-revive, the ignition trigger, and the --from-conductor harvest.
   await atomicWriteJson(statePath, state);
+  // I6: what the loop writes for the owner stays out of git.
+  await ensureOwnerFilesExcluded(root);
   if (triggerProvenance) {
     await writeTriggerDoc(root, triggerProvenance);
     const clamp = triggerProvenance.clamped_from
@@ -1602,7 +1649,8 @@ export async function loopCommand(args, { cwd, stdout, stderr, stack = null }) {
     const cap = await captureAll(cwd, autoCommitMessage({ role: "ship", goal: `${state.goal_description} — ship ${key}` }));
     if (cap.committed) await audit(`ship ${key}: auto-captured uncommitted changes`);
     await collectRulings(holder, cwd, rulingsBefore);
-    return { ...result, signal: await readSignalAt(cwd) };
+    const gated = await dependencyGate(cwd, holder, { ship: true });
+    return { ...result, signal: gated ?? (await readSignalAt(cwd)) };
   }
   // Step 3: the Spec beat is Spec-It itself, then its unattended rules, then the slice.
   async function runSpecIn(cwd, task) {
@@ -1713,6 +1761,120 @@ export async function loopCommand(args, { cwd, stdout, stderr, stack = null }) {
       "utf8"
     );
     return p;
+  }
+
+  // I4, the dependency gate: after a Build or Ship beat the DRIVER reads what the
+  // beat changed in the manifests, in both repositories. A dependency the
+  // approved Technical Vision names (or the owner allowed in a round) is checked
+  // against its registry and installed with loop.install, outside the sandbox;
+  // any other is a question round. A failed check or an unreachable registry
+  // stops the item. I1: the same diff gives the owner-action hints.
+  // Returns null (nothing to say) or a signal that replaces the beat's own.
+  async function dependencyGate(cwd, task, { ship = false } = {}) {
+    if (resolve(cwd) === resolve(root)) return null;
+    const repos = [];
+    const code = codeWtOf(cwd);
+    if (code && (await exists(join(code, ".git")))) repos.push({ dir: code, prefix: `${loopConfig.codeDir}/`, base: stack?.codeBase ?? (await defaultBranchRef(makeGit(code))) });
+    repos.push({ dir: cwd, prefix: "", base: stack?.outerBase ?? (await defaultBranchRef(makeGit(cwd))) });
+    const manifests = [];
+    const envFiles = [];
+    const changed = [];
+    for (const r of repos) {
+      if (!r.base) continue;
+      const g = makeGit(r.dir);
+      const diff = await g(["diff", "--name-only", r.base]);
+      const untracked = await g(["ls-files", "--others", "--exclude-standard"]);
+      const paths = [...new Set([...(diff.ok ? diff.stdout.split("\n") : []), ...(untracked.ok ? untracked.stdout.split("\n") : [])].map((x) => x.trim()).filter(Boolean))];
+      for (const path of paths) {
+        changed.push(`${r.prefix}${path}`);
+        const kind = manifestKind(path);
+        const env = isEnvExample(path);
+        if ((!kind || kind.lockfile) && !env) continue;
+        const before = (await g(["show", `${r.base}:${path}`])).stdout ?? "";
+        const after = (await readFile(join(r.dir, path), "utf8").catch(() => "")) ?? "";
+        if (env) envFiles.push({ path: `${r.prefix}${path}`, before, after });
+        else manifests.push({ path: `${r.prefix}${path}`, before, after });
+      }
+    }
+    const { deps, unrecognised } = dependencyChanges(manifests);
+    task.deps_cleared ??= {};
+    const fresh = deps.filter((d) => task.deps_cleared[depKey(d)] !== d.spec);
+    const freshManifests = unrecognised.filter((f) => !task.deps_cleared[`manifest ${f}`]);
+    task.deps_installed ??= {};
+    const cleared = Object.entries(task.deps_installed).map(([k, version]) => ({ ecosystem: k.split(" ")[0], name: k.split(" ").slice(1).join(" "), version }));
+    task.owner_hints = ownerHints({ changed, envFiles, deps: cleared });
+    if (!fresh.length && !freshManifests.length) return null;
+
+    const project = task.source?.project ?? null;
+    const vision = project ? await readFile(join(cwd, PROJECTS_REL, project, "blueprint/technical-vision.md"), "utf8").catch(() => "") : "";
+    const answeredDir = join(cwd, QUESTIONS_REL, "answered");
+    const answers = { approved: [], refused: [] };
+    for (const f of (await readdir(answeredDir).catch(() => [])).filter((x) => x.endsWith(".md"))) {
+      const a = approvalsFromRound(await readFile(join(answeredDir, f), "utf8"));
+      answers.approved.push(...a.approved);
+      answers.refused.push(...a.refused);
+    }
+    const fetchImpl = await registryFetch();
+    const toInstall = [];
+    const ask = [];
+    const stops = [];
+    for (const dep of fresh) {
+      const key = depKey(dep);
+      if (answers.refused.includes(key)) {
+        stops.push(`you refused ${dep.name} (${dep.ecosystem}), and the item still adds it in ${dep.file}`);
+        continue;
+      }
+      const check = await checkPackage(dep, { fetch: fetchImpl, minAgeDays: loopConfig.dependencyMinAgeDays });
+      await emit("dependency", { task: task.id, name: dep.name, ecosystem: dep.ecosystem, ok: check.ok, reasons: check.reasons });
+      const allowed = namedInVision(vision, dep) || answers.approved.includes(key);
+      if (!allowed) {
+        ask.push({ dep, check });
+        continue;
+      }
+      if (!check.ok) {
+        stops.push(`${dep.name} ${dep.spec} (${dep.ecosystem}, in ${dep.file}) did not pass the dependency gate: ${check.reasons.join("; ")}${check.facts?.link ? ` (${check.facts.link})` : ""}`);
+        continue;
+      }
+      toInstall.push({ dep, check });
+    }
+    for (const f of freshManifests) {
+      if (answers.approved.includes(`manifest ${f}`)) task.deps_cleared[`manifest ${f}`] = "allowed";
+      else if (answers.refused.includes(`manifest ${f}`)) stops.push(`you refused the change to ${f}, and the item still makes it`);
+      else ask.push({ dep: { ecosystem: "manifest", name: f, spec: "", file: f }, check: { ok: false, reasons: ["the gate cannot read this manifest, so it cannot tell what was added"], facts: {} } });
+    }
+    if (stops.length) {
+      await audit(`task ${task.id}: dependency gate stopped the item — ${stops.join(" | ")}`);
+      return { escalate: true, reason: `The dependency gate stopped this item: ${stops.join("; ")}.` };
+    }
+    if (ask.length) {
+      if (ship) return { escalate: true, reason: `The Ship beat added dependencies the Technical Vision does not name: ${ask.map((a) => depKey(a.dep)).join(", ")}. Add them to the Technical Vision, or remove them, then run the loop again.` };
+      const text = dependencyRound(task.id, ask);
+      await mkdir(join(cwd, QUESTIONS_REL), { recursive: true });
+      await writeFile(join(cwd, roundRel(task)), text, "utf8");
+      await hideFromGit(roundRel(task), { cwd, git: makeGit(cwd) });
+      await audit(`task ${task.id}: dependency gate asks the owner about ${ask.map((a) => depKey(a.dep)).join(", ")}`);
+      return { questions: true, driver_round: true };
+    }
+    if (toInstall.length) {
+      if (!loopConfig.install) {
+        return { escalate: true, reason: `${toInstall.map((t) => `${t.dep.name} ${t.check.facts.version}`).join(", ")} passed the dependency gate, but nothing installs it: set loop.install in conductor.config.json to the command that installs the project's dependencies (for example ".venv/bin/pip install -r requirements.txt" or "npm ci"), then run the loop again.` };
+      }
+      const where = code ?? cwd;
+      stdout.write(`[CONDUCTOR LOOP] ${task.id}: ${toInstall.map((t) => `${t.dep.name} ${t.check.facts.version}`).join(", ")} passed the dependency gate. Installing with loop.install (outside the sandbox).\n`);
+      const env = `export CONDUCTOR_ROOT=${JSON.stringify(root)}${codeRoot ? ` CONDUCTOR_CODE_ROOT=${JSON.stringify(codeRoot)}` : ""}; `;
+      const res = await sh(`${env}${loopConfig.install}`, where);
+      if (res.exitCode !== 0) {
+        const tail = res.output.trim().split("\n").slice(-5).join(" | ");
+        return { escalate: true, reason: `loop.install failed after the dependency gate passed ${toInstall.map((t) => t.dep.name).join(", ")} (exit ${res.exitCode}): ${tail || "(no output)"}` };
+      }
+      for (const t of toInstall) {
+        task.deps_cleared[depKey(t.dep)] = t.dep.spec;
+        task.deps_installed[depKey(t.dep)] = t.check.facts.version;
+      }
+      await audit(`task ${task.id}: dependency gate passed and installed ${toInstall.map((t) => `${depKey(t.dep)} ${t.check.facts.version}`).join(", ")}`);
+      task.owner_hints = ownerHints({ changed, envFiles, deps: [...cleared, ...toInstall.map((t) => ({ ecosystem: t.dep.ecosystem, name: t.dep.name, version: t.check.facts.version }))] });
+    }
+    return null;
   }
 
   // Step 4: the round a beat wrote stays out of its branch; the owner answers
@@ -1954,6 +2116,8 @@ export async function loopCommand(args, { cwd, stdout, stderr, stack = null }) {
     };
     // Per-task worktree registry so verify/checker/merge run against the right tree.
     const cwdFor = new Map();
+    // What an item's state MR merges into: the item below it in a stack, else the default branch.
+    const outerLandsOn = async () => (stack?.outerTarget ? `origin/${stack.outerTarget}` : (await defaultBranchRef(git)) ?? "HEAD");
     const deps = {
       verifyCommand,
       assignWorktree: async ({ task }) => {
@@ -1962,9 +2126,14 @@ export async function loopCommand(args, { cwd, stdout, stderr, stack = null }) {
         // Idempotent (P1.4 resume): a prior interrupted run may have left this
         // task's worktree + branch on disk. Reuse it rather than failing the
         // `add`; a fresh `git worktree add` on an existing path/branch errors out.
-        const list = await git(["worktree", "list", "--porcelain"]);
-        const alreadyThere = list.ok && list.stdout.includes(plan.path);
+        const alreadyThere = await isLiveWorktree({ git, path: plan.path });
         if (!alreadyThere) {
+          // I5: a leftover folder at the path (a run that died) is moved aside, never deleted.
+          const freed = await freeWorktreePath({ git, path: plan.path });
+          if (freed.moved) {
+            stdout.write(`[CONDUCTOR LOOP] ${task.id}: a leftover folder sat where its worktree goes. Moved aside to ${freed.moved}.\n`);
+            await audit(`task ${task.id}: leftover folder moved aside to ${freed.moved}`);
+          }
           // F14: from the default branch, never from the branch the owner has checked out.
           // A stacked item starts from the branch of the item below it.
           const base = stack?.outerBase ?? (await defaultBranchRef(git)) ?? "HEAD";
@@ -1972,8 +2141,11 @@ export async function loopCommand(args, { cwd, stdout, stderr, stack = null }) {
           if (stack && (await git(["rev-parse", "--verify", "-q", `refs/heads/${plan.branch}`])).ok && !(await git(["merge-base", "--is-ancestor", base, plan.branch])).ok) {
             await git(["branch", "-q", "-D", plan.branch]);
           }
-          const res = await git(["worktree", "add", "-b", plan.branch, plan.path, base]);
-          if (!res.ok) await git(["worktree", "add", plan.path, plan.branch]);
+          let res = await git(["worktree", "add", "-b", plan.branch, plan.path, base]);
+          if (!res.ok) res = await git(["worktree", "add", plan.path, plan.branch]);
+          // I5: never run a beat in a folder git does not know as this worktree.
+          if (!res.ok || !(await isLiveWorktree({ git, path: plan.path })))
+            return { path: plan.path, branch: plan.branch, setup_error: `could not create the worktree at ${plan.path}${res.stderr ? `: ${res.stderr.split("\n")[0]}` : ""}. No beat ran` };
         }
         // Another loop's cleanup must never remove a worktree this run holds.
         await markWorktreeHeld({ git: makeGit(plan.path) });
@@ -1987,6 +2159,10 @@ export async function loopCommand(args, { cwd, stdout, stderr, stack = null }) {
           const { codeWorktree } = codePaths({ root, codeDir: loopConfig.codeDir, outerWorktree: plan.path });
           const c = await ensureCodeWorktree({ codeGit: makeGit(codeRoot), path: codeWorktree, branch: plan.branch, base: stack?.codeBase ?? null });
           if (!c.ok) return { path: plan.path, branch: plan.branch, setup_error: `code worktree: ${c.reason}` };
+          if (c.movedAside) {
+            stdout.write(`[CONDUCTOR LOOP] ${task.id}: a leftover folder sat where its code worktree goes. Moved aside to ${c.movedAside}.\n`);
+            await audit(`task ${task.id}: leftover code folder moved aside to ${c.movedAside}`);
+          }
           await markWorktreeHeld({ git: makeGit(codeWorktree) });
           for (const rel of [MAKER_SIGNAL_REL, VERDICT_REL, PR_BODY_REL]) await hideFromGit(rel, { cwd: codeWorktree, git: makeGit(codeWorktree) });
         }
@@ -2026,7 +2202,9 @@ export async function loopCommand(args, { cwd, stdout, stderr, stack = null }) {
           await audit(note);
         }
         await collectRulings(task, taskCwd, rulingsBefore);
-        return { ...result, signal: await readSignalAt(taskCwd) };
+        // I4: the driver's dependency gate has the last word on what this beat added.
+        const gated = await dependencyGate(taskCwd, task);
+        return { ...result, signal: gated ?? (await readSignalAt(taskCwd)) };
       },
       runVerify: async ({ task, cmd }) => {
         const t0 = Date.now();
@@ -2057,14 +2235,35 @@ export async function loopCommand(args, { cwd, stdout, stderr, stack = null }) {
       // F7: would this branch collide with the base before we push it? Asked
       // against the object store from the ROOT checkout, so no working tree is
       // touched and no worktree has to be clean for it to answer.
+      // I3: against what the MR merges into. In a stack that is the branch of the
+      // item below (KM relief slice 08 was checked against main and stopped).
       predictConflict: async ({ task }) => {
-        const outer = await predictConflicts({ git, base: (await defaultBranchRef(git)) ?? "HEAD", branch: task.worktree?.branch });
+        // What the MR lands on may have moved during the item (another project merged).
+        await git(["fetch", "-q", "origin"]);
+        const outer = await predictConflicts({ git, base: await outerLandsOn(), branch: task.worktree?.branch });
         if (!loopConfig.codeDir || outer?.conflicted) return outer;
         const codeGit = makeGit(codeRoot);
-        const base = await defaultBranchRef(codeGit);
+        await codeGit(["fetch", "-q", "origin"]);
+        const base = stack?.codeTarget ? `origin/${stack.codeTarget}` : await defaultBranchRef(codeGit);
         if (!base || !(await codeHasWork({ codeGit, branch: task.worktree?.branch, base: stack?.codeBase ?? null }))) return outer;
         const code = await predictConflicts({ git: codeGit, base, branch: task.worktree?.branch });
         return code?.conflicted ? { ...code, files: (code.files ?? []).map((f) => `${loopConfig.codeDir}/${f}`) } : outer;
+      },
+      // I3: a conflict only in Conductor documents: merge what the item lands on
+      // into its branch, keep both sides of each document, commit with the hooks.
+      resolveDocConflict: async ({ task }) => {
+        const cwd = cwdFor.get(task.id);
+        if (!cwd) return { merged: false, files: [], reason: "no worktree" };
+        const wt = makeGit(cwd);
+        await wt(["fetch", "-q", "origin"]);
+        const base = await outerLandsOn();
+        return mergeKeepingDocs({
+          git: wt,
+          base,
+          read: (rel) => readFile(join(cwd, rel), "utf8").catch(() => null),
+          write: (rel, text) => writeFile(join(cwd, rel), text, "utf8"),
+          message: `chore(conductor): take ${base.replace(/^origin\//, "")} into ${task.worktree?.branch}, both sides of each Conductor document kept`,
+        });
       },
       runShip: ({ task }) => runShipIn(cwdFor.get(task.id) ?? root, { key: task.id, task, branch: task.worktree?.branch, holder: task }),
       runSpec: ({ task }) => runSpecIn(cwdFor.get(task.id) ?? root, task),

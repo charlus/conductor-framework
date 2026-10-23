@@ -23,7 +23,7 @@ const src = (rel) => readFileSync(join(REPO, rel), "utf8");
 // Flags of other tools (git, claude) that the command files pass on, not parse.
 const NOT_OURS = {
   "install-hooks": ["--get", "--git-path", "--is-inside-work-tree", "--local", "--unset"],
-  loop: ["--verify", "--is-ancestor", "--heads", "-e", "-b", "-h", "--help", "--path-format=absolute", "--path-format", "--git-common-dir", "--git-path", "--hostname", "--name-only", "--porcelain", "-q", "--beat"],
+  loop: ["--verify", "--is-ancestor", "--heads", "-e", "-b", "-h", "--help", "--path-format=absolute", "--path-format", "--git-common-dir", "--git-path", "--hostname", "--name-only", "--porcelain", "-q", "--beat", "--others", "--exclude-standard"],
   "loop-doctor": ["--path-format", "--git-common-dir", "-c", "--detach", "--force", "--hostname", "--output-format", "-p", "--permission-mode", "-q", "--settings"],
   "loop-on": ["--error-unmatch", "-c"],
   "loop-take": ["--git-common-dir"],
@@ -110,9 +110,9 @@ test("a bare `conductor` in a project says where it stands and the next command;
 test("the Next line names the command for each way a run or a check ends", () => {
   assert.match(nextAfterLoop("awaiting_answers"), /Answer each question/);
   assert.match(nextAfterLoop("completed", { prUrls: ["u1"] }), /merge the MR \(u1\)/);
-  assert.match(nextAfterLoop("escalated"), /inbox\.md/);
+  assert.match(nextAfterLoop("escalated"), /loop-messages\.md/);
   // A6 (2026-10-22): an L3 run whose MR could not be opened also ends awaiting_review.
-  assert.match(nextAfterLoop("awaiting_review"), /inbox\.md.*could not be opened/);
+  assert.match(nextAfterLoop("awaiting_review"), /loop-messages\.md.*could not be opened/);
   assert.match(nextAfterLoop("budget_exceeded"), /budget/);
   assert.match(nextAfterLoop("stalled"), /loop doctor/);
   assert.equal(nextAfterLoop("idle"), null);

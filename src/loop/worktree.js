@@ -11,7 +11,8 @@
 // All git IO is injected as `git(argsArray) -> {ok, stdout}` so the pure naming
 // logic and the lifecycle branching are unit-testable without a real repo.
 
-import { join } from "node:path";
+import { join, basename } from "node:path";
+import { existsSync, mkdirSync, renameSync, cpSync, rmSync } from "node:fs";
 import { defaultBranchRef } from "./reconcile.js";
 
 const WORKTREES_DIR = ".agents/.worktrees";
@@ -42,6 +43,40 @@ export function taskWorktreePlan(root, goalDescription, taskId) {
   const goal = slugify(goalDescription, "loop", 20).replace(/-+$/, "");
   const slug = `${goal}-${slugify(taskId, "task", Infinity)}`;
   return { branch: `conductor/loop/${slug}`, path: join(root, WORKTREES_DIR, slug), slug };
+}
+
+/** Is `path` a live worktree of this repository: registered, and on disk? */
+export async function isLiveWorktree({ git, path }) {
+  const list = await git(["worktree", "list", "--porcelain"]);
+  return Boolean(list.ok && list.stdout.split("\n").includes(`worktree ${path}`) && existsSync(join(path, ".git")));
+}
+
+/**
+ * I5 (autopportunity, 2026-10-22): a run that died left a plain folder at a
+ * worktree's path. `git worktree add` then failed, the loop did not notice, and
+ * a beat ran in a folder git did not know. Before an add, a folder at the path
+ * that is not a live worktree is moved aside to
+ * `<git dir>/conductor-loop-logs/leftovers/<name>-<time>`, never deleted, and
+ * stale registrations are pruned. The leftover stays there for the owner.
+ * @returns {Promise<{moved: string|null}>}
+ */
+export async function freeWorktreePath({ git, path, now = () => new Date() }) {
+  if (await isLiveWorktree({ git, path })) return { moved: null };
+  await git(["worktree", "prune"]);
+  if (!existsSync(path)) return { moved: null };
+  const common = await git(["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+  if (!common.ok) return { moved: null };
+  const dir = join(common.stdout.trim(), "conductor-loop-logs", "leftovers");
+  mkdirSync(dir, { recursive: true });
+  const dest = join(dir, `${basename(path)}-${now().toISOString().replace(/[:.]/g, "-")}`);
+  try {
+    renameSync(path, dest);
+  } catch {
+    cpSync(path, dest, { recursive: true });
+    rmSync(path, { recursive: true, force: true });
+  }
+  await git(["worktree", "prune"]);
+  return { moved: dest };
 }
 
 /**

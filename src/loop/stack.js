@@ -173,6 +173,20 @@ export function renderStackReport({ project, entries, stop = null, notes = [], n
       if (e.summary) lines.push(`- What it does: ${e.summary}`);
       if (e.adopted) lines.push("- Built by an earlier run, taken into this stack as it was.");
       if (e.changed) lines.push("- You changed this MR: your version is kept.");
+      // I1: what the owner does around this merge, from the Ship beat and from the diff.
+      // A driver hint about dependencies the Ship beat already names is not said twice.
+      const said = (e.ownerActions ?? []).join(" ").toLowerCase();
+      const hints = (e.detected ?? []).filter((h) => {
+        const deps = [...h.matchAll(/([\w.@/:-]+) [\w.+!-]+ \((?:npm|pypi|go|cargo|maven|rubygems|composer|nuget)\)/g)].map((m) => m[1].toLowerCase());
+        return !deps.length || !deps.every((d) => said.includes(d));
+      });
+      const actions = [...(e.ownerActions ?? []), ...hints];
+      if (actions.length) {
+        lines.push("- Owner actions, around this merge:");
+        for (const a of actions) lines.push(`  - ${a}`);
+      } else lines.push("- Owner actions: none.");
+      // I3: documents the loop merged from both sides.
+      if (e.docsMerged?.length) lines.push(`- Conductor documents merged from both sides, read them before you merge: ${e.docsMerged.map((f) => `\`${f}\``).join(", ")}.`);
       const decided = (e.rulings ?? []).filter((r) => r && (r.decision || r.text));
       if (decided.length) {
         lines.push("- Decided for you (overrule in the MR):");
@@ -187,9 +201,21 @@ export function renderStackReport({ project, entries, stop = null, notes = [], n
   if (!stop || stop.status === "done") lines.push("Every item of the project is built. Nothing is left to build until you merge or reject an MR.");
   else if (stop.status === "awaiting_answers")
     lines.push(`${stop.item ?? "An item"} needs your decision on a one-way door. Answer each question in \`${stop.round ?? "conductor/1-workbench/questions/"}\` with an option number, then run \`conductor loop ${project}\` again. Nothing was built above it.`);
-  else lines.push(`${stop.item ?? "The run"} stopped: ${stop.status}${stop.reason ? `. ${stop.reason}` : ""}. Read conductor/1-workbench/inbox.md, then run \`conductor loop ${project}\` again: it continues from there.`);
+  else lines.push(`${stop.item ?? "The run"} stopped: ${stop.status}${stop.reason ? `. ${stop.reason}` : ""}. Read conductor/1-workbench/loop-messages.md, then run \`conductor loop ${project}\` again: it continues from there.`);
   lines.push("", `Total cost of the open items: ≈ ${money(total)} at list price.`, "");
   return lines.join("\n");
+}
+
+/**
+ * I1: the bullets of the ship body's "Owner actions" section (commands, backups,
+ * migrations, environment variables, dependencies, configuration). [] when the
+ * section is absent or says none.
+ */
+export function ownerActionsFromBody(body) {
+  const m = String(body ?? "").match(/##\s*Owner actions\s*\n+([\s\S]*?)(\n##\s|$)/i);
+  if (!m) return [];
+  const items = m[1].split("\n").map((l) => l.replace(/^\s*[-*]\s*/, "").trim()).filter(Boolean);
+  return items.length === 1 && /^none\.?$/i.test(items[0]) ? [] : items.slice(0, 20);
 }
 
 /** The first line of the ship body's "What changes for you" section, as the item's summary. */

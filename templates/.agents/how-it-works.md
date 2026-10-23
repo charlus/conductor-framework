@@ -172,6 +172,7 @@ task-backlog.md → Do it → ship-log.md
 | "Quick path", "Just build this" | Fast Track | → `workflows/quick-path.md` (skips discovery) |
 | "Let's reflect", "Retro" | Learning | → `workflows/retrospective.md` |
 | "Loop", "Unattended", "Autonomous", "Loop-ready" | Autonomous Loop | → `workflows/unattended-loop.md` |
+| "Merge the loop's MRs", "/merge-stack <project>", "Guide me through the loop report" | Merge Stack | → `workflows/merge-stack.md` (reads `conductor/1-workbench/loop-report-<project>.md`, checks each MR live, walks the owner through the merges and the manual steps; never merges itself) |
 | "Update the project card", "Refresh AGENTS.md" | Project card | → `workflows/agents-md.md` (also when `conductor status` says the card is a draft or stale) |
 | "Brain dump", "Refine my ideas" | Skill | → `skills/brain-dump-to-epics/` |
 | "CTO mode", "Designer mode", "PM mode", etc. | Thinking Partner | → load matching persona from `personas/` |
@@ -346,8 +347,12 @@ Facts an agent needs when it works on, or inside, a `conductor loop` run. Full g
 - **Ship before the MR.** At L3 a task's Ship beat runs `ship.md` Phases 1–5 in its worktree (the `## Ship beat` section of `unattended-loop.md` says what the driver does instead of Phases 4 and 6). The bookkeeping rides in the MR; the driver opens it with the body the Ship beat wrote.
 - **Decisions made alone.** The Maker logs each decision the spec did not settle in `conductor/1-workbench/rulings.md` (`- [YYYY-MM-DD HH:MM] <task id> · <decision> · why: … · if wrong: low|medium|high · …`). The PR lists every ruling on its branch, a `high` one goes to the inbox while the run continues, and the Checker reviews them against the spec.
 - **Before a run.** `conductor loop doctor [dir] [--beat]` checks the setup, the verify command in a fresh worktree, the sandbox profile and the forge login, and prints each fix.
-- **Following a run.** `conductor watch` (from the event log `.git/conductor-loop-logs/events.ndjson`): each item's beat in progress and the last recorded fact.
-- **Evidence after a run.** The run's cost by role in `conductor status`, escalations in `conductor/1-workbench/inbox.md`, the trail in `0-compass/ship-log.md`, and each beat's full agent output in `.git/conductor-loop-logs/`.
+- **Following a run.** `conductor watch` (from the event log `.git/conductor-loop-logs/events.ndjson`): per project, the item and its place in the stack, the step in progress and since when, minutes per item, the expected end, a wait for the usage limit, the last stop in words, and each item's last recorded fact.
+- **The usage limit.** A beat that hits the agent CLI's limit waits for the reset the CLI announces, then runs again, up to `loop.quota_max_wait_min` (default 330); beyond, or with no reset time, the run stops.
+- **Dependencies.** No beat reaches a package registry. After a Build or Ship beat the driver reads the manifests it changed (npm, PyPI, Go, Cargo, Maven/Gradle, RubyGems, Composer, NuGet): a dependency the Technical Vision names is checked on its registry and in OSV (exists, pinned, at least `loop.dependency_min_age_days` old, not yanked, no known vulnerability) and installed with `loop.install`; any other is a question round; a failed check or an unreachable registry stops the item.
+- **Conflicts.** An MR that would conflict only in Conductor documents is not a stop: the loop takes what it lands on, keeps both sides, verifies again and names the documents in the report. A code conflict stops the item.
+- **Merging.** `/merge-stack <project>` (`workflows/merge-stack.md`) walks the owner through the report's MRs in order, each checked live, with each item's Owner actions. The loop's messages, reports and waiting rounds are hidden from git, so the owner's folder stays clean.
+- **Evidence after a run.** The run's cost by role in `conductor status`, escalations in `conductor/1-workbench/loop-messages.md` (not tracked by git; `conductor status` names the newest), the trail in `0-compass/ship-log.md`, and each beat's full agent output in `.git/conductor-loop-logs/`.
 
 ---
 

@@ -125,3 +125,23 @@ test("the item's summary is the first line of the ship body's What changes for y
   assert.equal(summaryFromBody("## What changes for you\n- Writers see their notes by date.\n\n## Evidence\nx"), "Writers see their notes by date.");
   assert.equal(summaryFromBody(null), null);
 });
+
+test("I1: the report lists the Ship beat's owner actions and the driver's hints, without saying the same dependency twice", () => {
+  const text = renderStackReport({
+    project: "notes",
+    entries: [{
+      title: "slice 01",
+      outer: { url: "https://x/2" },
+      code: { url: "https://x/1" },
+      ownerActions: ["Install the new dependency where the product runs: `pip install -r requirements.txt` (pins `holidays==0.58`)."],
+      detected: [
+        "Install the new dependency where the product runs: holidays 0.58 (pypi). The loop installed it in its own worktree only.",
+        "Back up the database, then run the new migration where the product runs: `repo/alembic/versions/0042_x.py`.",
+      ],
+    }],
+    stop: { status: "done" },
+    now: "2026-10-23T08:12:00Z",
+  });
+  assert.match(text, /- Owner actions, around this merge:\n {2}- Install the new dependency where the product runs: `pip install -r requirements\.txt` \(pins `holidays==0\.58`\)\.\n {2}- Back up the database/);
+  assert.equal((text.match(/Install the new dependenc/g) ?? []).length, 1);
+});

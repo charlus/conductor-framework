@@ -157,6 +157,15 @@ export async function statusCommand(args, context) {
       `  ❓ ${waiting.length} question round${waiting.length === 1 ? "" : "s"} waiting for you: ${waiting.map((f) => `${QUESTIONS_REL}/${f}`).join(", ")}. Answer each by number, then run the loop again.\n`
     );
   }
+  // I6: the loop's messages live outside git; the newest one is named here.
+  const { readLoopMessages, MESSAGES_REL } = await import("../loop/owner-files.js");
+  const messages = await readLoopMessages(root);
+  if (messages.length) {
+    const last = messages.at(-1);
+    context.stdout.write(`  📬 ${messages.length} loop message${messages.length === 1 ? "" : "s"} in ${MESSAGES_REL}. Newest: ${last.title}${last.text ? `: ${last.text.slice(0, 160)}${last.text.length > 160 ? "…" : ""}` : ""}\n`);
+  }
+  const reports = (await readdir(join(root, "conductor/1-workbench")).catch(() => [])).filter((f) => /^loop-report-.+\.md$/.test(f));
+  if (reports.length) context.stdout.write(`  📋 Loop report${reports.length === 1 ? "" : "s"}: ${reports.map((f) => `conductor/1-workbench/${f}`).join(", ")}. Merge with /merge-stack <project>.\n`);
   const answeredRounds = await Promise.all((await md(`${QUESTIONS_REL}/answered`)).map((f) => readFile(join(root, QUESTIONS_REL, "answered", f), "utf8")));
   const rulingsText = await readFile(join(root, "conductor/1-workbench/rulings.md"), "utf8").catch(() => "");
   const st = decisionStats({ rulingsText, answeredRounds });

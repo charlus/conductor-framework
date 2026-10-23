@@ -128,7 +128,69 @@ function runModel(events, last) {
       items.set(e.task, it);
     }
   }
-  return { run: last.run, project: last.project ?? null, started: last.at, ended: mine.find((e) => e.type === "run_end") ?? null, items: [...items.values()], beats, cost, planned: last.items ?? [] };
+  const quota = mine.filter((e) => e.type === "quota_wait" || e.type === "quota_resume").at(-1);
+  return {
+    run: last.run,
+    project: last.project ?? null,
+    started: last.at,
+    ended: mine.find((e) => e.type === "run_end") ?? null,
+    items: [...items.values()],
+    beats,
+    cost,
+    planned: last.items ?? [],
+    waitingQuota: quota?.type === "quota_wait" ? quota.until : null,
+    stack: stackModel(events, last),
+  };
+}
+
+/**
+ * I7 (owner, 2026-10-23: "seems either stuck or still running"): where a
+ * stacked run is. Its own events (stack_start, stack_item, stack_end) share the
+ * process id with the item runs. Pure.
+ * @returns {{project, n, of, item, itemSince, avgMin: number|null, endsAt: string|null, stop: object|null}|null}
+ */
+export function stackModel(events, run) {
+  if (!run?.project || !run.pid) return null;
+  const starts = events.filter((e) => e.type === "stack_start" && e.project === run.project && e.pid === run.pid && e.at <= run.at);
+  const start = starts.at(-1);
+  if (!start) return null;
+  const mine = events.filter((e) => e.run === start.run);
+  const itemsSeen = mine.filter((e) => e.type === "stack_item");
+  const current = itemsSeen.at(-1) ?? null;
+  const end = mine.find((e) => e.type === "stack_end") ?? null;
+  // A finished item lasted from its stack_item to the next one.
+  const spans = itemsSeen.slice(0, -1).map((e, i) => Date.parse(itemsSeen[i + 1].at) - Date.parse(e.at)).filter((ms) => ms > 0);
+  const avgMs = spans.length ? spans.reduce((a, b) => a + b, 0) / spans.length : null;
+  const left = current ? current.of - current.n + 1 : 0;
+  return {
+    project: run.project,
+    n: current?.n ?? null,
+    of: current?.of ?? start.total ?? null,
+    item: current?.item ?? null,
+    itemSince: current?.at ?? null,
+    avgMin: avgMs ? Math.round(avgMs / 60000) : null,
+    endsAt: avgMs && current && !end ? new Date(Date.parse(current.at) + avgMs * left).toISOString() : null,
+    stop: end ? { status: end.status, item: end.item ?? null, reason: end.reason ?? null, at: end.at } : null,
+  };
+}
+
+const STOP_WORDS = {
+  done: "every item is built: merge the MRs in the order of the loop report",
+  awaiting_answers: "an item waits for your answer to a question round",
+  awaiting_review: "an item would conflict on merge, or its MR could not be opened",
+  escalated: "an item needs something only you can give",
+  usage_limit_reached: "the usage limit was reached, and its reset was too far away to wait for",
+  halted_isolation: "a worktree was removed under the run; nothing was committed",
+  budget_exceeded: "an item used its whole time budget",
+  max_iterations_exceeded: "an item used its whole beat budget",
+  failed: "an item failed",
+  stalled: "an item made no progress",
+  interrupted: "you stopped the run",
+};
+
+/** A stop status in plain words. */
+export function stopInWords(status) {
+  return STOP_WORDS[status] ?? `stopped (${status})`;
 }
 
 /** One screen for every run `watchModels` returned, each under its project's name. */
@@ -143,7 +205,21 @@ const hhmm = (iso) => new Date(iso).toTimeString().slice(0, 5);
 /** The watch screen. `now` in ms. */
 export function renderWatch(m, now) {
   if (!m) return "  No loop run recorded here yet. Start one with `conductor loop . --from-conductor`.\n";
-  const lines = [`  Loop run started ${hhmm(m.started)} · ${Math.round((now - Date.parse(m.started)) / 60000)} min · ${m.beats} beat${m.beats === 1 ? "" : "s"} · ≈ $${m.cost.toFixed(2)} at list price`, ""];
+  const lines = [];
+  // I7: a stacked run says where it is in the project, and when it should end.
+  const st = m.stack;
+  if (st?.n) {
+    const now_ = m.items.find((i) => i.active)?.active;
+    lines.push(
+      `  ${st.project}: ${st.item ?? "item"} — ${st.n} of ${st.of}` +
+        `${now_ ? ` · now: ${STAGE_LABEL[now_.kind] ?? now_.kind} since ${hhmm(now_.since)}` : ""}` +
+        `${st.avgMin ? ` · about ${st.avgMin} min per item` : ""}` +
+        `${st.endsAt ? ` · should end about ${hhmm(st.endsAt)}` : ""}`
+    );
+  }
+  if (m.waitingQuota) lines.push(`  ⏸  Usage limit reached: waiting until ${hhmm(m.waitingQuota)}, then the same beat runs again.`);
+  if (st?.stop) lines.push(`  Last stop ${hhmm(st.stop.at)}: ${st.stop.item ? `${st.stop.item}: ` : ""}${stopInWords(st.stop.status)}${st.stop.reason ? ` (${st.stop.reason})` : ""}.`);
+  lines.push(`  Loop run started ${hhmm(m.started)} · ${Math.round((now - Date.parse(m.started)) / 60000)} min · ${m.beats} beat${m.beats === 1 ? "" : "s"} · ≈ $${m.cost.toFixed(2)} at list price`, "");
   if (!m.items.length) lines.push(`  ${m.planned.length} item${m.planned.length === 1 ? "" : "s"} queued, no beat yet.`);
   for (const it of m.items) {
     lines.push(`  ${it.task}`);

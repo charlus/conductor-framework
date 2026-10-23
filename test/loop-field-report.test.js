@@ -103,11 +103,11 @@ test("F4: no origin and no loop.forge → the dry-run flags it and exits 1", asy
 });
 
 test("F2/F3: dry-run shows the setup command and the extra sandbox domains", async () => {
-  const config = { loop: { setup: "npm ci", allowed_domains: ["pypi.org", "files.pythonhosted.org"] } };
+  const config = { loop: { setup: "npm ci", allowed_domains: ["api.example.com", "code.example.com"] } };
   await withProject({ state: L3, config, remote: "https://github.com/a/b.git" }, async (dir) => {
     const { out } = await dry(dir);
     assert.match(out, /setup:\s+npm ci/);
-    assert.match(out, /network:\s+\+ pypi\.org, files\.pythonhosted\.org\n/);
+    assert.match(out, /network:\s+\+ api\.example\.com, code\.example\.com\n/);
   });
 });
 

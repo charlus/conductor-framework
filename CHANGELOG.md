@@ -8,6 +8,35 @@ All notable changes to the Conductor Framework will be documented in this file.
 
 ---
 
+## [6.52.0] — 2026-10-23 — The lessons of two overnight runs: a guide to merge, a wait for the quota, a gate for dependencies
+
+Compatibility: upgrade plus a step
+
+### Added
+
+- **`/merge-stack <project>` walks you through a loop run's MRs.** The new `merge-stack` workflow reads the loop report, checks each MR live on the forge (state, target, pipeline), and takes you through the merges in order, one at a time, with each item's manual steps at the right moment. It never merges.
+- **Owner actions per MR.** The Ship beat writes a `## Owner actions` section in each MR body: backups, migrations, environment variables, dependencies to install, configuration, one-off commands, each with its command. The driver adds what it reads from the diff (a migration, a new variable in an `.env` example, a new dependency, a deployment file). The loop report lists them under each MR.
+- **A wait for the usage limit.** When a beat hits the agent CLI's limit and the CLI says when it resets ("resets 6:40pm (Europe/Brussels)", or the `|<epoch>` form), the run waits until a minute after that and runs the same beat again, if the reset is at most `loop.quota_max_wait_min` away (default 330). A weekly limit, or no reset time, stops the run as before, and the message says why it did not wait.
+- **The dependency gate, for every ecosystem.** No beat reaches a package registry: the sandbox profile no longer lists npm, and `loop.allowed_domains` refuses PyPI, npm, crates.io, Maven Central, RubyGems, Packagist, NuGet, Go's proxy and the others. After a Build or Ship beat the driver reads what changed in the manifests (npm, yarn, pnpm; PyPI requirements files and `pyproject.toml`; Go modules; Cargo; Maven and Gradle; RubyGems; Composer; NuGet). A dependency the approved Technical Vision names is checked: it exists on its registry, it is pinned to one version, it is at least `loop.dependency_min_age_days` old (default 7), it is not yanked or deprecated (deps.dev, or Packagist for Composer), and OSV knows no vulnerability for it. Then the driver installs it with `loop.install`, outside the sandbox. A failed check, or a registry the driver cannot reach, stops the item with the reason. A dependency the Technical Vision does not name, or a change to a manifest the gate cannot read, is a question round with the name, the registry link, the age and the vulnerability result.
+- **`conductor watch` says where a stacked run is**: the item and its place ("slice 08 — 8 of 17"), the step in progress and since when, the minutes per item in this run, when the run should end, a wait for the usage limit, and why the run last stopped, in words.
+
+### Changed
+
+- **A conflict only in Conductor documents no longer stops a project.** KM relief stopped at slice 08 of 17 on two documents another project had changed. Now the loop takes what the MR lands on into the item's branch, keeps both sides of each document, runs verify again and opens the MR; the report names the documents to read before you merge. A conflict in code still stops the item.
+- **Conflicts are checked against what the MR merges into**, fetched just before: in a stack, the branch of the item below, not the default branch.
+- **Your folder stays clean after a run.** The loop's messages go to `conductor/1-workbench/loop-messages.md` instead of the tracked `inbox.md`. The loop reports, the question rounds waiting for you and `loop-improvements.md` are hidden from git through its local exclude file. `conductor status` and `conductor inbox list` show the messages.
+
+### Fixed
+
+- **A leftover folder where a worktree goes no longer breaks the next run.** A run that died left a plain folder at a slice's worktree path; the next `git worktree add` failed unnoticed, and a beat ran in a folder git did not know, until the isolation guard stopped it. Every `git worktree add` is now checked. A folder at the path that is not a worktree is moved to `.git/conductor-loop-logs/leftovers/`, never deleted, and a worktree that cannot be made stops the item before any beat.
+
+### Note — upgrading
+
+- Remove every package registry from `loop.allowed_domains` in `conductor.config.json` (PyPI, `files.pythonhosted.org`, npm…): a run now refuses them, because no beat may reach a registry.
+- Set `loop.install` to the command that installs the project's dependencies, for example `".venv/bin/pip install -r requirements.txt"` or `"npm ci"`. Without it, a new dependency that passes the gate stops its item with a message asking for it.
+
+---
+
 ## [6.51.0] — 2026-10-22 — One command builds a whole project, stacked; your folder stays on its default branch
 
 Compatibility: upgrade only

@@ -147,7 +147,7 @@ export function classifyBeatResult(result) {
   const text = `${result?.stdout ?? ""}\n${result?.stderr ?? ""}`;
   if (USAGE_LIMIT_PATTERNS.some((re) => re.test(text))) {
     const m = text.match(/resets?\s+(?:at\s+)?(\d{1,2}:\d{2}\s*(?:[ap]m)?)/i);
-    return { dead: true, kind: "usage_limit", resetHint: m ? m[1].replace(/\s+/g, "") : null };
+    return { dead: true, kind: "usage_limit", resetHint: m ? m[1].replace(/\s+/g, "") : null, note: result?.quotaNote ?? null };
   }
   // An engine that cannot log in fails every beat the same way. Only on a failed
   // exit, so Maker output that mentions a 401 never halts the run. A 5xx is
@@ -176,7 +176,9 @@ export function deadBeatMessage(verdict, where = "") {
     return `the agent CLI could not log in (HTTP ${verdict.status})${at}. No work was done; log the CLI in again, then re-run to resume.`;
   }
   const resetNote = verdict?.resetHint ? ` — resets ${verdict.resetHint}` : "";
-  return `agent CLI reported a usage/session limit${resetNote}${at}. No work was done; raise the limit or wait, then re-run to resume.`;
+  // I2: why the run did not wait for the reset.
+  const why = verdict?.note ? ` The loop did not wait: ${verdict.note}.` : "";
+  return `agent CLI reported a usage/session limit${resetNote}${at}.${why} No work was done; raise the limit or wait, then re-run to resume.`;
 }
 
 /**

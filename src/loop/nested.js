@@ -14,6 +14,7 @@
 
 import { join } from "node:path";
 import { defaultBranchRef } from "./reconcile.js";
+import { isLiveWorktree, freeWorktreePath } from "./worktree.js";
 
 /** Where the code repository and the beat's code worktree are. */
 export function codePaths({ root, codeDir, outerWorktree }) {
@@ -27,9 +28,9 @@ export function codePaths({ root, codeDir, outerWorktree }) {
  * @returns {Promise<{ok: boolean, path?: string, base?: string, reason?: string}>}
  */
 export async function ensureCodeWorktree({ codeGit, path, branch, base: stackBase = null }) {
-  const list = await codeGit(["worktree", "list", "--porcelain"]);
-  if (list.ok && list.stdout.split("\n").includes(`worktree ${path}`)) return { ok: true, path, reused: true };
-  await codeGit(["worktree", "prune"]);
+  if (await isLiveWorktree({ git: codeGit, path })) return { ok: true, path, reused: true };
+  // I5: a leftover folder at the path is moved aside, never deleted.
+  const freed = await freeWorktreePath({ git: codeGit, path });
   await codeGit(["fetch", "-q", "origin"]);
   // A stacked item starts from the code branch of the item below it.
   const base = stackBase ?? (await defaultBranchRef(codeGit));
@@ -41,7 +42,8 @@ export async function ensureCodeWorktree({ codeGit, path, branch, base: stackBas
   }
   const add = exists ? await codeGit(["worktree", "add", path, branch]) : await codeGit(["worktree", "add", "-b", branch, path, base]);
   if (!add.ok) return { ok: false, reason: `git worktree add failed in the code repository${add.stderr ? `: ${add.stderr.split("\n")[0]}` : ""}` };
-  return { ok: true, path, base };
+  if (!(await isLiveWorktree({ git: codeGit, path }))) return { ok: false, reason: `git worktree add reported success, but ${path} is not a worktree of the code repository` };
+  return { ok: true, path, base, ...(freed.moved ? { movedAside: freed.moved } : {}) };
 }
 
 /** Does the code branch carry commits its base does not have? */
